@@ -35,6 +35,8 @@ def get_driver():
     options.add_argument('--disable-gpu')
     options.add_argument('--disable-extensions')
     options.add_argument('--remote-debugging-port=9222')
+    # Add user agent to mimic real browser
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36')
     return webdriver.Chrome(options=options)
 
 def scrape_pfd_reports(keyword):
@@ -50,20 +52,40 @@ def scrape_pfd_reports(keyword):
         driver.get(search_url)
         
         # Wait for the page to load
-        time.sleep(5)  # Increased wait time
+        time.sleep(5)
         
         # Get the page source
         page_source = driver.page_source
+        
+        # Debug: Show a portion of the HTML
+        st.code(page_source[:5000], language='html')
+        
         soup = BeautifulSoup(page_source, 'lxml')
         
-        # Find all entries on the page
-        entries = soup.find_all(['h2', 'div'], class_=['entry-title', 'search-result'])
+        # Debug: Look for specific elements
+        main_content = soup.find('main', {'id': 'main-content'})
+        if main_content:
+            st.write("Found main content area")
+            # Show the first part of main content
+            st.code(str(main_content)[:1000], language='html')
+        else:
+            st.write("Could not find main content area")
+        
+        # Try different selectors
+        entries = (
+            soup.find_all('article') or 
+            soup.find_all(['h2', 'div'], class_=['entry-title', 'search-result']) or
+            soup.select('.search-results article') or
+            soup.select('h2.entry-title')
+        )
         
         st.write(f"Found {len(entries)} potential entries")
         
-        # Debug: Print some of the entries
-        for entry in entries[:3]:
-            st.write(f"Entry text: {entry.text.strip() if entry else 'None'}")
+        # Debug: Show all h2 elements
+        all_h2s = soup.find_all('h2')
+        st.write(f"Found {len(all_h2s)} h2 elements")
+        for h2 in all_h2s[:5]:
+            st.write(f"H2 text: {h2.text.strip() if h2 else 'None'}")
         
         reports = []
         for entry in entries:
@@ -80,7 +102,7 @@ def scrape_pfd_reports(keyword):
                 title = clean_text(link.text)
                 url = link.get('href', '')
                 
-                # Initialize report with default values
+                # Initialize report
                 report = {
                     'Title': title,
                     'URL': url,
@@ -101,9 +123,7 @@ def scrape_pfd_reports(keyword):
                 
                 if metadata and metadata.text:
                     metadata_text = clean_text(metadata.text)
-                    st.write(f"Processing metadata for: {title}")
                     
-                    # Extract metadata using patterns
                     patterns = {
                         'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
                         'Reference': r'Ref:?\s*([\w-]+)',
