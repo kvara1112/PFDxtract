@@ -8,7 +8,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import time
 
@@ -20,23 +19,23 @@ st.set_page_config(
 
 def clean_text(text):
     """Clean extracted text by removing extra whitespace and newlines"""
-    if not text:
+    if text is None:
         return ""
     try:
         return ' '.join(str(text).strip().split())
-    except Exception:
-        return str(text).strip()
+    except (AttributeError, TypeError):
+        return ""
 
-def setup_driver():
-    """Set up and return the Chrome driver with appropriate options"""
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    
-    service = Service(ChromeDriverManager().install())
-    return webdriver.Chrome(service=service, options=chrome_options)
+def get_driver():
+    """Set up Chrome driver with appropriate options for Streamlit Cloud"""
+    options = webdriver.ChromeOptions()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--disable-extensions')
+    options.add_argument('--remote-debugging-port=9222')
+    return webdriver.Chrome(options=options)
 
 def scrape_pfd_reports(keyword):
     """
@@ -47,61 +46,41 @@ def scrape_pfd_reports(keyword):
         search_url = f"https://www.judiciary.uk/?s={keyword}&pfd_report_type=&post_type=pfd&order=relevance"
         st.write(f"Accessing URL: {search_url}")
         
-        driver = setup_driver()
+        driver = get_driver()
         driver.get(search_url)
         
-        # Wait for content to load
-        time.sleep(3)
+        # Wait for the page to load
+        time.sleep(5)  # Increased wait time
         
-        try:
-            # Wait for content or timeout after 10 seconds
-            WebDriverWait(driver, 10).until(
-                EC.presence_of_element_located((By.TAG_NAME, "article"))
-            )
-        except Exception as e:
-            st.warning("Timed out waiting for results to load")
-        
-        # Get page source
+        # Get the page source
         page_source = driver.page_source
         soup = BeautifulSoup(page_source, 'lxml')
         
-        # Debug output
-        st.write("Page loaded successfully")
+        # Find all entries on the page
+        entries = soup.find_all(['h2', 'div'], class_=['entry-title', 'search-result'])
         
-        # Find main content
-        main_content = soup.find('main', id='main-content')
-        if not main_content:
-            st.warning("Could not find main content area")
-            return pd.DataFrame()
+        st.write(f"Found {len(entries)} potential entries")
         
-        # Find all articles
-        report_entries = main_content.find_all('article')
-        st.write(f"Found {len(report_entries)} reports")
-        
-        if not report_entries:
-            st.warning("No reports found")
-            return pd.DataFrame()
+        # Debug: Print some of the entries
+        for entry in entries[:3]:
+            st.write(f"Entry text: {entry.text.strip() if entry else 'None'}")
         
         reports = []
-        for entry in report_entries:
+        for entry in entries:
             try:
-                # Find title
-                title_elem = entry.find('h2', class_='entry-title')
-                if not title_elem or not title_elem.find('a'):
+                # Find the title and link
+                title_tag = entry if entry.name == 'h2' else entry.find('h2')
+                if not title_tag:
+                    continue
+                    
+                link = title_tag.find('a')
+                if not link:
                     continue
                 
-                link = title_elem.find('a')
                 title = clean_text(link.text)
                 url = link.get('href', '')
                 
-                # Find metadata
-                metadata = entry.find('p')
-                if not metadata:
-                    continue
-                    
-                metadata_text = clean_text(metadata.text)
-                
-                # Create report dictionary
+                # Initialize report with default values
                 report = {
                     'Title': title,
                     'URL': url,
@@ -113,23 +92,33 @@ def scrape_pfd_reports(keyword):
                     'Category': ''
                 }
                 
-                # Extract metadata using patterns
-                patterns = {
-                    'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
-                    'Reference': r'Ref:?\s*([\w-]+)',
-                    'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
-                    'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
-                    'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
-                    'Category': r'Category:?\s*([^|]+)'
-                }
+                # Look for metadata
+                metadata = None
+                if entry.name == 'h2':
+                    metadata = entry.find_next('p')
+                else:
+                    metadata = entry.find('p')
                 
-                for key, pattern in patterns.items():
-                    match = re.search(pattern, metadata_text)
-                    if match:
-                        report[key] = clean_text(match.group(1))
+                if metadata and metadata.text:
+                    metadata_text = clean_text(metadata.text)
+                    st.write(f"Processing metadata for: {title}")
+                    
+                    # Extract metadata using patterns
+                    patterns = {
+                        'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
+                        'Reference': r'Ref:?\s*([\w-]+)',
+                        'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
+                        'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
+                        'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
+                        'Category': r'Category:?\s*([^|]+)'
+                    }
+                    
+                    for key, pattern in patterns.items():
+                        match = re.search(pattern, metadata_text)
+                        if match:
+                            report[key] = clean_text(match.group(1))
                 
                 reports.append(report)
-                st.write(f"Processed report: {title}")
                 
             except Exception as e:
                 st.error(f"Error processing entry: {str(e)}")
@@ -137,8 +126,10 @@ def scrape_pfd_reports(keyword):
         
         if reports:
             df = pd.DataFrame(reports)
+            df = df[['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 'Coroner_Area', 'Category', 'URL']]
             return df
         
+        st.warning("No reports could be extracted from the page.")
         return pd.DataFrame()
         
     except Exception as e:
@@ -171,7 +162,6 @@ def main():
                 if not df.empty:
                     st.success(f"Found {len(df)} reports")
                     
-                    # Display results
                     st.dataframe(
                         df,
                         column_config={
@@ -180,7 +170,6 @@ def main():
                         hide_index=True
                     )
                     
-                    # Download button
                     csv = df.to_csv(index=False)
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     filename = f"pfd_reports_{keyword}_{timestamp}.csv"
