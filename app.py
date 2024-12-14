@@ -9,7 +9,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
-from selenium.webdriver.common.action_chains import ActionChains
 
 st.set_page_config(
     page_title="UK Judiciary PFD Reports Scraper",
@@ -28,66 +27,46 @@ def get_driver():
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36')
     return webdriver.Chrome(options=options)
 
-def wait_for_element(driver, by, value, timeout=10):
+def extract_report_info(article):
+    """Extract report information from an article element"""
     try:
-        element = WebDriverWait(driver, timeout).until(
-            EC.presence_of_element_located((by, value))
-        )
-        return element
+        # Get title and URL
+        title_elem = article.find_element(By.CSS_SELECTOR, "h2.entry-title a")
+        title = title_elem.text.strip()
+        url = title_elem.get_attribute("href")
+        
+        # Get metadata paragraph
+        metadata = article.find_element(By.TAG_NAME, "p").text.strip()
+        
+        # Extract information using patterns
+        patterns = {
+            'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
+            'Reference': r'Ref:?\s*([\w-]+)',
+            'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
+            'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
+            'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
+            'Category': r'Category:?\s*([^|\n]+)',
+            'Hospital': r'This report is being sent to:\s*([^|\n]+)'
+        }
+        
+        # Initialize report with default values
+        report = {
+            'Title': title,
+            'URL': url
+        }
+        
+        # Add extracted fields
+        for key, pattern in patterns.items():
+            match = re.search(pattern, metadata)
+            report[key] = match.group(1).strip() if match else ""
+            
+        return report
+        
     except Exception as e:
+        st.error(f"Error extracting report info: {str(e)}")
         return None
 
-def scroll_and_collect(driver, max_scrolls=10):
-    """Scroll through the page and collect articles"""
-    collected_articles = set()
-    last_height = driver.execute_script("return document.body.scrollHeight")
-    scroll_count = 0
-    
-    while scroll_count < max_scrolls:
-        # Scroll down
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)  # Wait for content to load
-        
-        # Get new page height
-        new_height = driver.execute_script("return document.body.scrollHeight")
-        
-        # Find all articles currently visible
-        articles = driver.find_elements(By.CSS_SELECTOR, "article")
-        current_count = len(collected_articles)
-        
-        # Add new articles to our set
-        for article in articles:
-            try:
-                title = article.find_element(By.CSS_SELECTOR, "h2.entry-title").text
-                collected_articles.add(title)
-            except:
-                continue
-        
-        # Debug output
-        new_count = len(collected_articles)
-        if new_count > current_count:
-            st.write(f"Found {new_count - current_count} new articles. Total: {new_count}")
-        
-        # If no new height, we've reached the bottom
-        if new_height == last_height:
-            scroll_count += 1
-        else:
-            scroll_count = 0
-            last_height = new_height
-            
-        # Try to click "Load more" button if it exists
-        try:
-            load_more = driver.find_element(By.CSS_SELECTOR, ".load-more, .pagination-next")
-            if load_more and load_more.is_displayed():
-                actions = ActionChains(driver)
-                actions.move_to_element(load_more).click().perform()
-                time.sleep(2)
-        except:
-            pass
-    
-    return driver.find_elements(By.CSS_SELECTOR, "article")
-
-def scrape_pfd_reports(keyword):
+def scrape_pfd_reports(keyword, max_results=50):
     driver = None
     try:
         search_url = f"https://www.judiciary.uk/?s={keyword}&post_type=pfd"
@@ -95,82 +74,56 @@ def scrape_pfd_reports(keyword):
         
         driver = get_driver()
         driver.get(search_url)
+        time.sleep(3)  # Wait for initial load
         
-        # Wait for results to load
-        results_header = wait_for_element(driver, By.CLASS_NAME, "search__header")
-        if results_header:
-            results_text = results_header.text
-            st.write(f"Found results header: {results_text}")
-            
-            # Extract expected number of results
-            match = re.search(r'found (\d+) results', results_text)
-            if match:
-                expected_results = int(match.group(1))
-                st.write(f"Expecting to find {expected_results} results")
-        
-        # Scroll and collect articles with progress bar
-        st.write("Scrolling through results...")
-        progress_bar = st.progress(0)
-        
-        articles = scroll_and_collect(driver)
-        st.write(f"Found {len(articles)} articles after scrolling")
+        # Find total number of results
+        results_header = driver.find_element(By.CLASS_NAME, "search__header").text
+        st.write(f"Found results header: {results_header}")
         
         reports = []
-        for index, article in enumerate(articles):
-            try:
-                # Update progress
-                progress_bar.progress((index + 1) / len(articles))
-                
-                # Get title and link
-                title_elem = article.find_element(By.CSS_SELECTOR, "h2.entry-title a")
-                title = title_elem.text.strip()
-                url = title_elem.get_attribute("href")
-                
-                # Get metadata
-                metadata = article.find_element(By.TAG_NAME, "p")
-                metadata_text = metadata.text.strip()
-                
-                # Initialize report
-                report = {
-                    'Title': title,
-                    'URL': url,
-                    'Date': '',
-                    'Reference': '',
-                    'Deceased_Name': '',
-                    'Coroner_Name': '',
-                    'Coroner_Area': '',
-                    'Category': ''
-                }
-                
-                # Extract metadata using patterns
-                patterns = {
-                    'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
-                    'Reference': r'Ref:?\s*([\w-]+)',
-                    'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
-                    'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
-                    'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
-                    'Category': r'Category:?\s*([^|]+)'
-                }
-                
-                for key, pattern in patterns.items():
-                    match = re.search(pattern, metadata_text)
-                    if match:
-                        report[key] = match.group(1).strip()
-                
-                reports.append(report)
-                
-                # Show progress
-                if (index + 1) % 10 == 0:
-                    st.write(f"Processed {index + 1} reports...")
-                
-            except Exception as e:
-                st.error(f"Error processing article: {str(e)}")
-                continue
+        processed_titles = set()
+        last_height = driver.execute_script("return document.body.scrollHeight")
         
-        progress_bar.progress(1.0)
+        with st.progress(0) as progress_bar:
+            while len(reports) < max_results or max_results == 0:
+                # Find all current articles
+                articles = driver.find_elements(By.TAG_NAME, "article")
+                
+                for article in articles:
+                    # Extract information from article
+                    report_info = extract_report_info(article)
+                    
+                    if report_info and report_info['Title'] not in processed_titles:
+                        reports.append(report_info)
+                        processed_titles.add(report_info['Title'])
+                        
+                        # Update progress
+                        if max_results > 0:
+                            progress_bar.progress(min(len(reports) / max_results, 1.0))
+                        
+                        # Show periodic updates
+                        if len(reports) % 10 == 0:
+                            st.write(f"Processed {len(reports)} reports...")
+                        
+                        if max_results > 0 and len(reports) >= max_results:
+                            break
+                
+                # Scroll down
+                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(2)
+                
+                # Check if we've reached the bottom
+                new_height = driver.execute_script("return document.body.scrollHeight")
+                if new_height == last_height:
+                    break
+                last_height = new_height
         
         if reports:
             df = pd.DataFrame(reports)
+            # Reorder columns
+            columns = ['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 
+                      'Coroner_Area', 'Category', 'Hospital', 'URL']
+            df = df[columns]
             return df
         
         st.warning("No reports could be extracted from the page.")
@@ -203,14 +156,12 @@ def main():
         
         if submitted:
             with st.spinner("Searching for reports..."):
-                df = scrape_pfd_reports(keyword)
+                df = scrape_pfd_reports(keyword, max_results)
                 
                 if not df.empty:
-                    if max_results > 0:
-                        df = df.head(max_results)
-                        
                     st.success(f"Found {len(df)} reports")
                     
+                    # Display results
                     st.dataframe(
                         df,
                         column_config={
@@ -219,6 +170,7 @@ def main():
                         hide_index=True
                     )
                     
+                    # Download button
                     csv = df.to_csv(index=False)
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     filename = f"pfd_reports_{keyword}_{timestamp}.csv"
