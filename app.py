@@ -21,78 +21,87 @@ def scrape_pfd_reports(keyword):
     """
     Scrape Prevention of Future Death reports from judiciary.uk based on keyword
     """
-    base_url = "https://www.judiciary.uk/"
-    # Updated search URL to match the website's format
-    search_url = f"{base_url}search/{keyword}/?post_type=pfd"
+    # Use the exact URL structure from the screenshot
+    search_url = "https://www.judiciary.uk/"
+    
+    # Use the exact parameters we see in the screenshot
+    params = {
+        's': keyword,
+        'pfd_report_type': '',
+        'post_type': 'pfd',
+        'order': 'relevance'
+    }
     
     try:
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0'
         }
         
-        response = requests.get(search_url, headers=headers, timeout=10)
+        response = requests.get(search_url, params=params, headers=headers, timeout=10)
         response.raise_for_status()
         
-        # Add debug information
         st.write(f"Status Code: {response.status_code}")
-        st.write(f"URL being searched: {search_url}")
+        st.write(f"URL being searched: {response.url}")
         
         soup = BeautifulSoup(response.text, 'lxml')
         
-        # Find main content area
-        main_content = soup.find('main', {'id': 'main-content'})
-        if not main_content:
-            st.warning("Could not find main content area")
-            return pd.DataFrame()
+        # Debug: Let's look at what titles we can find
+        all_h2s = soup.find_all('h2')
+        st.write(f"Found {len(all_h2s)} h2 elements")
+        for h2 in all_h2s[:5]:  # Show first 5 for debugging
+            st.write(f"H2 text: {h2.text.strip()}")
             
-        # Look for all report entries in the main content
-        report_entries = main_content.find_all('article') or main_content.find_all('div', class_='search-result')
+        # Try to find the results section
+        results_section = soup.find('div', class_='search-results')
+        if results_section:
+            st.write("Found search results section")
+            
+        # Look for entries in multiple ways
+        entries = (
+            soup.find_all('article') or 
+            soup.find_all('div', class_='search-result') or
+            soup.find_all('h2', class_='entry-title')
+        )
         
-        st.write(f"Found {len(report_entries)} potential entries")
+        st.write(f"Found {len(entries)} potential entries")
         
-        if not report_entries:
+        if not entries:
             st.warning("No reports found for the given keyword.")
             return pd.DataFrame()
         
         reports = []
-        for entry in report_entries:
+        for entry in entries:
             try:
-                # First try to find title with class
-                title_elem = entry.find('h2', class_='search-result-title') or entry.find('h2')
+                # Get the title element
+                title_elem = entry if entry.name == 'h2' else entry.find('h2')
                 if not title_elem:
                     continue
                 
-                # Get the link and title
+                # Get the link
                 link = title_elem.find('a')
                 if not link:
                     continue
-                    
+                
                 title = clean_text(link.text)
                 url = link['href']
                 
-                # Try to find metadata in different possible locations
+                # Try to find metadata in various locations
                 metadata = None
-                metadata_candidates = [
-                    entry.find('div', class_='search-result-metadata'),
+                for elem in [
+                    entry.find_next('p'),
                     entry.find('div', class_='entry-content'),
-                    entry.find('p'),
-                    title_elem.find_next_sibling('p')
-                ]
-                
-                for candidate in metadata_candidates:
-                    if candidate and candidate.text.strip():
-                        metadata = candidate
+                    title_elem.find_next_sibling('p'),
+                    title_elem.parent.find_next_sibling('p')
+                ]:
+                    if elem and elem.text.strip():
+                        metadata = elem
                         break
                 
                 if metadata:
                     metadata_text = clean_text(metadata.text)
                     
-                    # Extract information using regex
                     patterns = {
                         'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
                         'Reference': r'Ref:?\s*([\w-]+)',
@@ -112,7 +121,7 @@ def scrape_pfd_reports(keyword):
                         report[key] = clean_text(match.group(1)) if match else ""
                     
                     reports.append(report)
-                    st.write(f"Successfully parsed report: {title}")
+                    st.write(f"Successfully parsed: {title}")
                 
             except Exception as e:
                 st.error(f"Error processing entry: {str(e)}")
@@ -120,16 +129,13 @@ def scrape_pfd_reports(keyword):
         
         if reports:
             df = pd.DataFrame(reports)
-            
-            # Reorder columns
             column_order = ['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 'Coroner_Area', 'Category', 'URL']
             df = df[column_order]
-            
             return df
         else:
             st.warning("No reports could be parsed from the page.")
             return pd.DataFrame()
-    
+            
     except requests.RequestException as e:
         st.error(f"Failed to fetch data: {str(e)}")
         return pd.DataFrame()
@@ -155,8 +161,6 @@ def main():
                 
                 if not df.empty:
                     st.success(f"Found {len(df)} reports")
-                    
-                    # Display results in a clean table
                     st.dataframe(
                         df,
                         column_config={
@@ -165,7 +169,6 @@ def main():
                         hide_index=True
                     )
                     
-                    # Download button
                     csv = df.to_csv(index=False)
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     filename = f"pfd_reports_{keyword}_{timestamp}.csv"
