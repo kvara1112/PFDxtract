@@ -3,5 +3,4 @@ requests
 beautifulsoup4
 pandas
 scikit-learn
-nltk
-gensim
+plotly
