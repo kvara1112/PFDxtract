@@ -18,81 +18,66 @@ def clean_text(text):
         return ' '.join(text.strip().split())
     return ""
 
-def get_reports_by_category(category=None, max_pages=10):
+def get_reports_by_keyword(keyword, max_pages=10):
     """
-    Scrape PFD reports and filter by category if specified
+    Scrape PFD reports based on keyword search
     """
     base_url = "https://www.judiciary.uk/"
     reports = []
     
-    # Construct search parameters - using simple keyword instead of exact phrase
     params = {
-        's': category if category and category != "All Categories" else "",
+        's': keyword,
         'post_type': 'pfd',
         'order': 'relevance'
     }
     
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
     
-    st.write(f"Searching for reports{' with keyword: ' + category if category and category != 'All Categories' else ''}")
+    st.write(f"Searching for reports with keyword: {keyword}")
     
     for page in range(1, max_pages + 1):
         try:
-            # Add page number to parameters if not first page
             if page > 1:
-                params['page'] = page
+                params['paged'] = page
             
             response = requests.get(base_url, params=params, headers=headers)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.text, 'lxml')
             
-            # Check if we found the results header
+            # Find results header
             results_header = soup.find('div', class_='search__header')
-            if results_header:
-                header_text = results_header.text.strip()
-                if page == 1:  # Only show the header for the first page
-                    st.write(f"Found results: {header_text}")
+            if results_header and page == 1:
+                st.write(f"Found results: {results_header.text.strip()}")
             
-            # Find the listings container
-            listings = soup.find('div', class_='archive__listings')
-            if not listings:
-                break
-            
-            # Find all posts in the listings
-            posts = listings.find_all(['article', 'div'], class_=['post', 'entry'])
-            if not posts:
-                posts = listings.find_all('article')  # Try alternative selector
-            
-            if not posts:
+            # Find all entries using more specific selector
+            entries = soup.select('.archive__listings article')
+            if not entries:
                 st.write(f"No more results found on page {page}")
                 break
             
-            st.write(f"Processing page {page} - Found {len(posts)} posts")
+            st.write(f"Processing page {page} - Found {len(entries)} entries")
             
-            for post in posts:
+            for entry in entries:
                 try:
-                    # Get title and link
-                    title_elem = post.find('h2', class_='entry-title')
-                    if not title_elem or not title_elem.find('a'):
+                    # Find title and link
+                    title_elem = entry.select_one('.entry-title a')
+                    if not title_elem:
                         continue
-                        
-                    link = title_elem.find('a')
-                    title = clean_text(link.text)
-                    url = link['href']
                     
-                    # Get metadata
-                    metadata = post.find('p')
+                    title = clean_text(title_elem.text)
+                    url = title_elem['href']
+                    
+                    # Find metadata paragraph
+                    metadata = entry.find('p')
                     if not metadata:
                         continue
-                        
+                    
                     metadata_text = clean_text(metadata.text)
                     
-                    # Extract report info
+                    # Extract fields using patterns
                     patterns = {
                         'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
                         'Reference': r'Ref:?\s*([\w-]+)',
@@ -113,20 +98,12 @@ def get_reports_by_category(category=None, max_pages=10):
                         report[key] = clean_text(match.group(1)) if match else ""
                     
                     reports.append(report)
-                    st.write(f"Found report: {title}")
                     
                 except Exception as e:
-                    st.error(f"Error processing post: {str(e)}")
+                    st.error(f"Error processing entry: {str(e)}")
                     continue
             
-            # Check if there are more pages
-            next_page = soup.find('a', class_='next')
-            if not next_page:
-                st.write("Reached last page")
-                break
-                
-            # Small delay between pages
-            time.sleep(1)
+            time.sleep(1)  # Pause between pages
             
         except Exception as e:
             st.error(f"Error processing page {page}: {str(e)}")
@@ -139,26 +116,27 @@ def main():
     
     st.markdown("""
     This app scrapes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    Enter keywords to search for reports.
+    Enter keywords to search for relevant reports.
     """)
     
     col1, col2 = st.columns([2, 1])
     with col1:
-        search_keyword = st.text_input("Enter search keywords:", "child death")
+        search_keyword = st.text_input("Enter search keywords:", "child")
     with col2:
         max_pages = st.number_input("Maximum pages to search:", min_value=1, max_value=50, value=10)
     
     if st.button("Search Reports"):
         with st.spinner("Searching for reports..."):
-            reports = get_reports_by_category(search_keyword, max_pages)
+            reports = get_reports_by_keyword(search_keyword, max_pages)
             
             if reports:
+                # Create DataFrame
                 df = pd.DataFrame(reports)
                 
                 # Reorder columns
                 columns = ['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 
                           'Coroner_Area', 'Category', 'Trust', 'URL']
-                df = df[columns]
+                df = df.reindex(columns=columns)
                 
                 st.success(f"Found {len(reports)} reports")
                 
@@ -171,17 +149,27 @@ def main():
                     hide_index=True
                 )
                 
-                # Download button
-                csv = df.to_csv(index=False)
+                # Prepare CSV download
+                csv = df.to_csv(index=False).encode('utf-8')
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"pfd_reports_{search_keyword.replace(' ', '_')}_{timestamp}.csv"
                 
+                # Add download button
                 st.download_button(
                     label="📥 Download as CSV",
                     data=csv,
                     file_name=filename,
-                    mime="text/csv"
+                    mime="text/csv",
+                    key='download-csv'
                 )
+                
+                # Show some statistics
+                st.write("### Report Statistics")
+                st.write(f"- Total reports found: {len(reports)}")
+                if df['Category'].notna().any():
+                    st.write("#### Categories:")
+                    for category, count in df['Category'].value_counts().items():
+                        st.write(f"- {category}: {count} reports")
             else:
                 st.warning(f"No reports found for search: {search_keyword}")
 
