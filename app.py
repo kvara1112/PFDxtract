@@ -7,6 +7,11 @@ from sklearn.decomposition import LatentDirichletAllocation
 import plotly.express as px
 import time
 
+import os
+os.system('pip install beautifulsoup4')
+from bs4 import BeautifulSoup
+
+
 def scrape_reports():
     url = "https://www.judiciary.uk/?s=maternity&pfd_report_type=&post_type=pfd&order=relevance"
     headers = {'User-Agent': 'Mozilla/5.0'}
