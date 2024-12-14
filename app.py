@@ -7,10 +7,6 @@ from sklearn.decomposition import LatentDirichletAllocation
 import plotly.express as px
 import time
 
-# Set the page title
-st.title("UK Judiciary Maternity Reports Analysis")
-
-# Function to scrape maternity reports from the judiciary website
 def scrape_reports():
     url = "https://www.judiciary.uk/?s=maternity&pfd_report_type=&post_type=pfd&order=relevance"
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -57,42 +53,48 @@ def scrape_reports():
         st.error(f"Error occurred while scraping data: {str(e)}")
         return pd.DataFrame()
 
-# Initialize session state for storing reports
-if 'reports_df' not in st.session_state:
-    st.session_state.reports_df = None
+def main():
+    st.title("UK Judiciary Maternity Reports Analysis")
 
-# Button to scrape reports
-if st.button("Scrape Reports"):
-    st.session_state.reports_df = scrape_reports()
+    # Initialize session state for storing reports
+    if 'reports_df' not in st.session_state:
+        st.session_state.reports_df = None
 
-# Display reports and perform analysis if data is available
-if st.session_state.reports_df is not None:
-    df = st.session_state.reports_df
-    st.write(f"Found {len(df)} reports.")
-    st.dataframe(df[['title', 'date', 'url']])
+    # Button to scrape reports
+    if st.button("Scrape Reports"):
+        st.session_state.reports_df = scrape_reports()
 
-    # Ensure there is content for analysis
-    if df['content'].isnull().all() or df['content'].str.strip().eq("").all():
-        st.error("No valid content available for analysis.")
-    else:
-        # TF-IDF Vectorization
-        vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
-        doc_term_matrix = vectorizer.fit_transform(df['content'].fillna(''))
+    # Display reports and perform analysis if data is available
+    if st.session_state.reports_df is not None:
+        df = st.session_state.reports_df
+        st.write(f"Found {len(df)} reports.")
+        st.dataframe(df[['title', 'date', 'url']])
 
-        # Topic Modeling with LDA
-        num_topics = st.slider("Select Number of Topics", 2, 10, 5)
-        lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
-        doc_topics = lda.fit_transform(doc_term_matrix)
+        # Ensure there is content for analysis
+        if df['content'].isnull().all() or df['content'].str.strip().eq("").all():
+            st.error("No valid content available for analysis.")
+        else:
+            # TF-IDF Vectorization
+            vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
+            doc_term_matrix = vectorizer.fit_transform(df['content'].fillna(''))
 
-        # Display Top Words for Each Topic
-        feature_names = vectorizer.get_feature_names_out()
-        for idx, topic in enumerate(lda.components_):
-            top_words = [feature_names[i] for i in topic.argsort()[:-11:-1]]
-            st.write(f"**Topic {idx + 1}:** {', '.join(top_words)}")
+            # Topic Modeling with LDA
+            num_topics = st.slider("Select Number of Topics", 2, 10, 5)
+            lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
+            doc_topics = lda.fit_transform(doc_term_matrix)
 
-        # Visualize Topic Distribution
-        topic_dist = pd.DataFrame(doc_topics).mean(axis=0)
-        fig = px.bar(x=[f"Topic {i+1}" for i in range(num_topics)], y=topic_dist,
-                     labels={'x': "Topics", 'y': "Proportion"},
-                     title="Topic Distribution")
-        st.plotly_chart(fig)
+            # Display Top Words for Each Topic
+            feature_names = vectorizer.get_feature_names_out()
+            for idx, topic in enumerate(lda.components_):
+                top_words = [feature_names[i] for i in topic.argsort()[:-11:-1]]
+                st.write(f"**Topic {idx + 1}:** {', '.join(top_words)}")
+
+            # Visualize Topic Distribution
+            topic_dist = pd.DataFrame(doc_topics).mean(axis=0)
+            fig = px.bar(x=[f"Topic {i+1}" for i in range(num_topics)], y=topic_dist,
+                         labels={'x': "Topics", 'y': "Proportion"},
+                         title="Topic Distribution")
+            st.plotly_chart(fig)
+
+if __name__ == "__main__":
+    main()
