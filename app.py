@@ -1,9 +1,16 @@
 import streamlit as st
-import requests
-from bs4 import BeautifulSoup
 import pandas as pd
 from datetime import datetime
 import re
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
+import time
 
 st.set_page_config(
     page_title="UK Judiciary PFD Reports Scraper",
@@ -17,69 +24,57 @@ def clean_text(text):
         return ' '.join(text.strip().split())
     return ""
 
+@st.cache_resource
+def get_chrome_driver():
+    """Initialize and cache the Chrome driver"""
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-extensions")
+    
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
+    return driver
+
 def scrape_pfd_reports(keyword):
     """
     Scrape Prevention of Future Death reports from judiciary.uk based on keyword
     """
-    # Use the exact URL structure from the screenshot
-    search_url = "https://www.judiciary.uk/"
-    
-    # Use the exact parameters we see in the screenshot
-    params = {
-        's': keyword,
-        'pfd_report_type': '',
-        'post_type': 'pfd',
-        'order': 'relevance'
-    }
+    search_url = f"https://www.judiciary.uk/?s={keyword}&pfd_report_type=&post_type=pfd&order=relevance"
     
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-        }
+        driver = get_chrome_driver()
         
-        response = requests.get(search_url, params=params, headers=headers, timeout=10)
-        response.raise_for_status()
+        st.write(f"Accessing URL: {search_url}")
+        driver.get(search_url)
         
-        st.write(f"Status Code: {response.status_code}")
-        st.write(f"URL being searched: {response.url}")
+        # Wait for the results to load
+        time.sleep(3)  # Give JavaScript time to execute
         
-        soup = BeautifulSoup(response.text, 'lxml')
-        
-        # Debug: Let's look at what titles we can find
-        all_h2s = soup.find_all('h2')
-        st.write(f"Found {len(all_h2s)} h2 elements")
-        for h2 in all_h2s[:5]:  # Show first 5 for debugging
-            st.write(f"H2 text: {h2.text.strip()}")
-            
-        # Try to find the results section
-        results_section = soup.find('div', class_='search-results')
-        if results_section:
-            st.write("Found search results section")
-            
-        # Look for entries in multiple ways
-        entries = (
-            soup.find_all('article') or 
-            soup.find_all('div', class_='search-result') or
-            soup.find_all('h2', class_='entry-title')
+        # Wait for either the results or a no-results message
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "entry-title"))
         )
         
-        st.write(f"Found {len(entries)} potential entries")
+        # Get the page source after JavaScript has run
+        page_source = driver.page_source
+        soup = BeautifulSoup(page_source, 'lxml')
         
-        if not entries:
-            st.warning("No reports found for the given keyword.")
-            return pd.DataFrame()
+        # Find all report entries
+        report_entries = soup.find_all('article') or soup.find_all('div', class_='search-result')
+        
+        st.write(f"Found {len(report_entries)} potential entries")
         
         reports = []
-        for entry in entries:
+        for entry in report_entries:
             try:
                 # Get the title element
-                title_elem = entry if entry.name == 'h2' else entry.find('h2')
+                title_elem = entry.find('h2', class_='entry-title')
                 if not title_elem:
                     continue
                 
-                # Get the link
                 link = title_elem.find('a')
                 if not link:
                     continue
@@ -87,18 +82,8 @@ def scrape_pfd_reports(keyword):
                 title = clean_text(link.text)
                 url = link['href']
                 
-                # Try to find metadata in various locations
-                metadata = None
-                for elem in [
-                    entry.find_next('p'),
-                    entry.find('div', class_='entry-content'),
-                    title_elem.find_next_sibling('p'),
-                    title_elem.parent.find_next_sibling('p')
-                ]:
-                    if elem and elem.text.strip():
-                        metadata = elem
-                        break
-                
+                # Get metadata
+                metadata = entry.find('p')
                 if metadata:
                     metadata_text = clean_text(metadata.text)
                     
@@ -122,7 +107,7 @@ def scrape_pfd_reports(keyword):
                     
                     reports.append(report)
                     st.write(f"Successfully parsed: {title}")
-                
+            
             except Exception as e:
                 st.error(f"Error processing entry: {str(e)}")
                 continue
@@ -136,12 +121,11 @@ def scrape_pfd_reports(keyword):
             st.warning("No reports could be parsed from the page.")
             return pd.DataFrame()
             
-    except requests.RequestException as e:
-        st.error(f"Failed to fetch data: {str(e)}")
-        return pd.DataFrame()
     except Exception as e:
-        st.error(f"An unexpected error occurred: {str(e)}")
+        st.error(f"An error occurred: {str(e)}")
         return pd.DataFrame()
+    finally:
+        driver.quit()
 
 def main():
     st.title("UK Judiciary PFD Reports Scraper")
