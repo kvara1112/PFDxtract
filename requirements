@@ -1,7 +1,6 @@
-beautifulsoup4
+streamlit
+bs4
 requests
 pandas
 scikit-learn
 plotly
-numpy
-lxml
