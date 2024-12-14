@@ -22,11 +22,17 @@ def scrape_pfd_reports(keyword):
     Scrape Prevention of Future Death reports from judiciary.uk based on keyword
     """
     base_url = "https://www.judiciary.uk/"
-    search_url = f"{base_url}?s={keyword}&post_type=pfd"
+    # Updated search URL to match the website's format
+    search_url = f"{base_url}search/{keyword}/?post_type=pfd"
     
     try:
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0'
         }
         
         response = requests.get(search_url, headers=headers, timeout=10)
@@ -34,17 +40,18 @@ def scrape_pfd_reports(keyword):
         
         # Add debug information
         st.write(f"Status Code: {response.status_code}")
+        st.write(f"URL being searched: {search_url}")
         
         soup = BeautifulSoup(response.text, 'lxml')
-        # Debug: Show first part of HTML
-        st.write("First portion of HTML:")
-        html_preview = str(soup)[:5000]  # First 5000 characters
-        st.code(html_preview, language='html')
-        # Debug: Print the entire HTML structure
-        #st.code(soup.prettify())
         
-        # Look for all report entries using a broader search
-        report_entries = soup.find_all(['article', 'div'], class_=['post', 'entry', 'entry-content'])
+        # Find main content area
+        main_content = soup.find('main', {'id': 'main-content'})
+        if not main_content:
+            st.warning("Could not find main content area")
+            return pd.DataFrame()
+            
+        # Look for all report entries in the main content
+        report_entries = main_content.find_all('article') or main_content.find_all('div', class_='search-result')
         
         st.write(f"Found {len(report_entries)} potential entries")
         
@@ -55,8 +62,8 @@ def scrape_pfd_reports(keyword):
         reports = []
         for entry in report_entries:
             try:
-                # Get the title element
-                title_elem = entry.find('h2', class_='entry-title') or entry.find('h2')
+                # First try to find title with class
+                title_elem = entry.find('h2', class_='search-result-title') or entry.find('h2')
                 if not title_elem:
                     continue
                 
@@ -68,12 +75,18 @@ def scrape_pfd_reports(keyword):
                 title = clean_text(link.text)
                 url = link['href']
                 
-                # Get the metadata text
+                # Try to find metadata in different possible locations
                 metadata = None
-                # Try different ways to find metadata
-                for sibling in title_elem.next_siblings:
-                    if sibling.name == 'p':
-                        metadata = sibling
+                metadata_candidates = [
+                    entry.find('div', class_='search-result-metadata'),
+                    entry.find('div', class_='entry-content'),
+                    entry.find('p'),
+                    title_elem.find_next_sibling('p')
+                ]
+                
+                for candidate in metadata_candidates:
+                    if candidate and candidate.text.strip():
+                        metadata = candidate
                         break
                 
                 if metadata:
@@ -81,11 +94,12 @@ def scrape_pfd_reports(keyword):
                     
                     # Extract information using regex
                     patterns = {
-                        'Date': r'Date of report: (\d{2}/\d{2}/\d{4})',
-                        'Reference': r'Ref: ([\w-]+)',
-                        'Deceased_Name': r'Deceased name: ([^,]+)',
-                        'Coroner_Name': r'Coroner name: ([^,]+)',
-                        'Coroner_Area': r'Coroner Area: ([^,]+)'
+                        'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
+                        'Reference': r'Ref:?\s*([\w-]+)',
+                        'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
+                        'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
+                        'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
+                        'Category': r'Category:?\s*([^|]+)'
                     }
                     
                     report = {
@@ -98,9 +112,7 @@ def scrape_pfd_reports(keyword):
                         report[key] = clean_text(match.group(1)) if match else ""
                     
                     reports.append(report)
-                    
-                    # Debug: Print each successfully parsed report
-                    st.write(f"Found report: {title}")
+                    st.write(f"Successfully parsed report: {title}")
                 
             except Exception as e:
                 st.error(f"Error processing entry: {str(e)}")
@@ -110,7 +122,7 @@ def scrape_pfd_reports(keyword):
             df = pd.DataFrame(reports)
             
             # Reorder columns
-            column_order = ['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 'Coroner_Area', 'URL']
+            column_order = ['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 'Coroner_Area', 'Category', 'URL']
             df = df[column_order]
             
             return df
