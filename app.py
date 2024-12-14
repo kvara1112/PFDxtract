@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup  # This import should now work with the updated requirements
 import pandas as pd
 from datetime import datetime
 import re
