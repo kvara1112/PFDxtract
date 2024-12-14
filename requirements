@@ -1,8 +1,9 @@
 streamlit==1.31.0
 requests==2.31.0
-beautifulsoup4==4.12.2
+beautifulsoup4==4.11.2
 pandas==2.2.0
 scikit-learn==1.4.0
 plotly==5.18.0
 numpy==1.26.3
-lxml==5.1.0
+lxml==4.9.3
+html5lib==1.1
