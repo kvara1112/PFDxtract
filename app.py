@@ -47,32 +47,59 @@ def get_reports_by_keyword(keyword, max_pages=10):
             
             soup = BeautifulSoup(response.text, 'lxml')
             
+            # Debug: Print part of the HTML to see structure
+            if page == 1:
+                st.write("HTML Structure (first 1000 chars):")
+                st.code(str(soup)[:1000], language='html')
+            
             # Find results header
             results_header = soup.find('div', class_='search__header')
             if results_header and page == 1:
                 st.write(f"Found results: {results_header.text.strip()}")
             
-            # Find all entries using more specific selector
-            entries = soup.select('.archive__listings article')
-            if not entries:
-                st.write(f"No more results found on page {page}")
-                break
+            # Find listings container
+            listings = soup.find('div', class_='archive__listings')
+            if not listings:
+                st.write("No listings container found")
+                continue
+                
+            # Find all entries (trying multiple selectors)
+            entries = listings.select('article') or \
+                     listings.select('.post') or \
+                     listings.select('.search-result') or \
+                     listings.find_all('div', recursive=False)
             
             st.write(f"Processing page {page} - Found {len(entries)} entries")
             
+            if not entries:
+                # Debug: Print the listings HTML if no entries found
+                st.write("Listings HTML:")
+                st.code(str(listings)[:1000], language='html')
+            
             for entry in entries:
                 try:
-                    # Find title and link
-                    title_elem = entry.select_one('.entry-title a')
+                    # Debug: Print entry HTML
+                    st.write("Processing entry:")
+                    st.code(str(entry)[:500], language='html')
+                    
+                    # Try different ways to find title and link
+                    title_elem = entry.select_one('.entry-title a') or \
+                               entry.select_one('h2 a') or \
+                               entry.find('a')
+                               
                     if not title_elem:
+                        st.write("No title element found in entry")
                         continue
                     
                     title = clean_text(title_elem.text)
-                    url = title_elem['href']
+                    url = title_elem.get('href')
                     
-                    # Find metadata paragraph
-                    metadata = entry.find('p')
+                    # Find metadata
+                    metadata = entry.find('p') or \
+                              entry.find('div', class_='entry-content')
+                              
                     if not metadata:
+                        st.write("No metadata found for entry")
                         continue
                     
                     metadata_text = clean_text(metadata.text)
@@ -98,12 +125,18 @@ def get_reports_by_keyword(keyword, max_pages=10):
                         report[key] = clean_text(match.group(1)) if match else ""
                     
                     reports.append(report)
+                    st.write(f"Successfully extracted report: {title}")
                     
                 except Exception as e:
                     st.error(f"Error processing entry: {str(e)}")
                     continue
             
-            time.sleep(1)  # Pause between pages
+            if not entries or len(entries) == 0:
+                st.write("No more entries found")
+                break
+            
+            # Add delay between pages
+            time.sleep(1)
             
         except Exception as e:
             st.error(f"Error processing page {page}: {str(e)}")
@@ -130,7 +163,6 @@ def main():
             reports = get_reports_by_keyword(search_keyword, max_pages)
             
             if reports:
-                # Create DataFrame
                 df = pd.DataFrame(reports)
                 
                 # Reorder columns
@@ -163,7 +195,7 @@ def main():
                     key='download-csv'
                 )
                 
-                # Show some statistics
+                # Show statistics
                 st.write("### Report Statistics")
                 st.write(f"- Total reports found: {len(reports)}")
                 if df['Category'].notna().any():
