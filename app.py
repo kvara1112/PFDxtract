@@ -9,6 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
+from selenium.webdriver.common.action_chains import ActionChains
 
 st.set_page_config(
     page_title="UK Judiciary PFD Reports Scraper",
@@ -34,90 +35,100 @@ def wait_for_element(driver, by, value, timeout=10):
         )
         return element
     except Exception as e:
-        st.error(f"Timeout waiting for element: {value}")
         return None
+
+def scroll_and_collect(driver, max_scrolls=10):
+    """Scroll through the page and collect articles"""
+    collected_articles = set()
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    scroll_count = 0
+    
+    while scroll_count < max_scrolls:
+        # Scroll down
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)  # Wait for content to load
+        
+        # Get new page height
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        
+        # Find all articles currently visible
+        articles = driver.find_elements(By.CSS_SELECTOR, "article")
+        current_count = len(collected_articles)
+        
+        # Add new articles to our set
+        for article in articles:
+            try:
+                title = article.find_element(By.CSS_SELECTOR, "h2.entry-title").text
+                collected_articles.add(title)
+            except:
+                continue
+        
+        # Debug output
+        new_count = len(collected_articles)
+        if new_count > current_count:
+            st.write(f"Found {new_count - current_count} new articles. Total: {new_count}")
+        
+        # If no new height, we've reached the bottom
+        if new_height == last_height:
+            scroll_count += 1
+        else:
+            scroll_count = 0
+            last_height = new_height
+            
+        # Try to click "Load more" button if it exists
+        try:
+            load_more = driver.find_element(By.CSS_SELECTOR, ".load-more, .pagination-next")
+            if load_more and load_more.is_displayed():
+                actions = ActionChains(driver)
+                actions.move_to_element(load_more).click().perform()
+                time.sleep(2)
+        except:
+            pass
+    
+    return driver.find_elements(By.CSS_SELECTOR, "article")
 
 def scrape_pfd_reports(keyword):
     driver = None
     try:
-        # Use the exact URL format from the UI
         search_url = f"https://www.judiciary.uk/?s={keyword}&post_type=pfd"
         st.write(f"Accessing URL: {search_url}")
         
         driver = get_driver()
         driver.get(search_url)
         
-        # Wait for page to load and show debug info
+        # Wait for results to load
         results_header = wait_for_element(driver, By.CLASS_NAME, "search__header")
         if results_header:
             results_text = results_header.text
             st.write(f"Found results header: {results_text}")
             
-            # Try to extract the number of results
+            # Extract expected number of results
             match = re.search(r'found (\d+) results', results_text)
             if match:
                 expected_results = int(match.group(1))
                 st.write(f"Expecting to find {expected_results} results")
         
-        # Wait and scroll multiple times to ensure content loads
-        for _ in range(3):
-            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-            time.sleep(2)
+        # Scroll and collect articles with progress bar
+        st.write("Scrolling through results...")
+        progress_bar = st.progress(0)
         
-        # Try multiple ways to find the articles
-        listing_container = wait_for_element(driver, By.CLASS_NAME, "archive__listings")
-        if not listing_container:
-            st.error("Could not find listings container")
-            return pd.DataFrame()
-        
-        # Debug: Print the HTML of the listing container
-        st.write("Listing container HTML:")
-        st.code(listing_container.get_attribute('innerHTML')[:1000])
-        
-        # Try different selectors to find articles
-        articles = []
-        selectors_to_try = [
-            "article",
-            ".search-result",
-            ".entry",
-            "h2.entry-title",
-            ".post"
-        ]
-        
-        for selector in selectors_to_try:
-            articles = driver.find_elements(By.CSS_SELECTOR, selector)
-            if articles:
-                st.write(f"Found {len(articles)} articles using selector: {selector}")
-                break
-        
-        if not articles:
-            st.warning("Could not find any articles with any selector")
-            return pd.DataFrame()
+        articles = scroll_and_collect(driver)
+        st.write(f"Found {len(articles)} articles after scrolling")
         
         reports = []
-        for article in articles:
+        for index, article in enumerate(articles):
             try:
-                # Try to get title both directly and through h2
-                title_elem = None
-                try:
-                    title_elem = article.find_element(By.CLASS_NAME, "entry-title")
-                except:
-                    try:
-                        title_elem = article.find_element(By.TAG_NAME, "h2")
-                    except:
-                        if article.tag_name == 'h2':
-                            title_elem = article
+                # Update progress
+                progress_bar.progress((index + 1) / len(articles))
                 
-                if not title_elem:
-                    continue
+                # Get title and link
+                title_elem = article.find_element(By.CSS_SELECTOR, "h2.entry-title a")
+                title = title_elem.text.strip()
+                url = title_elem.get_attribute("href")
                 
-                # Get link and title
-                try:
-                    link = title_elem.find_element(By.TAG_NAME, "a")
-                    title = link.text.strip()
-                    url = link.get_attribute("href")
-                except:
-                    continue
+                # Get metadata
+                metadata = article.find_element(By.TAG_NAME, "p")
+                metadata_text = metadata.text.strip()
                 
                 # Initialize report
                 report = {
@@ -131,34 +142,32 @@ def scrape_pfd_reports(keyword):
                     'Category': ''
                 }
                 
-                # Try to find metadata in various ways
-                try:
-                    metadata = article.find_element(By.TAG_NAME, "p")
-                    if metadata:
-                        metadata_text = metadata.text.strip()
-                        
-                        patterns = {
-                            'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
-                            'Reference': r'Ref:?\s*([\w-]+)',
-                            'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
-                            'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
-                            'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
-                            'Category': r'Category:?\s*([^|]+)'
-                        }
-                        
-                        for key, pattern in patterns.items():
-                            match = re.search(pattern, metadata_text)
-                            if match:
-                                report[key] = match.group(1).strip()
-                except:
-                    pass
+                # Extract metadata using patterns
+                patterns = {
+                    'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
+                    'Reference': r'Ref:?\s*([\w-]+)',
+                    'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
+                    'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
+                    'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
+                    'Category': r'Category:?\s*([^|]+)'
+                }
+                
+                for key, pattern in patterns.items():
+                    match = re.search(pattern, metadata_text)
+                    if match:
+                        report[key] = match.group(1).strip()
                 
                 reports.append(report)
-                st.write(f"Processed report: {title}")
-            
+                
+                # Show progress
+                if (index + 1) % 10 == 0:
+                    st.write(f"Processed {index + 1} reports...")
+                
             except Exception as e:
                 st.error(f"Error processing article: {str(e)}")
                 continue
+        
+        progress_bar.progress(1.0)
         
         if reports:
             df = pd.DataFrame(reports)
@@ -188,6 +197,8 @@ def main():
     
     with st.form("search_form"):
         keyword = st.text_input("Enter search keyword:", "maternity")
+        max_results = st.number_input("Maximum number of results to fetch (0 for all):", 
+                                    value=50, min_value=0)
         submitted = st.form_submit_button("Search Reports")
         
         if submitted:
@@ -195,6 +206,9 @@ def main():
                 df = scrape_pfd_reports(keyword)
                 
                 if not df.empty:
+                    if max_results > 0:
+                        df = df.head(max_results)
+                        
                     st.success(f"Found {len(df)} reports")
                     
                     st.dataframe(
