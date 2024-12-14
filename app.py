@@ -17,32 +17,29 @@ st.set_page_config(
     layout="wide"
 )
 
-def clean_text(text):
-    """Clean extracted text by removing extra whitespace and newlines"""
-    if text is None:
-        return ""
-    try:
-        return ' '.join(str(text).strip().split())
-    except (AttributeError, TypeError):
-        return ""
-
 def get_driver():
     """Set up Chrome driver with appropriate options for Streamlit Cloud"""
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless')
+    options.add_argument('--headless=new')  # Updated headless mode
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
-    options.add_argument('--disable-extensions')
-    options.add_argument('--remote-debugging-port=9222')
-    # Add user agent to mimic real browser
+    options.add_argument("--window-size=1920,1080")
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36')
     return webdriver.Chrome(options=options)
 
+def wait_for_element(driver, by, value, timeout=10):
+    """Wait for an element to be present and visible"""
+    try:
+        element = WebDriverWait(driver, timeout).until(
+            EC.presence_of_element_located((by, value))
+        )
+        return element
+    except Exception as e:
+        st.error(f"Timeout waiting for element: {value}")
+        return None
+
 def scrape_pfd_reports(keyword):
-    """
-    Scrape Prevention of Future Death reports from judiciary.uk based on keyword
-    """
     driver = None
     try:
         search_url = f"https://www.judiciary.uk/?s={keyword}&pfd_report_type=&post_type=pfd&order=relevance"
@@ -51,79 +48,47 @@ def scrape_pfd_reports(keyword):
         driver = get_driver()
         driver.get(search_url)
         
-        # Wait for the page to load
+        # Wait for search results text to confirm page has loaded
+        results_text = wait_for_element(driver, By.CSS_SELECTOR, ".search__header p")
+        if results_text:
+            st.write(f"Found results header: {results_text.text}")
+        
+        # Wait for dynamic content to load
         time.sleep(5)
         
-        # Get the page source
-        page_source = driver.page_source
+        # Scroll down to trigger lazy loading
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(2)
         
-        # Debug: Show a portion of the HTML
-        st.code(page_source[:5000], language='html')
+        # Get content after JavaScript execution
+        content = driver.find_element(By.CLASS_NAME, "archive__listings")
+        if not content:
+            st.warning("Could not find listings container")
+            return pd.DataFrame()
+            
+        # Find all article elements within the content
+        articles = content.find_elements(By.TAG_NAME, "article")
         
-        soup = BeautifulSoup(page_source, 'lxml')
-        
-        # Debug: Look for specific elements
-        main_content = soup.find('main', {'id': 'main-content'})
-        if main_content:
-            st.write("Found main content area")
-            # Show the first part of main content
-            st.code(str(main_content)[:1000], language='html')
-        else:
-            st.write("Could not find main content area")
-        
-        # Try different selectors
-        entries = (
-            soup.find_all('article') or 
-            soup.find_all(['h2', 'div'], class_=['entry-title', 'search-result']) or
-            soup.select('.search-results article') or
-            soup.select('h2.entry-title')
-        )
-        
-        st.write(f"Found {len(entries)} potential entries")
-        
-        # Debug: Show all h2 elements
-        all_h2s = soup.find_all('h2')
-        st.write(f"Found {len(all_h2s)} h2 elements")
-        for h2 in all_h2s[:5]:
-            st.write(f"H2 text: {h2.text.strip() if h2 else 'None'}")
+        st.write(f"Found {len(articles)} articles")
         
         reports = []
-        for entry in entries:
+        for article in articles:
             try:
-                # Find the title and link
-                title_tag = entry if entry.name == 'h2' else entry.find('h2')
-                if not title_tag:
+                # Get the title and link
+                title_elem = article.find_element(By.CLASS_NAME, "entry-title")
+                if not title_elem:
                     continue
                     
-                link = title_tag.find('a')
-                if not link:
-                    continue
+                link = title_elem.find_element(By.TAG_NAME, "a")
+                title = link.text.strip()
+                url = link.get_attribute("href")
                 
-                title = clean_text(link.text)
-                url = link.get('href', '')
-                
-                # Initialize report
-                report = {
-                    'Title': title,
-                    'URL': url,
-                    'Date': '',
-                    'Reference': '',
-                    'Deceased_Name': '',
-                    'Coroner_Name': '',
-                    'Coroner_Area': '',
-                    'Category': ''
-                }
-                
-                # Look for metadata
-                metadata = None
-                if entry.name == 'h2':
-                    metadata = entry.find_next('p')
-                else:
-                    metadata = entry.find('p')
-                
-                if metadata and metadata.text:
-                    metadata_text = clean_text(metadata.text)
+                # Get metadata
+                metadata = article.find_element(By.TAG_NAME, "p")
+                if metadata:
+                    metadata_text = metadata.text.strip()
                     
+                    # Extract information using regex
                     patterns = {
                         'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
                         'Reference': r'Ref:?\s*([\w-]+)',
@@ -133,20 +98,31 @@ def scrape_pfd_reports(keyword):
                         'Category': r'Category:?\s*([^|]+)'
                     }
                     
+                    report = {
+                        'Title': title,
+                        'URL': url,
+                        'Date': '',
+                        'Reference': '',
+                        'Deceased_Name': '',
+                        'Coroner_Name': '',
+                        'Coroner_Area': '',
+                        'Category': ''
+                    }
+                    
                     for key, pattern in patterns.items():
                         match = re.search(pattern, metadata_text)
                         if match:
-                            report[key] = clean_text(match.group(1))
-                
-                reports.append(report)
-                
+                            report[key] = match.group(1).strip()
+                    
+                    reports.append(report)
+                    st.write(f"Processed report: {title}")
+            
             except Exception as e:
-                st.error(f"Error processing entry: {str(e)}")
+                st.error(f"Error processing article: {str(e)}")
                 continue
         
         if reports:
             df = pd.DataFrame(reports)
-            df = df[['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 'Coroner_Area', 'Category', 'URL']]
             return df
         
         st.warning("No reports could be extracted from the page.")
