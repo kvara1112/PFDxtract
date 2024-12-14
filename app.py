@@ -32,10 +32,18 @@ def scrape_pfd_reports(keyword):
         response = requests.get(search_url, headers=headers, timeout=10)
         response.raise_for_status()
         
+        # Add debug information
+        st.write(f"Status Code: {response.status_code}")
+        
         soup = BeautifulSoup(response.text, 'lxml')
         
-        # Look for all report entries - they appear as links with titles
-        report_entries = soup.find_all('h2', class_='entry-title')
+        # Debug: Print the entire HTML structure
+        #st.code(soup.prettify())
+        
+        # Look for all report entries using a broader search
+        report_entries = soup.find_all(['article', 'div'], class_=['post', 'entry', 'entry-content'])
+        
+        st.write(f"Found {len(report_entries)} potential entries")
         
         if not report_entries:
             st.warning("No reports found for the given keyword.")
@@ -44,16 +52,27 @@ def scrape_pfd_reports(keyword):
         reports = []
         for entry in report_entries:
             try:
+                # Get the title element
+                title_elem = entry.find('h2', class_='entry-title') or entry.find('h2')
+                if not title_elem:
+                    continue
+                
                 # Get the link and title
-                link = entry.find('a')
+                link = title_elem.find('a')
                 if not link:
                     continue
                     
                 title = clean_text(link.text)
                 url = link['href']
                 
-                # Get the metadata paragraph that follows the title
-                metadata = entry.find_next('p')
+                # Get the metadata text
+                metadata = None
+                # Try different ways to find metadata
+                for sibling in title_elem.next_siblings:
+                    if sibling.name == 'p':
+                        metadata = sibling
+                        break
+                
                 if metadata:
                     metadata_text = clean_text(metadata.text)
                     
@@ -76,18 +95,25 @@ def scrape_pfd_reports(keyword):
                         report[key] = clean_text(match.group(1)) if match else ""
                     
                     reports.append(report)
+                    
+                    # Debug: Print each successfully parsed report
+                    st.write(f"Found report: {title}")
                 
             except Exception as e:
                 st.error(f"Error processing entry: {str(e)}")
                 continue
         
-        df = pd.DataFrame(reports)
-        
-        # Reorder columns
-        column_order = ['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 'Coroner_Area', 'URL']
-        df = df[column_order]
-        
-        return df
+        if reports:
+            df = pd.DataFrame(reports)
+            
+            # Reorder columns
+            column_order = ['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 'Coroner_Area', 'URL']
+            df = df[column_order]
+            
+            return df
+        else:
+            st.warning("No reports could be parsed from the page.")
+            return pd.DataFrame()
     
     except requests.RequestException as e:
         st.error(f"Failed to fetch data: {str(e)}")
