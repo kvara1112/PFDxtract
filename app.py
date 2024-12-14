@@ -36,7 +36,10 @@ def scrape_pfd_reports(keyword):
         st.write(f"Status Code: {response.status_code}")
         
         soup = BeautifulSoup(response.text, 'lxml')
-        
+        # Debug: Show first part of HTML
+        st.write("First portion of HTML:")
+        html_preview = str(soup)[:5000]  # First 5000 characters
+        st.code(html_preview, language='html')
         # Debug: Print the entire HTML structure
         #st.code(soup.prettify())
         
