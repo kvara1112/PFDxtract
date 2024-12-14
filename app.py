@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-from bs4 import BeautifulSoup
+import bs4
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
@@ -24,7 +24,7 @@ def scrape_reports():
     try:
         # Scrape main page
         response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        soup = bs4.BeautifulSoup(response.text, 'html.parser')
         articles = soup.find_all('article', class_='search-result')
         
         reports = []
@@ -39,7 +39,7 @@ def scrape_reports():
             # Get full report content
             if link:
                 report_response = requests.get(link, headers=headers)
-                report_soup = BeautifulSoup(report_response.text, 'html.parser')
+                report_soup = bs4.BeautifulSoup(report_response.text, 'html.parser')
                 content = report_soup.find('div', class_='content')
                 text = content.get_text(strip=True) if content else ''
             else:
