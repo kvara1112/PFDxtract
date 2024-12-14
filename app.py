@@ -47,64 +47,44 @@ def get_reports_by_keyword(keyword, max_pages=10):
             
             soup = BeautifulSoup(response.text, 'lxml')
             
-            # Debug: Print part of the HTML to see structure
-            if page == 1:
-                st.write("HTML Structure (first 1000 chars):")
-                st.code(str(soup)[:1000], language='html')
-            
             # Find results header
             results_header = soup.find('div', class_='search__header')
             if results_header and page == 1:
                 st.write(f"Found results: {results_header.text.strip()}")
             
-            # Find listings container
-            listings = soup.find('div', class_='archive__listings')
-            if not listings:
-                st.write("No listings container found")
-                continue
-                
-            # Find all entries (trying multiple selectors)
-            entries = listings.select('article') or \
-                     listings.select('.post') or \
-                     listings.select('.search-result') or \
-                     listings.find_all('div', recursive=False)
+            # Find the search results container
+            search_results = soup.find('div', class_='search-results')
+            if not search_results:
+                st.write("No search results container found")
+                break
             
-            st.write(f"Processing page {page} - Found {len(entries)} entries")
+            # Find all report entries (excluding pagination)
+            entries = search_results.find_all('article', class_='post')
+            
+            st.write(f"Processing page {page} - Found {len(entries)} reports")
             
             if not entries:
-                # Debug: Print the listings HTML if no entries found
-                st.write("Listings HTML:")
-                st.code(str(listings)[:1000], language='html')
+                st.write("No more reports found on this page")
+                break
             
             for entry in entries:
                 try:
-                    # Debug: Print entry HTML
-                    st.write("Processing entry:")
-                    st.code(str(entry)[:500], language='html')
-                    
-                    # Try different ways to find title and link
-                    title_elem = entry.select_one('.entry-title a') or \
-                               entry.select_one('h2 a') or \
-                               entry.find('a')
-                               
+                    # Get title and link
+                    title_elem = entry.find('h2', class_='entry-title').find('a')
                     if not title_elem:
-                        st.write("No title element found in entry")
                         continue
                     
                     title = clean_text(title_elem.text)
-                    url = title_elem.get('href')
+                    url = title_elem['href']
                     
-                    # Find metadata
-                    metadata = entry.find('p') or \
-                              entry.find('div', class_='entry-content')
-                              
+                    # Get metadata paragraph
+                    metadata = entry.find('p')
                     if not metadata:
-                        st.write("No metadata found for entry")
                         continue
                     
                     metadata_text = clean_text(metadata.text)
                     
-                    # Extract fields using patterns
+                    # Extract fields
                     patterns = {
                         'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
                         'Reference': r'Ref:?\s*([\w-]+)',
@@ -125,15 +105,11 @@ def get_reports_by_keyword(keyword, max_pages=10):
                         report[key] = clean_text(match.group(1)) if match else ""
                     
                     reports.append(report)
-                    st.write(f"Successfully extracted report: {title}")
+                    st.write(f"Extracted report: {title}")
                     
                 except Exception as e:
                     st.error(f"Error processing entry: {str(e)}")
                     continue
-            
-            if not entries or len(entries) == 0:
-                st.write("No more entries found")
-                break
             
             # Add delay between pages
             time.sleep(1)
