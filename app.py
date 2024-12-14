@@ -2,104 +2,98 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.decomposition import LatentDirichletAllocation
-import plotly.express as px
-import time
+from datetime import datetime
+import re
 
-import os
-os.system('pip install beautifulsoup4')
-from bs4 import BeautifulSoup
-
-
-def scrape_reports():
-    url = "https://www.judiciary.uk/?s=maternity&pfd_report_type=&post_type=pfd&order=relevance"
-    headers = {'User-Agent': 'Mozilla/5.0'}
-
+def scrape_pfd_reports(keyword):
+    """
+    Scrape Prevention of Future Death reports from judiciary.uk based on keyword
+    """
+    base_url = "https://www.judiciary.uk/"
+    search_url = f"{base_url}?s={keyword}&pfd_report_type=&post_type=pfd&order=relevance"
+    
+    # Initialize list to store report data
     reports = []
+    
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code != 200:
-            st.error(f"Failed to fetch the website. Status code: {response.status_code}")
-            return pd.DataFrame()
-
+        response = requests.get(search_url)
+        response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
-        articles = soup.find_all('article', class_='search-result')
-
-        if not articles:
-            st.warning("No articles found. The website structure might have changed.")
-            return pd.DataFrame()
-
-        for article in articles:
-            title = article.find('h2').text.strip() if article.find('h2') else 'No Title'
-            link = article.find('a')['href'] if article.find('a') else 'No Link'
-            date = article.find('time')['datetime'] if article.find('time') else 'No Date'
+        
+        # Find all report entries
+        report_entries = soup.find_all('article')
+        
+        for entry in report_entries:
+            # Extract title
+            title = entry.find('h2').text.strip() if entry.find('h2') else "No title"
             
-            # Fetch content from individual report links
-            content = ""
-            try:
-                if link != 'No Link':
-                    report_response = requests.get(link, headers=headers, timeout=10)
-                    report_soup = BeautifulSoup(report_response.text, 'html.parser')
-                    content_div = report_soup.find('div', class_='content')
-                    content = content_div.get_text(strip=True) if content_div else 'No Content'
-                    time.sleep(1)  # Delay to avoid overloading the server
-            except Exception as e:
-                st.warning(f"Failed to fetch report content from {link}. Error: {str(e)}")
+            # Extract metadata text
+            metadata = entry.find('p').text.strip() if entry.find('p') else ""
             
-            reports.append({
-                'title': title,
-                'date': date,
-                'url': link,
-                'content': content
-            })
+            # Parse metadata using regex
+            date_match = re.search(r'Date of report: (\d{2}/\d{2}/\d{4})', metadata)
+            ref_match = re.search(r'Ref: ([\w-]+)', metadata)
+            deceased_match = re.search(r'Deceased name: ([^,]+)', metadata)
+            coroner_match = re.search(r'Coroner name: ([^,]+)', metadata)
+            area_match = re.search(r'Coroner Area: ([^,]+)', metadata)
+            
+            # Extract URL
+            url = entry.find('a')['href'] if entry.find('a') else ""
+            
+            # Create report dictionary
+            report = {
+                'Title': title,
+                'Date': date_match.group(1) if date_match else "",
+                'Reference': ref_match.group(1) if ref_match else "",
+                'Deceased_Name': deceased_match.group(1) if deceased_match else "",
+                'Coroner_Name': coroner_match.group(1) if coroner_match else "",
+                'Coroner_Area': area_match.group(1) if area_match else "",
+                'URL': url,
+            }
+            
+            reports.append(report)
+            
         return pd.DataFrame(reports)
+    
     except Exception as e:
-        st.error(f"Error occurred while scraping data: {str(e)}")
+        st.error(f"Error occurred while scraping: {str(e)}")
         return pd.DataFrame()
 
 def main():
-    st.title("UK Judiciary Maternity Reports Analysis")
-
-    # Initialize session state for storing reports
-    if 'reports_df' not in st.session_state:
-        st.session_state.reports_df = None
-
-    # Button to scrape reports
-    if st.button("Scrape Reports"):
-        st.session_state.reports_df = scrape_reports()
-
-    # Display reports and perform analysis if data is available
-    if st.session_state.reports_df is not None:
-        df = st.session_state.reports_df
-        st.write(f"Found {len(df)} reports.")
-        st.dataframe(df[['title', 'date', 'url']])
-
-        # Ensure there is content for analysis
-        if df['content'].isnull().all() or df['content'].str.strip().eq("").all():
-            st.error("No valid content available for analysis.")
-        else:
-            # TF-IDF Vectorization
-            vectorizer = TfidfVectorizer(max_features=1000, stop_words='english')
-            doc_term_matrix = vectorizer.fit_transform(df['content'].fillna(''))
-
-            # Topic Modeling with LDA
-            num_topics = st.slider("Select Number of Topics", 2, 10, 5)
-            lda = LatentDirichletAllocation(n_components=num_topics, random_state=42)
-            doc_topics = lda.fit_transform(doc_term_matrix)
-
-            # Display Top Words for Each Topic
-            feature_names = vectorizer.get_feature_names_out()
-            for idx, topic in enumerate(lda.components_):
-                top_words = [feature_names[i] for i in topic.argsort()[:-11:-1]]
-                st.write(f"**Topic {idx + 1}:** {', '.join(top_words)}")
-
-            # Visualize Topic Distribution
-            topic_dist = pd.DataFrame(doc_topics).mean(axis=0)
-            fig = px.bar(x=[f"Topic {i+1}" for i in range(num_topics)], y=topic_dist,
-                         labels={'x': "Topics", 'y': "Proportion"},
-                         title="Topic Distribution")
-            st.plotly_chart(fig)
+    st.title("UK Judiciary PFD Reports Scraper")
+    
+    # Add description
+    st.markdown("""
+    This app scrapes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    Enter a keyword to search for relevant reports.
+    """)
+    
+    # Input field for keyword
+    keyword = st.text_input("Enter search keyword:", "maternity")
+    
+    if st.button("Search Reports"):
+        with st.spinner("Scraping reports..."):
+            # Perform scraping
+            df = scrape_pfd_reports(keyword)
+            
+            if not df.empty:
+                # Display results
+                st.subheader(f"Found {len(df)} reports")
+                st.dataframe(df)
+                
+                # Download button
+                csv = df.to_csv(index=False)
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"pfd_reports_{keyword}_{timestamp}.csv"
+                
+                st.download_button(
+                    label="Download as CSV",
+                    data=csv,
+                    file_name=filename,
+                    mime="text/csv"
+                )
+            else:
+                st.warning("No reports found or error occurred during scraping.")
 
 if __name__ == "__main__":
     main()
