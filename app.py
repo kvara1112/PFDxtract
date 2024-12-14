@@ -8,7 +8,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from bs4 import BeautifulSoup
 import time
 
 st.set_page_config(
@@ -20,7 +19,7 @@ st.set_page_config(
 def get_driver():
     """Set up Chrome driver with appropriate options for Streamlit Cloud"""
     options = webdriver.ChromeOptions()
-    options.add_argument('--headless=new')  # Updated headless mode
+    options.add_argument('--headless=new')
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
@@ -29,7 +28,6 @@ def get_driver():
     return webdriver.Chrome(options=options)
 
 def wait_for_element(driver, by, value, timeout=10):
-    """Wait for an element to be present and visible"""
     try:
         element = WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located((by, value))
@@ -42,80 +40,121 @@ def wait_for_element(driver, by, value, timeout=10):
 def scrape_pfd_reports(keyword):
     driver = None
     try:
-        search_url = f"https://www.judiciary.uk/?s={keyword}&pfd_report_type=&post_type=pfd&order=relevance"
+        # Use the exact URL format from the UI
+        search_url = f"https://www.judiciary.uk/?s={keyword}&post_type=pfd"
         st.write(f"Accessing URL: {search_url}")
         
         driver = get_driver()
         driver.get(search_url)
         
-        # Wait for search results text to confirm page has loaded
-        results_text = wait_for_element(driver, By.CSS_SELECTOR, ".search__header p")
-        if results_text:
-            st.write(f"Found results header: {results_text.text}")
-        
-        # Wait for dynamic content to load
-        time.sleep(5)
-        
-        # Scroll down to trigger lazy loading
-        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        time.sleep(2)
-        
-        # Get content after JavaScript execution
-        content = driver.find_element(By.CLASS_NAME, "archive__listings")
-        if not content:
-            st.warning("Could not find listings container")
-            return pd.DataFrame()
+        # Wait for page to load and show debug info
+        results_header = wait_for_element(driver, By.CLASS_NAME, "search__header")
+        if results_header:
+            results_text = results_header.text
+            st.write(f"Found results header: {results_text}")
             
-        # Find all article elements within the content
-        articles = content.find_elements(By.TAG_NAME, "article")
+            # Try to extract the number of results
+            match = re.search(r'found (\d+) results', results_text)
+            if match:
+                expected_results = int(match.group(1))
+                st.write(f"Expecting to find {expected_results} results")
         
-        st.write(f"Found {len(articles)} articles")
+        # Wait and scroll multiple times to ensure content loads
+        for _ in range(3):
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+        
+        # Try multiple ways to find the articles
+        listing_container = wait_for_element(driver, By.CLASS_NAME, "archive__listings")
+        if not listing_container:
+            st.error("Could not find listings container")
+            return pd.DataFrame()
+        
+        # Debug: Print the HTML of the listing container
+        st.write("Listing container HTML:")
+        st.code(listing_container.get_attribute('innerHTML')[:1000])
+        
+        # Try different selectors to find articles
+        articles = []
+        selectors_to_try = [
+            "article",
+            ".search-result",
+            ".entry",
+            "h2.entry-title",
+            ".post"
+        ]
+        
+        for selector in selectors_to_try:
+            articles = driver.find_elements(By.CSS_SELECTOR, selector)
+            if articles:
+                st.write(f"Found {len(articles)} articles using selector: {selector}")
+                break
+        
+        if not articles:
+            st.warning("Could not find any articles with any selector")
+            return pd.DataFrame()
         
         reports = []
         for article in articles:
             try:
-                # Get the title and link
-                title_elem = article.find_element(By.CLASS_NAME, "entry-title")
+                # Try to get title both directly and through h2
+                title_elem = None
+                try:
+                    title_elem = article.find_element(By.CLASS_NAME, "entry-title")
+                except:
+                    try:
+                        title_elem = article.find_element(By.TAG_NAME, "h2")
+                    except:
+                        if article.tag_name == 'h2':
+                            title_elem = article
+                
                 if not title_elem:
                     continue
-                    
-                link = title_elem.find_element(By.TAG_NAME, "a")
-                title = link.text.strip()
-                url = link.get_attribute("href")
                 
-                # Get metadata
-                metadata = article.find_element(By.TAG_NAME, "p")
-                if metadata:
-                    metadata_text = metadata.text.strip()
-                    
-                    # Extract information using regex
-                    patterns = {
-                        'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
-                        'Reference': r'Ref:?\s*([\w-]+)',
-                        'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
-                        'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
-                        'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
-                        'Category': r'Category:?\s*([^|]+)'
-                    }
-                    
-                    report = {
-                        'Title': title,
-                        'URL': url,
-                        'Date': '',
-                        'Reference': '',
-                        'Deceased_Name': '',
-                        'Coroner_Name': '',
-                        'Coroner_Area': '',
-                        'Category': ''
-                    }
-                    
-                    for key, pattern in patterns.items():
-                        match = re.search(pattern, metadata_text)
-                        if match:
-                            report[key] = match.group(1).strip()
-                    
-                    reports.append(report)
-                    st.write(f"Processed report: {title}")
+                # Get link and title
+                try:
+                    link = title_elem.find_element(By.TAG_NAME, "a")
+                    title = link.text.strip()
+                    url = link.get_attribute("href")
+                except:
+                    continue
+                
+                # Initialize report
+                report = {
+                    'Title': title,
+                    'URL': url,
+                    'Date': '',
+                    'Reference': '',
+                    'Deceased_Name': '',
+                    'Coroner_Name': '',
+                    'Coroner_Area': '',
+                    'Category': ''
+                }
+                
+                # Try to find metadata in various ways
+                try:
+                    metadata = article.find_element(By.TAG_NAME, "p")
+                    if metadata:
+                        metadata_text = metadata.text.strip()
+                        
+                        patterns = {
+                            'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
+                            'Reference': r'Ref:?\s*([\w-]+)',
+                            'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
+                            'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
+                            'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
+                            'Category': r'Category:?\s*([^|]+)'
+                        }
+                        
+                        for key, pattern in patterns.items():
+                            match = re.search(pattern, metadata_text)
+                            if match:
+                                report[key] = match.group(1).strip()
+                except:
+                    pass
+                
+                reports.append(report)
+                st.write(f"Processed report: {title}")
             
             except Exception as e:
                 st.error(f"Error processing article: {str(e)}")
