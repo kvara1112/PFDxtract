@@ -4,3 +4,4 @@ beautifulsoup4
 pandas
 scikit-learn
 plotly
+lxml
