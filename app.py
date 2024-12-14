@@ -20,112 +20,137 @@ st.set_page_config(
 
 def clean_text(text):
     """Clean extracted text by removing extra whitespace and newlines"""
-    if text:
-        return ' '.join(text.strip().split())
-    return ""
+    if not text:
+        return ""
+    try:
+        return ' '.join(str(text).strip().split())
+    except Exception:
+        return str(text).strip()
 
-@st.cache_resource
-def get_chrome_driver():
-    """Initialize and cache the Chrome driver"""
+def setup_driver():
+    """Set up and return the Chrome driver with appropriate options"""
     chrome_options = Options()
-    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--headless")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-extensions")
     
     service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    return driver
+    return webdriver.Chrome(service=service, options=chrome_options)
 
 def scrape_pfd_reports(keyword):
     """
     Scrape Prevention of Future Death reports from judiciary.uk based on keyword
     """
-    search_url = f"https://www.judiciary.uk/?s={keyword}&pfd_report_type=&post_type=pfd&order=relevance"
-    
+    driver = None
     try:
-        driver = get_chrome_driver()
-        
+        search_url = f"https://www.judiciary.uk/?s={keyword}&pfd_report_type=&post_type=pfd&order=relevance"
         st.write(f"Accessing URL: {search_url}")
+        
+        driver = setup_driver()
         driver.get(search_url)
         
-        # Wait for the results to load
-        time.sleep(3)  # Give JavaScript time to execute
+        # Wait for content to load
+        time.sleep(3)
         
-        # Wait for either the results or a no-results message
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "entry-title"))
-        )
+        try:
+            # Wait for content or timeout after 10 seconds
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.TAG_NAME, "article"))
+            )
+        except Exception as e:
+            st.warning("Timed out waiting for results to load")
         
-        # Get the page source after JavaScript has run
+        # Get page source
         page_source = driver.page_source
         soup = BeautifulSoup(page_source, 'lxml')
         
-        # Find all report entries
-        report_entries = soup.find_all('article') or soup.find_all('div', class_='search-result')
+        # Debug output
+        st.write("Page loaded successfully")
         
-        st.write(f"Found {len(report_entries)} potential entries")
+        # Find main content
+        main_content = soup.find('main', id='main-content')
+        if not main_content:
+            st.warning("Could not find main content area")
+            return pd.DataFrame()
+        
+        # Find all articles
+        report_entries = main_content.find_all('article')
+        st.write(f"Found {len(report_entries)} reports")
+        
+        if not report_entries:
+            st.warning("No reports found")
+            return pd.DataFrame()
         
         reports = []
         for entry in report_entries:
             try:
-                # Get the title element
+                # Find title
                 title_elem = entry.find('h2', class_='entry-title')
-                if not title_elem:
+                if not title_elem or not title_elem.find('a'):
                     continue
                 
                 link = title_elem.find('a')
-                if not link:
-                    continue
-                
                 title = clean_text(link.text)
-                url = link['href']
+                url = link.get('href', '')
                 
-                # Get metadata
+                # Find metadata
                 metadata = entry.find('p')
-                if metadata:
-                    metadata_text = clean_text(metadata.text)
+                if not metadata:
+                    continue
                     
-                    patterns = {
-                        'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
-                        'Reference': r'Ref:?\s*([\w-]+)',
-                        'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
-                        'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
-                        'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
-                        'Category': r'Category:?\s*([^|]+)'
-                    }
-                    
-                    report = {
-                        'Title': title,
-                        'URL': url
-                    }
-                    
-                    for key, pattern in patterns.items():
-                        match = re.search(pattern, metadata_text)
-                        report[key] = clean_text(match.group(1)) if match else ""
-                    
-                    reports.append(report)
-                    st.write(f"Successfully parsed: {title}")
-            
+                metadata_text = clean_text(metadata.text)
+                
+                # Create report dictionary
+                report = {
+                    'Title': title,
+                    'URL': url,
+                    'Date': '',
+                    'Reference': '',
+                    'Deceased_Name': '',
+                    'Coroner_Name': '',
+                    'Coroner_Area': '',
+                    'Category': ''
+                }
+                
+                # Extract metadata using patterns
+                patterns = {
+                    'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
+                    'Reference': r'Ref:?\s*([\w-]+)',
+                    'Deceased_Name': r'Deceased name:?\s*([^,\n]+)',
+                    'Coroner_Name': r'Coroner name:?\s*([^,\n]+)',
+                    'Coroner_Area': r'Coroner Area:?\s*([^,\n]+)',
+                    'Category': r'Category:?\s*([^|]+)'
+                }
+                
+                for key, pattern in patterns.items():
+                    match = re.search(pattern, metadata_text)
+                    if match:
+                        report[key] = clean_text(match.group(1))
+                
+                reports.append(report)
+                st.write(f"Processed report: {title}")
+                
             except Exception as e:
                 st.error(f"Error processing entry: {str(e)}")
                 continue
         
         if reports:
             df = pd.DataFrame(reports)
-            column_order = ['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 'Coroner_Area', 'Category', 'URL']
-            df = df[column_order]
             return df
-        else:
-            st.warning("No reports could be parsed from the page.")
-            return pd.DataFrame()
-            
+        
+        return pd.DataFrame()
+        
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         return pd.DataFrame()
+    
     finally:
-        driver.quit()
+        if driver:
+            try:
+                driver.quit()
+            except Exception:
+                pass
 
 def main():
     st.title("UK Judiciary PFD Reports Scraper")
@@ -145,6 +170,8 @@ def main():
                 
                 if not df.empty:
                     st.success(f"Found {len(df)} reports")
+                    
+                    # Display results
                     st.dataframe(
                         df,
                         column_config={
@@ -153,6 +180,7 @@ def main():
                         hide_index=True
                     )
                     
+                    # Download button
                     csv = df.to_csv(index=False)
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     filename = f"pfd_reports_{keyword}_{timestamp}.csv"
