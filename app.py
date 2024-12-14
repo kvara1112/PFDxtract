@@ -9,6 +9,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
+from bs4 import BeautifulSoup
 
 st.set_page_config(
     page_title="UK Judiciary PFD Reports Scraper",
@@ -27,8 +28,7 @@ def get_driver():
     options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36')
     return webdriver.Chrome(options=options)
 
-def wait_for_presence(driver, selector, timeout=10):
-    """Wait for element to be present and return it"""
+def wait_for_element(driver, selector, timeout=10):
     try:
         element = WebDriverWait(driver, timeout).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, selector))
@@ -38,57 +38,78 @@ def wait_for_presence(driver, selector, timeout=10):
         return None
 
 def clean_text(text):
-    """Clean text by removing extra whitespace and newlines"""
     if text:
         return ' '.join(text.strip().split())
     return ""
 
 def find_articles(driver):
-    """Find all article elements using multiple methods"""
     try:
-        # Wait for content to load
-        content = wait_for_presence(driver, ".archive__listings")
-        if not content:
-            st.warning("Could not find content container")
-            return []
+        # Get page source and create BeautifulSoup object
+        page_source = driver.page_source
+        soup = BeautifulSoup(page_source, 'lxml')
+        
+        # Debug: Print the structure we're looking for
+        st.write("Looking for content in HTML...")
+        
+        # Find the main content area
+        main_content = soup.find('div', class_='archive__listings')
+        if main_content:
+            st.write("Found main content area")
+            # Debug: Show first part of content
+            st.code(str(main_content)[:500], language='html')
+        else:
+            st.write("Could not find main content area")
             
-        # Try multiple methods to find articles
-        articles = driver.find_elements(By.CSS_SELECTOR, ".post")
-        if not articles:
-            articles = driver.find_elements(By.CSS_SELECTOR, "article")
-        if not articles:
-            articles = driver.find_elements(By.CSS_SELECTOR, ".search-result")
-            
-        return articles
+        # Find all posts
+        posts = soup.find_all(class_='search-results')
+        st.write(f"Found {len(posts)} posts with class 'search-results'")
+        
+        # Try alternative selectors
+        entries = soup.find_all(['article', 'div'], class_=['post', 'entry', 'search-result'])
+        st.write(f"Found {len(entries)} entries with article/div tags")
+        
+        # Return Selenium elements that match our findings
+        if entries:
+            article_elements = driver.find_elements(By.CSS_SELECTOR, ".post, .entry, .search-result, article")
+            return article_elements
+        return []
+        
     except Exception as e:
         st.error(f"Error finding articles: {str(e)}")
         return []
 
 def extract_report_info(article):
-    """Extract report information from an article element"""
     try:
-        # Debug info
-        st.write("Processing article...")
+        # Get HTML of the article for debugging
+        article_html = article.get_attribute('outerHTML')
+        soup = BeautifulSoup(article_html, 'lxml')
         
-        # Get title and link
-        title_elem = article.find_element(By.CSS_SELECTOR, "h2 a")
-        if not title_elem:
+        # Debug: Print article HTML
+        st.write("Processing article HTML:")
+        st.code(article_html[:500], language='html')
+        
+        # Get title and link using BeautifulSoup
+        title_elem = soup.find('h2', class_='entry-title')
+        if not title_elem or not title_elem.find('a'):
+            st.write("Could not find title element")
             return None
             
-        title = clean_text(title_elem.text)
-        url = title_elem.get_attribute("href")
+        link = title_elem.find('a')
+        title = clean_text(link.text)
+        url = link['href']
         
         st.write(f"Found title: {title}")
         
         # Get metadata
-        metadata = article.find_element(By.TAG_NAME, "p")
+        metadata = soup.find('p')
         if not metadata:
+            st.write("Could not find metadata")
             return None
             
         metadata_text = clean_text(metadata.text)
         st.write(f"Found metadata: {metadata_text[:100]}...")
         
-        # Extract fields using patterns
+        # Extract fields
         patterns = {
             'Date': r'Date of report:?\s*(\d{2}/\d{2}/\d{4})',
             'Reference': r'Ref:?\s*([\w-]+)',
@@ -108,7 +129,7 @@ def extract_report_info(article):
             match = re.search(pattern, metadata_text)
             report[key] = clean_text(match.group(1)) if match else ""
             
-        st.write(f"Extracted report info for: {title}")
+        st.write(f"Successfully extracted report info for: {title}")
         return report
         
     except Exception as e:
@@ -125,52 +146,49 @@ def scrape_pfd_reports(keyword, max_results=50):
         driver.get(search_url)
         time.sleep(3)
         
-        # Find results header
-        header = wait_for_presence(driver, ".search__header")
+        # Check if we're on the right page
+        header = wait_for_element(driver, ".search__header")
         if header:
             st.write(f"Found results header: {header.text}")
+            
+        # Debug: Print page title and URL
+        st.write(f"Current page title: {driver.title}")
+        st.write(f"Current URL: {driver.current_url}")
         
         reports = []
         processed_urls = set()
         scroll_count = 0
-        max_scrolls = 10 if max_results > 0 else 20
+        max_scrolls = 10
         
-        with st.spinner("Loading reports..."):
-            while scroll_count < max_scrolls:
-                # Find articles
-                articles = find_articles(driver)
-                initial_count = len(reports)
+        while scroll_count < max_scrolls:
+            # Find articles
+            articles = find_articles(driver)
+            initial_count = len(reports)
+            
+            for article in articles:
+                report_info = extract_report_info(article)
                 
-                st.write(f"Found {len(articles)} articles on current page")
-                
-                for article in articles:
-                    report_info = extract_report_info(article)
+                if report_info and report_info['URL'] not in processed_urls:
+                    reports.append(report_info)
+                    processed_urls.add(report_info['URL'])
                     
-                    if report_info and report_info['URL'] not in processed_urls:
-                        reports.append(report_info)
-                        processed_urls.add(report_info['URL'])
-                        
-                        st.write(f"Added report: {report_info['Title']}")
-                        
-                        if max_results > 0 and len(reports) >= max_results:
-                            break
+                    if max_results > 0 and len(reports) >= max_results:
+                        break
+            
+            if len(reports) == initial_count:
+                scroll_count += 1
+            else:
+                scroll_count = 0
                 
-                if len(reports) == initial_count:
-                    scroll_count += 1
-                else:
-                    scroll_count = 0
-                    
-                # Scroll down
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(2)
-                
-                if max_results > 0 and len(reports) >= max_results:
-                    break
+            # Scroll down
+            driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+            time.sleep(2)
+            
+            if max_results > 0 and len(reports) >= max_results:
+                break
         
         if reports:
-            st.write(f"Total reports found: {len(reports)}")
             df = pd.DataFrame(reports)
-            # Reorder columns
             columns = ['Title', 'Date', 'Reference', 'Deceased_Name', 'Coroner_Name', 
                       'Coroner_Area', 'Category', 'Trust', 'URL']
             df = df[columns]
@@ -210,7 +228,6 @@ def main():
             if not df.empty:
                 st.success(f"Found {len(df)} reports")
                 
-                # Display results
                 st.dataframe(
                     df,
                     column_config={
@@ -219,7 +236,6 @@ def main():
                     hide_index=True
                 )
                 
-                # Download button
                 csv = df.to_csv(index=False)
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"pfd_reports_{keyword}_{timestamp}.csv"
