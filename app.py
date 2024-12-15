@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -12,137 +13,110 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(page_title="UK Judiciary PFD Reports Scraper", layout="wide")
 
-def get_url(url):
+def get_url(url, debug=False):
     """Get URL content with retries"""
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
     }
-    response = requests.get(url, verify=False, headers=headers)
-    html_content = response.text
     
-    # Debug: Save full HTML
-    st.session_state['last_html'] = html_content
-    
-    return BeautifulSoup(html_content, "html.parser")
+    try:
+        response = requests.get(url, headers=headers, verify=False)
+        response.raise_for_status()
+        
+        if debug:
+            st.write(f"Response status: {response.status_code}")
+            st.write("Response headers:", response.headers)
+        
+        return BeautifulSoup(response.text, "html.parser")
+    except Exception as e:
+        st.error(f"Error fetching URL {url}: {str(e)}")
+        return None
 
-def get_report_urls(keyword, page=1):
-    """Get all report URLs from a search page"""
-    base_url = "https://www.judiciary.uk/"
-    params = {
-        's': keyword,
-        'post_type': 'pfd',
-        'order': 'relevance'
-    }
-    if page > 1:
-        params['paged'] = page
+def find_reports(soup):
+    """Find all report entries in the page"""
+    reports = []
+    
+    # First try to find the main content area
+    content_area = soup.find('main', {'id': 'main-content'})
+    if not content_area:
+        content_area = soup
         
-    url = f"{base_url}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+    # Try different ways to find report entries
+    entries = []
     
-    st.write(f"Fetching from: {url}")
-    soup = get_url(url)
+    # Method 1: Look for articles directly
+    entries = content_area.find_all('article')
     
-    # Find results header
-    results_header = soup.find('div', class_='search__header')
-    if results_header:
-        header_text = results_header.text.strip()
-        st.write(f"Found: {header_text}")
+    # Method 2: Look for entries in search results
+    if not entries:
+        search_results = content_area.find('div', class_='search-results')
+        if search_results:
+            entries = search_results.find_all(['article', 'div'], class_=['post', 'search-result'])
+    
+    # Method 3: Look in archive listings
+    if not entries:
+        archive_listings = content_area.find('div', class_='archive__listings')
+        if archive_listings:
+            # Skip the search form
+            search_form = archive_listings.find('form', class_='search__form')
+            if search_form:
+                current = search_form.find_next_sibling()
+                while current:
+                    if current.name == 'article' or (current.name == 'div' and 'post' in current.get('class', [])):
+                        entries.append(current)
+                    current = current.find_next_sibling()
+    
+    # Debug output
+    st.write(f"Found {len(entries)} entries")
+    
+    # Process each entry
+    for entry in entries:
+        # Try to find title and link
+        link = None
+        title_elem = entry.find(['h2', 'h3', 'h4', 'h5'], class_='entry-title')
+        if title_elem:
+            link = title_elem.find('a')
         
-        # Extract number of results
-        match = re.search(r'found (\d+) results', header_text)
-        if match:
-            total_results = int(match.group(1))
-            st.write(f"Total results to process: {total_results}")
-    
-    # Find all posts in the results section
-    articles = []
-    posts = soup.find_all('div', class_='post')
-    
-    if not posts:
-        # Try alternative selectors
-        posts = soup.find_all(['article', 'div'], class_=['post', 'search-result'])
-    
-    st.write(f"Found {len(posts)} posts on page {page}")
-    
-    # Debug: Show HTML structure of a post if any found
-    if posts:
-        st.write("Example post structure:")
-        st.code(str(posts[0])[:500], language='html')
-    else:
-        st.write("No posts found. Showing full page HTML for debugging:")
-        st.code(str(soup)[:1000], language='html')
-    
-    # Process each post
-    for post in posts:
-        # Try different ways to find the link
-        link = (post.find('h2', class_='entry-title').find('a') if post.find('h2', class_='entry-title') else None) or \
-               post.find('a', class_='view-more') or \
-               post.find('a')
-               
+        if not link:
+            link = entry.find('a')
+            
         if link and 'href' in link.attrs:
-            articles.append({
+            reports.append({
                 'url': link['href'],
                 'title': link.text.strip()
             })
+            st.write(f"Found report: {link.text.strip()}")
     
-    st.write(f"Successfully extracted {len(articles)} article URLs")
-    return articles
+    return reports
 
-def extract_report_info(url):
-    """Extract information from a single report"""
-    try:
-        soup = get_url(url)
-        content = soup.find('div', class_='entry-content')
-        
-        if not content:
-            st.write(f"No content found for {url}")
-            return None
-        
-        info = {
-            'url': url,
-            'title': '',
-            'date_of_report': '',
-            'ref': '',
-            'deceased_name': '',
-            'coroner_name': '',
-            'coroner_area': '',
-            'category': '',
-            'this_report_is_being_sent_to': ''
-        }
-        
-        # Get title
-        title = soup.find('h1', class_='entry-title')
-        if title:
-            info['title'] = title.text.strip()
-        
-        # Get metadata from paragraphs
-        paragraphs = content.find_all('p')
-        
-        for p in paragraphs:
-            text = p.text.strip()
-            if not text:
-                continue
-                
-            # Extract information using patterns
-            patterns = {
-                'date_of_report': r'Date of report:?\s*([^\n]+)',
-                'ref': r'Ref:?\s*([\w-]+)',
-                'deceased_name': r'Deceased name:?\s*([^\n]+)',
-                'coroner_name': r'Coroner name:?\s*([^\n]+)',
-                'coroner_area': r'Coroner Area:?\s*([^\n]+)',
-                'category': r'Category:?\s*([^|\n]+)',
-                'this_report_is_being_sent_to': r'This report is being sent to:?\s*([^\n]+)'
-            }
-            
-            for key, pattern in patterns.items():
-                match = re.search(pattern, text)
-                if match:
-                    info[key] = match.group(1).strip()
-        
-        return info
-        
-    except Exception as e:
-        st.error(f"Error processing {url}: {str(e)}")
-        return None
+def extract_metadata(content):
+    """Extract metadata from report content"""
+    info = {}
+    
+    # Find all paragraphs with potential metadata
+    paragraphs = content.find_all('p')
+    
+    # Define patterns to match
+    patterns = {
+        'date_of_report': r'Date of report:?\s*([^\n]+)',
+        'ref': r'Ref:?\s*([\w-]+)',
+        'deceased_name': r'Deceased name:?\s*([^\n]+)',
+        'coroner_name': r'Coroner name:?\s*([^\n]+)',
+        'coroner_area': r'Coroner Area:?\s*([^\n]+)',
+        'category': r'Category:?\s*([^|\n]+)',
+        'this_report_is_being_sent_to': r'This report is being sent to:?\s*([^\n]+)'
+    }
+    
+    # Look for metadata in each paragraph
+    for p in paragraphs:
+        text = p.get_text(strip=True)
+        for key, pattern in patterns.items():
+            match = re.search(pattern, text)
+            if match:
+                info[key] = match.group(1).strip()
+    
+    return info
 
 def main():
     st.title("UK Judiciary PFD Reports Scraper")
@@ -154,61 +128,87 @@ def main():
     
     col1, col2 = st.columns([2, 1])
     with col1:
-        search_keyword = st.text_input("Enter search keywords:", "child")
+        search_keyword = st.text_input("Enter search keywords:", "")
     with col2:
         max_pages = st.number_input("Maximum pages to search:", min_value=1, max_value=50, value=10)
     
     if st.button("Search Reports"):
-        with st.spinner("Gathering reports..."):
-            all_reports = []
+        if not search_keyword:
+            st.warning("Please enter a search keyword")
+            return
+            
+        reports = []
+        with st.spinner("Searching for reports..."):
             progress_bar = st.progress(0)
             
             for page in range(1, max_pages + 1):
-                st.write(f"Processing page {page}")
+                # Construct search URL
+                url = f"https://www.judiciary.uk/?s={search_keyword}&post_type=pfd&paged={page}"
+                st.write(f"Searching page {page}: {url}")
                 
-                articles = get_report_urls(search_keyword, page)
+                # Get page content
+                soup = get_url(url, debug=True)
+                if not soup:
+                    continue
                 
-                if articles:
-                    for idx, article in enumerate(articles):
-                        try:
-                            st.write(f"Processing article: {article['title']}")
-                            report_info = extract_report_info(article['url'])
-                            if report_info:
-                                all_reports.append(report_info)
-                                st.write(f"Successfully processed: {article['title']}")
-                        except Exception as e:
-                            st.error(f"Error processing {article['url']}: {str(e)}")
-                            continue
-                        
-                        # Update progress
-                        progress = (page - 1 + (idx + 1) / len(articles)) / max_pages
-                        progress_bar.progress(progress)
-                else:
-                    st.write(f"No more articles found on page {page}")
+                # Find report entries
+                page_reports = find_reports(soup)
+                if not page_reports:
+                    st.write(f"No reports found on page {page}")
                     break
                 
-                sleep(1)
-            
-            if all_reports:
-                df = pd.DataFrame(all_reports)
+                # Process each report
+                for idx, report in enumerate(page_reports):
+                    try:
+                        # Get report content
+                        report_soup = get_url(report['url'])
+                        if not report_soup:
+                            continue
+                            
+                        # Find report content
+                        content = report_soup.find('div', class_='entry-content')
+                        if content:
+                            # Extract metadata
+                            metadata = extract_metadata(content)
+                            metadata.update({
+                                'title': report['title'],
+                                'url': report['url']
+                            })
+                            reports.append(metadata)
+                            st.write(f"Processed: {report['title']}")
+                    except Exception as e:
+                        st.error(f"Error processing report {report['url']}: {str(e)}")
+                        continue
+                    
+                    # Update progress
+                    progress = (page - 1 + (idx + 1) / len(page_reports)) / max_pages
+                    progress_bar.progress(progress)
                 
-                st.success(f"Found {len(all_reports)} reports")
+                sleep(1)  # Be nice to the server
+            
+            progress_bar.empty()
+            
+            # Create DataFrame and save results
+            if reports:
+                df = pd.DataFrame(reports)
+                
+                st.success(f"Found {len(reports)} reports")
                 st.dataframe(df)
                 
+                # Download button
                 csv = df.to_csv(index=False).encode('utf-8')
                 timestamp = date.today().strftime("%Y%m%d")
-                filename = f"death_info_{timestamp}.csv"
+                filename = f"pfd_reports_{search_keyword}_{timestamp}.csv"
                 
                 st.download_button(
-                    label="📥 Download CSV",
+                    label="📥 Download as CSV",
                     data=csv,
                     file_name=filename,
                     mime="text/csv"
                 )
             else:
                 st.warning("No reports found")
-            
-            progress_bar.empty()
 
 if __name__ == "__main__":
     main()
+```
