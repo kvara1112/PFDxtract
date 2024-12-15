@@ -5,15 +5,21 @@ import re
 import requests
 from bs4 import BeautifulSoup
 import time
+import urllib3
+
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(page_title="UK Judiciary PFD Reports Scraper", layout="wide")
 
 def clean_text(text):
+    """Clean text by removing extra whitespace and newlines"""
     if text:
         return ' '.join(text.strip().split())
     return ""
 
 def extract_metadata(text):
+    """Extract metadata fields from text"""
     patterns = {
         'date_of_report': r'Date of report:?\s*([^\n]+)',
         'ref': r'Ref:?\s*([\w-]+)',
@@ -31,7 +37,61 @@ def extract_metadata(text):
             info[key] = clean_text(match.group(1))
     return info
 
+def extract_section_content(text):
+    """Extract content from numbered sections in the report"""
+    sections = {
+        'CORONER': '',
+        'LEGAL_POWERS': '',
+        'INVESTIGATION': '',
+        'CIRCUMSTANCES': '',
+        'CONCERNS': '',
+        'ACTION': '',
+        'RESPONSE': '',
+        'COPIES': '',
+        'DATE_CORONER': ''
+    }
+    
+    patterns = {
+        'CORONER': r'1\s*CORONER\s*(.*?)(?=2\s*CORONER|$)',
+        'LEGAL_POWERS': r'2\s*CORONER\'S LEGAL POWERS\s*(.*?)(?=3\s*INVESTIGATION|$)',
+        'INVESTIGATION': r'3\s*INVESTIGATION\s*(.*?)(?=4\s*CIRCUMSTANCES|$)',
+        'CIRCUMSTANCES': r'4\s*CIRCUMSTANCES OF THE DEATH\s*(.*?)(?=5\s*CORONER|$)',
+        'CONCERNS': r'5\s*CORONER\'S CONCERNS\s*(.*?)(?=6\s*ACTION|$)',
+        'ACTION': r'6\s*ACTION SHOULD BE TAKEN\s*(.*?)(?=7\s*YOUR RESPONSE|$)',
+        'RESPONSE': r'7\s*YOUR RESPONSE\s*(.*?)(?=8\s*COPIES|$)',
+        'COPIES': r'8\s*COPIES and PUBLICATION\s*(.*?)(?=9|$)',
+        'DATE_CORONER': r'9\s*(.*?)(?=Related content|$)'
+    }
+    
+    for key, pattern in patterns.items():
+        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+        if match:
+            sections[key] = clean_text(match.group(1))
+            
+    return sections
+
+def get_report_content(url):
+    """Get detailed content from individual report page"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, verify=False)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Find the main content
+        content = soup.find('div', class_='entry-content')
+        if not content:
+            return None
+            
+        return content.get_text()
+    except Exception as e:
+        st.error(f"Error getting report content: {str(e)}")
+        return None
+
 def scrape_page(url):
+    """Scrape a single page of search results"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
@@ -39,13 +99,11 @@ def scrape_page(url):
     response = requests.get(url, headers=headers, verify=False)
     soup = BeautifulSoup(response.text, 'html.parser')
     
-    # Find the search results list
     results_list = soup.find('ul', class_='search__list')
     if not results_list:
         return []
         
     reports = []
-    # Find all card elements within the list
     cards = results_list.find_all('div', class_='card')
     
     for card in cards:
@@ -58,12 +116,11 @@ def scrape_page(url):
             title = clean_text(title_elem.text)
             url = title_elem['href']
             
-            # Get description containing metadata
+            # Get metadata from card description
             desc = card.find('p', class_='card__description')
             if not desc:
                 continue
                 
-            # Get metadata
             metadata = extract_metadata(desc.text)
             
             # Get categories from pills
@@ -72,14 +129,23 @@ def scrape_page(url):
             for pill in pills:
                 categories.append(clean_text(pill.text))
             
+            # Get full report content
+            report_content = get_report_content(url)
+            if report_content:
+                sections = extract_section_content(report_content)
+            else:
+                sections = {}
+            
             report = {
                 'Title': title,
                 'URL': url,
                 'Categories': ' | '.join(categories),
-                **metadata  # Add all extracted metadata
+                **metadata,  # Add metadata
+                **sections  # Add section content
             }
             
             reports.append(report)
+            st.write(f"Processed report: {title}")
             
         except Exception as e:
             st.error(f"Error processing card: {str(e)}")
@@ -87,16 +153,8 @@ def scrape_page(url):
             
     return reports
 
-def get_total_pages(soup):
-    """Get total number of pages from pagination"""
-    pagination = soup.find('div', class_='nav-links')
-    if pagination:
-        # Find the last page number
-        last_page = pagination.find_all('a', class_='page-numbers')[-2].text
-        return int(last_page)
-    return 1
-
 def scrape_pfd_reports(keyword, max_pages=10):
+    """Scrape multiple pages of reports"""
     all_reports = []
     current_page = 1
     
