@@ -6,7 +6,6 @@ from time import sleep
 import pandas as pd
 from datetime import date
 import urllib3
-import io
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -15,20 +14,76 @@ st.set_page_config(page_title="UK Judiciary PFD Reports Scraper", layout="wide")
 
 def get_url(url):
     """Get URL content with retries"""
-    response = requests.get(url, verify=False)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    response = requests.get(url, verify=False, headers=headers)
     return BeautifulSoup(response.content, "html.parser")
 
-def retries(record_url, tries=3):
-    """Retry URL fetch with multiple attempts"""
-    for i in range(tries):
-        try:
-            return get_url(record_url)
-        except Exception:
-            if i < tries - 1:
-                sleep(2)
-                continue
-            else:
-                return 'Con error'
+def get_report_urls(keyword, page=1):
+    """Get all report URLs from a search page"""
+    if keyword:
+        url = f"https://www.judiciary.uk/?s={keyword}&post_type=pfd&paged={page}"
+    else:
+        url = f"https://www.judiciary.uk/subject/prevention-of-future-deaths/page/{page}/"
+    
+    st.write(f"Fetching from: {url}")
+    soup = get_url(url)
+    
+    # Debug: Print some HTML to see structure
+    st.code(str(soup.select_one('.archive__listings'))[:1000], language='html')
+    
+    articles = []
+    for article in soup.find_all(['article', 'div'], class_=['post', 'search-result']):
+        link = article.find('a')
+        if link and link.get('href'):
+            articles.append({
+                'url': link['href'],
+                'title': link.text.strip()
+            })
+    
+    return articles
+
+def extract_report_info(url):
+    """Extract information from a single report"""
+    soup = get_url(url)
+    content = soup.find('div', class_='entry-content')
+    if not content:
+        return None
+        
+    info = {
+        'url': url,
+        'date_of_report': '',
+        'ref': '',
+        'deceased_name': '',
+        'coroner_name': '',
+        'coroner_area': '',
+        'category': '',
+        'this_report_is_being_sent_to': ''
+    }
+    
+    # Get all paragraphs
+    paragraphs = content.find_all('p')
+    for p in paragraphs:
+        text = p.text.strip()
+        
+        # Extract key information using patterns
+        patterns = {
+            'date_of_report': r'Date of report:?\s*([^\n]+)',
+            'ref': r'Ref:?\s*([\w-]+)',
+            'deceased_name': r'Deceased name:?\s*([^\n]+)',
+            'coroner_name': r'Coroner name:?\s*([^\n]+)',
+            'coroner_area': r'Coroner Area:?\s*([^\n]+)',
+            'category': r'Category:?\s*([^|\n]+)',
+            'this_report_is_being_sent_to': r'This report is being sent to:?\s*([^\n]+)'
+        }
+        
+        for key, pattern in patterns.items():
+            match = re.search(pattern, text)
+            if match:
+                info[key] = match.group(1).strip()
+                
+    return info
 
 def main():
     st.title("UK Judiciary PFD Reports Scraper")
@@ -38,12 +93,6 @@ def main():
     Enter keywords to search for relevant reports.
     """)
     
-    # Initialize session state
-    if 'record_text' not in st.session_state:
-        st.session_state.record_text = []
-    if 'pdf_urls' not in st.session_state:
-        st.session_state.pdf_urls = []
-    
     col1, col2 = st.columns([2, 1])
     with col1:
         search_keyword = st.text_input("Enter search keywords:", "")
@@ -52,134 +101,56 @@ def main():
     
     if st.button("Search Reports"):
         with st.spinner("Gathering reports..."):
-            # Reset lists
-            record_text = []
-            pdf_urls = []
-            error_catching = []
-            record_count = 0
-            
-            # Define text categories to extract
-            text_cats = ['Date of report', 'Ref', 'Deceased name', 'Coroner name', 
-                        'Coroner Area', 'Category', "This report is being sent to"]
-            
-            # Get all report URLs
+            all_reports = []
             progress_bar = st.progress(0)
-            status_text = st.empty()
             
             for page in range(1, max_pages + 1):
-                try:
-                    # Construct search URL
-                    if search_keyword:
-                        url = f"https://www.judiciary.uk/?s={search_keyword}&post_type=pfd&paged={page}"
-                    else:
-                        url = f"https://www.judiciary.uk/?post_type=pfd&paged={page}"
-                    
-                    st.write(f"Checking URL: {url}")  # Debug output
-                    soup = get_url(url)
-                    articles = soup.select('.archive__listings article, .search-results article')
-                    
-                    st.write(f"Found {len(articles)} articles on page {page}")  # Debug output
-                    
-                    if not articles:
-                        break
-                        
-                    status_text.text(f"Processing page {page} - Found {len(articles)} reports")
-                    
-                    for article in articles:
-                        try:
-                            # Get URL of full report
-                            link = article.select_one('.entry-title a')
-                            if not link:
-                                continue
-                                
-                            record_url = link['href']
-                            st.write(f"Processing report: {record_url}")  # Debug output
-                            
-                            # Get full report content
-                            report_soup = retries(record_url)
-                            if report_soup == 'Con error':
-                                continue
-                                
-                            # Extract report content
-                            death_info = report_soup.find('div', {'class':'entry-content'})
-                            if not death_info:
-                                continue
-                                
-                            # Process metadata
-                            blankdict = {}
-                            paragraphs = death_info.find_all('p')
-                            
-                            for p in paragraphs:
-                                text = p.text.strip()
-                                if ':' in text:
-                                    parts = text.split(':')
-                                    key = parts[0].strip()
-                                    if key in text_cats:
-                                        dict_key = key.lower().replace(' ', '_')
-                                        blankdict[dict_key] = parts[1].strip()
-                            
-                            blankdict['url'] = record_url
-                            record_text.append(blankdict)
-                            
-                            # Get PDFs
-                            pdf_list = []
-                            pdfs = death_info.find_all('a', href=re.compile(r'\.pdf$'))
-                            for pdf in pdfs:
-                                pdf_list.append(pdf['href'])
-                            pdf_urls.append(pdf_list)
-                            
-                            record_count += 1
-                            st.write(f"Successfully processed report {record_count}")  # Debug output
-                            
-                        except Exception as e:
-                            st.error(f"Error processing record: {str(e)}")
-                            continue
-                            
-                    progress_bar.progress(page / max_pages)
-                    sleep(1)  # Be nice to the server
-                    
-                except Exception as e:
-                    st.error(f"Error processing page {page}: {str(e)}")
+                st.write(f"Processing page {page}")
+                
+                # Get report URLs from the page
+                articles = get_report_urls(search_keyword, page)
+                if not articles:
+                    st.write(f"No more articles found on page {page}")
                     break
+                
+                st.write(f"Found {len(articles)} reports on page {page}")
+                
+                # Process each report
+                for idx, article in enumerate(articles):
+                    try:
+                        report_info = extract_report_info(article['url'])
+                        if report_info:
+                            all_reports.append(report_info)
+                            st.write(f"Processed: {article['title']}")
+                    except Exception as e:
+                        st.error(f"Error processing {article['url']}: {str(e)}")
+                        continue
+                
+                progress_bar.progress(page / max_pages)
+                sleep(1)  # Be nice to the server
             
-            # Save results
-            if record_text:
-                # Save to CSV
-                df = pd.DataFrame(record_text)
-                csv = df.to_csv(index=False).encode('utf-8')
+            # Save and display results
+            if all_reports:
+                df = pd.DataFrame(all_reports)
                 
-                st.success(f"Found {len(record_text)} reports")
-                
-                # Display results
+                st.success(f"Found {len(all_reports)} reports")
                 st.dataframe(df)
                 
-                # Download buttons
-                col1, col2 = st.columns(2)
-                
-                # CSV download
+                # Download button
+                csv = df.to_csv(index=False).encode('utf-8')
                 timestamp = date.today().strftime("%Y%m%d")
                 filename = f"death_info_{timestamp}.csv"
                 
-                col1.download_button(
+                st.download_button(
                     label="📥 Download CSV",
                     data=csv,
                     file_name=filename,
                     mime="text/csv"
                 )
-                
-                # PDFs download
-                if pdf_urls:
-                    pdfs_found = sum(len(urls) for urls in pdf_urls)
-                    if pdfs_found > 0:
-                        col2.write(f"Found {pdfs_found} PDFs")
-                        st.info("PDF download feature to be implemented based on your requirements")
-                
             else:
                 st.warning("No reports found")
             
-            # Clear progress
             progress_bar.empty()
-            status_text.empty()
 
 if __name__ == "__main__":
     main()
