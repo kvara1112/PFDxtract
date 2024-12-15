@@ -22,26 +22,51 @@ def get_url(url):
 
 def get_report_urls(keyword, page=1):
     """Get all report URLs from a search page"""
+    base_url = "https://www.judiciary.uk/"
     if keyword:
-        url = f"https://www.judiciary.uk/?s={keyword}&post_type=pfd&paged={page}"
+        params = {
+            's': keyword,
+            'post_type': 'pfd',
+            'paged': page
+        }
+        url = f"{base_url}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
     else:
-        url = f"https://www.judiciary.uk/subject/prevention-of-future-deaths/page/{page}/"
+        url = f"{base_url}subject/prevention-of-future-deaths/page/{page}/"
     
     st.write(f"Fetching from: {url}")
     soup = get_url(url)
     
-    # Debug: Print some HTML to see structure
-    st.code(str(soup.select_one('.archive__listings'))[:1000], language='html')
+    # Find results header to confirm we have results
+    results_header = soup.find('div', class_='search__header')
+    if results_header:
+        header_text = results_header.text.strip()
+        st.write(f"Found: {header_text}")
+    
+    # Get all article listings
+    articles_section = soup.find('div', class_='archive__listings')
+    if not articles_section:
+        return []
+        
+    # Debug: Show the HTML structure we're working with
+    st.write("HTML Structure:")
+    st.code(str(articles_section)[:1000], language='html')
     
     articles = []
-    for article in soup.find_all(['article', 'div'], class_=['post', 'search-result']):
-        link = article.find('a')
-        if link and link.get('href'):
-            articles.append({
-                'url': link['href'],
-                'title': link.text.strip()
-            })
+    # Look for articles after the search form
+    search_form = articles_section.find('form', class_='search__form')
+    if search_form:
+        current_element = search_form.find_next_sibling()
+        while current_element:
+            if current_element.name == 'article':
+                link = current_element.find('a', class_='view-more')
+                if link:
+                    articles.append({
+                        'url': link['href'],
+                        'title': link.text.strip()
+                    })
+            current_element = current_element.find_next_sibling()
     
+    st.write(f"Found {len(articles)} articles")
     return articles
 
 def extract_report_info(url):
@@ -62,12 +87,10 @@ def extract_report_info(url):
         'this_report_is_being_sent_to': ''
     }
     
-    # Get all paragraphs
     paragraphs = content.find_all('p')
     for p in paragraphs:
         text = p.text.strip()
         
-        # Extract key information using patterns
         patterns = {
             'date_of_report': r'Date of report:?\s*([^\n]+)',
             'ref': r'Ref:?\s*([\w-]+)',
@@ -82,7 +105,7 @@ def extract_report_info(url):
             match = re.search(pattern, text)
             if match:
                 info[key] = match.group(1).strip()
-                
+    
     return info
 
 def main():
@@ -94,8 +117,10 @@ def main():
     """)
     
     col1, col2 = st.columns([2, 1])
+    
     with col1:
-        search_keyword = st.text_input("Enter search keywords:", "")
+        search_keyword = st.text_input("Enter search keywords:", "child")
+        
     with col2:
         max_pages = st.number_input("Maximum pages to search:", min_value=1, max_value=50, value=10)
     
@@ -107,15 +132,11 @@ def main():
             for page in range(1, max_pages + 1):
                 st.write(f"Processing page {page}")
                 
-                # Get report URLs from the page
                 articles = get_report_urls(search_keyword, page)
                 if not articles:
                     st.write(f"No more articles found on page {page}")
                     break
                 
-                st.write(f"Found {len(articles)} reports on page {page}")
-                
-                # Process each report
                 for idx, article in enumerate(articles):
                     try:
                         report_info = extract_report_info(article['url'])
@@ -127,16 +148,14 @@ def main():
                         continue
                 
                 progress_bar.progress(page / max_pages)
-                sleep(1)  # Be nice to the server
+                sleep(1)
             
-            # Save and display results
             if all_reports:
                 df = pd.DataFrame(all_reports)
                 
                 st.success(f"Found {len(all_reports)} reports")
                 st.dataframe(df)
                 
-                # Download button
                 csv = df.to_csv(index=False).encode('utf-8')
                 timestamp = date.today().strftime("%Y%m%d")
                 filename = f"death_info_{timestamp}.csv"
