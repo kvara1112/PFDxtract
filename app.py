@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import requests
 from bs4 import BeautifulSoup
@@ -25,9 +26,14 @@ def get_url(url, debug=False):
         
         if debug:
             st.write(f"Response status: {response.status_code}")
-            st.write("Response headers:", response.headers)
         
-        return BeautifulSoup(response.text, "html.parser")
+        # Save HTML for debugging
+        html_content = response.text
+        if debug:
+            st.write("First 1000 characters of HTML:")
+            st.code(html_content[:1000], language='html')
+        
+        return BeautifulSoup(html_content, "html.parser")
     except Exception as e:
         st.error(f"Error fetching URL {url}: {str(e)}")
         return None
@@ -36,86 +42,80 @@ def find_reports(soup):
     """Find all report entries in the page"""
     reports = []
     
-    # First try to find the main content area
-    content_area = soup.find('main', {'id': 'main-content'})
-    if not content_area:
-        content_area = soup
+    # Find the search results container
+    results_container = soup.find('div', {'id': 'listing'})
+    if not results_container:
+        st.write("No results container found")
+        return reports
         
-    # Try different ways to find report entries
-    entries = []
+    # Skip past the search form
+    search_form = results_container.find('form', {'class': 'search__form'})
+    if search_form:
+        # Get all elements after the search form
+        current = search_form.find_next_sibling()
+        while current:
+            # Check if this is a report entry
+            title_elem = current.find('h2', class_='entry-title')
+            if title_elem:
+                link = title_elem.find('a')
+                if link and 'href' in link.attrs:
+                    reports.append({
+                        'url': link['href'],
+                        'title': link.text.strip()
+                    })
+                    st.write(f"Found report: {link.text.strip()}")
+            current = current.find_next_sibling()
     
-    # Method 1: Look for articles directly
-    entries = content_area.find_all('article')
-    
-    # Method 2: Look for entries in search results
-    if not entries:
-        search_results = content_area.find('div', class_='search-results')
-        if search_results:
-            entries = search_results.find_all(['article', 'div'], class_=['post', 'search-result'])
-    
-    # Method 3: Look in archive listings
-    if not entries:
-        archive_listings = content_area.find('div', class_='archive__listings')
-        if archive_listings:
-            # Skip the search form
-            search_form = archive_listings.find('form', class_='search__form')
-            if search_form:
-                current = search_form.find_next_sibling()
-                while current:
-                    if current.name == 'article' or (current.name == 'div' and 'post' in current.get('class', [])):
-                        entries.append(current)
-                    current = current.find_next_sibling()
-    
-    # Debug output
-    st.write(f"Found {len(entries)} entries")
-    
-    # Process each entry
-    for entry in entries:
-        # Try to find title and link
-        link = None
-        title_elem = entry.find(['h2', 'h3', 'h4', 'h5'], class_='entry-title')
-        if title_elem:
-            link = title_elem.find('a')
-        
-        if not link:
-            link = entry.find('a')
-            
-        if link and 'href' in link.attrs:
-            reports.append({
-                'url': link['href'],
-                'title': link.text.strip()
-            })
-            st.write(f"Found report: {link.text.strip()}")
-    
+    st.write(f"Found {len(reports)} reports")
     return reports
 
-def extract_metadata(content):
-    """Extract metadata from report content"""
-    info = {}
-    
-    # Find all paragraphs with potential metadata
-    paragraphs = content.find_all('p')
-    
-    # Define patterns to match
-    patterns = {
-        'date_of_report': r'Date of report:?\s*([^\n]+)',
-        'ref': r'Ref:?\s*([\w-]+)',
-        'deceased_name': r'Deceased name:?\s*([^\n]+)',
-        'coroner_name': r'Coroner name:?\s*([^\n]+)',
-        'coroner_area': r'Coroner Area:?\s*([^\n]+)',
-        'category': r'Category:?\s*([^|\n]+)',
-        'this_report_is_being_sent_to': r'This report is being sent to:?\s*([^\n]+)'
-    }
-    
-    # Look for metadata in each paragraph
-    for p in paragraphs:
-        text = p.get_text(strip=True)
+def extract_metadata(url):
+    """Extract metadata from a report URL"""
+    try:
+        soup = get_url(url)
+        if not soup:
+            return None
+            
+        content = soup.find('div', class_='entry-content')
+        if not content:
+            return None
+            
+        info = {
+            'url': url,
+            'date_of_report': '',
+            'ref': '',
+            'deceased_name': '',
+            'coroner_name': '',
+            'coroner_area': '',
+            'category': '',
+            'this_report_is_being_sent_to': ''
+        }
+        
+        # Get all paragraphs
+        paragraphs = content.find_all('p')
+        full_text = ' '.join([p.get_text(strip=True) for p in paragraphs])
+        
+        # Extract information using patterns
+        patterns = {
+            'date_of_report': r'Date of report:?\s*([^\n]+)',
+            'ref': r'Ref:?\s*([\w-]+)',
+            'deceased_name': r'Deceased name:?\s*([^\n]+)',
+            'coroner_name': r'Coroner name:?\s*([^\n]+)',
+            'coroner_area': r'Coroner Area:?\s*([^\n]+)',
+            'category': r'Category:?\s*([^|\n]+)',
+            'this_report_is_being_sent_to': r'This report is being sent to:?\s*([^\n]+)'
+        }
+        
         for key, pattern in patterns.items():
-            match = re.search(pattern, text)
+            match = re.search(pattern, full_text)
             if match:
                 info[key] = match.group(1).strip()
-    
-    return info
+        
+        return info
+        
+    except Exception as e:
+        st.error(f"Error extracting metadata from {url}: {str(e)}")
+        return None
 
 def main():
     st.title("UK Judiciary PFD Reports Scraper")
@@ -127,22 +127,21 @@ def main():
     
     col1, col2 = st.columns([2, 1])
     with col1:
-        search_keyword = st.text_input("Enter search keywords:", "")
+        search_keyword = st.text_input("Enter search keywords:", "child")
     with col2:
         max_pages = st.number_input("Maximum pages to search:", min_value=1, max_value=50, value=10)
     
     if st.button("Search Reports"):
-        if not search_keyword:
-            st.warning("Please enter a search keyword")
-            return
-            
-        reports = []
         with st.spinner("Searching for reports..."):
+            all_reports = []
             progress_bar = st.progress(0)
             
             for page in range(1, max_pages + 1):
-                # Construct search URL
-                url = f"https://www.judiciary.uk/?s={search_keyword}&post_type=pfd&paged={page}"
+                # Construct URL
+                url = f"https://www.judiciary.uk/?s={search_keyword}&post_type=pfd"
+                if page > 1:
+                    url += f"&paged={page}"
+                    
                 st.write(f"Searching page {page}: {url}")
                 
                 # Get page content
@@ -150,7 +149,7 @@ def main():
                 if not soup:
                     continue
                 
-                # Find report entries
+                # Find reports on page
                 page_reports = find_reports(soup)
                 if not page_reports:
                     st.write(f"No reports found on page {page}")
@@ -159,24 +158,13 @@ def main():
                 # Process each report
                 for idx, report in enumerate(page_reports):
                     try:
-                        # Get report content
-                        report_soup = get_url(report['url'])
-                        if not report_soup:
-                            continue
-                            
-                        # Find report content
-                        content = report_soup.find('div', class_='entry-content')
-                        if content:
-                            # Extract metadata
-                            metadata = extract_metadata(content)
-                            metadata.update({
-                                'title': report['title'],
-                                'url': report['url']
-                            })
-                            reports.append(metadata)
+                        metadata = extract_metadata(report['url'])
+                        if metadata:
+                            metadata['title'] = report['title']
+                            all_reports.append(metadata)
                             st.write(f"Processed: {report['title']}")
                     except Exception as e:
-                        st.error(f"Error processing report {report['url']}: {str(e)}")
+                        st.error(f"Error processing {report['url']}: {str(e)}")
                         continue
                     
                     # Update progress
@@ -185,13 +173,11 @@ def main():
                 
                 sleep(1)  # Be nice to the server
             
-            progress_bar.empty()
-            
             # Create DataFrame and save results
-            if reports:
-                df = pd.DataFrame(reports)
+            if all_reports:
+                df = pd.DataFrame(all_reports)
                 
-                st.success(f"Found {len(reports)} reports")
+                st.success(f"Found {len(all_reports)} reports")
                 st.dataframe(df)
                 
                 # Download button
@@ -207,6 +193,9 @@ def main():
                 )
             else:
                 st.warning("No reports found")
+            
+            progress_bar.empty()
 
 if __name__ == "__main__":
     main()
+```
