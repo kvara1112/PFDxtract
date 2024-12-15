@@ -6,7 +6,6 @@ from time import sleep
 import pandas as pd
 from datetime import date
 import urllib3
-from tqdm.auto import tqdm
 import io
 
 # Disable SSL warnings
@@ -75,8 +74,11 @@ def main():
                     else:
                         url = f"https://www.judiciary.uk/?post_type=pfd&paged={page}"
                     
+                    st.write(f"Checking URL: {url}")  # Debug output
                     soup = get_url(url)
                     articles = soup.select('.archive__listings article, .search-results article')
+                    
+                    st.write(f"Found {len(articles)} articles on page {page}")  # Debug output
                     
                     if not articles:
                         break
@@ -91,6 +93,7 @@ def main():
                                 continue
                                 
                             record_url = link['href']
+                            st.write(f"Processing report: {record_url}")  # Debug output
                             
                             # Get full report content
                             report_soup = retries(record_url)
@@ -126,6 +129,7 @@ def main():
                             pdf_urls.append(pdf_list)
                             
                             record_count += 1
+                            st.write(f"Successfully processed report {record_count}")  # Debug output
                             
                         except Exception as e:
                             st.error(f"Error processing record: {str(e)}")
