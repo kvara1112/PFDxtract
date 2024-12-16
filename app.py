@@ -11,6 +11,7 @@ import pdfplumber
 import tempfile
 import logging
 import os
+from data_processing import process_dataframe
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
@@ -283,6 +284,8 @@ def scrape_pfd_reports(keyword=None):
         st.error(f"An error occurred while scraping reports: {e}")
         return []
 
+from data_processing import process_dataframe
+
 def main():
     st.title("UK Judiciary PFD Reports Analysis")
     
@@ -310,14 +313,64 @@ def main():
         if reports:
             df = pd.DataFrame(reports)
             
+            # Process the DataFrame to extract structured data
+            df = process_dataframe(df)
+            
             st.success(f"Found {len(reports):,} reports")
             
-            # Show detailed data
-            st.subheader("Reports Data")
+            # Add filtering options
+            st.subheader("Filters")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # Unique Coroner's Areas filter
+                selected_areas = st.multiselect(
+                    "Filter by Coroner's Area", 
+                    sorted(df['Coroners_Area'].dropna().unique())
+                )
+            
+            with col2:
+                # Unique Categories filter
+                selected_categories = st.multiselect(
+                    "Filter by Category", 
+                    sorted(df['Category'].dropna().unique())
+                )
+            
+            with col3:
+                # Date range filter
+                df['Date_of_Report'] = pd.to_datetime(df['Date_of_Report'], format='%d/%m/%Y', errors='coerce')
+                min_date = df['Date_of_Report'].min()
+                max_date = df['Date_of_Report'].max()
+                
+                date_range = st.date_input(
+                    "Filter by Date Range",
+                    value=(min_date, max_date),
+                    min_value=min_date,
+                    max_value=max_date
+                )
+            
+            # Apply filters
+            filtered_df = df.copy()
+            if selected_areas:
+                filtered_df = filtered_df[filtered_df['Coroners_Area'].isin(selected_areas)]
+            
+            if selected_categories:
+                filtered_df = filtered_df[filtered_df['Category'].isin(selected_categories)]
+            
+            if date_range:
+                start_date, end_date = date_range
+                filtered_df = filtered_df[
+                    (filtered_df['Date_of_Report'].dt.date >= start_date) & 
+                    (filtered_df['Date_of_Report'].dt.date <= end_date)
+                ]
+            
+            # Show filtered data
+            st.subheader(f"Reports Data (Showing {len(filtered_df)} of {len(df)} reports)")
             st.dataframe(
-                df,
+                filtered_df,
                 column_config={
-                    "URL": st.column_config.LinkColumn("Report Link")
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "Date_of_Report": st.column_config.DateColumn("Date of Report")
                 },
                 hide_index=True
             )
@@ -328,9 +381,9 @@ def main():
             filename = f"pfd_reports_{search_keyword}_{timestamp}"
             
             if export_format == "CSV":
-                csv = df.to_csv(index=False).encode('utf-8')
+                csv = filtered_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    "📥 Download Extracted text from PDF Reports in CSV",
+                    "📥 Download Filtered Reports as CSV",
                     csv,
                     f"{filename}.csv",
                     "text/csv",
@@ -339,10 +392,10 @@ def main():
             else:
                 excel_buffer = io.BytesIO()
                 with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False)
+                    filtered_df.to_excel(writer, index=False)
                 excel_data = excel_buffer.getvalue()
                 st.download_button(
-                    "📥 Download Reports",
+                    "📥 Download Filtered Reports as Excel",
                     excel_data,
                     f"{filename}.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
