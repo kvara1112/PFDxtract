@@ -76,26 +76,52 @@ def render_analysis_tab():
         try:
             # Load the data
             if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
+                raw_df = pd.read_csv(uploaded_file)
             else:
-                df = pd.read_excel(uploaded_file)
+                raw_df = pd.read_excel(uploaded_file)
             
             # Process the data
-            processed_df = process_data(df)
+            processed_df = process_data(raw_df)
+            
+            # Show data processing tabs
+            data_tab1, data_tab2 = st.tabs(["Raw Data", "Processed Data"])
+            
+            with data_tab1:
+                st.subheader("Raw Imported Data")
+                st.dataframe(
+                    raw_df,
+                    column_config={
+                        "URL": st.column_config.LinkColumn("Report Link")
+                    },
+                    hide_index=True
+                )
+            
+            with data_tab2:
+                st.subheader("Processed Metadata")
+                st.dataframe(
+                    processed_df,
+                    column_config={
+                        "url": st.column_config.LinkColumn("Report Link"),
+                        "date_of_report": st.column_config.DateColumn("Date of Report"),
+                        "categories": st.column_config.ListColumn("Categories"),
+                    },
+                    hide_index=True
+                )
             
             # Display filters
-            st.subheader("Filters")
+            st.subheader("Filter Processed Data")
             col1, col2, col3 = st.columns(3)
             
             with col1:
                 # Date range filter
                 min_date = processed_df['date_of_report'].min()
                 max_date = processed_df['date_of_report'].max()
-                date_range = st.date_input(
-                    "Date range",
-                    value=(min_date.date(), max_date.date()) if pd.notna(min_date) and pd.notna(max_date) else None,
-                    key="date_range"
-                )
+                if pd.notna(min_date) and pd.notna(max_date):
+                    date_range = st.date_input(
+                        "Date range",
+                        value=(min_date.date(), max_date.date()),
+                        key="date_range"
+                    )
             
             with col2:
                 # Coroner area filter
@@ -109,6 +135,21 @@ def render_analysis_tab():
                     if isinstance(cats, list):
                         all_categories.update(cats)
                 selected_categories = st.multiselect("Categories", sorted(all_categories))
+            
+            # Additional filters
+            col1, col2 = st.columns(2)
+            with col1:
+                # Reference number filter
+                ref_numbers = sorted(processed_df['reference'].dropna().unique())
+                selected_ref = st.multiselect("Reference Numbers", ref_numbers)
+            
+            with col2:
+                # Coroner name filter
+                coroners = sorted(processed_df['coroner_name'].dropna().unique())
+                selected_coroner = st.multiselect("Coroner Names", coroners)
+            
+            # Text search
+            search_text = st.text_input("Search in deceased name or organizations:", "")
             
             # Apply filters
             filtered_df = processed_df.copy()
@@ -130,8 +171,21 @@ def render_analysis_tab():
                     )
                 ]
             
+            if selected_ref:
+                filtered_df = filtered_df[filtered_df['reference'].isin(selected_ref)]
+                
+            if selected_coroner:
+                filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroner)]
+            
+            if search_text:
+                search_mask = (
+                    filtered_df['deceased_name'].str.contains(search_text, case=False, na=False) |
+                    filtered_df['sent_to'].str.contains(search_text, case=False, na=False)
+                )
+                filtered_df = filtered_df[search_mask]
+            
             # Display analysis
-            st.subheader("Analysis Results")
+            st.subheader("Filtered Results")
             
             # Summary metrics
             col1, col2, col3, col4 = st.columns(4)
@@ -143,10 +197,10 @@ def render_analysis_tab():
                 st.metric("Reports This Year", 
                          len(filtered_df[filtered_df['date_of_report'].dt.year == datetime.now().year]))
             with col4:
-                avg_reports_month = len(filtered_df) / (
-                    (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days / 30
-                )
-                st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
+                if len(filtered_df) > 0:
+                    date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
+                    avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
+                    st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
             
             # Display filtered data
             st.dataframe(
@@ -154,6 +208,7 @@ def render_analysis_tab():
                 column_config={
                     "url": st.column_config.LinkColumn("Report Link"),
                     "date_of_report": st.column_config.DateColumn("Date of Report"),
+                    "categories": st.column_config.ListColumn("Categories"),
                 },
                 hide_index=True
             )
