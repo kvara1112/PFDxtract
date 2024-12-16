@@ -8,15 +8,38 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 
-def clean_excel_text(text):
-    """Clean and standardize text from Excel"""
+def clean_text(text):
+    """
+    Comprehensive text cleaning function to handle encoded characters
+    """
     if pd.isna(text):
         return ""
+    
     text = str(text).strip()
+    
+    # Specific replacements for encoded characters
+    replacements = {
+        'â€™': "'",   # Smart single quote right
+        'â€˜': "'",   # Smart single quote left
+        'â€œ': '"',   # Left double quote
+        'â€': '"',    # Right double quote
+        'â€¦': '...',  # Ellipsis
+        'â€"': '—',   # Em dash
+        'â€¢': '•',   # Bullet point
+        'Â': '',      # Unwanted character
+        '\u200b': '', # Zero-width space
+        '\uf0b7': ''  # Private use area character
+    }
+    
+    # Apply replacements
+    for encoded, replacement in replacements.items():
+        text = text.replace(encoded, replacement)
+    
     # Standardize newlines
     text = text.replace('\r\n', '\n').replace('\r', '\n')
     # Fix concatenated fields
     text = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', text)  # Add space between lower and uppercase letters
+    
     return text
 
 class MetadataExtractor:
@@ -28,6 +51,7 @@ class MetadataExtractor:
             r'Date\s*of\s*report\s*:\s*(\d{2}/\d{2}/\d{4})',
             r'Date\s*of\s*report\s*(\d{2}/\d{2}/\d{4})'
         ],
+        # Rest of the METADATA_PATTERNS remain the same
         'reference': [
             r'Ref:\s*(20\d{2}-\d{4})',
             r'Reference:\s*(20\d{2}-\d{4})'
@@ -57,54 +81,6 @@ class MetadataExtractor:
         ]
     }
 
-    def _clean_text_for_extraction(self, text: str) -> str:
-        """
-        Specifically clean text for metadata extraction
-        Removes problematic encoded characters and normalizes formatting
-        """
-        if not text:
-            return ""
-        
-        # Specific replacements for metadata extraction
-        replacements = {
-            'â€™': "'",   # Smart single quote
-            'â€œ': '"',   # Left double quote
-            'â€': '"',    # Right double quote
-            'Â': '',      # Unwanted character
-            '\u200b': '', # Zero-width space
-            '\uf0b7': ''  # Private use area character
-        }
-        
-        for encoded, replacement in replacements.items():
-            text = text.replace(encoded, replacement)
-        
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
-        
-        return text.strip()
-
-    def _preprocess_text(self, text: str) -> str:
-        """Preprocess text to ensure consistent format"""
-        if not text:
-            return ""
-        
-        # Convert to string and normalize newlines
-        text = str(text).replace('\r\n', '\n').replace('\r', '\n')
-        
-        # Handle concatenated fields by adding newlines
-        key_fields = [
-            'Date of report:', 'Ref:', 'Deceased name:', 
-            'Coroners name:', 'Coroner name:', 
-            'Coroners Area:', 'Coroner Area:', 
-            'Category:', 'This report is being sent to:'
-        ]
-        
-        # Add newlines before key fields
-        for field in key_fields:
-            text = text.replace(field, f'\n{field}')
-        
-        return text.strip()
-
     def extract_metadata(self, content: str) -> Dict:
         """Extract metadata following the exact PFD report format"""
         metadata = {
@@ -120,6 +96,50 @@ class MetadataExtractor:
         if not content:
             return metadata
         
+        # Clean the content thoroughly before extraction
+        cleaned_content = clean_text(content)
+        
+        # Try each pattern for each field
+        for field, patterns in self.METADATA_PATTERNS.items():
+            if not isinstance(patterns, list):
+                patterns = [patterns]
+            
+            for pattern in patterns:
+                match = re.search(pattern, cleaned_content, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+                if match:
+                    value = match.group(1).strip()
+                    
+                    if field == 'date_of_report':
+                        try:
+                            # Validate date format
+                            datetime.strptime(value, '%d/%m/%Y')
+                            metadata[field] = value
+                        except ValueError:
+                            logging.warning(f"Invalid date format: {value}")
+                            continue
+                    
+                    elif field == 'categories':
+                        # Split categories on pipe and clean
+                        categories = [cat.strip() for cat in value.split('|')]
+                        # Remove empty categories and clean up
+                        categories = [re.sub(r'\s+', ' ', cat).strip() for cat in categories if cat.strip()]
+                        if categories:
+                            metadata[field] = categories
+                    
+                    else:
+                        # Clean up other values
+                        value = re.sub(r'\s+', ' ', value).strip()
+                        
+                        # Handle special case for deceased name
+                        if field == 'deceased_name' and 'Coroner' in value:
+                            value = value.split('Coroner')[0].strip()
+                        
+                        metadata[field] = value
+                    
+                    break  # Stop trying patterns once we find a match
+        
+        return metadata
+   
         # Preprocess and clean the content
         preprocessed_text = self._preprocess_text(content)
         processed_text = self._clean_text_for_extraction(preprocessed_text)
