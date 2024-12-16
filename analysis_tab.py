@@ -153,17 +153,22 @@ class MetadataExtractor:
             
             for pattern in patterns:
                 match = re.search(pattern, processed_text, re.IGNORECASE | re.MULTILINE)
-                if match:
-                    value = match.group(1).strip()
-                    if field == 'categories':
-                        # Split categories on pipe and clean
-                        categories = [cat.strip() for cat in value.split('|')]
-                        # Remove empty categories
-                        categories = [cat for cat in categories if cat]
-                        if categories:
-                            metadata[field] = categories
-                    else:
-                        metadata[field] = value
+                if field == 'categories':
+                    # Split categories on pipe or semicolon and clean
+                    categories = []
+                    for part in re.split(r'\s*[|;]\s*', value):
+                        # Clean up the category
+                        clean_cat = re.sub(r'\s+', ' ', part).strip()
+                        # Split on "Child Death" if it appears after other categories
+                        if 'Child Death' in clean_cat and not clean_cat.startswith('Child Death'):
+                            parts = clean_cat.split('Child Death')
+                            categories.extend([p.strip() for p in parts if p.strip()])
+                            categories.append('Child Death')
+                        else:
+                            categories.append(clean_cat)
+                    # Remove empty categories and duplicates while preserving order
+                    seen = set()
+                    metadata[field] = [x for x in categories if x and not (x in seen or seen.add(x))]
                     break  # Stop trying patterns once we find a match
         
         return metadata
