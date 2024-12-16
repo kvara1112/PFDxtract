@@ -25,7 +25,7 @@ st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide"
 
 def clean_text(text):
     """
-    Comprehensive text cleaning function for handling messy PDF extractions
+    Clean text while preserving structure and metadata formatting
     """
     if not text:
         return ""
@@ -56,17 +56,39 @@ def clean_text(text):
         # Remove HTML/XML tags
         text = re.sub(r'<[^>]+>', '', text)
         
-        # Remove non-printable characters
-        text = ''.join(char for char in text if char.isprintable())
+        # Remove non-printable characters while preserving newlines
+        text = ''.join(char if char.isprintable() or char == '\n' else ' ' for char in text)
         
-        # Remove extra whitespaces and newlines
-        text = re.sub(r'\s+', ' ', text)
+        # Ensure key metadata fields are properly formatted
+        key_fields = [
+            'Date of report:',
+            'Ref:',
+            'Deceased name:',
+            'Coroner name:',
+            'Coroners name:',
+            'Coroner Area:',
+            'Coroners Area:',
+            'Category:',
+            'This report is being sent to:'
+        ]
         
-        # Remove specific unwanted patterns
-        text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', text)  # Control characters
+        # Add newlines before metadata fields
+        for field in key_fields:
+            text = text.replace(field, f'\n{field}')
         
-        # Remove multiple consecutive punctuation
-        text = re.sub(r'([.,!?])\1+', r'\1', text)
+        # Normalize multiple newlines to single newlines
+        text = re.sub(r'\n\s*\n', '\n', text)
+        
+        # Normalize spaces within lines but preserve newlines
+        lines = []
+        for line in text.split('\n'):
+            # Normalize spaces within each line
+            line = ' '.join(line.split())
+            if line:
+                lines.append(line)
+        
+        # Rejoin with single newlines
+        text = '\n'.join(lines)
         
         # Normalize quotation marks
         text = text.replace(''', "'").replace(''', "'")
