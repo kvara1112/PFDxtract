@@ -84,12 +84,32 @@ def get_report_content(url):
         response = requests.get(url, headers=headers, verify=False, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        content = soup.find('div', class_='entry-content')
+        # Try different possible content containers
+        content = None
+        possible_classes = ['entry-content', 'post-content', 'article-content', 'content-area', 'main-content']
+        
+        for class_name in possible_classes:
+            content = soup.find(['div', 'article', 'main'], class_=class_name)
+            if content:
+                break
+        
         if not content:
+            # If no class found, try getting content from article or main element
+            content = soup.find(['article', 'main'])
+        
+        if content:
+            # Debug: Print first part of content
+            text_content = content.get_text()
+            st.write(f"Found content length: {len(text_content)} characters")
+            st.write("First 200 characters: " + text_content[:200])
+            return text_content
+        else:
             st.warning(f"No content found for: {url}")
+            # Debug: Print page structure
+            st.write("Page structure:")
+            st.code(soup.prettify()[:500])
             return None
             
-        return content.get_text()
     except Exception as e:
         st.error(f"Error getting report content: {str(e)}")
         return None
