@@ -11,7 +11,6 @@ import pdfplumber
 import tempfile
 import logging
 import os
-import zipfile
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
@@ -349,35 +348,6 @@ def main():
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key="download_excel"
                 )
-            
-            # Option to download PDFs
-            if st.button("Download all PDFs"):
-                # Create a zip file of all PDFs
-                pdf_zip_path = f"{filename}_pdfs.zip"
-                
-                with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
-                    # Collect all unique PDF paths
-                    unique_pdfs = set()
-                    pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
-                    
-                    for col in pdf_columns:
-                        paths = df[col].dropna()
-                        unique_pdfs.update(paths)
-                    
-                    # Add PDFs to zip
-                    for pdf_path in unique_pdfs:
-                        if pdf_path and os.path.exists(pdf_path):
-                            zipf.write(pdf_path, os.path.basename(pdf_path))
-                
-                # Provide download button for ZIP
-                with open(pdf_zip_path, 'rb') as f:
-                    st.download_button(
-                        "📦 Download All PDFs",
-                        f.read(),
-                        pdf_zip_path,
-                        "application/zip",
-                        key="download_pdfs_zip"
-                    )
         else:
             if search_keyword:
                 st.warning("No reports found matching your search criteria")
