@@ -27,11 +27,22 @@ def clean_text(text):
         return ""
     
     try:
-        # Replace special characters
-        text = re.sub(r'[â€™]', "'", str(text))
-        text = re.sub(r'[â€¦]', "...", text)
+        # Replace problematic characters and symbols
+        text = re.sub(r'â€™', "'", str(text))  # Replace smart quotes
+        text = re.sub(r'â€¦', "...", text)     # Replace ellipsis
+        text = re.sub(r'â€"', "-", text)       # Replace em dash
+        text = re.sub(r'â€œ', '"', text)       # Replace left double quote
+        text = re.sub(r'â€', '"', text)        # Replace right double quote
+        
+        # Remove or replace other potential encoding issues
+        text = text.encode('ascii', 'ignore').decode('ascii')
+        
         # Normalize whitespace
         text = re.sub(r'\s+', ' ', text)
+        
+        # Remove any non-printable characters
+        text = ''.join(char for char in text if char.isprintable())
+        
         return text.strip()
     except Exception as e:
         logging.error(f"Error in clean_text: {e}")
