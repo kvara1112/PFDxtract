@@ -24,8 +24,9 @@ class MetadataExtractor:
     
     METADATA_PATTERNS = {
         'date_of_report': [
-            r'Date of report:\s*(\d{2}/\d{2}/\d{4})',
-            r'Date of report\s*(\d{2}/\d{2}/\d{4})'
+            r'Date\s*of\s*report\s*[:]*\s*(\d{2}/\d{2}/\d{4})',
+            r'Date\s*of\s*report\s*:\s*(\d{2}/\d{2}/\d{4})',
+            r'Date\s*of\s*report\s*(\d{2}/\d{2}/\d{4})'
         ],
         'reference': [
             r'Ref:\s*(20\d{2}-\d{4})',
@@ -34,19 +35,16 @@ class MetadataExtractor:
         'deceased_name': [
             r'Deceased name:\s*([^:\n]+?)(?=\s*(?:Coroner|$))',
             r'Name of (?:the )?deceased:\s*([^:\n]+?)(?=\s*(?:Coroner|$))',
-            # Handle concatenated format
             r'^([^:]+?)(?=Coroners?\s+name:)'
         ],
         'coroner_name': [
             r'Coroners?\s*name:\s*([^:\n]+?)(?=\s*(?:Coroner Area:|$))',
             r'I am ([^,]+),\s*(?:Assistant )?Coroner',
-            # Extract from concatenated format
             r'Coroners?\s*name:\s*([^:\n]+?)(?=\s*(?:Coroners?\s*Area:|$))'
         ],
         'coroner_area': [
             r'Coroners?\s*Area:\s*([^:\n]+?)(?=\s*(?:Category:|$))',
             r'for the (?:coroner )?area of\s+([^\.]+)',
-            # Extract from concatenated format
             r'Coroners?\s*Area:\s*([^:\n]+?)(?=\s*(?:Category:|$))'
         ],
         'categories': [
@@ -59,6 +57,32 @@ class MetadataExtractor:
         ]
     }
 
+    def _clean_text_for_extraction(self, text: str) -> str:
+        """
+        Specifically clean text for metadata extraction
+        Removes problematic encoded characters and normalizes formatting
+        """
+        if not text:
+            return ""
+        
+        # Specific replacements for metadata extraction
+        replacements = {
+            'â€™': "'",   # Smart single quote
+            'â€œ': '"',   # Left double quote
+            'â€': '"',    # Right double quote
+            'Â': '',      # Unwanted character
+            '\u200b': '', # Zero-width space
+            '\uf0b7': ''  # Private use area character
+        }
+        
+        for encoded, replacement in replacements.items():
+            text = text.replace(encoded, replacement)
+        
+        # Normalize whitespace
+        text = re.sub(r'\s+', ' ', text)
+        
+        return text.strip()
+
     def _preprocess_text(self, text: str) -> str:
         """Preprocess text to ensure consistent format"""
         if not text:
@@ -68,32 +92,18 @@ class MetadataExtractor:
         text = str(text).replace('\r\n', '\n').replace('\r', '\n')
         
         # Handle concatenated fields by adding newlines
-        text = re.sub(r'(Coroners?\s*name:)', r'\n\1', text)
-        text = re.sub(r'(Coroners?\s*Area:)', r'\n\1', text)
-        text = re.sub(r'(Category:)', r'\n\1', text)
-        
-        # Ensure metadata fields are properly spaced
-        replacements = [
-            ('Date of report:', '\nDate of report:'),
-            ('Ref:', '\nRef:'),
-            ('Deceased name:', '\nDeceased name:'),
-            ('Coroners name:', '\nCoroners name:'),
-            ('Coroner name:', '\nCoroner name:'),
-            ('Coroners Area:', '\nCoroners Area:'),
-            ('Coroner Area:', '\nCoroner Area:'),
-            ('Category:', '\nCategory:'),
-            ('This report is being sent to:', '\nThis report is being sent to:')
+        key_fields = [
+            'Date of report:', 'Ref:', 'Deceased name:', 
+            'Coroners name:', 'Coroner name:', 
+            'Coroners Area:', 'Coroner Area:', 
+            'Category:', 'This report is being sent to:'
         ]
         
-        # Apply replacements while preserving original spacing after the colon
-        for old, new in replacements:
-            pattern = f"({old}\\s*)(.*?)(?=\\n|$)"
-            text = re.sub(pattern, f"{new} \\2", text, flags=re.DOTALL)
+        # Add newlines before key fields
+        for field in key_fields:
+            text = text.replace(field, f'\n{field}')
         
-        # Handle the case where fields are concatenated without proper spacing
-        text = re.sub(r'([a-zA-Z])(?=Coroners?\s*name:)', r'\1\n', text)
-        
-        return text
+        return text.strip()
 
     def extract_metadata(self, content: str) -> Dict:
         """Extract metadata following the exact PFD report format"""
@@ -109,6 +119,54 @@ class MetadataExtractor:
         
         if not content:
             return metadata
+        
+        # Preprocess and clean the content
+        preprocessed_text = self._preprocess_text(content)
+        processed_text = self._clean_text_for_extraction(preprocessed_text)
+        
+        # Log the processed text for debugging
+        logging.debug(f"Processed text for metadata extraction:\n{processed_text}")
+        
+        # Try each pattern for each field
+        for field, patterns in self.METADATA_PATTERNS.items():
+            if not isinstance(patterns, list):
+                patterns = [patterns]
+            
+            for pattern in patterns:
+                match = re.search(pattern, processed_text, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+                if match:
+                    value = match.group(1).strip()
+                    
+                    if field == 'date_of_report':
+                        try:
+                            # Validate date format
+                            datetime.strptime(value, '%d/%m/%Y')
+                            metadata[field] = value
+                        except ValueError:
+                            logging.warning(f"Invalid date format: {value}")
+                            continue
+                    
+                    elif field == 'categories':
+                        # Split categories on pipe and clean
+                        categories = [cat.strip() for cat in value.split('|')]
+                        # Remove empty categories and clean up
+                        categories = [re.sub(r'\s+', ' ', cat).strip() for cat in categories if cat.strip()]
+                        if categories:
+                            metadata[field] = categories
+                    
+                    else:
+                        # Clean up other values
+                        value = re.sub(r'\s+', ' ', value).strip()
+                        
+                        # Handle special case for deceased name
+                        if field == 'deceased_name' and 'Coroner' in value:
+                            value = value.split('Coroner')[0].strip()
+                        
+                        metadata[field] = value
+                    
+                    break  # Stop trying patterns once we find a match
+        
+        return metadata
         
         # Preprocess content
         processed_text = self._preprocess_text(content)
