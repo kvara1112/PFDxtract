@@ -330,7 +330,7 @@ def main():
             if export_format == "CSV":
                 csv = df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    "📥 Download Reports",
+                    "📥 Download Extracted text from PDF Reports in CSV",
                     csv,
                     f"{filename}.csv",
                     "text/csv",
