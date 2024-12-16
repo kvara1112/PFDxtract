@@ -19,7 +19,6 @@ def clean_excel_text(text):
     text = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', text)  # Add space between lower and uppercase letters
     return text
 
-
 class MetadataExtractor:
     """Metadata extraction class specifically designed for PFD reports format"""
     
@@ -110,6 +109,37 @@ class MetadataExtractor:
         
         if not content:
             return metadata
+        
+        # Preprocess content
+        processed_text = self._preprocess_text(content)
+        logging.debug(f"Processed text:\n{processed_text}")
+        
+        # Try each pattern for each field
+        for field, patterns in self.METADATA_PATTERNS.items():
+            if not isinstance(patterns, list):
+                patterns = [patterns]
+            
+            for pattern in patterns:
+                match = re.search(pattern, processed_text, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+                if match:
+                    value = match.group(1).strip()
+                    if field == 'categories':
+                        # Split categories on pipe and clean
+                        categories = [cat.strip() for cat in value.split('|')]
+                        # Remove empty categories and clean up
+                        categories = [re.sub(r'\s+', ' ', cat).strip() for cat in categories if cat.strip()]
+                        if categories:
+                            metadata[field] = categories
+                    else:
+                        # Clean up other values
+                        value = re.sub(r'\s+', ' ', value).strip()
+                        # Handle special case where name is concatenated with other fields
+                        if field == 'deceased_name' and 'Coroner' in value:
+                            value = value.split('Coroner')[0].strip()
+                        metadata[field] = value
+                    break
+        
+        return metadata
         
         # Preprocess content
         processed_text = self._preprocess_text(content)
