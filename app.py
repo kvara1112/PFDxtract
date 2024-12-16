@@ -22,83 +22,34 @@ def clean_text(text):
     return ""
 
 def extract_metadata(text):
-    """Extract metadata fields from text"""
+    """Extract metadata fields from text more precisely"""
+    if not text:
+        return {}
+        
     patterns = {
-        'date_of_report': r'Date of report:?\s*([^\n]+)',
-        'ref': r'Ref:?\s*([\w-]+)',
-        'deceased_name': r'Deceased name:?\s*([^\n]+)',
-        'coroner_name': r'Coroner(?:s)? name:?\s*([^\n]+)',
-        'coroner_area': r'Coroner(?:s)? Area:?\s*([^\n]+)',
-        'category': r'Category:?\s*([^|\n]+)',
-        'sent_to': r'This report is being sent to:?\s*([^\n]+)'
+        'date_of_report': r'Date of report:\s*([^\n]+)',
+        'ref': r'Ref:\s*([\w-]+)',
+        'deceased_name': r'Deceased name:\s*([^\n]+)',
+        'coroner_name': r'Coroner name:\s*([^\n]+)',
+        'coroner_area': r'Coroner Area:\s*([^\n]+)',
+        'category': r'Category:\s*([^\n]+)',
+        'sent_to': r'This report is being sent to:\s*([^\n]+)'
     }
     
     info = {}
     for key, pattern in patterns.items():
-        match = re.search(pattern, text)
+        match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            info[key] = clean_text(match.group(1))
+            value = match.group(1).strip()
+            # Clean up any special characters
+            value = re.sub(r'[â€™]', "'", value)
+            value = re.sub(r'[â€¦]', "...", value)
+            info[key] = value
+    
     return info
 
-def get_report_content(url):
-    """Get detailed content from individual report page"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
-    try:
-        st.write(f"Fetching content from: {url}")
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Look for the main content in the flow class or table
-        content = soup.find('div', class_='flow')
-        
-        if content:
-            # Find the table within the content
-            table = content.find('table', class_='govuk-table')
-            if table:
-                # Extract sections from table
-                sections = {}
-                rows = table.find_all('tr', class_='govuk-table__row')
-                
-                for row in rows:
-                    # Get the cell number (first column) and content (second column)
-                    cells = row.find_all('td', class_='govuk-table__cell')
-                    if len(cells) == 2:
-                        section_num = cells[0].text.strip()
-                        section_content = cells[1].text.strip()
-                        sections[section_num] = section_content
-                
-                # Also get metadata from paragraphs before table
-                metadata_section = ""
-                for p in content.find_all('p', recursive=False):
-                    if p.find('table') is None:  # Skip paragraphs that contain tables
-                        metadata_section += p.text.strip() + "\n"
-                
-                # Combine metadata and sections
-                full_text = metadata_section + "\n" + "\n".join([f"{k}: {v}" for k, v in sections.items()])
-                st.write(f"Successfully extracted content")
-                return full_text
-            
-            # If no table found, get all text content
-            return content.get_text()
-        else:
-            st.write("Trying alternate content location...")
-            # Try finding content in article content
-            content = soup.find('article', class_='single__post')
-            if content:
-                return content.get_text()
-            
-            st.warning(f"No content found for: {url}")
-            return None
-            
-    except Exception as e:
-        st.error(f"Error getting report content: {str(e)}")
-        return None
-
 def extract_section_content(text):
-    """Extract content from structured report text"""
+    """Extract content from numbered sections in report"""
     sections = {
         'CORONER': '',
         'LEGAL_POWERS': '',
@@ -111,32 +62,62 @@ def extract_section_content(text):
         'DATE_CORONER': ''
     }
     
-    # Extract sections by number
-    section_matches = re.finditer(r'(\d)\s*(.+?)(?=\d\s|$)', text, re.DOTALL)
-    for match in section_matches:
-        section_num = match.group(1)
-        content = clean_text(match.group(2))
-        
-        if section_num == '1':
-            sections['CORONER'] = content
-        elif section_num == '2':
-            sections['LEGAL_POWERS'] = content
-        elif section_num == '3':
-            sections['INVESTIGATION'] = content
-        elif section_num == '4':
-            sections['CIRCUMSTANCES'] = content
-        elif section_num == '5':
-            sections['CONCERNS'] = content
-        elif section_num == '6':
-            sections['ACTION'] = content
-        elif section_num == '7':
-            sections['RESPONSE'] = content
-        elif section_num == '8':
-            sections['COPIES'] = content
-        elif section_num == '9':
-            sections['DATE_CORONER'] = content
+    patterns = {
+        'CORONER': r'1\s+CORONER\s*(.*?)(?=2\s+CORONER\'S LEGAL POWERS|$)',
+        'LEGAL_POWERS': r'2\s+CORONER\'S LEGAL POWERS\s*(.*?)(?=3\s+INVESTIGATION|$)',
+        'INVESTIGATION': r'3\s+INVESTIGATION[^\n]*\s*(.*?)(?=4\s+CIRCUMSTANCES|$)',
+        'CIRCUMSTANCES': r'4\s+CIRCUMSTANCES[^\n]*\s*(.*?)(?=5\s+CORONER|$)',
+        'CONCERNS': r'5\s+CORONER\'S CONCERNS[^\n]*\s*(.*?)(?=6\s+ACTION|$)',
+        'ACTION': r'6\s+ACTION SHOULD BE TAKEN\s*(.*?)(?=7\s+YOUR RESPONSE|$)',
+        'RESPONSE': r'7\s+YOUR RESPONSE\s*(.*?)(?=8\s+COPIES|$)',
+        'COPIES': r'8\s+COPIES[^\n]*\s*(.*?)(?=9|$)',
+        'DATE_CORONER': r'9\s+(.*?)$'
+    }
     
+    for key, pattern in patterns.items():
+        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+        if match:
+            content = match.group(1).strip()
+            # Clean up special characters and whitespace
+            content = re.sub(r'[â€™]', "'", content)
+            content = re.sub(r'[â€¦]', "...", content)
+            content = re.sub(r'\s+', ' ', content)
+            sections[key] = content
+            
     return sections
+
+def get_report_content(url):
+    """Get report content from webpage"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    try:
+        st.write(f"Fetching content from: {url}")
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Look for main content
+        content = soup.find('div', class_='flow')
+        if not content:
+            content = soup.find('article', class_='single__post')
+            
+        if content:
+            # Get all text content
+            text_content = content.get_text(separator='\n')
+            
+            # Clean up the text
+            text_content = re.sub(r'\n\s*\n', '\n', text_content)
+            text_content = text_content.strip()
+            
+            return text_content
+        else:
+            st.warning(f"No content found for: {url}")
+            return None
+            
+    except Exception as e:
+        st.error(f"Error getting report content: {str(e)}")
+        return None
 
 def scrape_page(url):
     """Scrape a single page of search results"""
