@@ -1,10 +1,11 @@
 import pandas as pd
+import streamlit as st
+from datetime import datetime
+import io
 import re
 
 def extract_structured_data(content):
-    """
-    Extract structured data from the content column
-    """
+    """Extract structured data from the content column"""
     extracted_data = {
         'Date_of_Report': None,
         'Reference': None,
@@ -47,23 +48,6 @@ def extract_structured_data(content):
     return extracted_data
 
 def process_dataframe(df):
-    """
-    Process the DataFrame to add new columns from content
-    """
+    """Process the DataFrame to add new columns from content"""
     # Create a copy to avoid modifying the original
     processed_df = df.copy()
-    
-    # Apply extraction to each row
-    extracted_data = processed_df['Content'].apply(extract_structured_data)
-    
-    # Expand the extracted data into new columns
-    for column in ['Date_of_Report', 'Reference', 'Deceased_Name', 'Coroners_Name', 'Coroners_Area', 'Category']:
-        processed_df[column] = extracted_data.apply(lambda x: x[column])
-    
-    # Optionally, truncate the content column to remove extracted information
-    processed_df['Content'] = processed_df['Content'].apply(lambda x: re.sub(
-        r'Date of report:.*?Category:.*?(?=This report is being sent to:|\Z)', 
-        '', x, flags=re.DOTALL
-    ).strip())
-    
-    return processed_df
