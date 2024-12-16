@@ -368,19 +368,22 @@ def main():
     Filter by keywords and date range to find relevant reports.
     """)
     
-    col1, col2, col3 = st.columns([2, 1, 1])
+    # Input form
+    with st.form("search_form"):
+        col1, col2, col3 = st.columns([2, 1, 1])
+        
+        with col1:
+            search_keyword = st.text_input("Search keywords:", "")
+        with col2:
+            start_date = st.date_input("Start date:", format="DD/MM/YYYY")
+        with col3:
+            end_date = st.date_input("End date:", format="DD/MM/YYYY")
+        
+        # Submit button
+        submitted = st.form_submit_button("Search and Analyse Reports")
     
-    with col1:
-        search_keyword = st.text_input("Search keywords:", "")
-    with col2:
-        start_date = st.date_input("Start date:", format="DD/MM/YYYY")
-    with col3:
-        end_date = st.date_input("End date:", format="DD/MM/YYYY")
-    
-    if st.button("Search and Analyse Reports"):
-        with st.spinner("Searching for reports..."):
-            reports
-    if st.button("Search and Analyse Reports"):
+    # Handle form submission
+    if submitted:
         with st.spinner("Searching for reports..."):
             reports = scrape_pfd_reports(
                 keyword=search_keyword,
@@ -436,34 +439,38 @@ def main():
                     hide_index=True
                 )
                 
-                # Export options
-                export_format = st.selectbox(
-                    "Export format:",
-                    ["CSV", "Excel"]
-                )
-                
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"pfd_reports_{search_keyword}_{timestamp}"
-                
-                if export_format == "CSV":
-                    csv = df.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        "📥 Download Reports",
-                        csv,
-                        f"{filename}.csv",
-                        "text/csv"
+                # Export options container
+                with st.container():
+                    export_format = st.selectbox(
+                        "Export format:",
+                        ["CSV", "Excel"],
+                        key="export_format"
                     )
-                else:
-                    excel_buffer = io.BytesIO()
-                    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                        df.to_excel(writer, index=False)
-                    excel_data = excel_buffer.getvalue()
-                    st.download_button(
-                        "📥 Download Reports",
-                        excel_data,
-                        f"{filename}.xlsx",
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
+                    
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"pfd_reports_{search_keyword}_{timestamp}"
+                    
+                    if export_format == "CSV":
+                        csv = df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            "📥 Download Reports",
+                            csv,
+                            f"{filename}.csv",
+                            "text/csv",
+                            key="download_csv"
+                        )
+                    else:
+                        excel_buffer = io.BytesIO()
+                        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                            df.to_excel(writer, index=False)
+                        excel_data = excel_buffer.getvalue()
+                        st.download_button(
+                            "📥 Download Reports",
+                            excel_data,
+                            f"{filename}.xlsx",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key="download_excel"
+                        )
             except Exception as e:
                 st.error(f"Error analyzing reports: {str(e)}")
                 st.write("Raw data:")
