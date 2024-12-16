@@ -37,11 +37,11 @@ def clean_text(text):
         logging.error(f"Error in clean_text: {e}")
         return ""
 
-def save_pdf(pdf_url):
+def save_pdf(pdf_url, base_dir='pdfs'):
     """Download and save PDF, return local path and filename"""
     try:
         # Create PDFs directory if it doesn't exist
-        os.makedirs('pdfs', exist_ok=True)
+        os.makedirs(base_dir, exist_ok=True)
         
         # Download PDF
         headers = {
@@ -56,7 +56,7 @@ def save_pdf(pdf_url):
         filename = re.sub(r'[^\w\-_\. ]', '_', filename)
         
         # Full path to save PDF
-        local_path = os.path.join('pdfs', filename)
+        local_path = os.path.join(base_dir, filename)
         
         # Save PDF
         with open(local_path, 'wb') as f:
@@ -69,7 +69,7 @@ def save_pdf(pdf_url):
         return None, None
 
 def extract_pdf_content(pdf_path):
-    """Extract text from PDF file with filename as first line"""
+    """Extract text from PDF file"""
     try:
         # Get filename
         filename = os.path.basename(pdf_path)
@@ -88,7 +88,7 @@ def extract_pdf_content(pdf_path):
         return ""
 
 def get_report_content(url):
-    """Get full content from report page"""
+    """Get full content from report page with multiple PDF handling"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
@@ -113,11 +113,18 @@ def get_report_content(url):
             paragraphs = content.find_all(['p', 'table'])
             webpage_text = '\n\n'.join(p.get_text(strip=True, separator=' ') for p in paragraphs)
             
-            # Find PDF download links
-            pdf_links = soup.find_all('a', class_='related-content__link', href=re.compile(r'\.pdf$'))
+            # Find PDF download links - look for multiple strategies
+            pdf_links = (
+                soup.find_all('a', class_='related-content__link', href=re.compile(r'\.pdf$')) or
+                soup.find_all('a', href=re.compile(r'\.pdf$'))
+            )
             
             for pdf_link in pdf_links:
                 pdf_url = pdf_link['href']
+                
+                # Ensure full URL
+                if not pdf_url.startswith(('http://', 'https://')):
+                    pdf_url = f"https://www.judiciary.uk{pdf_url}" if not pdf_url.startswith('/') else f"https://www.judiciary.uk/{pdf_url}"
                 
                 # Save PDF
                 pdf_path, pdf_name = save_pdf(pdf_url)
@@ -130,11 +137,8 @@ def get_report_content(url):
                     pdf_paths.append(pdf_path)
                     pdf_names.append(pdf_name)
         
-        # Combine texts
-        full_text = webpage_text
-        
         return {
-            'content': clean_text(full_text),
+            'content': clean_text(webpage_text),
             'pdf_contents': pdf_contents,
             'pdf_paths': pdf_paths,
             'pdf_names': pdf_names
@@ -176,17 +180,22 @@ def scrape_page(url):
                 content_data = get_report_content(url)
                 
                 if content_data:
-                    # Prepare PDF contents (or empty string if no PDFs)
-                    pdf_contents = content_data['pdf_contents'] if content_data['pdf_contents'] else ['No PDF available']
-                    
+                    # Dynamically create columns for multiple PDFs
                     report = {
                         'Title': title,
                         'URL': url,
-                        'Content': content_data['content'],
-                        'PDF_Paths': content_data['pdf_paths'],
-                        'PDF_Names': content_data['pdf_names'],
-                        'PDF_Contents': pdf_contents
+                        'Content': content_data['content']
                     }
+                    
+                    # Add PDF information dynamically
+                    for i, (name, content, path) in enumerate(zip(
+                        content_data['pdf_names'], 
+                        content_data['pdf_contents'], 
+                        content_data['pdf_paths']
+                    ), 1):
+                        report[f'PDF_{i}_Name'] = name
+                        report[f'PDF_{i}_Content'] = content
+                        report[f'PDF_{i}_Path'] = path
                     
                     reports.append(report)
                     logging.info(f"Successfully processed: {title}")
@@ -298,9 +307,7 @@ def main():
             st.dataframe(
                 df,
                 column_config={
-                    "URL": st.column_config.LinkColumn("Report Link"),
-                    "PDF_Names": st.column_config.TextColumn("PDF Filenames"),
-                    "PDF_Paths": st.column_config.TextColumn("PDF Local Paths")
+                    "URL": st.column_config.LinkColumn("Report Link")
                 },
                 hide_index=True
             )
@@ -340,9 +347,11 @@ def main():
                 with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
                     # Collect all unique PDF paths
                     unique_pdfs = set()
-                    for paths in df['PDF_Paths']:
-                        if isinstance(paths, list):
-                            unique_pdfs.update(paths)
+                    pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
+                    
+                    for col in pdf_columns:
+                        paths = df[col].dropna()
+                        unique_pdfs.update(paths)
                     
                     # Add PDFs to zip
                     for pdf_path in unique_pdfs:
