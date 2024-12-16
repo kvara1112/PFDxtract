@@ -25,87 +25,61 @@ class MetadataExtractor:
     METADATA_PATTERNS = {
         'date_of_report': [
             r'Date of report:\s*(\d{2}/\d{2}/\d{4})',
-            r'Date of report\s*(\d{2}/\d{2}/\d{4})',
-            r'Report date:\s*(\d{2}/\d{2}/\d{4})'
+            r'Date of report\s*(\d{2}/\d{2}/\d{4})'
         ],
         'reference': [
-            r'Ref:\s*(20\d{2}-\d{4})',
-            r'Reference:\s*(20\d{2}-\d{4})',
-            r'Reference Number:\s*(20\d{2}-\d{4})'
+            r'Ref:\s*(20\d{2}-\d{4})',  # Matches format like 2024-0392
+            r'Reference:\s*(20\d{2}-\d{4})'
         ],
         'deceased_name': [
-            r'Deceased name:\s*([^:\n]+?)(?=\s*Coroners? name:|$)',
-            r'Name of deceased:\s*([^:\n]+?)(?=\s*Coroners? name:|$)'
+            r'Deceased name:\s*([^C\n]+?)(?=\s*Coroner)',  # Match until Coroner
+            r'Name of (?:the )?deceased:\s*([^C\n]+?)(?=\s*Coroner)'  # Handle variations
         ],
         'coroner_name': [
-            r'Coroners? name:\s*([^:\n]+?)(?=\s*Coroners? Area:|$)',
-            r'Coroner:\s*([^:\n]+?)(?=\s*Coroners? Area:|$)'
+            r'Coroner name:\s*([^C\n]+?)(?=\s*Coroner Area:)',  # Match until Coroner Area
+            r'I am ([^,]+),\s*(?:Assistant )?Coroner'  # Alternative format from content
         ],
         'coroner_area': [
-            r'Coroners? Area:\s*([^:\n]+?)(?=\s*Category:|$)',
-            r'Area:\s*([^:\n]+?)(?=\s*Category:|$)'
+            r'Coroner Area:\s*([^C\n]+?)(?=\s*Category:)',  # Match until Category
+            r'Coroner(?:,)?\s+for the (?:coroner )?area of\s+([^\.]+)'  # Alternative format
         ],
         'categories': [
-            r'Category:\s*([^:\n]+?)(?=\s*This report is being sent to:|$)',
-            r'Categories:\s*([^:\n]+?)(?=\s*This report is being sent to:|$)'
+            r'Category:\s*([^\n]+?)(?=\s*This report is being sent to:)',  # Match until next section
+            r'Category:\s*([^\n]+)'  # Backup pattern
         ],
         'sent_to': [
-            r'This report is being sent to:\s*([^:\n]+)',
-            r'Report sent to:\s*([^:\n]+)',
-            r'Sent to:\s*([^:\n]+)'
+            r'This report is being sent to:\s*([^\n]+?)(?=\s*REGULATION|\s*1\s*CORONER|$)',  # Match until next section
+            r'This report is being sent to:\s*([^\n]+)'  # Backup pattern
         ]
     }
-    
+
     def _preprocess_text(self, text: str) -> str:
-        """Preprocess text for metadata extraction"""
+        """Preprocess text to ensure consistent format"""
         if not text:
             return ""
         
-        # Convert to string and clean
-        text = str(text)
+        # Convert to string and normalize newlines
+        text = str(text).replace('\r\n', '\n').replace('\r', '\n')
         
-        # Normalize line endings
-        text = text.replace('\r\n', '\n').replace('\r', '\n')
-        
-        # Ensure proper field separation
-        key_fields = [
+        # Ensure metadata fields are properly spaced
+        replacements = [
             ('Date of report:', '\nDate of report:'),
             ('Ref:', '\nRef:'),
             ('Deceased name:', '\nDeceased name:'),
-            ('Coroners name:', '\nCoroners name:'),
             ('Coroner name:', '\nCoroner name:'),
-            ('Coroners Area:', '\nCoroners Area:'),
             ('Coroner Area:', '\nCoroner Area:'),
             ('Category:', '\nCategory:'),
             ('This report is being sent to:', '\nThis report is being sent to:')
         ]
         
-        # Add newlines before fields
-        for old, new in key_fields:
-            text = text.replace(old, new)
+        # Apply replacements while preserving original spacing after the colon
+        for old, new in replacements:
+            # Look for the field and preserve any content after it until the next field
+            pattern = f"({old}\\s*)(.*?)(?=\\n|$)"
+            text = re.sub(pattern, f"{new} \\2", text, flags=re.DOTALL)
         
-        # Normalize spaces around colons
-        text = re.sub(r':\s*', ': ', text)
-        
-        # Split concatenated fields
-        text = re.sub(r'([a-zA-Z]):', r'\1\n:', text)
-        
-        # Clean up lines while preserving structure
-        lines = []
-        for line in text.split('\n'):
-            line = line.strip()
-            if line:
-                if any(field[0] in line for field in key_fields):
-                    # If line contains a field marker, preserve exact spacing after colon
-                    parts = line.split(':', 1)
-                    if len(parts) > 1:
-                        lines.append(f"{parts[0]}:{parts[1]}")
-                else:
-                    # For other lines, normalize internal spacing
-                    lines.append(' '.join(line.split()))
-        
-        return '\n'.join(lines)
-    
+        return text
+
     def extract_metadata(self, content: str) -> Dict:
         """Extract metadata following the exact PFD report format"""
         metadata = {
@@ -120,6 +94,34 @@ class MetadataExtractor:
         
         if not content:
             return metadata
+        
+        # Preprocess content
+        processed_text = self._preprocess_text(content)
+        logging.debug(f"Processed text:\n{processed_text}")
+        
+        # Try each pattern for each field
+        for field, patterns in self.METADATA_PATTERNS.items():
+            if not isinstance(patterns, list):
+                patterns = [patterns]
+            
+            for pattern in patterns:
+                match = re.search(pattern, processed_text, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+                if match:
+                    value = match.group(1).strip()
+                    if field == 'categories':
+                        # Split categories on pipe and clean
+                        categories = [cat.strip() for cat in value.split('|')]
+                        # Remove empty categories and clean up
+                        categories = [re.sub(r'\s+', ' ', cat).strip() for cat in categories if cat.strip()]
+                        if categories:
+                            metadata[field] = categories
+                    else:
+                        # Clean up other values
+                        value = re.sub(r'\s+', ' ', value).strip()
+                        metadata[field] = value
+                    break
+        
+        return metadata
         
         # Preprocess content
         processed_text = self._preprocess_text(content)
