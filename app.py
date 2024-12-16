@@ -19,7 +19,8 @@ st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide"
 def clean_text(text):
     """Clean text by removing extra whitespace and newlines"""
     if text:
-        return ' '.join(text.strip().split())
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
     return ""
 
 def extract_metadata(text):
@@ -42,36 +43,41 @@ def extract_metadata(text):
     return info
 
 def extract_section_content(text):
-    """Extract content from numbered sections in the report"""
+    """Extract content from numbered sections in the report with improved structure"""
     sections = {
-        'CORONER': '',
-        'LEGAL_POWERS': '',
-        'INVESTIGATION': '',
-        'CIRCUMSTANCES': '',
-        'CONCERNS': '',
-        'ACTION': '',
-        'RESPONSE': '',
-        'COPIES': '',
-        'DATE_CORONER': ''
+        'coroner': '',  # Section 1
+        'legal_powers': '',  # Section 2
+        'investigation': '',  # Section 3
+        'circumstances': '',  # Section 4
+        'concerns': '',  # Section 5
+        'action': '',  # Section 6
+        'response': '',  # Section 7
+        'copies': '',  # Section 8
+        'date_and_signature': ''  # Section 9
     }
     
-    patterns = {
-        'CORONER': r'1\s*CORONER\s*(.*?)(?=2\s*CORONER|$)',
-        'LEGAL_POWERS': r'2\s*CORONER\'S LEGAL POWERS\s*(.*?)(?=3\s*INVESTIGATION|$)',
-        'INVESTIGATION': r'3\s*INVESTIGATION\s*(.*?)(?=4\s*CIRCUMSTANCES|$)',
-        'CIRCUMSTANCES': r'4\s*CIRCUMSTANCES OF THE DEATH\s*(.*?)(?=5\s*CORONER|$)',
-        'CONCERNS': r'5\s*CORONER\'S CONCERNS\s*(.*?)(?=6\s*ACTION|$)',
-        'ACTION': r'6\s*ACTION SHOULD BE TAKEN\s*(.*?)(?=7\s*YOUR RESPONSE|$)',
-        'RESPONSE': r'7\s*YOUR RESPONSE\s*(.*?)(?=8\s*COPIES|$)',
-        'COPIES': r'8\s*COPIES and PUBLICATION\s*(.*?)(?=9|$)',
-        'DATE_CORONER': r'9\s*(.*?)(?=Related content|$)'
-    }
+    try:
+        patterns = {
+            'coroner': r'1\s*CORONER\s*(.*?)(?=2\s*CORONER|$)',
+            'legal_powers': r'2\s*CORONER\'S LEGAL POWERS\s*(.*?)(?=3\s*INVESTIGATION|$)',
+            'investigation': r'3\s*INVESTIGATION[^\n]*\s*(.*?)(?=4\s*CIRCUMSTANCES|$)',
+            'circumstances': r'4\s*CIRCUMSTANCES OF THE DEATH\s*(.*?)(?=5\s*CORONER|$)',
+            'concerns': r'5\s*CORONER\'S CONCERNS\s*(.*?)(?=6\s*ACTION|$)',
+            'action': r'6\s*ACTION SHOULD BE TAKEN\s*(.*?)(?=7\s*YOUR RESPONSE|$)',
+            'response': r'7\s*YOUR RESPONSE\s*(.*?)(?=8\s*COPIES|$)',
+            'copies': r'8\s*COPIES[^\n]*\s*(.*?)(?=9|$)',
+            'date_and_signature': r'9\s*(.*?)(?=\Z)'
+        }
+
+        for key, pattern in patterns.items():
+            match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+            if match:
+                content = match.group(1)
+                sections[key] = clean_text(content)
+                
+    except Exception as e:
+        st.error(f"Error extracting sections: {str(e)}")
     
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-        if match:
-            sections[key] = clean_text(match.group(1))
-            
     return sections
 
 def get_report_content(url):
@@ -94,7 +100,7 @@ def get_report_content(url):
         return None
 
 def scrape_page(url):
-    """Scrape a single page of search results"""
+    """Scrape a single page of search results with enhanced content extraction"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
@@ -140,12 +146,27 @@ def scrape_page(url):
                 else:
                     sections = {}
                 
+                # Construct the report dictionary with all fields
                 report = {
                     'Title': title,
                     'URL': url,
                     'Categories': ' | '.join(categories) if categories else '',
-                    **metadata,
-                    **sections
+                    'date_of_report': metadata.get('date_of_report', ''),
+                    'ref': metadata.get('ref', ''),
+                    'deceased_name': metadata.get('deceased_name', ''),
+                    'coroner_name': metadata.get('coroner_name', ''),
+                    'coroner_area': metadata.get('coroner_area', ''),
+                    'category': metadata.get('category', ''),
+                    'sent_to': metadata.get('sent_to', ''),
+                    'coroner_section': sections.get('coroner', ''),
+                    'legal_powers': sections.get('legal_powers', ''),
+                    'investigation': sections.get('investigation', ''),
+                    'circumstances': sections.get('circumstances', ''),
+                    'concerns': sections.get('concerns', ''),
+                    'action': sections.get('action', ''),
+                    'response': sections.get('response', ''),
+                    'copies': sections.get('copies', ''),
+                    'date_and_signature': sections.get('date_and_signature', '')
                 }
                 
                 reports.append(report)
