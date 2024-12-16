@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 import time
 import urllib3
 from dateutil import parser
+import io
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -100,6 +101,74 @@ def get_report_content(url):
         st.error(f"Error getting report content: {str(e)}")
         return None
 
+def scrape_page(url):
+    """Scrape a single page of search results"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        results_list = soup.find('ul', class_='search__list')
+        if not results_list:
+            return []
+            
+        reports = []
+        cards = results_list.find_all('div', class_='card')
+        
+        for card in cards:
+            try:
+                # Get title and URL
+                title_elem = card.find('h3', class_='card__title').find('a')
+                if not title_elem:
+                    continue
+                    
+                title = clean_text(title_elem.text)
+                url = title_elem['href']
+                
+                # Get metadata from card description
+                desc = card.find('p', class_='card__description')
+                if not desc:
+                    continue
+                    
+                metadata = extract_metadata(desc.text)
+                
+                # Get categories from pills
+                categories = []
+                pills = card.find_all('a', href=re.compile(r'/pfd-types/'))
+                for pill in pills:
+                    categories.append(clean_text(pill.text))
+                
+                # Get full report content
+                report_content = get_report_content(url)
+                if report_content:
+                    sections = extract_section_content(report_content)
+                else:
+                    sections = {}
+                
+                report = {
+                    'Title': title,
+                    'URL': url,
+                    'Categories': ' | '.join(categories) if categories else '',
+                    **metadata,
+                    **sections
+                }
+                
+                reports.append(report)
+                st.write(f"Processed report: {title}")
+                
+            except Exception as e:
+                st.error(f"Error processing card: {str(e)}")
+                continue
+                
+        return reports
+        
+    except Exception as e:
+        st.error(f"Error fetching page: {str(e)}")
+        return []
+
 def scrape_pfd_reports(keyword=None, start_date=None, end_date=None, max_pages=50):
     """Scrape reports with filtering options"""
     all_reports = []
@@ -156,13 +225,13 @@ def analyze_reports(reports_df):
             
     with col3:
         if 'category' in reports_df.columns:
-            categories = reports_df['category'].str.split('|').explode().str.strip().unique()
+            categories = reports_df['Categories'].str.split('|').explode().str.strip().unique()
             st.metric("Unique Categories", len(categories))
     
     # Category breakdown
-    if 'category' in reports_df.columns:
+    if 'Categories' in reports_df.columns:
         st.subheader("Category Distribution")
-        category_counts = (reports_df['category'].str.split('|')
+        category_counts = (reports_df['Categories'].str.split('|')
                          .explode()
                          .str.strip()
                          .value_counts())
