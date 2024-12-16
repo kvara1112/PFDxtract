@@ -10,6 +10,8 @@ import io
 import pdfplumber
 import tempfile
 import logging
+import os
+import zipfile
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
@@ -35,30 +37,107 @@ def clean_text(text):
         logging.error(f"Error in clean_text: {e}")
         return ""
 
-def extract_pdf_text(pdf_url):
-    """Extract text from PDF URL"""
+def save_pdf(pdf_url, base_folder='pdfs'):
+    """Download and save PDF, return local path and filename"""
     try:
+        # Create PDFs directory if it doesn't exist
+        os.makedirs(base_folder, exist_ok=True)
+        
         # Download PDF
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         response = requests.get(pdf_url, headers=headers, verify=False, timeout=10)
         
-        # Create a temporary file to save the PDF
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_pdf:
-            temp_pdf.write(response.content)
-            temp_pdf_path = temp_pdf.name
+        # Extract filename from URL
+        filename = os.path.basename(pdf_url)
         
-        # Extract text from PDF
-        with pdfplumber.open(temp_pdf_path) as pdf:
+        # Ensure filename is valid
+        filename = re.sub(r'[^\w\-_\. ]', '_', filename)
+        
+        # Full path to save PDF
+        local_path = os.path.join(base_folder, filename)
+        
+        # Save PDF
+        with open(local_path, 'wb') as f:
+            f.write(response.content)
+        
+        return local_path, filename
+    
+    except Exception as e:
+        logging.error(f"Error saving PDF {pdf_url}: {e}")
+        return None, None
+
+def extract_pdf_text(pdf_path):
+    """Extract text from PDF file"""
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
             # Combine text from all pages
             pdf_text = "\n\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
         
         return clean_text(pdf_text)
     
     except Exception as e:
-        logging.error(f"Error extracting PDF text from {pdf_url}: {e}")
+        logging.error(f"Error extracting PDF text from {pdf_path}: {e}")
         return ""
+
+def get_report_content(url):
+    """Get full content from report page"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    try:
+        logging.info(f"Fetching content from: {url}")
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Try to find content in different possible locations
+        content = soup.find('div', class_='flow')
+        if not content:
+            content = soup.find('article', class_='single__post')
+        
+        webpage_text = ""
+        pdf_texts = []
+        pdf_paths = []
+        pdf_names = []
+        
+        if content:
+            # Get webpage text
+            paragraphs = content.find_all(['p', 'table'])
+            webpage_text = '\n\n'.join(p.get_text(strip=True, separator=' ') for p in paragraphs)
+            
+            # Find PDF download links
+            pdf_links = soup.find_all('a', class_='related-content__link', href=re.compile(r'\.pdf$'))
+            
+            for pdf_link in pdf_links:
+                pdf_url = pdf_link['href']
+                
+                # Save PDF
+                pdf_path, pdf_name = save_pdf(pdf_url)
+                
+                if pdf_path:
+                    # Extract PDF text
+                    pdf_text = extract_pdf_text(pdf_path)
+                    
+                    pdf_texts.append(pdf_text)
+                    pdf_paths.append(pdf_path)
+                    pdf_names.append(pdf_name)
+        
+        # Combine texts
+        full_text = webpage_text
+        if pdf_texts:
+            full_text += "\n\n--- PDF CONTENT ---\n\n" + "\n\n".join(pdf_texts)
+        
+        return {
+            'content': clean_text(full_text),
+            'pdf_paths': pdf_paths,
+            'pdf_names': pdf_names
+        }
+        
+    except Exception as e:
+        logging.error(f"Error getting report content: {e}")
+        return None
 
 def scrape_page(url):
     """Scrape a single page of search results"""
@@ -89,13 +168,15 @@ def scrape_page(url):
                 url = title_elem['href']
                 
                 logging.info(f"Processing report: {title}")
-                content = get_report_content(url)
+                content_data = get_report_content(url)
                 
-                if content:
+                if content_data:
                     report = {
                         'Title': title,
                         'URL': url,
-                        'Content': content
+                        'Content': content_data['content'],
+                        'PDF_Paths': content_data['pdf_paths'],
+                        'PDF_Names': content_data['pdf_names']
                     }
                     
                     reports.append(report)
@@ -110,53 +191,6 @@ def scrape_page(url):
     except Exception as e:
         logging.error(f"Error fetching page {url}: {e}")
         return []
-
-def get_report_content(url):
-    """Get full content from report page"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
-    try:
-        logging.info(f"Fetching content from: {url}")
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Try to find content in different possible locations
-        content = soup.find('div', class_='flow')
-        if not content:
-            content = soup.find('article', class_='single__post')
-        
-        if content:
-            # Get all text content preserving line breaks
-            paragraphs = content.find_all(['p', 'table'])
-            text_content = '\n\n'.join(p.get_text(strip=True, separator=' ') for p in paragraphs)
-            if text_content:
-                logging.info("Successfully extracted webpage content")
-                
-                # Find PDF download links
-                pdf_links = soup.find_all('a', class_='related-content__link', href=re.compile(r'\.pdf$'))
-                pdf_texts = []
-                
-                for pdf_link in pdf_links:
-                    pdf_url = pdf_link['href']
-                    pdf_text = extract_pdf_text(pdf_url)
-                    if pdf_text:
-                        pdf_texts.append(pdf_text)
-                
-                # Combine webpage and PDF texts
-                full_text = text_content
-                if pdf_texts:
-                    full_text += "\n\n--- PDF CONTENT ---\n\n" + "\n\n".join(pdf_texts)
-                
-                return clean_text(full_text)
-        
-        logging.warning(f"No content found for: {url}")
-        return None
-        
-    except Exception as e:
-        logging.error(f"Error getting report content: {e}")
-        return None
 
 def get_total_pages(url):
     """Get total number of pages"""
@@ -221,7 +255,6 @@ def scrape_pfd_reports(keyword=None):
         st.error(f"An error occurred while scraping reports: {e}")
         return []
 
-# Rest of the code remains the same as previous implementation
 def main():
     st.title("UK Judiciary PFD Reports Analysis")
     
@@ -256,7 +289,9 @@ def main():
             st.dataframe(
                 df,
                 column_config={
-                    "URL": st.column_config.LinkColumn("Report Link")
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "PDF_Names": st.column_config.TextColumn("PDF Filenames"),
+                    "PDF_Paths": st.column_config.TextColumn("PDF Local Paths")
                 },
                 hide_index=True
             )
@@ -287,6 +322,33 @@ def main():
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key="download_excel"
                 )
+            
+            # Option to download PDFs
+            if st.button("Download all PDFs"):
+                # Create a zip file of all PDFs
+                pdf_zip_path = f"{filename}_pdfs.zip"
+                
+                with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
+                    # Collect all unique PDF paths
+                    unique_pdfs = set()
+                    for paths in df['PDF_Paths']:
+                        if isinstance(paths, list):
+                            unique_pdfs.update(paths)
+                    
+                    # Add PDFs to zip
+                    for pdf_path in unique_pdfs:
+                        if pdf_path and os.path.exists(pdf_path):
+                            zipf.write(pdf_path, os.path.basename(pdf_path))
+                
+                # Provide download button for ZIP
+                with open(pdf_zip_path, 'rb') as f:
+                    st.download_button(
+                        "📦 Download All PDFs",
+                        f.read(),
+                        pdf_zip_path,
+                        "application/zip",
+                        key="download_pdfs_zip"
+                    )
         else:
             if search_keyword:
                 st.warning("No reports found matching your search criteria")
