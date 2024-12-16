@@ -56,10 +56,7 @@ def clean_text(text):
         # Remove HTML/XML tags
         text = re.sub(r'<[^>]+>', '', text)
         
-        # Remove non-printable characters while preserving newlines
-        text = ''.join(char if char.isprintable() or char == '\n' else ' ' for char in text)
-        
-        # Ensure key metadata fields are properly formatted
+        # Preserve metadata field markers with proper spacing
         key_fields = [
             'Date of report:',
             'Ref:',
@@ -76,28 +73,31 @@ def clean_text(text):
         for field in key_fields:
             text = text.replace(field, f'\n{field}')
         
-        # Normalize multiple newlines to single newlines
-        text = re.sub(r'\n\s*\n', '\n', text)
+        # Remove non-printable characters while preserving newlines
+        text = ''.join(char if char.isprintable() or char == '\n' else ' ' for char in text)
         
-        # Normalize spaces within lines but preserve newlines
+        # Clean up multiple spaces/newlines while preserving structure
         lines = []
         for line in text.split('\n'):
-            # Normalize spaces within each line
-            line = ' '.join(line.split())
+            line = line.strip()
             if line:
-                lines.append(line)
+                # Preserve exact spacing after metadata field markers
+                if any(field in line for field in key_fields):
+                    parts = line.split(':', 1)
+                    if len(parts) > 1:
+                        lines.append(f"{parts[0]}: {parts[1].strip()}")
+                else:
+                    # For non-metadata lines, normalize spaces
+                    lines.append(' '.join(line.split()))
         
-        # Rejoin with single newlines
+        # Join lines with single newlines
         text = '\n'.join(lines)
         
         # Normalize quotation marks
         text = text.replace(''', "'").replace(''', "'")
         text = text.replace('"', '"').replace('"', '"')
         
-        # Strip leading and trailing whitespace
-        text = text.strip()
-        
-        return text
+        return text.strip()
     
     except Exception as e:
         logging.error(f"Error in clean_text: {e}")
