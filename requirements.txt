@@ -4,4 +4,5 @@ requests==2.31.0
 pandas==2.2.0
 urllib3==2.2.0
 lxml==5.1.0
-pip install python-dateutil openpyxl
+python-dateutil 
+openpyxl
