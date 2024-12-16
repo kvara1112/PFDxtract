@@ -21,7 +21,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide")
 
-ddef clean_text(text):
+def clean_text(text):
     """
     Comprehensive text cleaning function for handling messy PDF extractions
     
