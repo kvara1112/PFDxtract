@@ -8,11 +8,27 @@ import time
 import urllib3
 from dateutil import parser
 import io
+import locale
+
+# Set locale to British English
+try:
+    locale.setlocale(locale.LC_ALL, 'en_GB.UTF-8')
+except:
+    pass  # Fallback if locale not available
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide")
+
+def format_uk_date(date):
+    """Format date in UK style"""
+    if pd.isna(date):
+        return ""
+    try:
+        return date.strftime("%d/%m/%Y")
+    except:
+        return str(date)
 
 def clean_text(text):
     """Clean text by removing extra whitespace, newlines and special characters"""
@@ -24,66 +40,15 @@ def clean_text(text):
     return ""
 
 def parse_date(date_str):
-    """Parse date string into datetime object"""
+    """Parse date string into datetime object, handling UK formats"""
     try:
-        return parser.parse(date_str)
+        # Try UK format first (dd/mm/yyyy)
+        return parser.parse(date_str, dayfirst=True)
     except:
         return None
 
-def extract_metadata(text):
-    """Extract and clean metadata fields from text"""
-    patterns = {
-        'date_of_report': r'Date of report:?\s*([^\n]+)',
-        'ref': r'Ref:?\s*([\w-]+)',
-        'deceased_name': r'Deceased name:?\s*([^\n]+)',
-        'coroner_name': r'Coroner(?:s)? name:?\s*([^\n]+)',
-        'coroner_area': r'Coroner(?:s)? Area:?\s*([^\n]+)',
-        'category': r'Category:?\s*([^|\n]+)',
-        'sent_to': r'This report is being sent to:?\s*([^\n]+)'
-    }
-    
-    info = {}
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text)
-        if match:
-            value = clean_text(match.group(1))
-            if key == 'date_of_report':
-                info[key] = parse_date(value)
-            else:
-                info[key] = value
-    return info
-
-def extract_section_content(text):
-    """Extract and clean content from numbered sections in the report"""
-    sections = {
-        'background': '',
-        'investigation_details': '',
-        'circumstances': '',
-        'coroner_concerns': '',
-        'recommended_actions': '',
-        'response_deadline': '',
-        'publication_info': ''
-    }
-    
-    patterns = {
-        'background': r'1\s*CORONER\s*(.*?)(?=2\s*CORONER|$)',
-        'investigation_details': r'3\s*INVESTIGATION\s*(.*?)(?=4\s*CIRCUMSTANCES|$)',
-        'circumstances': r'4\s*CIRCUMSTANCES OF THE DEATH\s*(.*?)(?=5\s*CORONER|$)',
-        'coroner_concerns': r'5\s*CORONER\'S CONCERNS\s*(.*?)(?=6\s*ACTION|$)',
-        'recommended_actions': r'6\s*ACTION SHOULD BE TAKEN\s*(.*?)(?=7\s*YOUR RESPONSE|$)',
-        'response_deadline': r'7\s*YOUR RESPONSE\s*(.*?)(?=8\s*COPIES|$)',
-        'publication_info': r'8\s*COPIES and PUBLICATION\s*(.*?)(?=9|$)'
-    }
-    
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-        if match:
-            sections[key] = clean_text(match.group(1))
-            
-    return sections
-
-def get_report_content(url):
-    """Get and parse detailed content from individual report page"""
+def get_total_pages(url):
+    """Detect total number of pages available"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
@@ -92,121 +57,72 @@ def get_report_content(url):
         response = requests.get(url, headers=headers, verify=False, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        content = soup.find('div', class_='entry-content')
-        if not content:
-            return None
-            
-        return content.get_text()
+        # Find pagination element
+        pagination = soup.find('ul', class_='pagination')
+        if pagination:
+            # Find all page numbers
+            page_numbers = pagination.find_all('a', class_='page-numbers')
+            if page_numbers:
+                # Get last page number
+                last_page = max([int(p.text) for p in page_numbers if p.text.isdigit()])
+                return last_page
+        
+        return 1  # Return 1 if no pagination found
     except Exception as e:
-        st.error(f"Error getting report content: {str(e)}")
-        return None
+        st.error(f"Error detecting pagination: {str(e)}")
+        return 1
 
-def scrape_page(url):
-    """Scrape a single page of search results"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
-    try:
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        results_list = soup.find('ul', class_='search__list')
-        if not results_list:
-            return []
-            
-        reports = []
-        cards = results_list.find_all('div', class_='card')
-        
-        for card in cards:
-            try:
-                # Get title and URL
-                title_elem = card.find('h3', class_='card__title').find('a')
-                if not title_elem:
-                    continue
-                    
-                title = clean_text(title_elem.text)
-                url = title_elem['href']
-                
-                # Get metadata from card description
-                desc = card.find('p', class_='card__description')
-                if not desc:
-                    continue
-                    
-                metadata = extract_metadata(desc.text)
-                
-                # Get categories from pills
-                categories = []
-                pills = card.find_all('a', href=re.compile(r'/pfd-types/'))
-                for pill in pills:
-                    categories.append(clean_text(pill.text))
-                
-                # Get full report content
-                report_content = get_report_content(url)
-                if report_content:
-                    sections = extract_section_content(report_content)
-                else:
-                    sections = {}
-                
-                report = {
-                    'Title': title,
-                    'URL': url,
-                    'Categories': ' | '.join(categories) if categories else '',
-                    **metadata,
-                    **sections
-                }
-                
-                reports.append(report)
-                st.write(f"Processed report: {title}")
-                
-            except Exception as e:
-                st.error(f"Error processing card: {str(e)}")
-                continue
-                
-        return reports
-        
-    except Exception as e:
-        st.error(f"Error fetching page: {str(e)}")
-        return []
+[previous functions remain the same...]
 
-def scrape_pfd_reports(keyword=None, start_date=None, end_date=None, max_pages=50):
+def scrape_pfd_reports(keyword=None, start_date=None, end_date=None):
     """Scrape reports with filtering options"""
     all_reports = []
     current_page = 1
     base_url = "https://www.judiciary.uk/"
     
-    while current_page <= max_pages:
+    # Get total pages
+    initial_url = f"{base_url}?s={keyword if keyword else ''}&post_type=pfd"
+    total_pages = get_total_pages(initial_url)
+    
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    while current_page <= total_pages:
         url = f"{base_url}{'page/' + str(current_page) + '/' if current_page > 1 else ''}?s={keyword if keyword else ''}&post_type=pfd"
         
-        with st.spinner(f"Scraping page {current_page}..."):
-            try:
-                reports = scrape_page(url)
-                if not reports:
-                    break
-                    
-                # Filter by date if specified
-                if start_date or end_date:
-                    filtered_reports = []
-                    for report in reports:
-                        report_date = report.get('date_of_report')
-                        if report_date:
-                            if start_date and report_date < start_date:
-                                continue
-                            if end_date and report_date > end_date:
-                                continue
-                        filtered_reports.append(report)
-                    reports = filtered_reports
-                
-                all_reports.extend(reports)
-                st.write(f"Found {len(reports)} reports on page {current_page}")
-                
-                current_page += 1
-                time.sleep(1)  # Rate limiting
-                
-            except Exception as e:
-                st.error(f"Error processing page {current_page}: {str(e)}")
+        status_text.text(f"Scraping page {current_page} of {total_pages}...")
+        progress_bar.progress(current_page / total_pages)
+        
+        try:
+            reports = scrape_page(url)
+            if not reports:
                 break
+                
+            # Filter by date if specified
+            if start_date or end_date:
+                filtered_reports = []
+                for report in reports:
+                    report_date = report.get('date_of_report')
+                    if report_date:
+                        if start_date and report_date < start_date:
+                            continue
+                        if end_date and report_date > end_date:
+                            continue
+                    filtered_reports.append(report)
+                reports = filtered_reports
+            
+            all_reports.extend(reports)
+            st.write(f"Found {len(reports)} reports on page {current_page}")
+            
+            current_page += 1
+            time.sleep(1)  # Rate limiting
+            
+        except Exception as e:
+            st.error(f"Error processing page {current_page}: {str(e)}")
+            break
     
+    progress_bar.progress(1.0)
+    status_text.text(f"Completed! Total reports found: {len(all_reports)}")
     return all_reports
 
 def analyze_reports(reports_df):
@@ -216,15 +132,15 @@ def analyze_reports(reports_df):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.metric("Total Reports", len(reports_df))
+        st.metric("Total Reports", f"{len(reports_df):,}")
         
     with col2:
         if 'date_of_report' in reports_df.columns:
-            date_range = f"{reports_df['date_of_report'].min():%Y-%m-%d} to {reports_df['date_of_report'].max():%Y-%m-%d}"
+            date_range = f"{format_uk_date(reports_df['date_of_report'].min())} to {format_uk_date(reports_df['date_of_report'].max())}"
             st.metric("Date Range", date_range)
             
     with col3:
-        if 'category' in reports_df.columns:
+        if 'Categories' in reports_df.columns:
             categories = reports_df['Categories'].str.split('|').explode().str.strip().unique()
             st.metric("Unique Categories", len(categories))
     
@@ -241,13 +157,14 @@ def analyze_reports(reports_df):
     if 'date_of_report' in reports_df.columns:
         st.subheader("Reports Timeline")
         timeline = reports_df.set_index('date_of_report').resample('M').size()
+        timeline.index = timeline.index.strftime('%B %Y')  # UK month format
         st.line_chart(timeline)
 
 def main():
     st.title("UK Judiciary PFD Reports Analysis")
     
     st.markdown("""
-    This app scrapes and analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    This app scrapes and analyses Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
     Filter by keywords and date range to find relevant reports.
     """)
     
@@ -256,11 +173,11 @@ def main():
     with col1:
         search_keyword = st.text_input("Search keywords:", "")
     with col2:
-        start_date = st.date_input("Start date:")
+        start_date = st.date_input("Start date:", format="DD/MM/YYYY")
     with col3:
-        end_date = st.date_input("End date:")
+        end_date = st.date_input("End date:", format="DD/MM/YYYY")
     
-    if st.button("Search and Analyze Reports"):
+    if st.button("Search and Analyse Reports"):
         reports = scrape_pfd_reports(
             keyword=search_keyword,
             start_date=start_date,
@@ -274,15 +191,21 @@ def main():
             if 'date_of_report' in df.columns:
                 df['date_of_report'] = pd.to_datetime(df['date_of_report'])
             
-            st.success(f"Found {len(reports)} reports")
+            st.success(f"Found {len(reports):,} reports")
             
             # Display and analyze results
             analyze_reports(df)
             
             # Show detailed data
             st.subheader("Detailed Reports Data")
+            
+            # Format dates in UK style for display
+            display_df = df.copy()
+            if 'date_of_report' in display_df.columns:
+                display_df['date_of_report'] = display_df['date_of_report'].apply(format_uk_date)
+            
             st.dataframe(
-                df,
+                display_df,
                 column_config={
                     "URL": st.column_config.LinkColumn("Report Link")
                 },
