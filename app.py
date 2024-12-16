@@ -37,11 +37,11 @@ def clean_text(text):
         logging.error(f"Error in clean_text: {e}")
         return ""
 
-def save_pdf(pdf_url, base_folder='pdfs'):
+def save_pdf(pdf_url):
     """Download and save PDF, return local path and filename"""
     try:
         # Create PDFs directory if it doesn't exist
-        os.makedirs(base_folder, exist_ok=True)
+        os.makedirs('pdfs', exist_ok=True)
         
         # Download PDF
         headers = {
@@ -56,7 +56,7 @@ def save_pdf(pdf_url, base_folder='pdfs'):
         filename = re.sub(r'[^\w\-_\. ]', '_', filename)
         
         # Full path to save PDF
-        local_path = os.path.join(base_folder, filename)
+        local_path = os.path.join('pdfs', filename)
         
         # Save PDF
         with open(local_path, 'wb') as f:
@@ -68,14 +68,20 @@ def save_pdf(pdf_url, base_folder='pdfs'):
         logging.error(f"Error saving PDF {pdf_url}: {e}")
         return None, None
 
-def extract_pdf_text(pdf_path):
-    """Extract text from PDF file"""
+def extract_pdf_content(pdf_path):
+    """Extract text from PDF file with filename as first line"""
     try:
+        # Get filename
+        filename = os.path.basename(pdf_path)
+        
         with pdfplumber.open(pdf_path) as pdf:
             # Combine text from all pages
             pdf_text = "\n\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
         
-        return clean_text(pdf_text)
+        # Prepend filename to the content
+        full_content = f"PDF FILENAME: {filename}\n\n{pdf_text}"
+        
+        return clean_text(full_content)
     
     except Exception as e:
         logging.error(f"Error extracting PDF text from {pdf_path}: {e}")
@@ -98,7 +104,7 @@ def get_report_content(url):
             content = soup.find('article', class_='single__post')
         
         webpage_text = ""
-        pdf_texts = []
+        pdf_contents = []
         pdf_paths = []
         pdf_names = []
         
@@ -117,20 +123,19 @@ def get_report_content(url):
                 pdf_path, pdf_name = save_pdf(pdf_url)
                 
                 if pdf_path:
-                    # Extract PDF text
-                    pdf_text = extract_pdf_text(pdf_path)
+                    # Extract PDF content
+                    pdf_content = extract_pdf_content(pdf_path)
                     
-                    pdf_texts.append(pdf_text)
+                    pdf_contents.append(pdf_content)
                     pdf_paths.append(pdf_path)
                     pdf_names.append(pdf_name)
         
         # Combine texts
         full_text = webpage_text
-        if pdf_texts:
-            full_text += "\n\n--- PDF CONTENT ---\n\n" + "\n\n".join(pdf_texts)
         
         return {
             'content': clean_text(full_text),
+            'pdf_contents': pdf_contents,
             'pdf_paths': pdf_paths,
             'pdf_names': pdf_names
         }
@@ -171,12 +176,16 @@ def scrape_page(url):
                 content_data = get_report_content(url)
                 
                 if content_data:
+                    # Prepare PDF contents (or empty string if no PDFs)
+                    pdf_contents = content_data['pdf_contents'] if content_data['pdf_contents'] else ['No PDF available']
+                    
                     report = {
                         'Title': title,
                         'URL': url,
                         'Content': content_data['content'],
                         'PDF_Paths': content_data['pdf_paths'],
-                        'PDF_Names': content_data['pdf_names']
+                        'PDF_Names': content_data['pdf_names'],
+                        'PDF_Contents': pdf_contents
                     }
                     
                     reports.append(report)
