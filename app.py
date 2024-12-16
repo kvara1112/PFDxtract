@@ -21,18 +21,67 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide")
 
-def clean_text(text):
-    """Clean text by removing extra whitespace and special characters"""
+ddef clean_text(text):
+    """
+    Comprehensive text cleaning function for handling messy PDF extractions
+    
+    Handles:
+    - Special characters and encoding issues
+    - Unicode normalization
+    - Whitespace cleaning
+    - Unwanted character removal
+    - HTML/XML tag stripping
+    """
     if not text:
         return ""
     
     try:
-        # Replace special characters
-        text = re.sub(r'[â€™]', "'", str(text))
-        text = re.sub(r'[â€¦]', "...", text)
-        # Normalize whitespace
+        # Convert to string and handle potential non-string inputs
+        text = str(text)
+        
+        # Normalize unicode characters
+        text = unicodedata.normalize('NFKD', text)
+        
+        # Replace problematic encoded characters
+        replacements = {
+            'â€™': "'",   # Smart single quote
+            'â€œ': '"',   # Left double quote
+            'â€': '"',    # Right double quote
+            'â€¦': '...',  # Ellipsis
+            'â€"': '-',   # Em dash
+            'â€¢': '•',   # Bullet point
+            'Â': '',      # Unwanted character
+            '\u200b': '',  # Zero-width space
+            '\uf0b7': '',  # Private use area character
+        }
+        
+        for encoded, replacement in replacements.items():
+            text = text.replace(encoded, replacement)
+        
+        # Remove HTML/XML tags
+        text = re.sub(r'<[^>]+>', '', text)
+        
+        # Remove non-printable characters
+        text = ''.join(char for char in text if char.isprintable())
+        
+        # Remove extra whitespaces and newlines
         text = re.sub(r'\s+', ' ', text)
-        return text.strip()
+        
+        # Remove specific unwanted patterns
+        text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', text)  # Control characters
+        
+        # Remove multiple consecutive punctuation
+        text = re.sub(r'([.,!?])\1+', r'\1', text)
+        
+        # Normalize quotation marks
+        text = text.replace(''', "'").replace(''', "'")
+        text = text.replace('"', '"').replace('"', '"')
+        
+        # Strip leading and trailing whitespace
+        text = text.strip()
+        
+        return text
+    
     except Exception as e:
         logging.error(f"Error in clean_text: {e}")
         return ""
