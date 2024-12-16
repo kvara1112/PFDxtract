@@ -57,39 +57,54 @@ class MetadataExtractor:
     }
     
     def _preprocess_text(self, text: str) -> str:
-        """Preprocess text to ensure consistent format while preserving spaces"""
-        if not text:
-            return ""
-        
-        # Convert to string and clean
-        text = clean_excel_text(text)
-        
-        # Ensure key fields are on new lines and properly spaced
-        key_fields = [
-            ('Date of report:', '\nDate of report: '),
-            ('Ref:', '\nRef: '),
-            ('Deceased name:', '\nDeceased name: '),
-            ('Coroners name:', '\nCoroners name: '),
-            ('Coroner name:', '\nCoroner name: '),
-            ('Coroners Area:', '\nCoroners Area: '),
-            ('Coroner Area:', '\nCoroner Area: '),
-            ('Category:', '\nCategory: '),
-            ('This report is being sent to:', '\nThis report is being sent to: ')
-        ]
-        
-        # Add proper spacing and newlines before each field
-        for old, new in key_fields:
-            text = text.replace(old, new)
-        
-        # Fix common issues
-        text = re.sub(r'([a-zA-Z]):', r'\1\n:', text)  # Add newline before fields that might be concatenated
-        text = text.replace('Coroners name:', '\nCoroners name:')  # Specifically handle this case
-        
-        # Remove multiple newlines but preserve single spaces
-        lines = [line.strip() for line in text.split('\n')]
-        text = '\n'.join(line for line in lines if line)
-        
-        return text
+    """Preprocess text for metadata extraction"""
+    if not text:
+        return ""
+    
+    # Convert to string and clean
+    text = str(text)
+    
+    # Normalize line endings
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    
+    # Ensure proper field separation
+    key_fields = [
+        ('Date of report:', '\nDate of report:'),
+        ('Ref:', '\nRef:'),
+        ('Deceased name:', '\nDeceased name:'),
+        ('Coroners name:', '\nCoroners name:'),
+        ('Coroner name:', '\nCoroner name:'),
+        ('Coroners Area:', '\nCoroners Area:'),
+        ('Coroner Area:', '\nCoroner Area:'),
+        ('Category:', '\nCategory:'),
+        ('This report is being sent to:', '\nThis report is being sent to:')
+    ]
+    
+    # Add newlines before fields
+    for old, new in key_fields:
+        text = text.replace(old, new)
+    
+    # Normalize spaces around colons
+    text = re.sub(r':\s*', ': ', text)
+    
+    # Split concatenated fields
+    text = re.sub(r'([a-zA-Z]):', r'\1\n:', text)
+    
+    # Clean up lines while preserving structure
+    lines = []
+    for line in text.split('\n'):
+        line = line.strip()
+        if line:
+            if any(field[0] in line for field in key_fields):
+                # If line contains a field marker, preserve exact spacing after colon
+                parts = line.split(':', 1)
+                if len(parts) > 1:
+                    lines.append(f"{parts[0]}:{parts[1]}")
+            else:
+                # For other lines, normalize internal spacing
+                lines.append(' '.join(line.split()))
+    
+    return '\n'.join(lines)
     
     def extract_metadata(self, content: str) -> Dict:
         """Extract metadata following the exact PFD report format"""
