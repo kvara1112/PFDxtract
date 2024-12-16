@@ -40,8 +40,65 @@ def extract_metadata(text):
             info[key] = clean_text(match.group(1))
     return info
 
+def get_report_content(url):
+    """Get detailed content from individual report page"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    try:
+        st.write(f"Fetching content from: {url}")
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Look for the main content in the flow class or table
+        content = soup.find('div', class_='flow')
+        
+        if content:
+            # Find the table within the content
+            table = content.find('table', class_='govuk-table')
+            if table:
+                # Extract sections from table
+                sections = {}
+                rows = table.find_all('tr', class_='govuk-table__row')
+                
+                for row in rows:
+                    # Get the cell number (first column) and content (second column)
+                    cells = row.find_all('td', class_='govuk-table__cell')
+                    if len(cells) == 2:
+                        section_num = cells[0].text.strip()
+                        section_content = cells[1].text.strip()
+                        sections[section_num] = section_content
+                
+                # Also get metadata from paragraphs before table
+                metadata_section = ""
+                for p in content.find_all('p', recursive=False):
+                    if p.find('table') is None:  # Skip paragraphs that contain tables
+                        metadata_section += p.text.strip() + "\n"
+                
+                # Combine metadata and sections
+                full_text = metadata_section + "\n" + "\n".join([f"{k}: {v}" for k, v in sections.items()])
+                st.write(f"Successfully extracted content")
+                return full_text
+            
+            # If no table found, get all text content
+            return content.get_text()
+        else:
+            st.write("Trying alternate content location...")
+            # Try finding content in article content
+            content = soup.find('article', class_='single__post')
+            if content:
+                return content.get_text()
+            
+            st.warning(f"No content found for: {url}")
+            return None
+            
+    except Exception as e:
+        st.error(f"Error getting report content: {str(e)}")
+        return None
+
 def extract_section_content(text):
-    """Extract content from numbered sections in the report"""
+    """Extract content from structured report text"""
     sections = {
         'CORONER': '',
         'LEGAL_POWERS': '',
@@ -54,65 +111,32 @@ def extract_section_content(text):
         'DATE_CORONER': ''
     }
     
-    patterns = {
-        'CORONER': r'1\s*CORONER\s*(.*?)(?=2\s*CORONER|$)',
-        'LEGAL_POWERS': r'2\s*CORONER\'S LEGAL POWERS\s*(.*?)(?=3\s*INVESTIGATION|$)',
-        'INVESTIGATION': r'3\s*INVESTIGATION\s*(.*?)(?=4\s*CIRCUMSTANCES|$)',
-        'CIRCUMSTANCES': r'4\s*CIRCUMSTANCES OF THE DEATH\s*(.*?)(?=5\s*CORONER|$)',
-        'CONCERNS': r'5\s*CORONER\'S CONCERNS\s*(.*?)(?=6\s*ACTION|$)',
-        'ACTION': r'6\s*ACTION SHOULD BE TAKEN\s*(.*?)(?=7\s*YOUR RESPONSE|$)',
-        'RESPONSE': r'7\s*YOUR RESPONSE\s*(.*?)(?=8\s*COPIES|$)',
-        'COPIES': r'8\s*COPIES and PUBLICATION\s*(.*?)(?=9|$)',
-        'DATE_CORONER': r'9\s*(.*?)(?=Related content|$)'
-    }
+    # Extract sections by number
+    section_matches = re.finditer(r'(\d)\s*(.+?)(?=\d\s|$)', text, re.DOTALL)
+    for match in section_matches:
+        section_num = match.group(1)
+        content = clean_text(match.group(2))
+        
+        if section_num == '1':
+            sections['CORONER'] = content
+        elif section_num == '2':
+            sections['LEGAL_POWERS'] = content
+        elif section_num == '3':
+            sections['INVESTIGATION'] = content
+        elif section_num == '4':
+            sections['CIRCUMSTANCES'] = content
+        elif section_num == '5':
+            sections['CONCERNS'] = content
+        elif section_num == '6':
+            sections['ACTION'] = content
+        elif section_num == '7':
+            sections['RESPONSE'] = content
+        elif section_num == '8':
+            sections['COPIES'] = content
+        elif section_num == '9':
+            sections['DATE_CORONER'] = content
     
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-        if match:
-            sections[key] = clean_text(match.group(1))
-            
     return sections
-
-def get_report_content(url):
-    """Get detailed content from individual report page"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
-    try:
-        st.write(f"Fetching content from: {url}")
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Try different possible content containers
-        content = None
-        possible_classes = ['entry-content', 'post-content', 'article-content', 'content-area', 'main-content']
-        
-        for class_name in possible_classes:
-            content = soup.find(['div', 'article', 'main'], class_=class_name)
-            if content:
-                break
-        
-        if not content:
-            # If no class found, try getting content from article or main element
-            content = soup.find(['article', 'main'])
-        
-        if content:
-            # Debug: Print first part of content
-            text_content = content.get_text()
-            st.write(f"Found content length: {len(text_content)} characters")
-            st.write("First 200 characters: " + text_content[:200])
-            return text_content
-        else:
-            st.warning(f"No content found for: {url}")
-            # Debug: Print page structure
-            st.write("Page structure:")
-            st.code(soup.prettify()[:500])
-            return None
-            
-    except Exception as e:
-        st.error(f"Error getting report content: {str(e)}")
-        return None
 
 def scrape_page(url):
     """Scrape a single page of search results"""
@@ -168,8 +192,8 @@ def scrape_page(url):
                     'Title': title,
                     'URL': url,
                     'Categories': ' | '.join(categories) if categories else '',
-                    **metadata,  # Directly spread metadata fields
-                    **sections  # Directly spread section fields
+                    **metadata,  # Spread metadata fields
+                    **sections  # Spread section fields
                 }
                 
                 reports.append(report)
