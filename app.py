@@ -63,7 +63,6 @@ def get_total_pages(url):
             # Find all page numbers
             page_numbers = pagination.find_all('a', class_='page-numbers')
             if page_numbers:
-                # Get last page number
                 numbers = [int(p.text) for p in page_numbers if p.text.isdigit()]
                 if numbers:
                     return max(numbers)
@@ -73,57 +72,99 @@ def get_total_pages(url):
         st.error(f"Error detecting pagination: {str(e)}")
         return 1
 
-def extract_metadata(text):
-    """Extract and clean metadata fields from text"""
-    patterns = {
-        'date_of_report': r'Date of report:?\s*([^\n]+)',
-        'ref': r'Ref:?\s*([\w-]+)',
-        'deceased_name': r'Deceased name:?\s*([^\n]+)',
-        'coroner_name': r'Coroner(?:s)? name:?\s*([^\n]+)',
-        'coroner_area': r'Coroner(?:s)? Area:?\s*([^\n]+)',
-        'category': r'Category:?\s*([^|\n]+)',
-        'sent_to': r'This report is being sent to:?\s*([^\n]+)'
-    }
-    
-    info = {}
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text)
-        if match:
-            value = clean_text(match.group(1))
-            if key == 'date_of_report':
-                info[key] = parse_date(value)
-            else:
-                info[key] = value
-    return info
-
-def extract_section_content(text):
-    """Extract and clean content from numbered sections in the report"""
+def extract_structured_content(text):
+    """Extract content from a structured PFD report"""
     sections = {
-        'background': '',
-        'investigation_details': '',
+        'metadata': {},
+        'legal_powers': '',
+        'investigation': '',
         'circumstances': '',
-        'coroner_concerns': '',
-        'recommended_actions': '',
-        'response_deadline': '',
-        'publication_info': ''
+        'concerns': '',
+        'action': '',
+        'response': '',
+        'copies': '',
+        'linked_content': {}
     }
     
-    patterns = {
-        'background': r'1\s*CORONER\s*(.*?)(?=2\s*CORONER|$)',
-        'investigation_details': r'3\s*INVESTIGATION\s*(.*?)(?=4\s*CIRCUMSTANCES|$)',
+    # Extract metadata
+    metadata_patterns = {
+        'date_of_report': r'Date of report:\s*(.*?)(?:\n|$)',
+        'ref': r'Ref:\s*(.*?)(?:\n|$)',
+        'deceased_name': r'Deceased name:\s*(.*?)(?:\n|$)',
+        'coroner_name': r'Coroner name:\s*(.*?)(?:\n|$)',
+        'coroner_area': r'Coroner Area:\s*(.*?)(?:\n|$)',
+        'category': r'Category:\s*(.*?)(?:\n|$)',
+        'sent_to': r'This report is being sent to:\s*(.*?)(?:\n|$)'
+    }
+    
+    for key, pattern in metadata_patterns.items():
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            sections['metadata'][key] = clean_text(match.group(1))
+    
+    # Extract main sections
+    section_patterns = {
+        'legal_powers': r'2\s*CORONER\'S LEGAL POWERS\s*(.*?)(?=3\s*INVESTIGATION|$)',
+        'investigation': r'3\s*INVESTIGATION[^\n]*\s*(.*?)(?=4\s*CIRCUMSTANCES|$)',
         'circumstances': r'4\s*CIRCUMSTANCES OF THE DEATH\s*(.*?)(?=5\s*CORONER|$)',
-        'coroner_concerns': r'5\s*CORONER\'S CONCERNS\s*(.*?)(?=6\s*ACTION|$)',
-        'recommended_actions': r'6\s*ACTION SHOULD BE TAKEN\s*(.*?)(?=7\s*YOUR RESPONSE|$)',
-        'response_deadline': r'7\s*YOUR RESPONSE\s*(.*?)(?=8\s*COPIES|$)',
-        'publication_info': r'8\s*COPIES and PUBLICATION\s*(.*?)(?=9|$)'
+        'concerns': r'5\s*CORONER\'S CONCERNS\s*(.*?)(?=6\s*ACTION|$)',
+        'action': r'6\s*ACTION SHOULD BE TAKEN\s*(.*?)(?=7\s*YOUR RESPONSE|$)',
+        'response': r'7\s*YOUR RESPONSE\s*(.*?)(?=8\s*COPIES|$)',
+        'copies': r'8\s*COPIES[^\n]*\s*(.*?)(?=9|$)'
     }
     
-    for key, pattern in patterns.items():
+    for key, pattern in section_patterns.items():
         match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
         if match:
             sections[key] = clean_text(match.group(1))
+    
+    # Extract URLs and their content
+    url_pattern = r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+    urls = re.findall(url_pattern, text)
+    
+    return sections, urls
+
+def extract_table_from_html(html_content):
+    """Extract tables from HTML content"""
+    tables = []
+    soup = BeautifulSoup(html_content, 'lxml')
+    for table in soup.find_all('table'):
+        try:
+            df = pd.read_html(str(table))[0]
+            tables.append(df)
+        except:
+            continue
+    return tables
+
+def get_linked_content(url):
+    """Get content from linked websites"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
+        soup = BeautifulSoup(response.text, 'lxml')
+        
+        # Remove script and style elements
+        for script in soup(['script', 'style']):
+            script.decompose()
             
-    return sections
+        # Get text content
+        text = soup.get_text()
+        
+        # Get tables if any
+        tables = extract_table_from_html(response.text)
+        
+        return {
+            'text': clean_text(text),
+            'tables': tables
+        }
+    except Exception as e:
+        return {
+            'text': f'Error fetching content: {str(e)}',
+            'tables': []
+        }
 
 def get_report_content(url):
     """Get and parse detailed content from individual report page"""
@@ -144,8 +185,27 @@ def get_report_content(url):
         st.error(f"Error getting report content: {str(e)}")
         return None
 
+def process_pfd_report(url):
+    """Process a single PFD report and its linked content"""
+    # Get main report content
+    report_content = get_report_content(url)
+    if not report_content:
+        return None
+        
+    # Extract structured content
+    structured_content, urls = extract_structured_content(report_content)
+    
+    # Process linked content
+    linked_content = {}
+    for linked_url in urls:
+        linked_content[linked_url] = get_linked_content(linked_url)
+    
+    structured_content['linked_content'] = linked_content
+    
+    return structured_content
+
 def scrape_page(url):
-    """Scrape a single page of search results"""
+    """Scrape a single page of search results with enhanced content extraction"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
@@ -163,7 +223,6 @@ def scrape_page(url):
         
         for card in cards:
             try:
-                # Get title and URL
                 title_elem = card.find('h3', class_='card__title').find('a')
                 if not title_elem:
                     continue
@@ -171,36 +230,24 @@ def scrape_page(url):
                 title = clean_text(title_elem.text)
                 url = title_elem['href']
                 
-                # Get metadata from card description
-                desc = card.find('p', class_='card__description')
-                if not desc:
-                    continue
-                    
-                metadata = extract_metadata(desc.text)
-                
-                # Get categories from pills
-                categories = []
-                pills = card.find_all('a', href=re.compile(r'/pfd-types/'))
-                for pill in pills:
-                    categories.append(clean_text(pill.text))
-                
-                # Get full report content
-                report_content = get_report_content(url)
+                # Get enhanced report content
+                report_content = process_pfd_report(url)
                 if report_content:
-                    sections = extract_section_content(report_content)
-                else:
-                    sections = {}
-                
-                report = {
-                    'Title': title,
-                    'URL': url,
-                    'Categories': ' | '.join(categories) if categories else '',
-                    **metadata,
-                    **sections
-                }
-                
-                reports.append(report)
-                st.write(f"Processed report: {title}")
+                    report = {
+                        'Title': title,
+                        'URL': url,
+                        **report_content['metadata'],
+                        'legal_powers': report_content['legal_powers'],
+                        'investigation': report_content['investigation'],
+                        'circumstances': report_content['circumstances'],
+                        'concerns': report_content['concerns'],
+                        'action': report_content['action'],
+                        'response': report_content['response'],
+                        'copies': report_content['copies'],
+                        'linked_content': report_content['linked_content']
+                    }
+                    reports.append(report)
+                    st.write(f"Processed report: {title}")
                 
             except Exception as e:
                 st.error(f"Error processing card: {str(e)}")
@@ -283,21 +330,20 @@ def analyze_reports(reports_df):
             st.metric("Date Range", date_range)
             
     with col3:
-        if 'Categories' in reports_df.columns:
-            # Handle cases where Categories might be None
-            categories = reports_df['Categories'].fillna('').str.split('|').explode().str.strip()
+        if 'category' in reports_df.columns:
+            categories = reports_df['category'].fillna('').str.split('|').explode().str.strip()
             categories = categories[categories != ''].unique()
             st.metric("Unique Categories", len(categories))
     
     # Category breakdown
-    if 'Categories' in reports_df.columns:
+    if 'category' in reports_df.columns:
         st.subheader("Category Distribution")
-        category_counts = (reports_df['Categories'].fillna('')
+        category_counts = (reports_df['category'].fillna('')
                          .str.split('|')
                          .explode()
                          .str.strip()
                          .value_counts())
-        category_counts = category_counts[category_counts.index != '']  # Remove empty categories
+        category_counts = category_counts[category_counts.index != '']
         if not category_counts.empty:
             st.bar_chart(category_counts)
         else:
@@ -306,7 +352,6 @@ def analyze_reports(reports_df):
     # Timeline analysis
     if 'date_of_report' in reports_df.columns:
         st.subheader("Reports Timeline")
-        # Only use valid dates for timeline
         valid_dates_df = reports_df[reports_df['date_of_report'].notna()].copy()
         if not valid_dates_df.empty:
             timeline = valid_dates_df.set_index('date_of_report').resample('M').size()
@@ -334,6 +379,9 @@ def main():
     
     if st.button("Search and Analyse Reports"):
         with st.spinner("Searching for reports..."):
+            reports
+    if st.button("Search and Analyse Reports"):
+        with st.spinner("Searching for reports..."):
             reports = scrape_pfd_reports(
                 keyword=search_keyword,
                 start_date=start_date,
@@ -351,12 +399,19 @@ def main():
             # Fill NaN values with appropriate placeholders
             df = df.fillna({
                 'Title': 'Untitled',
-                'Categories': '',
+                'category': '',
                 'ref': 'Unknown',
                 'deceased_name': 'Unknown',
                 'coroner_name': 'Unknown',
                 'coroner_area': 'Unknown',
-                'sent_to': 'Unknown'
+                'sent_to': 'Unknown',
+                'legal_powers': '',
+                'investigation': '',
+                'circumstances': '',
+                'concerns': '',
+                'action': '',
+                'response': '',
+                'copies': ''
             })
             
             st.success(f"Found {len(reports):,} reports")
