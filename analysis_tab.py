@@ -18,7 +18,7 @@ def clean_excel_text(text):
     # Replace multiple spaces with single space
     text = ' '.join(text.split())
     return text
-
+    
 class MetadataExtractor:
     """Metadata extraction class specifically designed for PFD reports format"""
     
@@ -28,28 +28,34 @@ class MetadataExtractor:
             r'Date of report\s*(\d{2}/\d{2}/\d{4})'
         ],
         'reference': [
-            r'Ref:\s*(20\d{2}-\d{4})',  # Matches format like 2024-0392
+            r'Ref:\s*(20\d{2}-\d{4})',
             r'Reference:\s*(20\d{2}-\d{4})'
         ],
         'deceased_name': [
-            r'Deceased name:\s*([^C\n]+?)(?=\s*Coroner)',  # Match until Coroner
-            r'Name of (?:the )?deceased:\s*([^C\n]+?)(?=\s*Coroner)'  # Handle variations
+            r'Deceased name:\s*([^:\n]+?)(?=\s*(?:Coroner|$))',
+            r'Name of (?:the )?deceased:\s*([^:\n]+?)(?=\s*(?:Coroner|$))',
+            # Handle concatenated format
+            r'^([^:]+?)(?=Coroners?\s+name:)'
         ],
         'coroner_name': [
-            r'Coroner name:\s*([^C\n]+?)(?=\s*Coroner Area:)',  # Match until Coroner Area
-            r'I am ([^,]+),\s*(?:Assistant )?Coroner'  # Alternative format from content
+            r'Coroners?\s*name:\s*([^:\n]+?)(?=\s*(?:Coroner Area:|$))',
+            r'I am ([^,]+),\s*(?:Assistant )?Coroner',
+            # Extract from concatenated format
+            r'Coroners?\s*name:\s*([^:\n]+?)(?=\s*(?:Coroners?\s*Area:|$))'
         ],
         'coroner_area': [
-            r'Coroner Area:\s*([^C\n]+?)(?=\s*Category:)',  # Match until Category
-            r'Coroner(?:,)?\s+for the (?:coroner )?area of\s+([^\.]+)'  # Alternative format
+            r'Coroners?\s*Area:\s*([^:\n]+?)(?=\s*(?:Category:|$))',
+            r'for the (?:coroner )?area of\s+([^\.]+)',
+            # Extract from concatenated format
+            r'Coroners?\s*Area:\s*([^:\n]+?)(?=\s*(?:Category:|$))'
         ],
         'categories': [
-            r'Category:\s*([^\n]+?)(?=\s*This report is being sent to:)',  # Match until next section
-            r'Category:\s*([^\n]+)'  # Backup pattern
+            r'Category:\s*([^:\n]+?)(?=\s*(?:This report is being sent to:|$))',
+            r'Category:\s*([^\n]+)'
         ],
         'sent_to': [
-            r'This report is being sent to:\s*([^\n]+?)(?=\s*REGULATION|\s*1\s*CORONER|$)',  # Match until next section
-            r'This report is being sent to:\s*([^\n]+)'  # Backup pattern
+            r'This report is being sent to:\s*([^:\n]+?)(?=\s*(?:REGULATION|\d|$))',
+            r'This report is being sent to:\s*([^\n]+)'
         ]
     }
 
@@ -61,12 +67,19 @@ class MetadataExtractor:
         # Convert to string and normalize newlines
         text = str(text).replace('\r\n', '\n').replace('\r', '\n')
         
+        # Handle concatenated fields by adding newlines
+        text = re.sub(r'(Coroners?\s*name:)', r'\n\1', text)
+        text = re.sub(r'(Coroners?\s*Area:)', r'\n\1', text)
+        text = re.sub(r'(Category:)', r'\n\1', text)
+        
         # Ensure metadata fields are properly spaced
         replacements = [
             ('Date of report:', '\nDate of report:'),
             ('Ref:', '\nRef:'),
             ('Deceased name:', '\nDeceased name:'),
+            ('Coroners name:', '\nCoroners name:'),
             ('Coroner name:', '\nCoroner name:'),
+            ('Coroners Area:', '\nCoroners Area:'),
             ('Coroner Area:', '\nCoroner Area:'),
             ('Category:', '\nCategory:'),
             ('This report is being sent to:', '\nThis report is being sent to:')
@@ -74,9 +87,11 @@ class MetadataExtractor:
         
         # Apply replacements while preserving original spacing after the colon
         for old, new in replacements:
-            # Look for the field and preserve any content after it until the next field
             pattern = f"({old}\\s*)(.*?)(?=\\n|$)"
             text = re.sub(pattern, f"{new} \\2", text, flags=re.DOTALL)
+        
+        # Handle the case where fields are concatenated without proper spacing
+        text = re.sub(r'([a-zA-Z])(?=Coroners?\s*name:)', r'\1\n', text)
         
         return text
 
@@ -118,10 +133,14 @@ class MetadataExtractor:
                     else:
                         # Clean up other values
                         value = re.sub(r'\s+', ' ', value).strip()
+                        # Handle special case where name is concatenated with other fields
+                        if field == 'deceased_name' and 'Coroner' in value:
+                            value = value.split('Coroner')[0].strip()
                         metadata[field] = value
                     break
         
         return metadata
+
         
         # Preprocess content
         processed_text = self._preprocess_text(content)
