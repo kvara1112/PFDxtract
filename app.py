@@ -13,6 +13,7 @@ import locale
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Set page config
 st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide")
 
 def clean_text(text):
@@ -207,23 +208,31 @@ def scrape_pfd_reports(keyword=None, start_date=None, end_date=None):
                     filtered_reports = []
                     for report in reports:
                         report_date = report.get('date_of_report')
-                        if report_date:
-                            if start_date and parser.parse(report_date) < start_date:
-                                continue
-                            if end_date and parser.parse(report_date) > end_date:
-                                continue
-                        filtered_reports.append(report)
+                        try:
+                            if report_date:
+                                # Try to parse the date, assuming UK format
+                                parsed_date = parser.parse(report_date, dayfirst=True)
+                                if start_date and parsed_date.date() < start_date:
+                                    continue
+                                if end_date and parsed_date.date() > end_date:
+                                    continue
+                            filtered_reports.append(report)
+                        except (ValueError, TypeError):
+                            # If date parsing fails, include the report anyway
+                            filtered_reports.append(report)
                     reports = filtered_reports
                 
                 all_reports.extend(reports)
                 st.write(f"Found {len(reports)} reports on page {current_page}")
+            else:
+                break
                 
             current_page += 1
             time.sleep(1)  # Rate limiting
             
         except Exception as e:
             st.error(f"Error processing page {current_page}: {str(e)}")
-            break
+            continue
     
     progress_bar.progress(1.0)
     status_text.text(f"Completed! Total reports found: {len(all_reports)}")
@@ -251,12 +260,15 @@ def main():
         submitted = st.form_submit_button("Search and Analyse Reports")
     
     if submitted:
+        reports = []  # Initialize reports list
         with st.spinner("Searching for reports..."):
-            reports = scrape_pfd_reports(
+            scraped_reports = scrape_pfd_reports(
                 keyword=search_keyword,
                 start_date=start_date,
                 end_date=end_date
             )
+            if scraped_reports:
+                reports.extend(scraped_reports)
         
         if reports:
             df = pd.DataFrame(reports)
@@ -300,7 +312,10 @@ def main():
                     key="download_excel"
                 )
         else:
-            st.warning("No reports found")
+            if search_keyword:
+                st.warning("No reports found matching your search criteria")
+            else:
+                st.info("Please enter search keywords to find reports")
 
 if __name__ == "__main__":
     main()
