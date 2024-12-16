@@ -9,6 +9,10 @@ import urllib3
 import io
 import pdfplumber
 import tempfile
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -17,14 +21,19 @@ st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide"
 
 def clean_text(text):
     """Clean text by removing extra whitespace and special characters"""
-    if text:
+    if not text:
+        return ""
+    
+    try:
         # Replace special characters
-        text = re.sub(r'[â€™]', "'", text)
+        text = re.sub(r'[â€™]', "'", str(text))
         text = re.sub(r'[â€¦]', "...", text)
         # Normalize whitespace
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
-    return ""
+    except Exception as e:
+        logging.error(f"Error in clean_text: {e}")
+        return ""
 
 def extract_pdf_text(pdf_url):
     """Extract text from PDF URL"""
@@ -48,8 +57,59 @@ def extract_pdf_text(pdf_url):
         return clean_text(pdf_text)
     
     except Exception as e:
-        st.error(f"Error extracting PDF text: {str(e)}")
+        logging.error(f"Error extracting PDF text from {pdf_url}: {e}")
         return ""
+
+def scrape_page(url):
+    """Scrape a single page of search results"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        results_list = soup.find('ul', class_='search__list')
+        if not results_list:
+            logging.warning(f"No results list found on page: {url}")
+            return []
+            
+        reports = []
+        cards = results_list.find_all('div', class_='card')
+        
+        for card in cards:
+            try:
+                # Get title and URL
+                title_elem = card.find('h3', class_='card__title').find('a')
+                if not title_elem:
+                    continue
+                    
+                title = clean_text(title_elem.text)
+                url = title_elem['href']
+                
+                logging.info(f"Processing report: {title}")
+                content = get_report_content(url)
+                
+                if content:
+                    report = {
+                        'Title': title,
+                        'URL': url,
+                        'Content': content
+                    }
+                    
+                    reports.append(report)
+                    logging.info(f"Successfully processed: {title}")
+                
+            except Exception as e:
+                logging.error(f"Error processing card: {e}")
+                continue
+                
+        return reports
+        
+    except Exception as e:
+        logging.error(f"Error fetching page {url}: {e}")
+        return []
 
 def get_report_content(url):
     """Get full content from report page"""
@@ -58,7 +118,7 @@ def get_report_content(url):
     }
     
     try:
-        st.write(f"Fetching content from: {url}")
+        logging.info(f"Fetching content from: {url}")
         response = requests.get(url, headers=headers, verify=False, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
         
@@ -72,7 +132,7 @@ def get_report_content(url):
             paragraphs = content.find_all(['p', 'table'])
             text_content = '\n\n'.join(p.get_text(strip=True, separator=' ') for p in paragraphs)
             if text_content:
-                st.write("Successfully extracted webpage content")
+                logging.info("Successfully extracted webpage content")
                 
                 # Find PDF download links
                 pdf_links = soup.find_all('a', class_='related-content__link', href=re.compile(r'\.pdf$'))
@@ -91,17 +151,77 @@ def get_report_content(url):
                 
                 return clean_text(full_text)
         
-        st.warning(f"No content found for: {url}")
+        logging.warning(f"No content found for: {url}")
         return None
         
     except Exception as e:
-        st.error(f"Error getting report content: {str(e)}")
+        logging.error(f"Error getting report content: {e}")
         return None
 
-# Rest of the code remains the same as in the previous implementation
-# (scrape_page, get_total_pages, scrape_pfd_reports, main functions)
+def get_total_pages(url):
+    """Get total number of pages"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        pagination = soup.find('ul', class_='pagination')
+        if pagination:
+            page_numbers = pagination.find_all('a', class_='page-numbers')
+            if page_numbers:
+                numbers = [int(p.text) for p in page_numbers if p.text.isdigit()]
+                if numbers:
+                    return max(numbers)
+        return 1
+    except Exception as e:
+        logging.error(f"Error getting total pages: {e}")
+        return 1
 
-# Main function remains unchanged
+def scrape_pfd_reports(keyword=None):
+    """Scrape reports with keyword search"""
+    all_reports = []
+    current_page = 1
+    base_url = "https://www.judiciary.uk/"
+    
+    initial_url = f"{base_url}?s={keyword if keyword else ''}&post_type=pfd"
+    
+    try:
+        total_pages = get_total_pages(initial_url)
+        logging.info(f"Total pages to scrape: {total_pages}")
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        while current_page <= total_pages:
+            url = f"{base_url}{'page/' + str(current_page) + '/' if current_page > 1 else ''}?s={keyword if keyword else ''}&post_type=pfd"
+            
+            status_text.text(f"Scraping page {current_page} of {total_pages}...")
+            progress_bar.progress(current_page / total_pages)
+            
+            reports = scrape_page(url)
+            if reports:
+                all_reports.extend(reports)
+                logging.info(f"Found {len(reports)} reports on page {current_page}")
+            else:
+                logging.warning(f"No reports found on page {current_page}")
+            
+            current_page += 1
+            time.sleep(1)  # Rate limiting
+        
+        progress_bar.progress(1.0)
+        status_text.text(f"Completed! Total reports found: {len(all_reports)}")
+        
+        return all_reports
+    
+    except Exception as e:
+        logging.error(f"Error in scrape_pfd_reports: {e}")
+        st.error(f"An error occurred while scraping reports: {e}")
+        return []
+
+# Rest of the code remains the same as previous implementation
 def main():
     st.title("UK Judiciary PFD Reports Analysis")
     
@@ -118,9 +238,13 @@ def main():
     if submitted:
         reports = []  # Initialize reports list
         with st.spinner("Searching for reports..."):
-            scraped_reports = scrape_pfd_reports(keyword=search_keyword)
-            if scraped_reports:
-                reports.extend(scraped_reports)
+            try:
+                scraped_reports = scrape_pfd_reports(keyword=search_keyword)
+                if scraped_reports:
+                    reports.extend(scraped_reports)
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+                logging.error(f"Scraping error: {e}")
         
         if reports:
             df = pd.DataFrame(reports)
