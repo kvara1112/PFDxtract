@@ -8,17 +8,52 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 
+def clean_excel_text(text):
+    """Clean and standardize text from Excel"""
+    if pd.isna(text):
+        return ""
+    text = str(text).strip()
+    # Standardize newlines
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    # Replace multiple spaces with single space
+    text = ' '.join(text.split())
+    return text
+
 class MetadataExtractor:
     """Metadata extraction class specifically designed for PFD reports format"""
     
     METADATA_PATTERNS = {
-        'date_of_report': r'Date of report:\s*(\d{2}/\d{2}/\d{4})',
-        'reference': r'Ref:\s*([\d-]+)',
-        'deceased_name': r'Deceased name:\s*([^\n]+?)\s*(?=\s*Coroner name:|$)',
-        'coroner_name': r'Coroner name:\s*([^\n]+?)\s*(?=\s*Coroner Area:|$)',
-        'coroner_area': r'Coroner Area:\s*([^\n]+?)\s*(?=\s*Category:|$)',
-        'categories': r'Category:\s*([^\n]+?)\s*(?=\s*This report is being sent to:|$)',
-        'sent_to': r'This report is being sent to:\s*([^\n]+)'
+        'date_of_report': [
+            r'Date of report:\s*(\d{2}/\d{2}/\d{4})',
+            r'Date of report\s*(\d{2}/\d{2}/\d{4})',
+            r'Report date:\s*(\d{2}/\d{2}/\d{4})'
+        ],
+        'reference': [
+            r'Ref:\s*(20\d{2}-\d{4})',
+            r'Reference:\s*(20\d{2}-\d{4})',
+            r'Reference Number:\s*(20\d{2}-\d{4})'
+        ],
+        'deceased_name': [
+            r'Deceased name:\s*([^:\n]+?)(?=\s*Coroners? name:|$)',
+            r'Name of deceased:\s*([^:\n]+?)(?=\s*Coroners? name:|$)'
+        ],
+        'coroner_name': [
+            r'Coroners? name:\s*([^:\n]+?)(?=\s*Coroners? Area:|$)',
+            r'Coroner:\s*([^:\n]+?)(?=\s*Coroners? Area:|$)'
+        ],
+        'coroner_area': [
+            r'Coroners? Area:\s*([^:\n]+?)(?=\s*Category:|$)',
+            r'Area:\s*([^:\n]+?)(?=\s*Category:|$)'
+        ],
+        'categories': [
+            r'Category:\s*([^:\n]+?)(?=\s*This report is being sent to:|$)',
+            r'Categories:\s*([^:\n]+?)(?=\s*This report is being sent to:|$)'
+        ],
+        'sent_to': [
+            r'This report is being sent to:\s*([^:\n]+)',
+            r'Report sent to:\s*([^:\n]+)',
+            r'Sent to:\s*([^:\n]+)'
+        ]
     }
     
     def _preprocess_text(self, text: str) -> str:
@@ -26,38 +61,36 @@ class MetadataExtractor:
         if not text:
             return ""
         
-        # Convert to string if not already
-        text = str(text)
+        # Convert to string and clean
+        text = clean_excel_text(text)
         
-        # Normalize line endings
-        text = text.replace('\r\n', '\n').replace('\r', '\n')
-        
-        # Normalize spaces around key fields
+        # Ensure key fields are on new lines and properly spaced
         key_fields = [
-            'Date of report:',
-            'Ref:',
-            'Deceased name:',
-            'Coroner name:',
-            'Coroner Area:',
-            'Category:',
-            'This report is being sent to:'
+            ('Date of report:', '\nDate of report: '),
+            ('Ref:', '\nRef: '),
+            ('Deceased name:', '\nDeceased name: '),
+            ('Coroners name:', '\nCoroners name: '),
+            ('Coroner name:', '\nCoroner name: '),
+            ('Coroners Area:', '\nCoroners Area: '),
+            ('Coroner Area:', '\nCoroner Area: '),
+            ('Category:', '\nCategory: '),
+            ('This report is being sent to:', '\nThis report is being sent to: ')
         ]
         
-        # Add newlines before each field
-        for field in key_fields:
-            text = text.replace(field, f'\n{field}')
+        # Add proper spacing and newlines before each field
+        for old, new in key_fields:
+            text = text.replace(old, new)
+        
+        # Fix common issues
+        text = re.sub(r'([a-zA-Z]):', r'\1\n:', text)  # Add newline before fields that might be concatenated
+        text = text.replace('Coroners name:', '\nCoroners name:')  # Specifically handle this case
         
         # Remove multiple newlines but preserve single spaces
-        text = '\n'.join(line.strip() for line in text.split('\n') if line.strip())
-        
-        # Ensure single space after colons while preserving existing spaces
-        text = re.sub(r':\s*', ': ', text)
-        
-        # Remove unnecessary Unicode characters
-        text = re.sub(r'[\u200b\ufeff]', '', text)
+        lines = [line.strip() for line in text.split('\n')]
+        text = '\n'.join(line for line in lines if line)
         
         return text
-
+    
     def extract_metadata(self, content: str) -> Dict:
         """Extract metadata following the exact PFD report format"""
         metadata = {
@@ -75,20 +108,27 @@ class MetadataExtractor:
         
         # Preprocess content
         processed_text = self._preprocess_text(content)
+        logging.debug(f"Processed text:\n{processed_text}")
         
-        # Extract each field using the defined patterns
-        for field, pattern in self.METADATA_PATTERNS.items():
-            match = re.search(pattern, processed_text, re.IGNORECASE | re.MULTILINE)
-            if match:
-                value = match.group(1).strip()
-                if field == 'categories':
-                    # Split categories on pipe and clean while preserving spaces
-                    categories = [cat.strip() for cat in value.split('|')]
-                    # Remove empty categories and preserve original spacing
-                    categories = [cat for cat in categories if cat]
-                    metadata[field] = categories
-                else:
-                    metadata[field] = value
+        # Try each pattern for each field
+        for field, patterns in self.METADATA_PATTERNS.items():
+            if not isinstance(patterns, list):
+                patterns = [patterns]
+            
+            for pattern in patterns:
+                match = re.search(pattern, processed_text, re.IGNORECASE | re.MULTILINE)
+                if match:
+                    value = match.group(1).strip()
+                    if field == 'categories':
+                        # Split categories on pipe and clean
+                        categories = [cat.strip() for cat in value.split('|')]
+                        # Remove empty categories
+                        categories = [cat for cat in categories if cat]
+                        if categories:
+                            metadata[field] = categories
+                    else:
+                        metadata[field] = value
+                    break  # Stop trying patterns once we find a match
         
         return metadata
 
@@ -97,7 +137,7 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
     extractor = MetadataExtractor()
     metadata_rows = []
     
-    for _, row in df.iterrows():
+    for idx, row in df.iterrows():
         # Initialize metadata with None values
         metadata = {
             'date_of_report': None,
@@ -111,20 +151,22 @@ def process_data(df: pd.DataFrame) -> pd.DataFrame:
             'url': row['URL']
         }
         
-        # Try to extract from main content
-        content_metadata = extractor.extract_metadata(row['Content'])
-        metadata.update({k: v for k, v in content_metadata.items() if v})
+        # Try to extract from main content first
+        if pd.notna(row.get('Content')):
+            content_metadata = extractor.extract_metadata(row['Content'])
+            metadata.update({k: v for k, v in content_metadata.items() if v})
         
         # Try to extract from PDF contents if available
         pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Content')]
         for pdf_col in pdf_columns:
-            if pd.notna(row[pdf_col]):
+            if pd.notna(row.get(pdf_col)):
                 pdf_metadata = extractor.extract_metadata(row[pdf_col])
                 # Update only if we find new information
                 metadata.update({k: v for k, v in pdf_metadata.items() if v and not metadata[k]})
         
         metadata_rows.append(metadata)
     
+    # Create DataFrame from metadata
     processed_df = pd.DataFrame(metadata_rows)
     
     # Convert date string to datetime
@@ -319,6 +361,7 @@ def render_analysis_tab():
             st.subheader("Data Visualization")
             viz_tab1, viz_tab2, viz_tab3 = st.tabs(["Timeline", "Categories", "Coroner Areas"])
             
+            ```python
             with viz_tab1:
                 st.subheader("Reports Timeline")
                 timeline_data = filtered_df.groupby(
