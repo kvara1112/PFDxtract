@@ -57,54 +57,54 @@ class MetadataExtractor:
     }
     
     def _preprocess_text(self, text: str) -> str:
-    """Preprocess text for metadata extraction"""
-    if not text:
-        return ""
-    
-    # Convert to string and clean
-    text = str(text)
-    
-    # Normalize line endings
-    text = text.replace('\r\n', '\n').replace('\r', '\n')
-    
-    # Ensure proper field separation
-    key_fields = [
-        ('Date of report:', '\nDate of report:'),
-        ('Ref:', '\nRef:'),
-        ('Deceased name:', '\nDeceased name:'),
-        ('Coroners name:', '\nCoroners name:'),
-        ('Coroner name:', '\nCoroner name:'),
-        ('Coroners Area:', '\nCoroners Area:'),
-        ('Coroner Area:', '\nCoroner Area:'),
-        ('Category:', '\nCategory:'),
-        ('This report is being sent to:', '\nThis report is being sent to:')
-    ]
-    
-    # Add newlines before fields
-    for old, new in key_fields:
-        text = text.replace(old, new)
-    
-    # Normalize spaces around colons
-    text = re.sub(r':\s*', ': ', text)
-    
-    # Split concatenated fields
-    text = re.sub(r'([a-zA-Z]):', r'\1\n:', text)
-    
-    # Clean up lines while preserving structure
-    lines = []
-    for line in text.split('\n'):
-        line = line.strip()
-        if line:
-            if any(field[0] in line for field in key_fields):
-                # If line contains a field marker, preserve exact spacing after colon
-                parts = line.split(':', 1)
-                if len(parts) > 1:
-                    lines.append(f"{parts[0]}:{parts[1]}")
-            else:
-                # For other lines, normalize internal spacing
-                lines.append(' '.join(line.split()))
-    
-    return '\n'.join(lines)
+        """Preprocess text for metadata extraction"""
+        if not text:
+            return ""
+        
+        # Convert to string and clean
+        text = str(text)
+        
+        # Normalize line endings
+        text = text.replace('\r\n', '\n').replace('\r', '\n')
+        
+        # Ensure proper field separation
+        key_fields = [
+            ('Date of report:', '\nDate of report:'),
+            ('Ref:', '\nRef:'),
+            ('Deceased name:', '\nDeceased name:'),
+            ('Coroners name:', '\nCoroners name:'),
+            ('Coroner name:', '\nCoroner name:'),
+            ('Coroners Area:', '\nCoroners Area:'),
+            ('Coroner Area:', '\nCoroner Area:'),
+            ('Category:', '\nCategory:'),
+            ('This report is being sent to:', '\nThis report is being sent to:')
+        ]
+        
+        # Add newlines before fields
+        for old, new in key_fields:
+            text = text.replace(old, new)
+        
+        # Normalize spaces around colons
+        text = re.sub(r':\s*', ': ', text)
+        
+        # Split concatenated fields
+        text = re.sub(r'([a-zA-Z]):', r'\1\n:', text)
+        
+        # Clean up lines while preserving structure
+        lines = []
+        for line in text.split('\n'):
+            line = line.strip()
+            if line:
+                if any(field[0] in line for field in key_fields):
+                    # If line contains a field marker, preserve exact spacing after colon
+                    parts = line.split(':', 1)
+                    if len(parts) > 1:
+                        lines.append(f"{parts[0]}:{parts[1]}")
+                else:
+                    # For other lines, normalize internal spacing
+                    lines.append(' '.join(line.split()))
+        
+        return '\n'.join(lines)
     
     def extract_metadata(self, content: str) -> Dict:
         """Extract metadata following the exact PFD report format"""
@@ -146,8 +146,7 @@ class MetadataExtractor:
                     break  # Stop trying patterns once we find a match
         
         return metadata
-
-def process_data(df: pd.DataFrame) -> pd.DataFrame:
+    def process_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process the dataframe to extract metadata from content"""
     extractor = MetadataExtractor()
     metadata_rows = []
@@ -376,7 +375,6 @@ def render_analysis_tab():
             st.subheader("Data Visualization")
             viz_tab1, viz_tab2, viz_tab3 = st.tabs(["Timeline", "Categories", "Coroner Areas"])
             
-            ```python
             with viz_tab1:
                 st.subheader("Reports Timeline")
                 timeline_data = filtered_df.groupby(
