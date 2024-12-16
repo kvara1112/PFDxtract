@@ -17,87 +17,67 @@ st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide"
 def clean_text(text):
     """Clean text by removing extra whitespace and newlines"""
     if text:
+        text = re.sub(r'[â€™]', "'", text)
+        text = re.sub(r'[â€¦]', "...", text)
         text = re.sub(r'\s+', ' ', text)
         return text.strip()
     return ""
 
-def extract_metadata(text):
-    """Extract metadata fields from text more precisely"""
-    if not text:
-        return {}
-        
-    patterns = {
-        'date_of_report': r'Date of report:\s*([^\n]+)',
-        'ref': r'Ref:\s*([\w-]+)',
-        'deceased_name': r'Deceased name:\s*([^\n]+)',
-        'coroner_name': r'Coroner name:\s*([^\n]+)',
-        'coroner_area': r'Coroner Area:\s*([^\n]+)',
-        'category': r'Category:\s*([^\n]+)',
-        'sent_to': r'This report is being sent to:\s*([^\n]+)'
+def extract_metadata_and_content(text):
+    """Extract metadata fields and full content"""
+    metadata = {
+        'date_of_report': '',
+        'ref': '',
+        'deceased_name': '',
+        'coroner_name': '',
+        'coroner_area': '',
+        'category': '',
+        'sent_to': '',
+        'content': ''
     }
     
-    info = {}
+    # Metadata patterns
+    patterns = {
+        'date_of_report': r'Date of report:?\s*([^\n]+)',
+        'ref': r'Ref:?\s*([\w-]+)',
+        'deceased_name': r'Deceased name:?\s*([^\n]+)',
+        'coroner_name': r'Coroner name:?\s*([^\n]+)',
+        'coroner_area': r'Coroner Area:?\s*([^\n]+)',
+        'category': r'Category:?\s*([^|\n]+(?:\s*\|\s*[^|\n]+)*)',
+        'sent_to': r'This report is being sent to:?\s*([^R\n]+)'
+    }
+    
+    # Extract metadata fields
     for key, pattern in patterns.items():
         match = re.search(pattern, text, re.IGNORECASE)
         if match:
-            value = match.group(1).strip()
-            # Clean up any special characters
-            value = re.sub(r'[â€™]', "'", value)
-            value = re.sub(r'[â€¦]', "...", value)
-            info[key] = value
+            value = clean_text(match.group(1))
+            metadata[key] = value
     
-    return info
-
-def extract_section_content(text):
-    """Extract content from numbered sections in report"""
-    sections = {
-        'CORONER': '',
-        'LEGAL_POWERS': '',
-        'INVESTIGATION': '',
-        'CIRCUMSTANCES': '',
-        'CONCERNS': '',
-        'ACTION': '',
-        'RESPONSE': '',
-        'COPIES': '',
-        'DATE_CORONER': ''
-    }
+    # Split categories
+    if metadata['category']:
+        categories = [cat.strip() for cat in metadata['category'].split('|')]
+        metadata['primary_category'] = categories[0] if categories else ''
+        metadata['additional_categories'] = ' | '.join(categories[1:]) if len(categories) > 1 else ''
     
-    patterns = {
-        'CORONER': r'1\s+CORONER\s*(.*?)(?=2\s+CORONER\'S LEGAL POWERS|$)',
-        'LEGAL_POWERS': r'2\s+CORONER\'S LEGAL POWERS\s*(.*?)(?=3\s+INVESTIGATION|$)',
-        'INVESTIGATION': r'3\s+INVESTIGATION[^\n]*\s*(.*?)(?=4\s+CIRCUMSTANCES|$)',
-        'CIRCUMSTANCES': r'4\s+CIRCUMSTANCES[^\n]*\s*(.*?)(?=5\s+CORONER|$)',
-        'CONCERNS': r'5\s+CORONER\'S CONCERNS[^\n]*\s*(.*?)(?=6\s+ACTION|$)',
-        'ACTION': r'6\s+ACTION SHOULD BE TAKEN\s*(.*?)(?=7\s+YOUR RESPONSE|$)',
-        'RESPONSE': r'7\s+YOUR RESPONSE\s*(.*?)(?=8\s+COPIES|$)',
-        'COPIES': r'8\s+COPIES[^\n]*\s*(.*?)(?=9|$)',
-        'DATE_CORONER': r'9\s+(.*?)$'
-    }
+    # Extract full content starting from "REGULATION 28 REPORT"
+    content_match = re.search(r'(REGULATION 28 REPORT.*?)$', text, re.DOTALL | re.IGNORECASE)
+    if content_match:
+        metadata['content'] = clean_text(content_match.group(1))
     
-    for key, pattern in patterns.items():
-        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-        if match:
-            content = match.group(1).strip()
-            # Clean up special characters and whitespace
-            content = re.sub(r'[â€™]', "'", content)
-            content = re.sub(r'[â€¦]', "...", content)
-            content = re.sub(r'\s+', ' ', content)
-            sections[key] = content
-            
-    return sections
+    return metadata
 
 def get_report_content(url):
-    """Get report content from webpage"""
+    """Get detailed content from individual report page"""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
     
     try:
-        st.write(f"Fetching content from: {url}")
         response = requests.get(url, headers=headers, verify=False, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Look for main content
+        # Try finding content in different possible locations
         content = soup.find('div', class_='flow')
         if not content:
             content = soup.find('article', class_='single__post')
@@ -105,15 +85,11 @@ def get_report_content(url):
         if content:
             # Get all text content
             text_content = content.get_text(separator='\n')
-            
-            # Clean up the text
-            text_content = re.sub(r'\n\s*\n', '\n', text_content)
-            text_content = text_content.strip()
-            
+            text_content = clean_text(text_content)
             return text_content
-        else:
-            st.warning(f"No content found for: {url}")
-            return None
+            
+        st.warning(f"No content found for: {url}")
+        return None
             
     except Exception as e:
         st.error(f"Error getting report content: {str(e)}")
@@ -146,35 +122,30 @@ def scrape_page(url):
                 title = clean_text(title_elem.text)
                 url = title_elem['href']
                 
-                # Get metadata from card description
-                desc = card.find('p', class_='card__description')
-                if not desc:
-                    continue
-                    
-                metadata = extract_metadata(desc.text)
-                
-                # Get categories from pills
-                categories = []
-                pills = card.find_all('a', href=re.compile(r'/pfd-types/'))
-                for pill in pills:
-                    categories.append(clean_text(pill.text))
-                
-                # Get full report content
+                # Get metadata and content
                 st.write(f"Processing report: {title}")
                 report_content = get_report_content(url)
-                if report_content:
-                    sections = extract_section_content(report_content)
-                    st.write(f"Successfully extracted content sections")
-                else:
-                    sections = {}
-                    st.warning(f"No content sections found for: {title}")
                 
+                if report_content:
+                    metadata = extract_metadata_and_content(report_content)
+                    st.write(f"Successfully extracted content")
+                else:
+                    metadata = {}
+                    st.warning(f"No content found for: {title}")
+                
+                # Construct report with separate metadata fields and combined content
                 report = {
                     'Title': title,
                     'URL': url,
-                    'Categories': ' | '.join(categories) if categories else '',
-                    **metadata,  # Spread metadata fields
-                    **sections  # Spread section fields
+                    'Date_of_Report': metadata.get('date_of_report', ''),
+                    'Reference': metadata.get('ref', ''),
+                    'Deceased_Name': metadata.get('deceased_name', ''),
+                    'Coroner_Name': metadata.get('coroner_name', ''),
+                    'Coroner_Area': metadata.get('coroner_area', ''),
+                    'Primary_Category': metadata.get('primary_category', ''),
+                    'Additional_Categories': metadata.get('additional_categories', ''),
+                    'Sent_To': metadata.get('sent_to', ''),
+                    'Content': metadata.get('content', '')
                 }
                 
                 reports.append(report)
@@ -236,7 +207,7 @@ def scrape_pfd_reports(keyword=None, start_date=None, end_date=None):
                 if start_date or end_date:
                     filtered_reports = []
                     for report in reports:
-                        report_date = report.get('date_of_report')
+                        report_date = report.get('Date_of_Report')
                         try:
                             if report_date:
                                 # Try to parse the date, assuming UK format
