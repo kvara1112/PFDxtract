@@ -23,41 +23,41 @@ class MetadataExtractor:
     """Metadata extraction class specifically designed for PFD reports format"""
     
     METADATA_PATTERNS = {
-        'date_of_report': [
-            r'Date of report:\s*(\d{2}/\d{2}/\d{4})',
-            r'Date of report\s*(\d{2}/\d{2}/\d{4})'
-        ],
-        'reference': [
-            r'Ref:\s*(20\d{2}-\d{4})',
-            r'Reference:\s*(20\d{2}-\d{4})'
-        ],
-        'deceased_name': [
-            r'Deceased name:\s*([^:\n]+?)(?=\s*(?:Coroner|$))',
-            r'Name of (?:the )?deceased:\s*([^:\n]+?)(?=\s*(?:Coroner|$))',
-            # Handle concatenated format
-            r'^([^:]+?)(?=Coroners?\s+name:)'
-        ],
-        'coroner_name': [
-            r'Coroners?\s*name:\s*([^:\n]+?)(?=\s*(?:Coroner Area:|$))',
-            r'I am ([^,]+),\s*(?:Assistant )?Coroner',
-            # Extract from concatenated format
-            r'Coroners?\s*name:\s*([^:\n]+?)(?=\s*(?:Coroners?\s*Area:|$))'
-        ],
-        'coroner_area': [
-            r'Coroners?\s*Area:\s*([^:\n]+?)(?=\s*(?:Category:|$))',
-            r'for the (?:coroner )?area of\s+([^\.]+)',
-            # Extract from concatenated format
-            r'Coroners?\s*Area:\s*([^:\n]+?)(?=\s*(?:Category:|$))'
-        ],
-        'categories': [
-            r'Category:\s*([^:\n]+?)(?=\s*(?:This report is being sent to:|$))',
-            r'Category:\s*([^\n]+)'
-        ],
-        'sent_to': [
-            r'This report is being sent to:\s*([^:\n]+?)(?=\s*(?:REGULATION|\d|$))',
-            r'This report is being sent to:\s*([^\n]+)'
-        ]
-    }
+    'date_of_report': [
+        r'Date of report:\s*(\d{2}/\d{2}/\d{4})',
+        r'Date of report\s*(\d{2}/\d{2}/\d{4})',
+        r'(\d{2}/\d{2}/\d{4})'  # Fallback pattern for just the date
+    ],
+    'reference': [
+        r'Ref:\s*(20\d{2}-\d{4})',
+        r'Reference:\s*(20\d{2}-\d{4})',
+        r'(20\d{2}-\d{4})'  # Fallback pattern for just the reference number
+    ],
+    'deceased_name': [
+        r'Deceased name:\s*([^:\n]+?)(?=\s*(?:Coroner|$))',
+        r'Name of (?:the )?deceased:\s*([^:\n]+?)(?=\s*(?:Coroner|$))',
+        r'^([^:]+?)(?=Coroners?\s*name:)'
+    ],
+    'coroner_name': [
+        r'Coroners?\s*name:\s*([^:\n]+?)(?=\s*(?:Coroner Area:|$))',
+        r'I am ([^,]+),\s*(?:Assistant )?Coroner',
+        r'Coroners?\s*name:\s*([^:\n]+?)(?=\s*(?:Coroners?\s*Area:|$))'
+    ],
+    'coroner_area': [
+        r'Coroners?\s*Area:\s*([^:\n]+?)(?=\s*(?:Category:|$))',
+        r'for the (?:coroner )?area of\s+([^\.]+)',
+        r'Coroners?\s*Area:\s*([^:\n]+?)(?=\s*(?:Category:|$))'
+    ],
+    'categories': [
+        r'Category:\s*([^:\n]+?)(?=\s*(?:This report is being sent to:|$))',
+        r'Category:\s*([^\n]+)'
+    ],
+    'sent_to': [
+        r'This report is being sent to:\s*([^:\n]+?)(?=\s*(?:REGULATION|\d|$))',
+        r'This report is being sent to:\s*([^\n]+)',
+        r'sent to:\s*([^\n]+)'  # Simpler fallback pattern
+    ]
+}
 
     def _preprocess_text(self, text: str) -> str:
         """Preprocess text to ensure consistent format"""
