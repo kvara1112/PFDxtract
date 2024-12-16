@@ -14,40 +14,50 @@ class MetadataExtractor:
     METADATA_PATTERNS = {
         'date_of_report': r'Date of report:\s*(\d{2}/\d{2}/\d{4})',
         'reference': r'Ref:\s*([\d-]+)',
-        'deceased_name': r'Deceased name:\s*([^\n]+?)(?=\s*Coroner name:|$)',
-        'coroner_name': r'Coroner name:\s*([^\n]+?)(?=\s*Coroner Area:|$)',
-        'coroner_area': r'Coroner Area:\s*([^\n]+?)(?=\s*Category:|$)',
-        'categories': r'Category:\s*([^\n]+?)(?=\s*This report is being sent to:|$)',
+        'deceased_name': r'Deceased name:\s*([^\n]+?)\s*(?=\s*Coroner name:|$)',
+        'coroner_name': r'Coroner name:\s*([^\n]+?)\s*(?=\s*Coroner Area:|$)',
+        'coroner_area': r'Coroner Area:\s*([^\n]+?)\s*(?=\s*Category:|$)',
+        'categories': r'Category:\s*([^\n]+?)\s*(?=\s*This report is being sent to:|$)',
         'sent_to': r'This report is being sent to:\s*([^\n]+)'
     }
     
     def _preprocess_text(self, text: str) -> str:
-        """Preprocess text to ensure consistent format"""
+        """Preprocess text to ensure consistent format while preserving spaces"""
         if not text:
             return ""
         
         # Convert to string if not already
         text = str(text)
         
-        # Normalize line breaks
+        # Normalize line endings
         text = text.replace('\r\n', '\n').replace('\r', '\n')
         
-        # Ensure each metadata field starts on a new line
-        for field in ['Date of report:', 'Ref:', 'Deceased name:', 'Coroner name:', 
-                     'Coroner Area:', 'Category:', 'This report is being sent to:']:
+        # Normalize spaces around key fields
+        key_fields = [
+            'Date of report:',
+            'Ref:',
+            'Deceased name:',
+            'Coroner name:',
+            'Coroner Area:',
+            'Category:',
+            'This report is being sent to:'
+        ]
+        
+        # Add newlines before each field
+        for field in key_fields:
             text = text.replace(field, f'\n{field}')
         
-        # Remove multiple spaces and normalize whitespace
-        text = ' '.join(text.split())
+        # Remove multiple newlines but preserve single spaces
+        text = '\n'.join(line.strip() for line in text.split('\n') if line.strip())
         
-        # Ensure proper spacing after colons
+        # Ensure single space after colons while preserving existing spaces
         text = re.sub(r':\s*', ': ', text)
         
         # Remove unnecessary Unicode characters
         text = re.sub(r'[\u200b\ufeff]', '', text)
         
-        return text.strip()
-    
+        return text
+
     def extract_metadata(self, content: str) -> Dict:
         """Extract metadata following the exact PFD report format"""
         metadata = {
@@ -72,8 +82,10 @@ class MetadataExtractor:
             if match:
                 value = match.group(1).strip()
                 if field == 'categories':
-                    # Split categories on pipe and clean
+                    # Split categories on pipe and clean while preserving spaces
                     categories = [cat.strip() for cat in value.split('|')]
+                    # Remove empty categories and preserve original spacing
+                    categories = [cat for cat in categories if cat]
                     metadata[field] = categories
                 else:
                     metadata[field] = value
