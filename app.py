@@ -12,6 +12,8 @@ import tempfile
 import logging
 import os
 import zipfile
+import unicodedata
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
@@ -22,28 +24,66 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide")
 
 def clean_text(text):
-    """Clean text by removing extra whitespace and special characters"""
+    """
+    Comprehensive text cleaning function for handling messy PDF extractions
+    
+    Handles:
+    - Special characters and encoding issues
+    - Unicode normalization
+    - Whitespace cleaning
+    - Unwanted character removal
+    - HTML/XML tag stripping
+    """
     if not text:
         return ""
     
     try:
-        # Replace problematic characters and symbols
-        text = re.sub(r'â€™', "'", str(text))  # Replace smart quotes
-        text = re.sub(r'â€¦', "...", text)     # Replace ellipsis
-        text = re.sub(r'â€"', "-", text)       # Replace em dash
-        text = re.sub(r'â€œ', '"', text)       # Replace left double quote
-        text = re.sub(r'â€', '"', text)        # Replace right double quote
+        # Convert to string and handle potential non-string inputs
+        text = str(text)
         
-        # Remove or replace other potential encoding issues
-        text = text.encode('ascii', 'ignore').decode('ascii')
+        # Normalize unicode characters
+        text = unicodedata.normalize('NFKD', text)
         
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
+        # Replace problematic encoded characters
+        replacements = {
+            'â€™': "'",   # Smart single quote
+            'â€œ': '"',   # Left double quote
+            'â€': '"',    # Right double quote
+            'â€¦': '...',  # Ellipsis
+            'â€"': '-',   # Em dash
+            'â€¢': '•',   # Bullet point
+            'Â': '',      # Unwanted character
+            '\u200b': '',  # Zero-width space
+            '\uf0b7': '',  # Private use area character
+        }
         
-        # Remove any non-printable characters
+        for encoded, replacement in replacements.items():
+            text = text.replace(encoded, replacement)
+        
+        # Remove HTML/XML tags
+        text = re.sub(r'<[^>]+>', '', text)
+        
+        # Remove non-printable characters
         text = ''.join(char for char in text if char.isprintable())
         
-        return text.strip()
+        # Remove extra whitespaces and newlines
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Remove specific unwanted patterns
+        text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', text)  # Control characters
+        
+        # Remove multiple consecutive punctuation
+        text = re.sub(r'([.,!?])\1+', r'\1', text)
+        
+        # Normalize quotation marks
+        text = text.replace(''', "'").replace(''', "'")
+        text = text.replace('"', '"').replace('"', '"')
+        
+        # Strip leading and trailing whitespace
+        text = text.strip()
+        
+        return text
+    
     except Exception as e:
         logging.error(f"Error in clean_text: {e}")
         return ""
