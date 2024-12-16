@@ -146,7 +146,7 @@ class MetadataExtractor:
                     break  # Stop trying patterns once we find a match
         
         return metadata
-    ```python
+ 
 def process_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process the dataframe to extract metadata from content"""
     extractor = MetadataExtractor()
