@@ -1,8 +1,8 @@
-# main.py
 import streamlit as st
 from scraper import scrape_pfd_reports
 from data_processor import load_and_process_data
 import logging
+import pandas as pd
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
@@ -44,7 +44,6 @@ def main():
             
             if reports:
                 try:
-                    import pandas as pd
                     df = pd.DataFrame(reports)
                     df.to_csv(save_path, index=False)
                     st.success(f"Successfully saved {len(reports)} reports to {save_path}")
