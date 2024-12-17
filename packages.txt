@@ -9,3 +9,13 @@ libxslt1-dev
 zlib1g-dev
 libssl-dev
 python3-lxml
+poppler-utils
+libpoppler-cpp-dev
+pkg-config
+python3-dev
+ghostscript
+python3-tk
+libjpeg-dev
+libpng-dev
+tesseract-ocr
+libtesseract-dev
