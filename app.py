@@ -23,6 +23,90 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide")
 
+def clean_pdf_content(content: str) -> str:
+    """Clean PDF content by removing headers and normalizing text"""
+    if not content:
+        return ""
+    
+    # Remove PDF filename headers
+    content = re.sub(r'PDF FILENAME:.*?\n', '', content)
+    
+    # Fix encoding issues
+    replacements = {
+        'â€™': "'",
+        'â€œ': '"',
+        'â€': '"',
+        'â€¦': '...',
+        'â€"': '-',
+        'â€¢': '•'
+    }
+    for old, new in replacements.items():
+        content = content.replace(old, new)
+    
+    # Normalize whitespace
+    content = re.sub(r'\s+', ' ', content).strip()
+    
+    return content
+
+def extract_metadata(content: str) -> dict:
+    """Extract structured metadata from report content"""
+    metadata = {
+        'date_of_report': None,
+        'ref': None,
+        'deceased_name': None,
+        'coroner_name': None,
+        'coroner_area': None,
+        'categories': []
+    }
+    
+    # Extract date
+    date_match = re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', content)
+    if date_match:
+        metadata['date_of_report'] = date_match.group(1)
+    
+    # Extract reference number
+    ref_match = re.search(r'Ref:\s*([\d-]+)', content)
+    if ref_match:
+        metadata['ref'] = ref_match.group(1)
+    
+    # Extract deceased name
+    name_match = re.search(r'Deceased name:\s*([^\n]+)', content)
+    if name_match:
+        metadata['deceased_name'] = name_match.group(1).strip()
+    
+    # Extract coroner details
+    coroner_match = re.search(r'Coroner(?:s)? name:\s*([^\n]+)', content)
+    if coroner_match:
+        metadata['coroner_name'] = coroner_match.group(1).strip()
+    
+    area_match = re.search(r'Coroner(?:s)? Area:\s*([^\n]+)', content)
+    if area_match:
+        metadata['coroner_area'] = area_match.group(1).strip()
+    
+    # Extract categories
+    cat_match = re.search(r'Category:\s*([^\n]+)', content)
+    if cat_match:
+        categories = cat_match.group(1).split('|')
+        metadata['categories'] = [cat.strip() for cat in categories]
+    
+    return metadata
+
+def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Process and clean scraped data"""
+    # Clean PDF content
+    pdf_cols = [col for col in df.columns if col.endswith('_Content')]
+    for col in pdf_cols:
+        df[col] = df[col].apply(clean_pdf_content)
+    
+    # Extract metadata
+    metadata = df['Content'].apply(extract_metadata)
+    metadata_df = pd.DataFrame(metadata.tolist())
+    
+    # Combine with original data
+    result = pd.concat([df, metadata_df], axis=1)
+    
+    return result
+
 def get_pfd_categories():
     """Get all available PFD report categories"""
     return [
@@ -200,69 +284,6 @@ def get_report_content(url):
     except Exception as e:
         logging.error(f"Error getting report content: {e}")
         return None
-
-def scrape_page(url):
-    """Scrape a single page of search results"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
-    try:
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        results_list = soup.find('ul', class_='search__list')
-        if not results_list:
-            logging.warning(f"No results list found on page: {url}")
-            return []
-            
-        reports = []
-        cards = results_list.find_all('div', class_='card')
-        
-        for card in cards:
-            try:
-                title_elem = card.find('h3', class_='card__title').find('a')
-                if not title_elem:
-                    continue
-                    
-                title = clean_text(title_elem.text)
-                url = title_elem['href']
-                
-                logging.info(f"Processing report: {title}")
-                
-                if not url.startswith(('http://', 'https://')):
-                    url = f"https://www.judiciary.uk{url}"
-                
-                content_data = get_report_content(url)
-                
-                if content_data:
-                    report = {
-                        'Title': title,
-                        'URL': url,
-                        'Content': content_data['content']
-                    }
-                    
-                    for i, (name, content, path) in enumerate(zip(
-                        content_data['pdf_names'], 
-                        content_data['pdf_contents'], 
-                        content_data['pdf_paths']
-                    ), 1):
-                        report[f'PDF_{i}_Name'] = name
-                        report[f'PDF_{i}_Content'] = content
-                        report[f'PDF_{i}_Path'] = path
-                    
-                    reports.append(report)
-                    logging.info(f"Successfully processed: {title}")
-                
-            except Exception as e:
-                logging.error(f"Error processing card: {e}")
-                continue
-                
-        return reports
-        
-    except Exception as e:
-        logging.error(f"Error fetching page {url}: {e}")
-        return []
 
 def get_total_pages(url):
     """Get total number of pages"""
@@ -461,6 +482,7 @@ def render_scraping_tab():
         
         if reports:
             df = pd.DataFrame(reports)
+            df = process_scraped_data(df)  # Process the scraped data
             
             # Store in session state for analysis tab
             if 'scraped_data' not in st.session_state:
@@ -473,7 +495,9 @@ def render_scraping_tab():
             st.dataframe(
                 df,
                 column_config={
-                    "URL": st.column_config.LinkColumn("Report Link")
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "date_of_report": st.column_config.DateColumn("Date of Report"),
+                    "categories": st.column_config.ListColumn("Categories")
                 },
                 hide_index=True
             )
