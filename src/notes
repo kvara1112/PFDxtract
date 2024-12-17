@@ -1,0 +1,12 @@
+/
+├── .devcontainer/
+├── .gitignore
+├── packages.txt
+├── requirements.txt
+├── app.py              # Main Streamlit entry point
+└── src/               # Move all other Python files here
+    ├── __init__.py
+    ├── analysis_tab.py
+    ├── data_processing.py
+    ├── pdf_utils.py
+    └── scraper.py
