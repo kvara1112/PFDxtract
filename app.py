@@ -1,842 +1,459 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
 import re
-import requests
-from bs4 import BeautifulSoup
-import time
-import urllib3
-import io
-import pdfplumber
-import tempfile
+from datetime import datetime
+from typing import Dict, List, Optional
 import logging
-import os
-import zipfile
-import unicodedata
-from analysis_tab import render_analysis_tab
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 
-# Disable SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide")
-
-def clean_pdf_content(content: str) -> str:
-    """Clean PDF content by removing headers and normalizing text"""
-    if pd.isna(content) or not content:
-        return ""
-    
-    try:
-        content = str(content)
-        
-        # Remove PDF filename headers
-        content = re.sub(r'PDF FILENAME:.*?\n', '', content)
-        
-        # Fix encoding issues
-        replacements = {
-            'â€™': "'",
-            'â€œ': '"',
-            'â€': '"',
-            'â€¦': '...',
-            'â€"': '-',
-            'â€¢': '•'
-        }
-        for old, new in replacements.items():
-            content = content.replace(old, new)
-        
-        # Normalize whitespace
-        content = re.sub(r'\s+', ' ', content).strip()
-        
-        return content
-    except Exception as e:
-        logging.error(f"Error cleaning PDF content: {e}")
-        return ""
-
-def extract_metadata(content: str) -> dict:
-    """Extract structured metadata from report content"""
-    metadata = {
-        'date_of_report': None,
-        'ref': None,
-        'deceased_name': None,
-        'coroner_name': None,
-        'coroner_area': None,
-        'categories': []
-    }
-    
-    # Extract date
-    date_match = re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', content)
-    if date_match:
-        metadata['date_of_report'] = date_match.group(1)
-    
-    # Extract reference number
-    ref_match = re.search(r'Ref:\s*([\d-]+)', content)
-    if ref_match:
-        metadata['ref'] = ref_match.group(1)
-    
-    # Extract deceased name
-    name_match = re.search(r'Deceased name:\s*([^\n]+)', content)
-    if name_match:
-        metadata['deceased_name'] = name_match.group(1).strip()
-    
-    # Extract coroner details
-    coroner_match = re.search(r'Coroner(?:s)? name:\s*([^\n]+)', content)
-    if coroner_match:
-        metadata['coroner_name'] = coroner_match.group(1).strip()
-    
-    area_match = re.search(r'Coroner(?:s)? Area:\s*([^\n]+)', content)
-    if area_match:
-        metadata['coroner_area'] = area_match.group(1).strip()
-    
-    # Extract categories
-    cat_match = re.search(r'Category:\s*([^\n]+)', content)
-    if cat_match:
-        categories = cat_match.group(1).split('|')
-        metadata['categories'] = [cat.strip() for cat in categories]
-    
-    return metadata
-
-def process_scraped_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """
-    Process scraped data to create two separate dataframes - one for PFD reports and one for responses.
-    
-    Args:
-        df: Raw scraped dataframe containing report content and PDFs
-    
-    Returns:
-        Tuple containing:
-        - Processed dataframe of PFD reports
-        - Processed dataframe of responses
-    """
-    try:
-        logging.info("Starting data processing...")
-        
-        # Create copies to avoid modifying original
-        df_reports = df.copy()
-        df_responses = pd.DataFrame()
-        
-        # Extract response PDFs based on filename pattern and content
-        response_cols = [col for col in df.columns 
-                        if ('Response' in col or 'response' in col.lower()) 
-                        and col.endswith('_Content')]
-        
-        if response_cols:
-            logging.info(f"Found {len(response_cols)} response columns")
-            responses = []
-            
-            for idx, row in df.iterrows():
-                try:
-                    # Get identifying information
-                    report_ref = row.get('ref', '')
-                    report_title = row.get('Title', '')
-                    deceased_name = row.get('deceased_name', '')
-                    date_of_report = row.get('date_of_report', '')
-                    
-                    for col in response_cols:
-                        if pd.notna(row[col]):
-                            # Extract response metadata
-                            response_path_col = col.replace('_Content', '_Path')
-                            response_name_col = col.replace('_Content', '_Name')
-                            
-                            # Clean and extract response content
-                            response_content = clean_text(row[col])
-                            
-                            # Create response record
-                            response = {
-                                'report_ref': report_ref,
-                                'report_title': report_title,
-                                'deceased_name': deceased_name,
-                                'report_date': date_of_report,
-                                'response_content': response_content,
-                                'response_pdf_name': row.get(response_name_col, ''),
-                                'response_pdf_path': row.get(response_path_col, ''),
-                                'responding_organization': extract_organization_from_filename(row.get(response_name_col, ''))
-                            }
-                            responses.append(response)
-                            
-                except Exception as e:
-                    logging.error(f"Error processing response for row {idx}: {e}")
-                    continue
-            
-            if responses:
-                df_responses = pd.DataFrame(responses)
-                logging.info(f"Created responses dataframe with {len(responses)} entries")
-                
-                # Convert date format if present
-                if 'report_date' in df_responses.columns:
-                    df_responses['report_date'] = pd.to_datetime(df_responses['report_date'], format='%d/%m/%Y', errors='coerce')
-        
-        # Clean up report content
-        content_cols = ['Content'] + [col for col in df.columns 
-                                    if col.endswith('_Content') 
-                                    and not any(x in col.lower() for x in ['response', 'reply'])]
-        
-        for col in content_cols:
-            if col in df_reports.columns:
-                df_reports[col] = df_reports[col].fillna("").astype(str)
-                df_reports[col] = df_reports[col].apply(clean_text)
-        
-        # Drop response columns from reports df
-        response_related_cols = [col for col in df_reports.columns 
-                               if any(x in col.lower() for x in ['response', 'reply'])]
-        df_reports = df_reports.drop(columns=response_related_cols)
-        
-        # Ensure essential columns exist
-        essential_cols = ['Title', 'URL', 'Content', 'ref', 'date_of_report', 
-                         'deceased_name', 'coroner_name', 'coroner_area', 'categories']
-        
-        for col in essential_cols:
-            if col not in df_reports.columns:
-                df_reports[col] = None
-                
-        # Convert date format if present
-        if 'date_of_report' in df_reports.columns:
-            df_reports['date_of_report'] = pd.to_datetime(df_reports['date_of_report'], format='%d/%m/%Y', errors='coerce')
-                
-        logging.info("Data processing completed successfully")
-        return df_reports, df_responses
-            
-    except Exception as e:
-        logging.error(f"Error in process_scraped_data: {e}")
-        return df, pd.DataFrame()  # Return original df and empty response df if error
-
-def save_processed_data(df_reports: pd.DataFrame, 
-                       df_responses: pd.DataFrame,
-                       base_filename: str) -> tuple[str, str]:
-    """
-    Save processed reports and responses to separate CSV files.
-    
-    Args:
-        df_reports: Processed PFD reports dataframe
-        df_responses: Processed responses dataframe
-        base_filename: Base filename to use (without extension)
-        
-    Returns:
-        Tuple containing:
-        - Path to saved reports CSV
-        - Path to saved responses CSV (or empty string if no responses)
-    """
-    try:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Ensure exports directory exists
-        os.makedirs('exports', exist_ok=True)
-        
-        # Save reports
-        reports_filename = f"exports/{base_filename}_reports_{timestamp}.csv"
-        
-        # Convert any list columns to string representation
-        df_reports_export = df_reports.copy()
-        for col in df_reports_export.columns:
-            if df_reports_export[col].apply(lambda x: isinstance(x, (list, tuple))).any():
-                df_reports_export[col] = df_reports_export[col].apply(lambda x: str(x) if isinstance(x, (list, tuple)) else x)
-        
-        # Convert dates back to UK format for export
-        if 'date_of_report' in df_reports_export.columns:
-            df_reports_export['date_of_report'] = df_reports_export['date_of_report'].dt.strftime('%d/%m/%Y')
-            
-        df_reports_export.to_csv(reports_filename, index=False, encoding='utf-8-sig')
-        logging.info(f"Saved reports to {reports_filename}")
-        
-        responses_filename = ""
-        # Save responses if they exist
-        if not df_responses.empty:
-            responses_filename = f"exports/{base_filename}_responses_{timestamp}.csv"
-            
-            # Clean up response dataframe
-            df_responses_export = df_responses.copy()
-            for col in df_responses_export.columns:
-                if df_responses_export[col].apply(lambda x: isinstance(x, (list, tuple))).any():
-                    df_responses_export[col] = df_responses_export[col].apply(lambda x: str(x) if isinstance(x, (list, tuple)) else x)
-            
-            # Convert dates back to UK format for export    
-            if 'report_date' in df_responses_export.columns:
-                df_responses_export['report_date'] = df_responses_export['report_date'].dt.strftime('%d/%m/%Y')
-            
-            df_responses_export.to_csv(responses_filename, index=False, encoding='utf-8-sig')
-            logging.info(f"Saved responses to {responses_filename}")
-            
-        return reports_filename, responses_filename
-            
-    except Exception as e:
-        logging.error(f"Error saving processed data: {e}")
-        raise
-
-def extract_organization_from_filename(filename: str) -> str:
-    """Extract responding organization name from filename."""
-    if not filename:
-        return ""
-    
-    try:
-        # Remove file extension
-        name = os.path.splitext(filename)[0]
-        
-        # Look for patterns like "Response-from-" or "Response-by-"
-        patterns = ["Response-from-", "Response-by-"]
-        for pattern in patterns:
-            if pattern in name:
-                org = name.split(pattern)[-1]
-                return org.replace("-", " ").strip()
-        
-        return ""
-    except Exception:
-        return ""
-
-def get_pfd_categories():
-    """Get all available PFD report categories"""
-    return [
-        "accident-at-work-and-health-and-safety-related-deaths",
-        "alcohol-drug-and-medication-related-deaths",
-        "care-home-health-related-deaths",
-        "child-death-from-2015",
-        "community-health-care-and-emergency-services-related-deaths",
-        "emergency-services-related-deaths-2019-onwards",
-        "hospital-death-clinical-procedures-and-medical-management-related-deaths",
-        "mental-health-related-deaths",
-        "other-related-deaths",
-        "police-related-deaths",
-        "product-related-deaths",
-        "railway-related-deaths",
-        "road-highways-safety-related-deaths",
-        "service-personnel-related-deaths",
-        "state-custody-related-deaths",
-        "suicide-from-2015",
-        "wales-prevention-of-future-deaths-reports-2019-onwards"
-    ]
-
 def clean_text(text):
-    """Clean text while preserving structure and metadata formatting"""
+    """
+    Comprehensive text cleaning function to handle encoded characters
+    """
+    if pd.isna(text):
+        return ""
+    
+    text = str(text).strip()
+    
+    # Specific replacements for encoded characters
+    replacements = {
+        'â€™': "'",   # Smart single quote right
+        'â€˜': "'",   # Smart single quote left
+        'â€œ': '"',   # Left double quote
+        'â€': '"',    # Right double quote
+        'â€¦': '...',  # Ellipsis
+        'â€"': '—',   # Em dash
+        'â€¢': '•',   # Bullet point
+        'Â': '',      # Unwanted character
+        '\u200b': '', # Zero-width space
+        '\uf0b7': ''  # Private use area character
+    }
+    
+    # Apply replacements
+    for encoded, replacement in replacements.items():
+        text = text.replace(encoded, replacement)
+    
+    # Standardize newlines
+    text = text.replace('\r\n', '\n').replace('\r', '\n')
+    # Fix concatenated fields
+    text = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', text)  # Add space between lower and uppercase letters
+    
+    return text
+
+def extract_date(text):
+    """
+    Comprehensive date extraction method with multiple strategies
+    """
     if not text:
-        return ""
-    
-    try:
-        text = str(text)
-        text = unicodedata.normalize('NFKD', text)
-        
-        replacements = {
-            'â€™': "'",
-            'â€œ': '"',
-            'â€': '"',
-            'â€¦': '...',
-            'â€"': '-',
-            'â€¢': '•',
-            'Â': '',
-            '\u200b': '',
-            '\uf0b7': ''
-        }
-        
-        for encoded, replacement in replacements.items():
-            text = text.replace(encoded, replacement)
-        
-        text = re.sub(r'<[^>]+>', '', text)
-        
-        key_fields = [
-            'Date of report:',
-            'Ref:',
-            'Deceased name:',
-            'Coroner name:',
-            'Coroners name:',
-            'Coroner Area:',
-            'Coroners Area:',
-            'Category:',
-            'This report is being sent to:'
-        ]
-        
-        for field in key_fields:
-            text = text.replace(field, f'\n{field}')
-        
-        text = ''.join(char if char.isprintable() or char == '\n' else ' ' for char in text)
-        
-        lines = []
-        for line in text.split('\n'):
-            line = line.strip()
-            if line:
-                if any(field in line for field in key_fields):
-                    parts = line.split(':', 1)
-                    if len(parts) > 1:
-                        lines.append(f"{parts[0]}: {parts[1].strip()}")
-                else:
-                    lines.append(' '.join(line.split()))
-        
-        text = '\n'.join(lines)
-        text = text.replace(''', "'").replace(''', "'")
-        text = text.replace('"', '"').replace('"', '"')
-        
-        return text.strip()
-    
-    except Exception as e:
-        logging.error(f"Error in clean_text: {e}")
-        return ""
-
-def save_pdf(pdf_url, base_dir='pdfs'):
-    """Download and save PDF, return local path and filename"""
-    try:
-        os.makedirs(base_dir, exist_ok=True)
-        
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-        response = requests.get(pdf_url, headers=headers, verify=False, timeout=10)
-        
-        filename = os.path.basename(pdf_url)
-        filename = re.sub(r'[^\w\-_\. ]', '_', filename)
-        local_path = os.path.join(base_dir, filename)
-        
-        with open(local_path, 'wb') as f:
-            f.write(response.content)
-        
-        return local_path, filename
-    
-    except Exception as e:
-        logging.error(f"Error saving PDF {pdf_url}: {e}")
-        return None, None
-
-def extract_pdf_content(pdf_path):
-    """Extract text from PDF file"""
-    try:
-        filename = os.path.basename(pdf_path)
-        
-        with pdfplumber.open(pdf_path) as pdf:
-            pdf_text = "\n\n".join([page.extract_text() for page in pdf.pages if page.extract_text()])
-        
-        full_content = f"PDF FILENAME: {filename}\n\n{pdf_text}"
-        
-        return clean_text(full_content)
-    
-    except Exception as e:
-        logging.error(f"Error extracting PDF text from {pdf_path}: {e}")
-        return ""
-
-def get_report_content(url):
-    """Get full content from report page with multiple PDF handling"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
-    try:
-        logging.info(f"Fetching content from: {url}")
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        content = soup.find('div', class_='flow') or soup.find('article', class_='single__post')
-        
-        webpage_text = ""
-        pdf_contents = []
-        pdf_paths = []
-        pdf_names = []
-        
-        if content:
-            paragraphs = content.find_all(['p', 'table'])
-            webpage_text = '\n\n'.join(p.get_text(strip=True, separator=' ') for p in paragraphs)
-            
-            pdf_links = (
-                soup.find_all('a', class_='related-content__link', href=re.compile(r'\.pdf$')) or
-                soup.find_all('a', href=re.compile(r'\.pdf$'))
-            )
-            
-            for pdf_link in pdf_links:
-                pdf_url = pdf_link['href']
-                
-                if not pdf_url.startswith(('http://', 'https://')):
-                    pdf_url = f"https://www.judiciary.uk{pdf_url}" if not pdf_url.startswith('/') else f"https://www.judiciary.uk/{pdf_url}"
-                
-                pdf_path, pdf_name = save_pdf(pdf_url)
-                
-                if pdf_path:
-                    pdf_content = extract_pdf_content(pdf_path)
-                    
-                    pdf_contents.append(pdf_content)
-                    pdf_paths.append(pdf_path)
-                    pdf_names.append(pdf_name)
-        
-        return {
-            'content': clean_text(webpage_text),
-            'pdf_contents': pdf_contents,
-            'pdf_paths': pdf_paths,
-            'pdf_names': pdf_names
-        }
-        
-    except Exception as e:
-        logging.error(f"Error getting report content: {e}")
         return None
+    
+    # Clean the text first
+    cleaned_text = clean_text(text)
+    
+    # Comprehensive date patterns
+    date_patterns = [
+        r'Date\s*of\s*report\s*[:]*\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})',  # Supports / . or -
+        r'Date\s*of\s*report\s*:\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})',
+        r'Date\s*of\s*report\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})'
+    ]
+    
+    # Additional text-based patterns (for edge cases)
+    text_patterns = [
+        r'\b(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})\b',  # Anywhere in text
+        r'\b(\d{4}[/.-]\d{1,2}[/.-]\d{1,2})\b'   # Alternate format
+    ]
+    
+    # Combine patterns
+    all_patterns = date_patterns + text_patterns
+    
+    # Possible date separators
+    separators = ['/', '-', '.']
+    
+    for pattern in all_patterns:
+        match = re.search(pattern, cleaned_text, re.IGNORECASE)
+        if match:
+            date_str = match.group(1).strip()
+            
+            # Try different date formats
+            formats_to_try = [
+                '%d/%m/%Y',   # UK/EU format: Day/Month/Year
+                '%m/%d/%Y',   # US format: Month/Day/Year
+                '%Y/%m/%d',   # ISO format: Year/Month/Day
+                '%d-%m-%Y',   # Alternative UK format
+                '%m-%d-%Y',   # Alternative US format
+                '%Y-%m-%d'    # Alternative ISO format
+            ]
+            
+            for sep in separators:
+                for fmt in formats_to_try:
+                    reformatted_fmt = fmt.replace('/', sep).replace('-', sep)
+                    try:
+                        parsed_date = datetime.strptime(date_str.replace('/', sep).replace('-', sep), reformatted_fmt)
+                        # Additional validation
+                        if 2000 <= parsed_date.year <= datetime.now().year:
+                            return parsed_date.strftime('%d/%m/%Y')
+                    except ValueError:
+                        continue
+    
+    logging.warning(f"Could not extract valid date from text: {text}")
+    return None
 
-def scrape_page(url):
-    """Scrape a single page of search results"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
+class MetadataExtractor:
+    """Metadata extraction class specifically designed for PFD reports format"""
     
-    try:
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        results_list = soup.find('ul', class_='search__list')
-        if not results_list:
-            logging.warning(f"No results list found on page: {url}")
-            return []
-            
-        reports = []
-        cards = results_list.find_all('div', class_='card')
-        
-        for card in cards:
-            try:
-                title_elem = card.find('h3', class_='card__title').find('a')
-                if not title_elem:
-                    continue
-                    
-                title = clean_text(title_elem.text)
-                url = title_elem['href']
-                
-                logging.info(f"Processing report: {title}")
-                
-                if not url.startswith(('http://', 'https://')):
-                    url = f"https://www.judiciary.uk{url}"
-                
-                content_data = get_report_content(url)
-                
-                if content_data:
-                    report = {
-                        'Title': title,
-                        'URL': url,
-                        'Content': content_data['content']
-                    }
-                    
-                    for i, (name, content, path) in enumerate(zip(
-                        content_data['pdf_names'], 
-                        content_data['pdf_contents'], 
-                        content_data['pdf_paths']
-                    ), 1):
-                        report[f'PDF_{i}_Name'] = name
-                        report[f'PDF_{i}_Content'] = content
-                        report[f'PDF_{i}_Path'] = path
-                    
-                    reports.append(report)
-                    logging.info(f"Successfully processed: {title}")
-                
-            except Exception as e:
-                logging.error(f"Error processing card: {e}")
-                continue
-                
-        return reports
-        
-    except Exception as e:
-        logging.error(f"Error fetching page {url}: {e}")
-        return []
-def get_total_pages(url):
-    """Get total number of pages"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    METADATA_PATTERNS = {
+        'date_of_report': [
+            r'Date\s*of\s*report\s*[:]*\s*(\d{2}/\d{2}/\d{4})',
+            r'Date\s*of\s*report\s*:\s*(\d{2}/\d{2}/\d{4})',
+            r'Date\s*of\s*report\s*(\d{2}/\d{2}/\d{4})'
+        ],
+        'reference': [
+            r'Ref:\s*(20\d{2}-\d{4})',
+            r'Reference:\s*(20\d{2}-\d{4})'
+        ],
+        'deceased_name': [
+            r'Deceased name:\s*([^:\n]+?)(?=\s*(?:Coroner|$))',
+            r'Name of (?:the )?deceased:\s*([^:\n]+?)(?=\s*(?:Coroner|$))',
+            r'^([^:]+?)(?=Coroners?\s+name:)'
+        ],
+        'coroner_name': [
+            r'Coroners?\s*name:\s*([^:\n]+?)(?=\s*(?:Coroner Area:|$))',
+            r'I am ([^,]+),\s*(?:Assistant )?Coroner',
+            r'Coroners?\s*name:\s*([^:\n]+?)(?=\s*(?:Coroners?\s*Area:|$))'
+        ],
+        'coroner_area': [
+            r'Coroners?\s*Area:\s*([^:\n]+?)(?=\s*(?:Category:|$))',
+            r'for the (?:coroner )?area of\s+([^\.]+)',
+            r'Coroners?\s*Area:\s*([^:\n]+?)(?=\s*(?:Category:|$))'
+        ],
+        'categories': [
+            r'Category:\s*([^:\n]+?)(?=\s*(?:This report is being sent to:|$))',
+            r'Category:\s*([^\n]+)'
+        ],
+        'sent_to': [
+            r'This report is being sent to:\s*([^:\n]+?)(?=\s*(?:REGULATION|\d|$))',
+            r'This report is being sent to:\s*([^\n]+)'
+        ]
     }
-    
-    try:
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        pagination = soup.find('nav', class_='navigation pagination')
-        if pagination:
-            page_numbers = pagination.find_all('a', class_='page-numbers')
-            numbers = []
-            for p in page_numbers:
-                text = p.text.strip()
-                if text.isdigit():
-                    numbers.append(int(text))
-            if numbers:
-                return max(numbers)
-        
-        results = soup.find('ul', class_='search__list')
-        if results and results.find_all('div', class_='card'):
-            return 1
-            
-        return 0
-        
-    except Exception as e:
-        logging.error(f"Error getting total pages: {e}")
-        return 0
 
-def scrape_pfd_reports(keyword=None, category=None, date_after=None, date_before=None, order="relevance", max_pages=None):
-    """
-    Scrape PFD reports with comprehensive filtering
-    """
-    all_reports = []
-    current_page = 1
-    base_url = "https://www.judiciary.uk"
-    
-    params = {
-        'post_type': 'pfd',
-        'order': order
-    }
-    
-    if keyword:
-        params['s'] = keyword
-    if category:
-        params['pfd_report_type'] = category
-    
-    if date_after:
-        year, month, day = date_after.split('-')
-        params['after-year'] = year
-        params['after-month'] = month
-        params['after-day'] = day
-    
-    if date_before:
-        year, month, day = date_before.split('-')
-        params['before-year'] = year
-        params['before-month'] = month
-        params['before-day'] = day
-    
-    param_strings = [f"{k}={v}" for k, v in params.items()]
-    initial_url = f"{base_url}/?{'&'.join(param_strings)}"
-    
-    try:
-        total_pages = get_total_pages(initial_url)
-        if total_pages == 0:
-            st.warning("No results found")
-            return []
-            
-        logging.info(f"Total pages to scrape: {total_pages}")
+    def extract_metadata(self, content: str) -> Dict:
+        """Extract metadata following the exact PFD report format"""
+        metadata = {
+            'date_of_report': None,
+            'reference': None,
+            'deceased_name': None,
+            'coroner_name': None,
+            'coroner_area': None,
+            'categories': None,
+            'sent_to': None
+        }
         
-        if max_pages:
-            total_pages = min(total_pages, max_pages)
+        if not content:
+            return metadata
         
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        while current_page <= total_pages:
-            if current_page == 1:
-                page_url = initial_url
-            else:
-                page_url = f"{base_url}/page/{current_page}/?{'&'.join(param_strings)}"
-            
-            status_text.text(f"Scraping page {current_page} of {total_pages}...")
-            progress_bar.progress(current_page / total_pages)
-            
-            reports = scrape_page(page_url)
-            
-            if reports:
-                all_reports.extend(reports)
-                logging.info(f"Found {len(reports)} reports on page {current_page}")
-            else:
-                logging.warning(f"No reports found on page {current_page}")
-                if current_page > 1:
-                    break
-            
-            current_page += 1
-            time.sleep(1)  # Rate limiting
-        
-        progress_bar.progress(1.0)
-        status_text.text(f"Completed! Total reports found: {len(all_reports)}")
-        
-        return all_reports
-    
-    except Exception as e:
-        logging.error(f"Error in scrape_pfd_reports: {e}")
-        st.error(f"An error occurred while scraping reports: {e}")
-        return []
+        # Clean the content thoroughly before extraction
+        cleaned_content = clean_text(content)
+        metadata['date_of_report'] = extract_date(content)
 
-def scrape_all_categories():
-    """Scrape reports from all available categories"""
-    all_reports = []
-    categories = get_pfd_categories()
+        # Try each pattern for each field
+        for field, patterns in self.METADATA_PATTERNS.items():
+            if not isinstance(patterns, list):
+                patterns = [patterns]
+            
+            for pattern in patterns:
+                match = re.search(pattern, cleaned_content, re.IGNORECASE | re.MULTILINE | re.DOTALL)
+                if match:
+                    value = match.group(1).strip()
+                    
+                    if field == 'date_of_report':
+                        try:
+                            # Validate date format
+                            datetime.strptime(value, '%d/%m/%Y')
+                            metadata[field] = value
+                        except ValueError:
+                            logging.warning(f"Invalid date format: {value}")
+                            continue
+                    
+                    elif field == 'categories':
+                        # Split categories on pipe and clean
+                        categories = [cat.strip() for cat in value.split('|')]
+                        # Remove empty categories and clean up
+                        categories = [re.sub(r'\s+', ' ', cat).strip() for cat in categories if cat.strip()]
+                        if categories:
+                            metadata[field] = categories
+                    
+                    else:
+                        # Clean up other values
+                        value = re.sub(r'\s+', ' ', value).strip()
+                        
+                        # Handle special case for deceased name
+                        if field == 'deceased_name' and 'Coroner' in value:
+                            value = value.split('Coroner')[0].strip()
+                        
+                        metadata[field] = value
+                    
+                    break  # Stop trying patterns once we find a match
+        
+        return metadata
+
+def process_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Process the dataframe to extract metadata from content"""
+    extractor = MetadataExtractor()
+    metadata_rows = []
     
-    for category in categories:
+    for idx, row in df.iterrows():
+        # Initialize metadata with None values
+        metadata = {
+            'date_of_report': None,
+            'reference': None,
+            'deceased_name': None,
+            'coroner_name': None,
+            'coroner_area': None,
+            'categories': None,
+            'sent_to': None,
+            'title': row['Title'],
+            'url': row['URL']
+        }
+        
+        # Try to extract from main content first
+        if pd.notna(row.get('Content')):
+            content_metadata = extractor.extract_metadata(row['Content'])
+            metadata.update({k: v for k, v in content_metadata.items() if v})
+        
+        # Try to extract from PDF contents if available
+        pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Content')]
+        for pdf_col in pdf_columns:
+            if pd.notna(row.get(pdf_col)):
+                pdf_metadata = extractor.extract_metadata(row[pdf_col])
+                # Update only if we find new information
+                metadata.update({k: v for k, v in pdf_metadata.items() if v and not metadata[k]})
+        
+        metadata_rows.append(metadata)
+    
+    # Create DataFrame from metadata
+    processed_df = pd.DataFrame(metadata_rows)
+    
+    # Convert date string to datetime
+    processed_df['date_of_report'] = pd.to_datetime(processed_df['date_of_report'], format='%d/%m/%Y', errors='coerce')
+    
+    return processed_df
+
+def render_analysis_tab():
+    st.header("Reports Analysis")
+    
+    # File uploader
+    uploaded_file = st.file_uploader("Upload previously exported reports (CSV/Excel)", type=['csv', 'xlsx'])
+    
+    if uploaded_file is not None:
         try:
-            st.info(f"Scraping category: {category}")
-            reports = scrape_pfd_reports(category=category)
-            all_reports.extend(reports)
-            st.success(f"Found {len(reports)} reports in category {category}")
-        except Exception as e:
-            st.error(f"Error scraping category {category}: {e}")
-            continue
-    
-    return all_reports
-
-def render_scraping_tab():
-    st.markdown("""
-    This app scrapes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can search by keywords, categories, and date ranges.
-    """)
-    
-    with st.form("search_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            search_keyword = st.text_input("Search keywords:", "")
-            category = st.selectbox("PFD Report type:", [""] + get_pfd_categories())
-            order = st.selectbox("Sort by:", [
-                ("relevance", "Relevance"),
-                ("desc", "Newest first"),
-                ("asc", "Oldest first")
-            ], format_func=lambda x: x[1])
-        
-        with col2:
-            date_after = st.date_input("Published after:", None)
-            date_before = st.date_input("Published before:", None)
-            max_pages = st.number_input("Maximum pages to scrape (0 for all):", 
-                                        min_value=0, 
-                                        value=0,
-                                        help="Set to 0 to scrape all available pages")
-        
-        col3, col4 = st.columns(2)
-        with col3:
-            search_mode = st.radio("Search mode:",
-                                   ["Search with filters", "Scrape all categories"],
-                                   help="Choose whether to search with specific filters or scrape all categories")
-        
-        submitted = st.form_submit_button("Search Reports")
-    
-    if submitted:
-        reports = []  # Initialize reports list
-        
-        with st.spinner("Searching for reports..."):
-            try:
-                if search_mode == "Search with filters":
-                    # Convert dates to string format if provided
-                    date_after_str = date_after.strftime("%Y-%m-%d") if date_after else None
-                    date_before_str = date_before.strftime("%Y-%m-%d") if date_before else None
-                    
-                    # Get the actual sort order value from the tuple
-                    sort_order = order[0] if isinstance(order, tuple) else order
-                    
-                    # Set max_pages to None if 0 was selected
-                    max_pages_val = None if max_pages == 0 else max_pages
-                    
-                    scraped_reports = scrape_pfd_reports(
-                        keyword=search_keyword,
-                        category=category if category else None,
-                        date_after=date_after_str,
-                        date_before=date_before_str,
-                        order=sort_order,
-                        max_pages=max_pages_val
-                    )
-                else:
-                    scraped_reports = scrape_all_categories()
+            # Load the data
+            if uploaded_file.name.endswith('.csv'):
+                raw_df = pd.read_csv(uploaded_file)
+            else:
+                raw_df = pd.read_excel(uploaded_file)
+            
+            # Process the data
+            processed_df = process_data(raw_df)
+            
+            # Show data processing tabs
+            data_tab1, data_tab2, data_tab3 = st.tabs(["Raw Data", "Processed Data", "Data Quality"])
+            
+            with data_tab1:
+                st.subheader("Raw Imported Data")
+                st.dataframe(
+                    raw_df,
+                    column_config={
+                        "URL": st.column_config.LinkColumn("Report Link")
+                    },
+                    hide_index=True
+                )
+            
+            with data_tab2:
+                st.subheader("Processed Metadata")
+                st.dataframe(
+                    processed_df,
+                    column_config={
+                        "url": st.column_config.LinkColumn("Report Link"),
+                        "date_of_report": st.column_config.DateColumn("Date of Report"),
+                        "categories": st.column_config.ListColumn("Categories"),
+                    },
+                    hide_index=True
+                )
+            
+            with data_tab3:
+                st.subheader("Data Quality Metrics")
+                col1, col2, col3 = st.columns(3)
                 
-                if scraped_reports:
-                    reports.extend(scraped_reports)
-                    
-            except Exception as e:
-                st.error(f"An error occurred: {e}")
-                logging.error(f"Scraping error: {e}")
-        
-        if reports:
-            df = pd.DataFrame(reports)
-            df = process_scraped_data(df)  # Process the scraped data
+                # Calculate completeness percentages
+                completeness = {
+                    field: (processed_df[field].notna().sum() / len(processed_df) * 100)
+                    for field in ['date_of_report', 'reference', 'deceased_name', 'coroner_name', 
+                                'coroner_area', 'categories', 'sent_to']
+                }
+                
+                with col1:
+                    st.metric("Date Extraction Rate", f"{completeness['date_of_report']:.1f}%")
+                    st.metric("Reference Extraction Rate", f"{completeness['reference']:.1f}%")
+                    st.metric("Name Extraction Rate", f"{completeness['deceased_name']:.1f}%")
+                
+                with col2:
+                    st.metric("Coroner Name Rate", f"{completeness['coroner_name']:.1f}%")
+                    st.metric("Coroner Area Rate", f"{completeness['coroner_area']:.1f}%")
+                
+                with col3:
+                    st.metric("Category Extraction Rate", f"{completeness['categories']:.1f}%")
+                    st.metric("Sent To Extraction Rate", f"{completeness['sent_to']:.1f}%")
             
-            # Store in session state for analysis tab
-            if 'scraped_data' not in st.session_state:
-                st.session_state.scraped_data = df
+            # Display filters
+            st.subheader("Filter Processed Data")
+            col1, col2, col3 = st.columns(3)
             
-            st.success(f"Found {len(reports):,} reports")
+            with col1:
+                # Date range filter
+                min_date = processed_df['date_of_report'].min()
+                max_date = processed_df['date_of_report'].max()
+                if pd.notna(min_date) and pd.notna(max_date):
+                    date_range = st.date_input(
+                        "Date range",
+                        value=(min_date.date(), max_date.date()),
+                        key="date_range"
+                    )
             
-            # Show detailed data
-            st.subheader("Reports Data")
+            with col2:
+                # Coroner area filter
+                areas = sorted(processed_df['coroner_area'].dropna().unique())
+                selected_area = st.multiselect("Coroner Area", areas)
+            
+            with col3:
+                # Category filter
+                all_categories = set()
+                for cats in processed_df['categories'].dropna():
+                    if isinstance(cats, list):
+                        all_categories.update(cats)
+                selected_categories = st.multiselect("Categories", sorted(all_categories))
+            
+            # Additional filters
+            col1, col2 = st.columns(2)
+            with col1:
+                # Reference number filter
+                ref_numbers = sorted(processed_df['reference'].dropna().unique())
+                selected_ref = st.multiselect("Reference Numbers", ref_numbers)
+            
+            with col2:
+                # Coroner name filter
+                coroners = sorted(processed_df['coroner_name'].dropna().unique())
+                selected_coroner = st.multiselect("Coroner Names", coroners)
+            
+            # Text search
+            search_text = st.text_input("Search in deceased name or organizations:", "")
+            
+            # Apply filters
+            filtered_df = processed_df.copy()
+            
+            if len(date_range) == 2:
+                start_date, end_date = date_range
+                filtered_df = filtered_df[
+                    (filtered_df['date_of_report'].dt.date >= start_date) &
+                    (filtered_df['date_of_report'].dt.date <= end_date)
+                ]
+            
+            if selected_area:
+                filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_area)]
+            
+            if selected_categories:
+                filtered_df = filtered_df[
+                    filtered_df['categories'].apply(
+                        lambda x: any(cat in x for cat in selected_categories) if isinstance(x, list) else False
+                    )
+                ]
+            
+            if selected_ref:
+                filtered_df = filtered_df[filtered_df['reference'].isin(selected_ref)]
+                
+            if selected_coroner:
+                filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroner)]
+            
+            if search_text:
+                search_mask = (
+                    filtered_df['deceased_name'].str.contains(search_text, case=False, na=False) |
+                    filtered_df['sent_to'].str.contains(search_text, case=False, na=False)
+                )
+                filtered_df = filtered_df[search_mask]
+            
+            # Display analysis
+            st.subheader("Analysis Results")
+            
+            # Summary metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Reports", len(filtered_df))
+            with col2:
+                st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique())
+            with col3:
+                current_year = datetime.now().year
+                st.metric("Reports This Year", 
+                         len(filtered_df[filtered_df['date_of_report'].dt.year == current_year]))
+            with col4:
+                if len(filtered_df) > 0:
+                    date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
+                    avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
+                    st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
+            
+            # Display filtered data
             st.dataframe(
-                df,
+                filtered_df.sort_values('date_of_report', ascending=False),
                 column_config={
-                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "url": st.column_config.LinkColumn("Report Link"),
                     "date_of_report": st.column_config.DateColumn("Date of Report"),
-                    "categories": st.column_config.ListColumn("Categories")
+                    "categories": st.column_config.ListColumn("Categories"),
                 },
                 hide_index=True
             )
             
-            # Export options
-            st.subheader("Export Options")
-            export_format = st.selectbox(
-                "Export format:", 
-                ["CSV", "Excel", "Separated Reports & Responses"], 
-                key="export_format"
-            )
-        
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"pfd_reports_{search_keyword}_{timestamp}"
-            if export_format == "Separated Reports & Responses":
-                # Process data into separate reports and responses
-                df_reports, df_responses = process_scraped_data(df)
-                
-                if st.button("Export Separated Data"):
-                    try:
-                        reports_file, responses_file = save_processed_data(df_reports, df_responses, filename)
-                        success_message = f"Successfully exported reports to {reports_file}"
-                        if responses_file:
-                            success_message += f" and responses to {responses_file}"
-                        st.success(success_message)
-                    except Exception as e:
-                        st.error(f"Error saving files: {e}")
-                        logging.error(f"Error in save_processed_data: {e}")
-                    
-            elif export_format == "CSV":
-                csv = df.to_csv(index=False).encode('utf-8')
+            # Export filtered data
+            if st.button("Export Filtered Data"):
+                csv = filtered_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    "📥 Download Reports (CSV)",
+                    "📥 Download Filtered Data",
                     csv,
-                    f"{filename}.csv",
+                    "filtered_reports.csv",
                     "text/csv",
-                    key="download_csv"
+                    key="download_filtered"
                 )
-            else:  # Excel
-                excel_buffer = io.BytesIO()
-                with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False)
-                excel_data = excel_buffer.getvalue()
-                st.download_button(
-                    "📥 Download Reports (Excel)",
-                    excel_data,
-                    f"{filename}.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="download_excel"
-                )
-                
-                # Option to download PDFs
-                st.subheader("Download PDFs")
-                if st.button("Download all PDFs"):
-                    with st.spinner("Preparing PDF download..."):
-                        # Create a zip file of all PDFs
-                        pdf_zip_path = f"{filename}_pdfs.zip"
-                        
-                        with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
-                            # Collect all unique PDF paths
-                            unique_pdfs = set()
-                            pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
-                            
-                            for col in pdf_columns:
-                                paths = df[col].dropna()
-                                unique_pdfs.update(paths)
-                            
-                            # Add PDFs to zip
-                            for pdf_path in unique_pdfs:
-                                if pdf_path and os.path.exists(pdf_path):
-                                    zipf.write(pdf_path, os.path.basename(pdf_path))
-                        
-                        # Provide download button for ZIP
-                        with open(pdf_zip_path, 'rb') as f:
-                            st.download_button(
-                                "📦 Download All PDFs (ZIP)",
-                                f.read(),
-                                pdf_zip_path,
-                                "application/zip",
-                                key="download_pdfs_zip"
-                            )
-        else:
-            if search_keyword or category:
-                st.warning("No reports found matching your search criteria")
-            else:
-                st.info("Please enter search keywords or select a category to find reports")
-def main():
-    st.title("UK Judiciary PFD Reports Analysis")
-    
-    # Create tabs
-    tab1, tab2 = st.tabs(["Scrape Reports", "Analyze Reports"])
-    
-    # Initialize session state for sharing data between tabs
-    if 'scraped_data' not in st.session_state:
-        st.session_state.scraped_data = None
-    
-    with tab1:
-        render_scraping_tab()
-    
-    with tab2:
-        render_analysis_tab()
+            
+            # Visualization section
+            st.subheader("Data Visualization")
+            viz_tab1, viz_tab2, viz_tab3 = st.tabs(["Timeline", "Categories", "Coroner Areas"])
+            
+            with viz_tab1:
+                st.subheader("Reports Timeline")
+                timeline_data = filtered_df.groupby(
+                    pd.Grouper(key='date_of_report', freq='M')
+                ).size().reset_index()
+                timeline_data.columns = ['Date', 'Count']
+                st.line_chart(timeline_data.set_index('Date'))
+            
+            with viz_tab2:
+                st.subheader("Category Distribution")
+                all_cats = []
+                for cats in filtered_df['categories'].dropna():
+                    if isinstance(cats, list):
+                        all_cats.extend(cats)
+                cat_counts = pd.Series(all_cats).value_counts()
+                st.bar_chart(cat_counts)
+            
+            with viz_tab3:
+                st.subheader("Reports by Coroner Area")
+                area_counts = filtered_df['coroner_area'].value_counts()
+                st.bar_chart(area_counts)
+            
+        except Exception as e:
+            st.error(f"Error processing file: {str(e)}")
+            logging.error(f"Analysis error: {str(e)}", exc_info=True)
+    else:
+        st.info("Please upload a file to begin analysis")
 
 if __name__ == "__main__":
-    main()
+    render_analysis_tab()
