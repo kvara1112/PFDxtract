@@ -672,15 +672,15 @@ def render_scraping_tab():
             date_after = st.date_input("Published after:", None)
             date_before = st.date_input("Published before:", None)
             max_pages = st.number_input("Maximum pages to scrape (0 for all):", 
-                                      min_value=0, 
-                                      value=0,
-                                      help="Set to 0 to scrape all available pages")
+                                        min_value=0, 
+                                        value=0,
+                                        help="Set to 0 to scrape all available pages")
         
         col3, col4 = st.columns(2)
         with col3:
             search_mode = st.radio("Search mode:",
-                                 ["Search with filters", "Scrape all categories"],
-                                 help="Choose whether to search with specific filters or scrape all categories")
+                                   ["Search with filters", "Scrape all categories"],
+                                   help="Choose whether to search with specific filters or scrape all categories")
         
         submitted = st.form_submit_button("Search Reports")
     
@@ -743,86 +743,85 @@ def render_scraping_tab():
             # Export options
             st.subheader("Export Options")
             export_format = st.selectbox(
-            "Export format:", 
-            ["CSV", "Excel", "Separated Reports & Responses"], 
-            key="export_format"
-        )
+                "Export format:", 
+                ["CSV", "Excel", "Separated Reports & Responses"], 
+                key="export_format"
+            )
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"pfd_reports_{search_keyword}_{timestamp}"
-        if export_format == "Separated Reports & Responses":
-            # Process data into separate reports and responses
-            df_reports, df_responses = process_scraped_data(df)
-            
-            if st.button("Export Separated Data"):
-                try:
-                    reports_file, responses_file = save_processed_data(df_reports, df_responses, filename)
-                    success_message = f"Successfully exported reports to {reports_file}"
-                    if responses_file:
-                        success_message += f" and responses to {responses_file}"
-                    st.success(success_message)
-                except Exception as e:
-                    st.error(f"Error saving files: {e}")
-                    logging.error(f"Error in save_processed_data: {e}")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"pfd_reports_{search_keyword}_{timestamp}"
+            if export_format == "Separated Reports & Responses":
+                # Process data into separate reports and responses
+                df_reports, df_responses = process_scraped_data(df)
+                
+                if st.button("Export Separated Data"):
+                    try:
+                        reports_file, responses_file = save_processed_data(df_reports, df_responses, filename)
+                        success_message = f"Successfully exported reports to {reports_file}"
+                        if responses_file:
+                            success_message += f" and responses to {responses_file}"
+                        st.success(success_message)
+                    except Exception as e:
+                        st.error(f"Error saving files: {e}")
+                        logging.error(f"Error in save_processed_data: {e}")
                     
-        elif export_format == "CSV":
-            csv = df.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "📥 Download Reports (CSV)",
-                csv,
-                f"{filename}.csv",
-                "text/csv",
-                key="download_csv"
-            )
-        else:  # Excel
-            excel_buffer = io.BytesIO()
-            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False)
-            excel_data = excel_buffer.getvalue()
-            st.download_button(
-                "📥 Download Reports (Excel)",
-                excel_data,
-                f"{filename}.xlsx",
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_excel"
-            )
-            
-            # Option to download PDFs
-            st.subheader("Download PDFs")
-            if st.button("Download all PDFs"):
-                with st.spinner("Preparing PDF download..."):
-                    # Create a zip file of all PDFs
-                    pdf_zip_path = f"{filename}_pdfs.zip"
-                    
-                    with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
-                        # Collect all unique PDF paths
-                        unique_pdfs = set()
-                        pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
+            elif export_format == "CSV":
+                csv = df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Download Reports (CSV)",
+                    csv,
+                    f"{filename}.csv",
+                    "text/csv",
+                    key="download_csv"
+                )
+            else:  # Excel
+                excel_buffer = io.BytesIO()
+                with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                    df.to_excel(writer, index=False)
+                excel_data = excel_buffer.getvalue()
+                st.download_button(
+                    "📥 Download Reports (Excel)",
+                    excel_data,
+                    f"{filename}.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_excel"
+                )
+                
+                # Option to download PDFs
+                st.subheader("Download PDFs")
+                if st.button("Download all PDFs"):
+                    with st.spinner("Preparing PDF download..."):
+                        # Create a zip file of all PDFs
+                        pdf_zip_path = f"{filename}_pdfs.zip"
                         
-                        for col in pdf_columns:
-                            paths = df[col].dropna()
-                            unique_pdfs.update(paths)
+                        with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
+                            # Collect all unique PDF paths
+                            unique_pdfs = set()
+                            pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
+                            
+                            for col in pdf_columns:
+                                paths = df[col].dropna()
+                                unique_pdfs.update(paths)
+                            
+                            # Add PDFs to zip
+                            for pdf_path in unique_pdfs:
+                                if pdf_path and os.path.exists(pdf_path):
+                                    zipf.write(pdf_path, os.path.basename(pdf_path))
                         
-                        # Add PDFs to zip
-                        for pdf_path in unique_pdfs:
-                            if pdf_path and os.path.exists(pdf_path):
-                                zipf.write(pdf_path, os.path.basename(pdf_path))
-                    
-                    # Provide download button for ZIP
-                    with open(pdf_zip_path, 'rb') as f:
-                        st.download_button(
-                            "📦 Download All PDFs (ZIP)",
-                            f.read(),
-                            pdf_zip_path,
-                            "application/zip",
-                            key="download_pdfs_zip"
-                        )
+                        # Provide download button for ZIP
+                        with open(pdf_zip_path, 'rb') as f:
+                            st.download_button(
+                                "📦 Download All PDFs (ZIP)",
+                                f.read(),
+                                pdf_zip_path,
+                                "application/zip",
+                                key="download_pdfs_zip"
+                            )
         else:
             if search_keyword or category:
                 st.warning("No reports found matching your search criteria")
             else:
                 st.info("Please enter search keywords or select a category to find reports")
-
 def main():
     st.title("UK Judiciary PFD Reports Analysis")
     
