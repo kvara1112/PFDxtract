@@ -539,9 +539,10 @@ def render_scraping_tab():
             try:
                 if search_mode == "Search with filters":
                     # Convert dates to string format if provided
-                    date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
-                    date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
-        
+                    date_after_str = date_after.strftime('%Y/%m/%d') if date_after else None
+                    date_before_str = date_before.strftime('%Y/%m/%d') if date_before else None
+
+                    
                     # Get the actual sort order value from the tuple
                     sort_order = order[0] if isinstance(order, tuple) else order
                     
