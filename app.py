@@ -25,28 +25,34 @@ st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide"
 
 def clean_pdf_content(content: str) -> str:
     """Clean PDF content by removing headers and normalizing text"""
-    if not content:
+    if pd.isna(content) or not content:
         return ""
     
-    # Remove PDF filename headers
-    content = re.sub(r'PDF FILENAME:.*?\n', '', content)
-    
-    # Fix encoding issues
-    replacements = {
-        'â€™': "'",
-        'â€œ': '"',
-        'â€': '"',
-        'â€¦': '...',
-        'â€"': '-',
-        'â€¢': '•'
-    }
-    for old, new in replacements.items():
-        content = content.replace(old, new)
-    
-    # Normalize whitespace
-    content = re.sub(r'\s+', ' ', content).strip()
-    
-    return content
+    try:
+        content = str(content)
+        
+        # Remove PDF filename headers
+        content = re.sub(r'PDF FILENAME:.*?\n', '', content)
+        
+        # Fix encoding issues
+        replacements = {
+            'â€™': "'",
+            'â€œ': '"',
+            'â€': '"',
+            'â€¦': '...',
+            'â€"': '-',
+            'â€¢': '•'
+        }
+        for old, new in replacements.items():
+            content = content.replace(old, new)
+        
+        # Normalize whitespace
+        content = re.sub(r'\s+', ' ', content).strip()
+        
+        return content
+    except Exception as e:
+        logging.error(f"Error cleaning PDF content: {e}")
+        return ""
 
 def extract_metadata(content: str) -> dict:
     """Extract structured metadata from report content"""
@@ -93,19 +99,37 @@ def extract_metadata(content: str) -> dict:
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data"""
-    # Clean PDF content
-    pdf_cols = [col for col in df.columns if col.endswith('_Content')]
-    for col in pdf_cols:
-        df[col] = df[col].apply(clean_pdf_content)
-    
-    # Extract metadata
-    metadata = df['Content'].apply(extract_metadata)
-    metadata_df = pd.DataFrame(metadata.tolist())
-    
-    # Combine with original data
-    result = pd.concat([df, metadata_df], axis=1)
-    
-    return result
+    try:
+        # Create a copy to avoid modifying the original
+        df = df.copy()
+        
+        # Clean PDF content
+        pdf_cols = [col for col in df.columns if col.endswith('_Content')]
+        for col in pdf_cols:
+            try:
+                df[col] = df[col].fillna("").astype(str)
+                df[col] = df[col].apply(clean_pdf_content)
+            except Exception as e:
+                logging.error(f"Error processing column {col}: {e}")
+        
+        # Extract metadata
+        try:
+            metadata = df['Content'].fillna("").apply(extract_metadata)
+            metadata_df = pd.DataFrame(metadata.tolist())
+            
+            # Combine with original data
+            result = pd.concat([df, metadata_df], axis=1)
+            
+            return result
+        except Exception as e:
+            logging.error(f"Error extracting metadata: {e}")
+            return df
+            
+    except Exception as e:
+        logging.error(f"Error in process_scraped_data: {e}")
+        return df  # Return original dataframe if processing fails
+
+
 
 def get_pfd_categories():
     """Get all available PFD report categories"""
