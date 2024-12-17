@@ -13,7 +13,7 @@ import os
 import zipfile
 import unicodedata
 from analysis_tab import render_analysis_tab
-
+from topic_modeling_tab import render_topic_modeling_tab, add_topic_modeling_tab
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 
