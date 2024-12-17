@@ -415,19 +415,19 @@ def scrape_pfd_reports(keyword=None, category=None, date_after=None, date_before
         'order': order
     }
     
-    if keyword:
+    if keyword and keyword.strip():
         params['s'] = keyword
     if category:
         params['pfd_report_type'] = category
     
     if date_after:
-        year, month, day = date_after.split('-')
+        day, month, year = date_after.split('/')
         params['after-year'] = year
         params['after-month'] = month
         params['after-day'] = day
     
     if date_before:
-        year, month, day = date_before.split('-')
+        day, month, year = date_before.split('/')
         params['before-year'] = year
         params['before-month'] = month
         params['before-day'] = day
@@ -539,9 +539,9 @@ def render_scraping_tab():
             try:
                 if search_mode == "Search with filters":
                     # Convert dates to string format if provided
-                    date_after_str = date_after.strftime("%Y-%m-%d") if date_after else None
-                    date_before_str = date_before.strftime("%Y-%m-%d") if date_before else None
-                    
+                    date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
+                    date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
+        
                     # Get the actual sort order value from the tuple
                     sort_order = order[0] if isinstance(order, tuple) else order
                     
