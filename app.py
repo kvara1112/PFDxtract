@@ -277,7 +277,7 @@ def scrape_page(url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
-    
+    print(f"Scraping URL: {url}")  # Debug print
     try:
         response = requests.get(url, headers=headers, verify=False, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
