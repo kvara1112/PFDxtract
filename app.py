@@ -1,3 +1,4 @@
+import streamlit as st
 import pandas as pd
 from datetime import datetime
 import re
@@ -12,8 +13,11 @@ import logging
 import os
 import zipfile
 import unicodedata
+
+# Local imports (these files need to be created)
 from analysis_tab import render_analysis_tab
 from topic_modeling_tab import render_topic_modeling_tab, add_topic_modeling_tab
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
 
@@ -21,6 +25,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(m
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide")
+
 
 def clean_pdf_content(content: str) -> str:
     """Clean PDF content by removing headers and normalizing text"""
@@ -657,7 +662,7 @@ def main():
     
     # Create tabs
     tab1, tab2, tab3 = st.tabs(["Scrape Reports", "Analyze Reports", "Topic Modeling"])
-    add_topic_modeling_tab(app_tabs)
+    add_topic_modeling_tab(app_tabs)  # This line looks problematic
     # Initialize session state for sharing data between tabs
     if 'scraped_data' not in st.session_state:
         st.session_state.scraped_data = None
@@ -670,5 +675,6 @@ def main():
       
     with tab3:
         render_topic_modeling_tab()
+        
 if __name__ == "__main__":
     main()
