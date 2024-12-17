@@ -199,10 +199,39 @@ def get_report_content(url):
         logging.error(f"Error getting report content: {e}")
         return None
 
+def get_total_pages(url):
+    """Get total number of pages"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        pagination = soup.find('ul', class_='pagination')
+        
+        if pagination:
+            page_numbers = pagination.find_all('a', class_='page-numbers')
+            
+            if page_numbers:
+                numbers = [int(p.text) for p in page_numbers if p.text.isdigit()]
+                
+                if numbers:
+                    return max(numbers)
+        return 1
+    except Exception as e:
+        logging.error(f"Error getting total pages: {e}")
+        return 1
+
 def scrape_page(url):
     """Scrape a single page of search results"""
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
     }
     
     try:
@@ -228,6 +257,11 @@ def scrape_page(url):
                 url = title_elem['href']
                 
                 logging.info(f"Processing report: {title}")
+                
+                # Ensure full URL
+                if not url.startswith(('http://', 'https://')):
+                    url = f"https://www.judiciary.uk{url}" if not url.startswith('/') else f"https://www.judiciary.uk/{url}"
+                
                 content_data = get_report_content(url)
                 
                 if content_data:
@@ -261,29 +295,7 @@ def scrape_page(url):
         logging.error(f"Error fetching page {url}: {e}")
         return []
 
-def get_total_pages(url):
-    """Get total number of pages"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
-    try:
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        pagination = soup.find('ul', class_='pagination')
-        if pagination:
-            page_numbers = pagination.find_all('a', class_='page-numbers')
-            if page_numbers:
-                numbers = [int(p.text) for p in page_numbers if p.text.isdigit()]
-                if numbers:
-                    return max(numbers)
-        return 1
-    except Exception as e:
-        logging.error(f"Error getting total pages: {e}")
-        return 1
-
-def scrape_pfd_reports(keyword=None):
+def scrape_pfd_reports(keyword=None, max_pages=None):
     """Scrape reports with keyword search"""
     all_reports = []
     current_page = 1
@@ -294,6 +306,10 @@ def scrape_pfd_reports(keyword=None):
     try:
         total_pages = get_total_pages(initial_url)
         logging.info(f"Total pages to scrape: {total_pages}")
+        
+        # Option to limit pages if specified
+        if max_pages:
+            total_pages = min(total_pages, max_pages)
         
         progress_bar = st.progress(0)
         status_text = st.empty()
