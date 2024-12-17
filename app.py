@@ -11,9 +11,7 @@ import pdfplumber
 import tempfile
 import logging
 import os
-import zipfile
-import unicodedata
-import re
+from data_processing import process_dataframe
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
@@ -24,66 +22,28 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide")
 
 def clean_text(text):
-    """
-    Comprehensive text cleaning function for handling messy PDF extractions
-    
-    Handles:
-    - Special characters and encoding issues
-    - Unicode normalization
-    - Whitespace cleaning
-    - Unwanted character removal
-    - HTML/XML tag stripping
-    """
+    """Clean text by removing extra whitespace and special characters"""
     if not text:
         return ""
     
     try:
-        # Convert to string and handle potential non-string inputs
-        text = str(text)
+        # Replace problematic characters and symbols
+        text = re.sub(r'â€™', "'", str(text))  # Replace smart quotes
+        text = re.sub(r'â€¦', "...", text)     # Replace ellipsis
+        text = re.sub(r'â€"', "-", text)       # Replace em dash
+        text = re.sub(r'â€œ', '"', text)       # Replace left double quote
+        text = re.sub(r'â€', '"', text)        # Replace right double quote
         
-        # Normalize unicode characters
-        text = unicodedata.normalize('NFKD', text)
+        # Remove or replace other potential encoding issues
+        text = text.encode('ascii', 'ignore').decode('ascii')
         
-        # Replace problematic encoded characters
-        replacements = {
-            'â€™': "'",   # Smart single quote
-            'â€œ': '"',   # Left double quote
-            'â€': '"',    # Right double quote
-            'â€¦': '...',  # Ellipsis
-            'â€"': '-',   # Em dash
-            'â€¢': '•',   # Bullet point
-            'Â': '',      # Unwanted character
-            '\u200b': '',  # Zero-width space
-            '\uf0b7': '',  # Private use area character
-        }
-        
-        for encoded, replacement in replacements.items():
-            text = text.replace(encoded, replacement)
-        
-        # Remove HTML/XML tags
-        text = re.sub(r'<[^>]+>', '', text)
-        
-        # Remove non-printable characters
-        text = ''.join(char for char in text if char.isprintable())
-        
-        # Remove extra whitespaces and newlines
+        # Normalize whitespace
         text = re.sub(r'\s+', ' ', text)
         
-        # Remove specific unwanted patterns
-        text = re.sub(r'[\x00-\x1F\x7F-\x9F]', '', text)  # Control characters
+        # Remove any non-printable characters
+        text = ''.join(char for char in text if char.isprintable())
         
-        # Remove multiple consecutive punctuation
-        text = re.sub(r'([.,!?])\1+', r'\1', text)
-        
-        # Normalize quotation marks
-        text = text.replace(''', "'").replace(''', "'")
-        text = text.replace('"', '"').replace('"', '"')
-        
-        # Strip leading and trailing whitespace
-        text = text.strip()
-        
-        return text
-    
+        return text.strip()
     except Exception as e:
         logging.error(f"Error in clean_text: {e}")
         return ""
@@ -199,39 +159,10 @@ def get_report_content(url):
         logging.error(f"Error getting report content: {e}")
         return None
 
-def get_total_pages(url):
-    """Get total number of pages"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-    }
-    
-    try:
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        pagination = soup.find('ul', class_='pagination')
-        
-        if pagination:
-            page_numbers = pagination.find_all('a', class_='page-numbers')
-            
-            if page_numbers:
-                numbers = [int(p.text) for p in page_numbers if p.text.isdigit()]
-                
-                if numbers:
-                    return max(numbers)
-        return 1
-    except Exception as e:
-        logging.error(f"Error getting total pages: {e}")
-        return 1
-
 def scrape_page(url):
     """Scrape a single page of search results"""
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
     
     try:
@@ -257,11 +188,6 @@ def scrape_page(url):
                 url = title_elem['href']
                 
                 logging.info(f"Processing report: {title}")
-                
-                # Ensure full URL
-                if not url.startswith(('http://', 'https://')):
-                    url = f"https://www.judiciary.uk{url}" if not url.startswith('/') else f"https://www.judiciary.uk/{url}"
-                
                 content_data = get_report_content(url)
                 
                 if content_data:
@@ -295,7 +221,29 @@ def scrape_page(url):
         logging.error(f"Error fetching page {url}: {e}")
         return []
 
-def scrape_pfd_reports(keyword=None, max_pages=None):
+def get_total_pages(url):
+    """Get total number of pages"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    
+    try:
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        pagination = soup.find('ul', class_='pagination')
+        if pagination:
+            page_numbers = pagination.find_all('a', class_='page-numbers')
+            if page_numbers:
+                numbers = [int(p.text) for p in page_numbers if p.text.isdigit()]
+                if numbers:
+                    return max(numbers)
+        return 1
+    except Exception as e:
+        logging.error(f"Error getting total pages: {e}")
+        return 1
+
+def scrape_pfd_reports(keyword=None):
     """Scrape reports with keyword search"""
     all_reports = []
     current_page = 1
@@ -306,10 +254,6 @@ def scrape_pfd_reports(keyword=None, max_pages=None):
     try:
         total_pages = get_total_pages(initial_url)
         logging.info(f"Total pages to scrape: {total_pages}")
-        
-        # Option to limit pages if specified
-        if max_pages:
-            total_pages = min(total_pages, max_pages)
         
         progress_bar = st.progress(0)
         status_text = st.empty()
@@ -340,6 +284,8 @@ def scrape_pfd_reports(keyword=None, max_pages=None):
         st.error(f"An error occurred while scraping reports: {e}")
         return []
 
+from data_processing import process_dataframe
+
 def main():
     st.title("UK Judiciary PFD Reports Analysis")
     
@@ -367,14 +313,64 @@ def main():
         if reports:
             df = pd.DataFrame(reports)
             
+            # Process the DataFrame to extract structured data
+            df = process_dataframe(df)
+            
             st.success(f"Found {len(reports):,} reports")
             
-            # Show detailed data
-            st.subheader("Reports Data")
+            # Add filtering options
+            st.subheader("Filters")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # Unique Coroner's Areas filter
+                selected_areas = st.multiselect(
+                    "Filter by Coroner's Area", 
+                    sorted(df['Coroners_Area'].dropna().unique())
+                )
+            
+            with col2:
+                # Unique Categories filter
+                selected_categories = st.multiselect(
+                    "Filter by Category", 
+                    sorted(df['Category'].dropna().unique())
+                )
+            
+            with col3:
+                # Date range filter
+                df['Date_of_Report'] = pd.to_datetime(df['Date_of_Report'], format='%d/%m/%Y', errors='coerce')
+                min_date = df['Date_of_Report'].min()
+                max_date = df['Date_of_Report'].max()
+                
+                date_range = st.date_input(
+                    "Filter by Date Range",
+                    value=(min_date, max_date),
+                    min_value=min_date,
+                    max_value=max_date
+                )
+            
+            # Apply filters
+            filtered_df = df.copy()
+            if selected_areas:
+                filtered_df = filtered_df[filtered_df['Coroners_Area'].isin(selected_areas)]
+            
+            if selected_categories:
+                filtered_df = filtered_df[filtered_df['Category'].isin(selected_categories)]
+            
+            if date_range:
+                start_date, end_date = date_range
+                filtered_df = filtered_df[
+                    (filtered_df['Date_of_Report'].dt.date >= start_date) & 
+                    (filtered_df['Date_of_Report'].dt.date <= end_date)
+                ]
+            
+            # Show filtered data
+            st.subheader(f"Reports Data (Showing {len(filtered_df)} of {len(df)} reports)")
             st.dataframe(
-                df,
+                filtered_df,
                 column_config={
-                    "URL": st.column_config.LinkColumn("Report Link")
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "Date_of_Report": st.column_config.DateColumn("Date of Report")
                 },
                 hide_index=True
             )
@@ -385,9 +381,9 @@ def main():
             filename = f"pfd_reports_{search_keyword}_{timestamp}"
             
             if export_format == "CSV":
-                csv = df.to_csv(index=False).encode('utf-8')
+                csv = filtered_df.to_csv(index=False).encode('utf-8')
                 st.download_button(
-                    "📥 Download Reports",
+                    "📥 Download Filtered Reports as CSV",
                     csv,
                     f"{filename}.csv",
                     "text/csv",
@@ -396,44 +392,15 @@ def main():
             else:
                 excel_buffer = io.BytesIO()
                 with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False)
+                    filtered_df.to_excel(writer, index=False)
                 excel_data = excel_buffer.getvalue()
                 st.download_button(
-                    "📥 Download Reports",
+                    "📥 Download Filtered Reports as Excel",
                     excel_data,
                     f"{filename}.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key="download_excel"
                 )
-            
-            # Option to download PDFs
-            if st.button("Download all PDFs"):
-                # Create a zip file of all PDFs
-                pdf_zip_path = f"{filename}_pdfs.zip"
-                
-                with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
-                    # Collect all unique PDF paths
-                    unique_pdfs = set()
-                    pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
-                    
-                    for col in pdf_columns:
-                        paths = df[col].dropna()
-                        unique_pdfs.update(paths)
-                    
-                    # Add PDFs to zip
-                    for pdf_path in unique_pdfs:
-                        if pdf_path and os.path.exists(pdf_path):
-                            zipf.write(pdf_path, os.path.basename(pdf_path))
-                
-                # Provide download button for ZIP
-                with open(pdf_zip_path, 'rb') as f:
-                    st.download_button(
-                        "📦 Download All PDFs",
-                        f.read(),
-                        pdf_zip_path,
-                        "application/zip",
-                        key="download_pdfs_zip"
-                    )
         else:
             if search_keyword:
                 st.warning("No reports found matching your search criteria")
