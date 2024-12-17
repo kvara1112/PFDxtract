@@ -674,7 +674,7 @@ def main():
     with tab2:
         render_analysis_tab()
       
-    with tab3:
+    #with tab3:
      #   render_topic_modeling_tab()
         
 if __name__ == "__main__":
