@@ -657,7 +657,7 @@ def main():
     
     # Create tabs
     tab1, tab2, tab3 = st.tabs(["Scrape Reports", "Analyze Reports", "Topic Modeling"])
-
+    add_topic_modeling_tab(app_tabs)
     # Initialize session state for sharing data between tabs
     if 'scraped_data' not in st.session_state:
         st.session_state.scraped_data = None
