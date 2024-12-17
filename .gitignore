@@ -16,7 +16,6 @@ lib64/
 parts/
 sdist/
 var/
-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -31,9 +30,12 @@ ENV/
 *.swp
 *.swo
 
-# OS
-.DS_Store
-Thumbs.db
+# Project specific
+pdfs/
+*.pdf
+*.csv
+*.xlsx
+*.zip
 
 # Streamlit
-.streamlit/
+.streamlit/secrets.toml
