@@ -97,39 +97,191 @@ def extract_metadata(content: str) -> dict:
     
     return metadata
 
-def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data"""
+def def process_scraped_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Process scraped data to create two separate dataframes - one for PFD reports and one for responses.
+    
+    Args:
+        df: Raw scraped dataframe containing report content and PDFs
+    
+    Returns:
+        Tuple containing:
+        - Processed dataframe of PFD reports
+        - Processed dataframe of responses
+    """
     try:
-        # Create a copy to avoid modifying the original
-        df = df.copy()
+        logging.info("Starting data processing...")
         
-        # Clean PDF content
-        pdf_cols = [col for col in df.columns if col.endswith('_Content')]
-        for col in pdf_cols:
-            try:
-                df[col] = df[col].fillna("").astype(str)
-                df[col] = df[col].apply(clean_pdf_content)
-            except Exception as e:
-                logging.error(f"Error processing column {col}: {e}")
+        # Create copies to avoid modifying original
+        df_reports = df.copy()
+        df_responses = pd.DataFrame()
         
-        # Extract metadata
-        try:
-            metadata = df['Content'].fillna("").apply(extract_metadata)
-            metadata_df = pd.DataFrame(metadata.tolist())
+        # Extract response PDFs based on filename pattern and content
+        response_cols = [col for col in df.columns 
+                        if ('Response' in col or 'response' in col.lower()) 
+                        and col.endswith('_Content')]
+        
+        if response_cols:
+            logging.info(f"Found {len(response_cols)} response columns")
+            responses = []
             
-            # Combine with original data
-            result = pd.concat([df, metadata_df], axis=1)
+            for idx, row in df.iterrows():
+                try:
+                    # Get identifying information
+                    report_ref = row.get('ref', '')
+                    report_title = row.get('Title', '')
+                    deceased_name = row.get('deceased_name', '')
+                    date_of_report = row.get('date_of_report', '')
+                    
+                    for col in response_cols:
+                        if pd.notna(row[col]):
+                            # Extract response metadata
+                            response_path_col = col.replace('_Content', '_Path')
+                            response_name_col = col.replace('_Content', '_Name')
+                            
+                            # Clean and extract response content
+                            response_content = clean_text(row[col])
+                            
+                            # Create response record
+                            response = {
+                                'report_ref': report_ref,
+                                'report_title': report_title,
+                                'deceased_name': deceased_name,
+                                'report_date': date_of_report,
+                                'response_content': response_content,
+                                'response_pdf_name': row.get(response_name_col, ''),
+                                'response_pdf_path': row.get(response_path_col, ''),
+                                'responding_organization': extract_organization_from_filename(row.get(response_name_col, ''))
+                            }
+                            responses.append(response)
+                            
+                except Exception as e:
+                    logging.error(f"Error processing response for row {idx}: {e}")
+                    continue
             
-            return result
-        except Exception as e:
-            logging.error(f"Error extracting metadata: {e}")
-            return df
+            if responses:
+                df_responses = pd.DataFrame(responses)
+                logging.info(f"Created responses dataframe with {len(responses)} entries")
+                
+                # Convert date format if present
+                if 'report_date' in df_responses.columns:
+                    df_responses['report_date'] = pd.to_datetime(df_responses['report_date'], format='%d/%m/%Y', errors='coerce')
+        
+        # Clean up report content
+        content_cols = ['Content'] + [col for col in df.columns 
+                                    if col.endswith('_Content') 
+                                    and not any(x in col.lower() for x in ['response', 'reply'])]
+        
+        for col in content_cols:
+            if col in df_reports.columns:
+                df_reports[col] = df_reports[col].fillna("").astype(str)
+                df_reports[col] = df_reports[col].apply(clean_text)
+        
+        # Drop response columns from reports df
+        response_related_cols = [col for col in df_reports.columns 
+                               if any(x in col.lower() for x in ['response', 'reply'])]
+        df_reports = df_reports.drop(columns=response_related_cols)
+        
+        # Ensure essential columns exist
+        essential_cols = ['Title', 'URL', 'Content', 'ref', 'date_of_report', 
+                         'deceased_name', 'coroner_name', 'coroner_area', 'categories']
+        
+        for col in essential_cols:
+            if col not in df_reports.columns:
+                df_reports[col] = None
+                
+        # Convert date format if present
+        if 'date_of_report' in df_reports.columns:
+            df_reports['date_of_report'] = pd.to_datetime(df_reports['date_of_report'], format='%d/%m/%Y', errors='coerce')
+                
+        logging.info("Data processing completed successfully")
+        return df_reports, df_responses
             
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
-        return df  # Return original dataframe if processing fails
+        return df, pd.DataFrame()  # Return original df and empty response df if error
 
+def save_processed_data(df_reports: pd.DataFrame, 
+                       df_responses: pd.DataFrame,
+                       base_filename: str) -> tuple[str, str]:
+    """
+    Save processed reports and responses to separate CSV files.
+    
+    Args:
+        df_reports: Processed PFD reports dataframe
+        df_responses: Processed responses dataframe
+        base_filename: Base filename to use (without extension)
+        
+    Returns:
+        Tuple containing:
+        - Path to saved reports CSV
+        - Path to saved responses CSV (or empty string if no responses)
+    """
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Ensure exports directory exists
+        os.makedirs('exports', exist_ok=True)
+        
+        # Save reports
+        reports_filename = f"exports/{base_filename}_reports_{timestamp}.csv"
+        
+        # Convert any list columns to string representation
+        df_reports_export = df_reports.copy()
+        for col in df_reports_export.columns:
+            if df_reports_export[col].apply(lambda x: isinstance(x, (list, tuple))).any():
+                df_reports_export[col] = df_reports_export[col].apply(lambda x: str(x) if isinstance(x, (list, tuple)) else x)
+        
+        # Convert dates back to UK format for export
+        if 'date_of_report' in df_reports_export.columns:
+            df_reports_export['date_of_report'] = df_reports_export['date_of_report'].dt.strftime('%d/%m/%Y')
+            
+        df_reports_export.to_csv(reports_filename, index=False, encoding='utf-8-sig')
+        logging.info(f"Saved reports to {reports_filename}")
+        
+        responses_filename = ""
+        # Save responses if they exist
+        if not df_responses.empty:
+            responses_filename = f"exports/{base_filename}_responses_{timestamp}.csv"
+            
+            # Clean up response dataframe
+            df_responses_export = df_responses.copy()
+            for col in df_responses_export.columns:
+                if df_responses_export[col].apply(lambda x: isinstance(x, (list, tuple))).any():
+                    df_responses_export[col] = df_responses_export[col].apply(lambda x: str(x) if isinstance(x, (list, tuple)) else x)
+            
+            # Convert dates back to UK format for export    
+            if 'report_date' in df_responses_export.columns:
+                df_responses_export['report_date'] = df_responses_export['report_date'].dt.strftime('%d/%m/%Y')
+            
+            df_responses_export.to_csv(responses_filename, index=False, encoding='utf-8-sig')
+            logging.info(f"Saved responses to {responses_filename}")
+            
+        return reports_filename, responses_filename
+            
+    except Exception as e:
+        logging.error(f"Error saving processed data: {e}")
+        raise
 
+def extract_organization_from_filename(filename: str) -> str:
+    """Extract responding organization name from filename."""
+    if not filename:
+        return ""
+    
+    try:
+        # Remove file extension
+        name = os.path.splitext(filename)[0]
+        
+        # Look for patterns like "Response-from-" or "Response-by-"
+        patterns = ["Response-from-", "Response-by-"]
+        for pattern in patterns:
+            if pattern in name:
+                org = name.split(pattern)[-1]
+                return org.replace("-", " ").strip()
+        
+        return ""
+    except Exception:
+        return ""
 
 def get_pfd_categories():
     """Get all available PFD report categories"""
@@ -590,31 +742,50 @@ def render_scraping_tab():
             
             # Export options
             st.subheader("Export Options")
-            export_format = st.selectbox("Export format:", ["CSV", "Excel"], key="export_format")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"pfd_reports_{search_keyword}_{timestamp}"
+            export_format = st.selectbox(
+            "Export format:", 
+            ["CSV", "Excel", "Separated Reports & Responses"], 
+            key="export_format"
+        )
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"pfd_reports_{search_keyword}_{timestamp}"
+        if export_format == "Separated Reports & Responses":
+            # Process data into separate reports and responses
+            df_reports, df_responses = process_scraped_data(df)
             
-            if export_format == "CSV":
-                csv = df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "📥 Download Reports (CSV)",
-                    csv,
-                    f"{filename}.csv",
-                    "text/csv",
-                    key="download_csv"
-                )
-            else:
-                excel_buffer = io.BytesIO()
-                with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                    df.to_excel(writer, index=False)
-                excel_data = excel_buffer.getvalue()
-                st.download_button(
-                    "📥 Download Reports (Excel)",
-                    excel_data,
-                    f"{filename}.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="download_excel"
-                )
+            if st.button("Export Separated Data"):
+                try:
+                    reports_file, responses_file = save_processed_data(df_reports, df_responses, filename)
+                    success_message = f"Successfully exported reports to {reports_file}"
+                    if responses_file:
+                        success_message += f" and responses to {responses_file}"
+                    st.success(success_message)
+                except Exception as e:
+                    st.error(f"Error saving files: {e}")
+                    logging.error(f"Error in save_processed_data: {e}")
+                    
+        elif export_format == "CSV":
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "📥 Download Reports (CSV)",
+                csv,
+                f"{filename}.csv",
+                "text/csv",
+                key="download_csv"
+            )
+        else:  # Excel
+            excel_buffer = io.BytesIO()
+            with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False)
+            excel_data = excel_buffer.getvalue()
+            st.download_button(
+                "📥 Download Reports (Excel)",
+                excel_data,
+                f"{filename}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_excel"
+            )
             
             # Option to download PDFs
             st.subheader("Download PDFs")
