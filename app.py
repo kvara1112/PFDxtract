@@ -661,7 +661,7 @@ def main():
     st.title("UK Judiciary PFD Reports Analysis")
     
     # Create tabs
-    tab1, tab2, tab3 = st.tabs(["Scrape Reports", "Analyze Reports"])
+    tab1, tab2 = st.tabs(["Scrape Reports", "Analyze Reports"])
     #tab1, tab2, tab3 = st.tabs(["Scrape Reports", "Analyze Reports", "Topic Modeling"])
     #add_topic_modeling_tab(app_tabs)  # This line looks problematic
     # Initialize session state for sharing data between tabs
