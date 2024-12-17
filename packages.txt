@@ -1,21 +1,50 @@
-python3-dev
-build-essential
-curl
-software-properties-common
-python3-pip
-python3-venv
-libxml2-dev
-libxslt1-dev
-zlib1g-dev
-libssl-dev
-python3-lxml
-poppler-utils
-libpoppler-cpp-dev
-pkg-config
-python3-dev
-ghostscript
-python3-tk
-libjpeg-dev
-libpng-dev
-tesseract-ocr
-libtesseract-dev
+# Web Application Framework
+streamlit==1.31.0
+
+# Data Manipulation and Analysis
+pandas==2.2.0
+numpy==1.26.3
+openpyxl==3.1.2
+scipy==1.12.0
+scikit-learn==1.3.2
+
+# Web Scraping
+beautifulsoup4==4.12.3
+requests==2.31.0
+lxml==5.1.0
+urllib3==2.2.0
+html5lib==1.1
+
+# PDF Processing
+pdfplumber==0.10.3
+Pillow==10.2.0
+
+# Text Processing
+unicodedata2==15.0.0
+unidecode==1.3.8
+nltk==3.8.1
+
+# Topic Modeling
+bertopic==0.16.0
+sentence-transformers==2.7.0
+umap-learn==0.5.4
+hdbscan==0.8.33
+gensim==4.3.2
+
+# Machine Learning and Deep Learning
+torch==2.1.2
+transformers==4.36.2
+
+# Visualization
+plotly==5.18.0
+matplotlib==3.8.2
+
+# Utility
+python-dateutil==2.8.2
+six==1.16.0
+
+# System and Encoding
+certifi==2024.2.2
+charset-normalizer==3.3.2
+idna==3.6
+tzdata==2024.1
