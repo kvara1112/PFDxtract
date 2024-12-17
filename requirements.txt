@@ -1,50 +1,34 @@
-# Web Application Framework
+# Core dependencies
 streamlit==1.31.0
-
-# Data Manipulation and Analysis
-pandas==2.2.0
-numpy==1.26.3
-openpyxl==3.1.2
-scipy==1.12.0
-scikit-learn==1.3.2
-
-# Web Scraping
 beautifulsoup4==4.12.3
 requests==2.31.0
-lxml==5.1.0
+pandas==2.2.0
 urllib3==2.2.0
+lxml==5.1.0
+python-dateutil==2.8.2
+openpyxl==3.1.2
 html5lib==1.1
-
-# PDF Processing
 pdfplumber==0.10.3
-Pillow==10.2.0
-
-# Text Processing
-unicodedata2==15.0.0
 unidecode==1.3.8
+unicodedata2==15.0.0
 nltk==3.8.1
+plotly==5.18.0
 
-# Topic Modeling
+# Topic Modeling dependencies
 bertopic==0.16.0
 sentence-transformers==2.7.0
 umap-learn==0.5.4
 hdbscan==0.8.33
-gensim==4.3.2
-
-# Machine Learning and Deep Learning
-torch==2.1.2
+numpy==1.26.3
+scikit-learn==1.3.2
+scipy==1.12.0
+torch==2.1.2  # Recommended version compatible with transformers
 transformers==4.36.2
 
-# Visualization
-plotly==5.18.0
-matplotlib==3.8.2
-
-# Utility
-python-dateutil==2.8.2
-six==1.16.0
-
-# System and Encoding
+# Required by pdfplumber and other dependencies
+Pillow==10.2.0
 certifi==2024.2.2
 charset-normalizer==3.3.2
 idna==3.6
+six==1.16.0
 tzdata==2024.1
