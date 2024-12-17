@@ -16,7 +16,7 @@ import unicodedata
 
 # Local imports (these files need to be created)
 from analysis_tab import render_analysis_tab
-from topic_modeling_tab import render_topic_modeling_tab, add_topic_modeling_tab
+#from topic_modeling_tab import render_topic_modeling_tab, add_topic_modeling_tab
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
@@ -661,8 +661,9 @@ def main():
     st.title("UK Judiciary PFD Reports Analysis")
     
     # Create tabs
-    tab1, tab2, tab3 = st.tabs(["Scrape Reports", "Analyze Reports", "Topic Modeling"])
-    add_topic_modeling_tab(app_tabs)  # This line looks problematic
+    tab1, tab2, tab3 = st.tabs(["Scrape Reports", "Analyze Reports"])
+    #tab1, tab2, tab3 = st.tabs(["Scrape Reports", "Analyze Reports", "Topic Modeling"])
+    #add_topic_modeling_tab(app_tabs)  # This line looks problematic
     # Initialize session state for sharing data between tabs
     if 'scraped_data' not in st.session_state:
         st.session_state.scraped_data = None
@@ -674,7 +675,7 @@ def main():
         render_analysis_tab()
       
     with tab3:
-        render_topic_modeling_tab()
+     #   render_topic_modeling_tab()
         
 if __name__ == "__main__":
     main()
