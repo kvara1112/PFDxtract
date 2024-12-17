@@ -13,6 +13,7 @@ import logging
 import os
 import zipfile
 import unicodedata
+from analysis_tab import render_analysis_tab
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
@@ -297,14 +298,6 @@ def get_total_pages(url):
 def scrape_pfd_reports(keyword=None, category=None, date_after=None, date_before=None, order="relevance", max_pages=None):
     """
     Scrape PFD reports with comprehensive filtering
-    
-    Args:
-        keyword (str): Search keyword
-        category (str): PFD report category
-        date_after (str): Date in format YYYY-MM-DD
-        date_before (str): Date in format YYYY-MM-DD
-        order (str): Sort order ('relevance', 'desc' for newest, 'asc' for oldest)
-        max_pages (int): Maximum number of pages to scrape
     """
     all_reports = []
     current_page = 1
@@ -398,9 +391,7 @@ def scrape_all_categories():
     
     return all_reports
 
-def main():
-    st.title("UK Judiciary PFD Reports Analysis")
-    
+def render_scraping_tab():
     st.markdown("""
     This app scrapes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
     You can search by keywords, categories, and date ranges.
@@ -470,6 +461,10 @@ def main():
         
         if reports:
             df = pd.DataFrame(reports)
+            
+            # Store in session state for analysis tab
+            if 'scraped_data' not in st.session_state:
+                st.session_state.scraped_data = df
             
             st.success(f"Found {len(reports):,} reports")
             
@@ -546,6 +541,22 @@ def main():
                 st.warning("No reports found matching your search criteria")
             else:
                 st.info("Please enter search keywords or select a category to find reports")
+
+def main():
+    st.title("UK Judiciary PFD Reports Analysis")
+    
+    # Create tabs
+    tab1, tab2 = st.tabs(["Scrape Reports", "Analyze Reports"])
+    
+    # Initialize session state for sharing data between tabs
+    if 'scraped_data' not in st.session_state:
+        st.session_state.scraped_data = None
+    
+    with tab1:
+        render_scraping_tab()
+    
+    with tab2:
+        render_analysis_tab()
 
 if __name__ == "__main__":
     main()
