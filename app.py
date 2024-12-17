@@ -344,41 +344,26 @@ def get_total_pages(url):
         response = requests.get(url, headers=headers, verify=False, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Look for pagination elements with various class names
-        paginations = [
-            soup.find('ul', class_='pagination'),
-            soup.find('nav', class_='pagination'),
-            soup.find('div', class_='pagination')
-        ]
+        # Debug the response
+        print(f"Response URL: {response.url}")
         
-        for pagination in paginations:
-            if pagination:
-                # Try different methods to find the last page number
-                
-                # Method 1: Look for numbered links
-                page_numbers = pagination.find_all(['a', 'span'], class_=['page-numbers', 'page-link'])
-                if page_numbers:
-                    numbers = []
-                    for p in page_numbers:
-                        text = p.text.strip()
-                        if text.isdigit():
-                            numbers.append(int(text))
-                    if numbers:
-                        return max(numbers)
-                
-                # Method 2: Look for "Last" link
-                last_link = pagination.find('a', string=re.compile(r'Last|»|>'))
-                if last_link and 'href' in last_link.attrs:
-                    match = re.search(r'/page/(\d+)/', last_link['href'])
-                    if match:
-                        return int(match.group(1))
+        pagination = soup.find('nav', class_='navigation pagination')
+        if pagination:
+            page_numbers = pagination.find_all('a', class_='page-numbers')
+            numbers = []
+            for p in page_numbers:
+                text = p.text.strip()
+                if text.isdigit():
+                    numbers.append(int(text))
+            if numbers:
+                return max(numbers)
         
-        # If we can't find pagination but there are results, assume at least 1 page
+        # Check if we have at least one result
         results = soup.find('ul', class_='search__list')
         if results and results.find_all('div', class_='card'):
             return 1
             
-        return 0  # No results found
+        return 0
         
     except Exception as e:
         logging.error(f"Error getting total pages: {e}")
@@ -390,15 +375,19 @@ def scrape_pfd_reports(keyword=None, max_pages=None):
     current_page = 1
     base_url = "https://www.judiciary.uk"
     
-    # Construct the initial URL with proper encoding
-    search_params = {
-        's': keyword if keyword else '',
-        'post_type': 'pfd'
-    }
-    initial_url = f"{base_url}/search/"
+    # Construct the initial search URL correctly
+    if keyword:
+        # Use the direct search URL format
+        initial_url = f"{base_url}/?s={keyword}&post_type=pfd"
+    else:
+        # If no keyword, get all PFD reports
+        initial_url = f"{base_url}/?post_type=pfd"
     
     try:
+        # Get total pages
         total_pages = get_total_pages(initial_url)
+        print(f"Total pages detected: {total_pages}")  # Debug print
+        
         if total_pages == 0:
             st.warning("No results found")
             return []
@@ -413,12 +402,17 @@ def scrape_pfd_reports(keyword=None, max_pages=None):
         status_text = st.empty()
         
         while current_page <= total_pages:
-            # Construct page URL
+            # Construct page URL based on current page
             if current_page == 1:
-                page_url = f"{base_url}/search/?s={keyword if keyword else ''}&post_type=pfd"
+                page_url = initial_url
             else:
-                page_url = f"{base_url}/search/page/{current_page}/?s={keyword if keyword else ''}&post_type=pfd"
+                # Use the correct pagination URL format
+                if keyword:
+                    page_url = f"{base_url}/page/{current_page}/?s={keyword}&post_type=pfd"
+                else:
+                    page_url = f"{base_url}/page/{current_page}/?post_type=pfd"
             
+            print(f"Scraping URL: {page_url}")  # Debug print
             status_text.text(f"Scraping page {current_page} of {total_pages}...")
             progress_bar.progress(current_page / total_pages)
             
@@ -429,7 +423,6 @@ def scrape_pfd_reports(keyword=None, max_pages=None):
                 logging.info(f"Found {len(reports)} reports on page {current_page}")
             else:
                 logging.warning(f"No reports found on page {current_page}")
-                # Break if no results found on current page
                 if current_page > 1:
                     break
             
