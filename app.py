@@ -345,10 +345,22 @@ def get_total_pages(url):
         soup = BeautifulSoup(response.text, 'html.parser')
         
         pagination = soup.find('ul', class_='pagination')
+        
+        # Debug print
+        print("Full HTML of pagination:", pagination)
+        
         if pagination:
             page_numbers = pagination.find_all('a', class_='page-numbers')
+            
+            # Debug print
+            print("Page number links:", [p.text for p in page_numbers])
+            
             if page_numbers:
                 numbers = [int(p.text) for p in page_numbers if p.text.isdigit()]
+                
+                # Debug print
+                print("Extracted page numbers:", numbers)
+                
                 if numbers:
                     return max(numbers)
         return 1
@@ -366,18 +378,30 @@ def scrape_pfd_reports(keyword=None):
     
     try:
         total_pages = get_total_pages(initial_url)
+        
+        # Debug prints
+        print(f"Initial URL: {initial_url}")
+        print(f"Total pages detected: {total_pages}")
+        
         logging.info(f"Total pages to scrape: {total_pages}")
         
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         while current_page <= total_pages:
+            # Debug print
+            print(f"Scraping page {current_page}")
+            
             url = f"{base_url}{'page/' + str(current_page) + '/' if current_page > 1 else ''}?s={keyword if keyword else ''}&post_type=pfd"
             
             status_text.text(f"Scraping page {current_page} of {total_pages}...")
             progress_bar.progress(current_page / total_pages)
             
             reports = scrape_page(url)
+            
+            # Debug print
+            print(f"Reports found on page {current_page}: {len(reports)}")
+            
             if reports:
                 all_reports.extend(reports)
                 logging.info(f"Found {len(reports)} reports on page {current_page}")
@@ -389,6 +413,9 @@ def scrape_pfd_reports(keyword=None):
         
         progress_bar.progress(1.0)
         status_text.text(f"Completed! Total reports found: {len(all_reports)}")
+        
+        # Debug print
+        print(f"Total reports scraped: {len(all_reports)}")
         
         return all_reports
     
