@@ -103,6 +103,64 @@ def clean_text(text):
         logging.error(f"Error in clean_text: {e}")
         return ""
 
+def extract_date(text):
+    """
+    Comprehensive date extraction method with multiple strategies
+    """
+    if not text:
+        return None
+    
+    # Clean the text first
+    cleaned_text = clean_text(text)
+    
+    # Comprehensive date patterns
+    date_patterns = [
+        r'Date\s*of\s*report\s*[:]*\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})',  # Supports / . or -
+        r'Date\s*of\s*report\s*:\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})',
+        r'Date\s*of\s*report\s*(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})'
+    ]
+    
+    # Additional text-based patterns (for edge cases)
+    text_patterns = [
+        r'\b(\d{1,2}[/.-]\d{1,2}[/.-]\d{4})\b',  # Anywhere in text
+        r'\b(\d{4}[/.-]\d{1,2}[/.-]\d{1,2})\b'   # Alternate format
+    ]
+    
+    # Combine patterns
+    all_patterns = date_patterns + text_patterns
+    
+    # Possible date separators
+    separators = ['/', '-', '.']
+    
+    for pattern in all_patterns:
+        match = re.search(pattern, cleaned_text, re.IGNORECASE)
+        if match:
+            date_str = match.group(1).strip()
+            
+            # Try different date formats
+            formats_to_try = [
+                '%d/%m/%Y',   # UK/EU format: Day/Month/Year
+                '%m/%d/%Y',   # US format: Month/Day/Year
+                '%Y/%m/%d',   # ISO format: Year/Month/Day
+                '%d-%m-%Y',   # Alternative UK format
+                '%m-%d-%Y',   # Alternative US format
+                '%Y-%m-%d'    # Alternative ISO format
+            ]
+            
+            for sep in separators:
+                for fmt in formats_to_try:
+                    reformatted_fmt = fmt.replace('/', sep).replace('-', sep)
+                    try:
+                        parsed_date = datetime.strptime(date_str.replace('/', sep).replace('-', sep), reformatted_fmt)
+                        # Additional validation
+                        if 2000 <= parsed_date.year <= datetime.now().year:
+                            return parsed_date.strftime('%d/%m/%Y')
+                    except ValueError:
+                        continue
+    
+    logging.warning(f"Could not extract valid date from text: {text}")
+    return None
+    
 def save_pdf(pdf_url, base_dir='pdfs'):
     """Download and save PDF, return local path and filename"""
     try:
