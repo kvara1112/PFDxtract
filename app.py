@@ -97,7 +97,7 @@ def extract_metadata(content: str) -> dict:
     
     return metadata
 
-def def process_scraped_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def process_scraped_data(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Process scraped data to create two separate dataframes - one for PFD reports and one for responses.
     
