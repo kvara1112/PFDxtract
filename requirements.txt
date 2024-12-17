@@ -5,6 +5,8 @@ streamlit==1.31.0
 pandas==2.2.0
 numpy==1.26.3
 openpyxl==3.1.2
+scipy==1.12.0
+scikit-learn==1.3.2
 
 # Web Scraping
 beautifulsoup4==4.12.3
@@ -27,13 +29,15 @@ bertopic==0.16.0
 sentence-transformers==2.7.0
 umap-learn==0.5.4
 hdbscan==0.8.33
-scikit-learn==1.3.2
-scipy==1.12.0
+gensim==4.3.2
+
+# Machine Learning and Deep Learning
 torch==2.1.2
 transformers==4.36.2
 
 # Visualization
 plotly==5.18.0
+matplotlib==3.8.2
 
 # Utility
 python-dateutil==2.8.2
