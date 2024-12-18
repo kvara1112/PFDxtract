@@ -897,46 +897,60 @@ def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, 
     return True, "Data is valid"
 
 def analyze_data_quality(df: pd.DataFrame) -> None:
+    # High-level metrics
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric("Total Records", len(df))
     
     with col2:
-        completeness = 100 - (df.isnull().sum().sum() / (len(df.columns) * len(df)) * 100)
+        # Calculate completeness excluding list columns
+        non_list_cols = df.select_dtypes(exclude=['object']).columns
+        completeness = 100 - (df[non_list_cols].isnull().sum().sum() / (len(non_list_cols) * len(df)) * 100)
         st.metric("Data Completeness", f"{completeness:.2f}%")
     
     with col3:
-        duplicates = df.duplicated().sum()
+        # Calculate duplicates based on key columns
+        key_cols = ['Title', 'URL', 'date_of_report']
+        duplicates = df.duplicated(subset=key_cols).sum()
         st.metric("Duplicate Records", duplicates)
     
     with col4:
         unique_records = len(df) - duplicates
         st.metric("Unique Records", unique_records)
     
+    # Column Completeness Analysis
     st.subheader("Column Completeness")
     
-    missing_data = df.isnull().sum()
-    missing_percentages = (missing_data / len(df)) * 100
+    # Handle non-list columns for completeness analysis
+    completeness_data = []
+    for column in df.columns:
+        if df[column].dtype != 'object' or not df[column].apply(lambda x: isinstance(x, list)).any():
+            missing = df[column].isnull().sum()
+            completeness_pct = (1 - missing / len(df)) * 100
+            completeness_data.append({
+                'Column': column,
+                'Missing Values': missing,
+                'Completeness (%)': round(completeness_pct, 2)
+            })
     
-    completeness_df = pd.DataFrame({
-        'Column': missing_data.index,
-        'Missing Values': missing_data.values,
-        'Completeness (%)': (100 - missing_percentages).round(2)
-    }).sort_values('Missing Values', ascending=False)
+    completeness_df = pd.DataFrame(completeness_data).sort_values('Missing Values', ascending=False)
     
-    fig_completeness = px.bar(
-        completeness_df,
-        x='Column',
-        y='Completeness (%)',
-        title='Column Completeness',
-        labels={'Completeness (%)': 'Completeness (%)'},
-        color='Completeness (%)',
-        color_continuous_scale='RdYlGn'
-    )
-    fig_completeness.update_layout(xaxis_tickangle=-45)
-    st.plotly_chart(fig_completeness, use_container_width=True)
+    # Create completeness visualization
+    if not completeness_df.empty:
+        fig_completeness = px.bar(
+            completeness_df,
+            x='Column',
+            y='Completeness (%)',
+            title='Column Completeness',
+            labels={'Completeness (%)': 'Completeness (%)'},
+            color='Completeness (%)',
+            color_continuous_scale='RdYlGn'
+        )
+        fig_completeness.update_layout(xaxis_tickangle=-45)
+        st.plotly_chart(fig_completeness, use_container_width=True)
     
+    # Detailed Column Analysis
     st.subheader("Detailed Column Analysis")
     
     tab1, tab2, tab3 = st.tabs([
@@ -951,34 +965,45 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
         for col in categorical_cols:
             if col in df.columns:
                 if col == 'categories':
-                    all_categories = []
-                    for cats in df[col].dropna():
-                        if isinstance(cats, str):
+                    # Flatten list columns safely
+                    all_values = []
+                    for value in df[col].dropna():
+                        if isinstance(value, list):
+                            all_values.extend(value)
+                        elif isinstance(value, str):
                             try:
-                                parsed_cats = ast.literal_eval(cats)
-                                if isinstance(parsed_cats, list):
-                                    all_categories.extend(parsed_cats)
-                                else:
-                                    all_categories.append(parsed_cats)
+                                parsed_value = ast.literal_eval(value)
+                                if isinstance(parsed_value, list):
+                                    all_values.extend(parsed_value)
                             except:
-                                all_categories.append(cats)
-                        elif isinstance(cats, list):
-                            all_categories.extend(cats)
+                                all_values.append(value)
                     
-                    category_counts = pd.Series(all_categories).value_counts()
+                    if all_values:
+                        value_counts = pd.Series(all_values).value_counts()
+                        top_values = value_counts.head(10)
+                        
+                        fig_cat = px.bar(
+                            x=top_values.index, 
+                            y=top_values.values,
+                            title=f'Top 10 Values in {col}',
+                            labels={'x': 'Value', 'y': 'Count'}
+                        )
+                        fig_cat.update_layout(xaxis_tickangle=-45)
+                        st.plotly_chart(fig_cat, use_container_width=True)
                 else:
-                    category_counts = df[col].value_counts()
-                
-                top_categories = category_counts.head(10)
-                
-                fig_cat = px.bar(
-                    x=top_categories.index, 
-                    y=top_categories.values,
-                    title=f'Top 10 Categories in {col}',
-                    labels={'x': 'Category', 'y': 'Count'}
-                )
-                fig_cat.update_layout(xaxis_tickangle=-45)
-                st.plotly_chart(fig_cat, use_container_width=True)
+                    # Handle regular categorical columns
+                    value_counts = df[col].value_counts()
+                    if not value_counts.empty:
+                        top_values = value_counts.head(10)
+                        
+                        fig_cat = px.bar(
+                            x=top_values.index, 
+                            y=top_values.values,
+                            title=f'Top 10 Values in {col}',
+                            labels={'x': 'Value', 'y': 'Count'}
+                        )
+                        fig_cat.update_layout(xaxis_tickangle=-45)
+                        st.plotly_chart(fig_cat, use_container_width=True)
     
     with tab2:
         numerical_cols = df.select_dtypes(include=['int64', 'float64']).columns
@@ -1021,6 +1046,7 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
                 st.metric("Latest Date", max_date.strftime('%Y-%m-%d'))
             with col3:
                 st.metric("Total Date Range", f"{(max_date - min_date).days} days")
+
 
 def render_analysis_tab(data: pd.DataFrame):
     st.header("Reports Analysis")
