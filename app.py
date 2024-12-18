@@ -922,7 +922,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             # Cleanup zip file
             os.remove(pdf_zip_path)
 
-ef render_file_upload():
+def render_file_upload():
     """Render file upload section"""
     st.header("Upload Existing Data")
     
