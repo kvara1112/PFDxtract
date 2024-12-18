@@ -712,14 +712,6 @@ def render_topic_modeling_tab():
             help="Select number of topics to extract"
         )
         
-        similarity_threshold = st.slider(
-            "Word Similarity Threshold",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.3,
-            help="Minimum similarity score for word connections"
-        )
-        
         max_features = st.slider(
             "Maximum Features",
             min_value=100,
@@ -728,17 +720,44 @@ def render_topic_modeling_tab():
             step=100,
             help="Maximum number of words to include in analysis"
         )
+        
+        min_doc_freq = st.slider(
+            "Minimum Document Frequency",
+            min_value=1,
+            max_value=10,
+            value=2,
+            help="Minimum number of documents a word must appear in"
+        )
+
+        similarity_threshold = st.slider(
+            "Word Similarity Threshold",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.3,
+            help="Minimum similarity score for word connections"
+        )
     
     # Run topic modeling
     if st.button("Extract Topics"):
         try:
-            with st.spinner("Extracting topics..."):
+            with st.spinner("Preprocessing text and extracting topics..."):
+                # First, check if we have enough valid text
+                valid_docs = st.session_state.scraped_data['Content'].dropna().str.strip().str.len() > 0
+                if valid_docs.sum() < 2:
+                    st.error("Not enough valid documents found. Please ensure you have scraped or uploaded documents with text content.")
+                    return
+                
                 # Extract topics
-                lda_model, vectorizer, doc_topics = extract_topics_lda(
+                result = extract_topics_lda(
                     st.session_state.scraped_data,
                     num_topics=num_topics,
                     max_features=max_features
                 )
+                
+                if result[0] is None:
+                    return
+                
+                lda_model, vectorizer, doc_topics = result
                 
                 # Store results
                 st.session_state.topic_model = {
@@ -751,6 +770,7 @@ def render_topic_modeling_tab():
         
         except Exception as e:
             st.error(f"Error during topic extraction: {str(e)}")
+            logging.error(f"Topic modeling error: {e}", exc_info=True)
             return
     
     # Display results if model exists
@@ -761,33 +781,46 @@ def render_topic_modeling_tab():
         feature_names = st.session_state.topic_model['vectorizer'].get_feature_names_out()
         
         # Create tabs for different visualizations
-        topic_tab, dist_tab, network_tab = st.tabs([
+        topic_tab, dist_tab, network_tab, doc_tab = st.tabs([
             "Topic Keywords",
             "Topic Distribution",
-            "Word Networks"
+            "Word Networks",
+            "Documents by Topic"
         ])
         
         with topic_tab:
             # Display top words per topic
             for idx, topic in enumerate(st.session_state.topic_model['model'].components_):
-                top_words = [feature_names[i] for i in topic.argsort()[:-11:-1]]
-                st.write(f"**Topic {idx + 1}:** {', '.join(top_words)}")
+                # Get top words and their weights
+                top_indices = topic.argsort()[:-11:-1]
+                top_words = [feature_names[i] for i in top_indices]
+                weights = [topic[i] for i in top_indices]
+                
+                # Create word-weight pairs
+                word_weights = [f"{word} ({weight:.3f})" for word, weight in zip(top_words, weights)]
+                
+                st.write(f"**Topic {idx + 1}:** {', '.join(word_weights)}")
         
         with dist_tab:
             # Plot topic distribution
             topic_dist = np.sum(st.session_state.topic_model['doc_topics'], axis=0)
+            topic_props = topic_dist / topic_dist.sum() * 100
+            
             fig = px.bar(
                 x=[f"Topic {i+1}" for i in range(num_topics)],
-                y=topic_dist,
-                title="Topic Distribution Across Documents"
+                y=topic_props,
+                title="Topic Distribution Across Documents",
+                labels={'x': 'Topic', 'y': 'Percentage of Documents (%)'}
             )
+            fig.update_layout(showlegend=False)
             st.plotly_chart(fig)
         
         with network_tab:
             # Create network diagrams for each topic
             for idx, topic in enumerate(st.session_state.topic_model['model'].components_):
                 with st.expander(f"Topic {idx + 1} Network"):
-                    top_words = [feature_names[i] for i in topic.argsort()[:-11:-1]]
+                    top_indices = topic.argsort()[:-11:-1]
+                    top_words = [feature_names[i] for i in top_indices]
                     fig = create_network_diagram(
                         top_words,
                         st.session_state.topic_model['model'].components_[idx].reshape(1, -1),
@@ -795,6 +828,50 @@ def render_topic_modeling_tab():
                     )
                     if fig:
                         st.plotly_chart(fig)
+        
+        with doc_tab:
+            # Show example documents for each topic
+            doc_topics = st.session_state.topic_model['doc_topics']
+            df = st.session_state.scraped_data
+            
+            for topic_idx in range(num_topics):
+                with st.expander(f"Topic {topic_idx + 1} Documents"):
+                    # Get documents where this topic has the highest probability
+                    topic_docs = [i for i, doc_topic in enumerate(doc_topics) 
+                                if np.argmax(doc_topic) == topic_idx]
+                    
+                    if topic_docs:
+                        st.write(f"Number of documents: {len(topic_docs)}")
+                        
+                        # Show top 3 documents
+                        for i, doc_idx in enumerate(topic_docs[:3], 1):
+                            st.markdown(f"**Document {i}**")
+                            st.markdown(f"*Title:* {df.iloc[doc_idx]['Title']}")
+                            st.markdown(f"*URL:* {df.iloc[doc_idx]['URL']}")
+                            
+                            # Show document preview
+                            content = df.iloc[doc_idx]['Content']
+                            preview = content[:500] + "..." if len(content) > 500 else content
+                            st.text_area(f"Content Preview {i}", preview, height=150)
+                    else:
+                        st.info("No documents found predominantly featuring this topic")
+            
+            # Add option to download topic assignments
+            topic_assignments = pd.DataFrame({
+                'Document': df['Title'],
+                'URL': df['URL'],
+                'Dominant_Topic': np.argmax(doc_topics, axis=1) + 1,
+                'Topic_Probability': np.max(doc_topics, axis=1)
+            })
+            
+            csv = topic_assignments.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "📥 Download Topic Assignments",
+                csv,
+                "topic_assignments.csv",
+                "text/csv",
+                key="download_topics"
+            )
                         
 def render_scraping_tab():
     """Render the scraping tab UI and functionality"""
