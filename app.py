@@ -38,16 +38,26 @@ HEADERS = {
 
 def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[requests.Response]:
     """Make HTTP request with retries and delay"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive',
+        'Referer': 'https://judiciary.uk/'
+    }
+    
     for attempt in range(retries):
         try:
             time.sleep(delay)  # Add delay between requests
-            response = requests.get(url, headers=HEADERS, verify=False, timeout=30)
+            response = requests.get(url, headers=headers, verify=False, timeout=30)
+            #st.write(f"Response status code: {response.status_code}")  # Debug response
             response.raise_for_status()
             return response
         except Exception as e:
             if attempt == retries - 1:
+                st.error(f"Request failed: {str(e)}")
                 raise e
-            time.sleep(delay * (attempt + 1))  # Exponential backoff
+            time.sleep(delay * (attempt + 1))
     return None
 
 # Initialize Streamlit
@@ -309,6 +319,193 @@ def get_report_content(url: str) -> Optional[Dict]:
         logging.error(f"Error getting report content: {e}")
         return None
 
+def scrape_page(url: str) -> List[Dict]:
+    """Scrape a single page of search results"""
+    try:
+        response = make_request(url)
+        if not response:
+            return []
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        results_list = soup.find('ul', class_='search__list')
+        
+        if not results_list:
+            logging.warning(f"No results list found on page: {url}")
+            return []
+        
+        reports = []
+        cards = results_list.find_all('div', class_='card')
+        
+        for card in cards:
+            try:
+                title_elem = card.find('h3', class_='card__title').find('a')
+                if not title_elem:
+                    continue
+                
+                title = clean_text(title_elem.text)
+                card_url = title_elem['href']
+                
+                logging.info(f"Processing report: {title}")
+                
+                if not card_url.startswith(('http://', 'https://')):
+                    card_url = f"https://www.judiciary.uk{card_url}"
+                
+                content_data = get_report_content(card_url)
+                
+                if content_data:
+                    report = {
+                        'Title': title,
+                        'URL': card_url,
+                        'Content': content_data['content']
+                    }
+                    
+                    # Add PDF data
+                    for i, (name, content, path) in enumerate(zip(
+                        content_data['pdf_names'],
+                        content_data['pdf_contents'],
+                        content_data['pdf_paths']
+                    ), 1):
+                        report[f'PDF_{i}_Name'] = name
+                        report[f'PDF_{i}_Content'] = content
+                        report[f'PDF_{i}_Path'] = path
+                    
+                    reports.append(report)
+                    logging.info(f"Successfully processed: {title}")
+                
+            except Exception as e:
+                logging.error(f"Error processing card: {e}")
+                continue
+        
+        return reports
+        
+    except Exception as e:
+        logging.error(f"Error fetching page {url}: {e}")
+        return []
+
+def get_total_pages(url: str) -> int:
+    """Get total number of pages"""
+    try:
+        response = make_request(url)
+        if not response:
+            return 0
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Check pagination
+        pagination = soup.find('nav', class_='navigation pagination')
+        if pagination:
+            page_numbers = pagination.find_all('a', class_='page-numbers')
+            numbers = [int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()]
+            if numbers:
+                return max(numbers)
+        
+        # Check if at least one page of results exists
+        results = soup.find('ul', class_='search__list')
+        if results and results.find_all('div', class_='card'):
+            return 1
+            
+        return 0
+        
+    except Exception as e:
+        logging.error(f"Error getting total pages: {e}")
+        return 0
+
+
+def scrape_pfd_reports(keyword: Optional[str] = None,
+                      category: Optional[str] = None,
+                      date_after: Optional[str] = None,
+                      date_before: Optional[str] = None,
+                      order: str = "relevance",
+                      max_pages: Optional[int] = None) -> List[Dict]:
+    """Scrape PFD reports with comprehensive filtering"""
+    all_reports = []
+    current_page = 1
+    base_url = "https://www.judiciary.uk"  # Add www. back
+    
+    # Build query parameters
+    params = {
+        'post_type': 'pfd',
+        'order': order
+    }
+    
+    if keyword and keyword.strip():
+        params['s'] = keyword.strip()
+    if category:
+        params['pfd_report_type'] = category
+    
+    # Handle date parameters - Keep original format
+    if date_after:
+        try:
+            day, month, year = date_after.split('/')
+            params['after-year'] = year
+            params['after-month'] = month
+            params['after-day'] = day
+        except ValueError as e:
+            logging.error(f"Invalid date_after format: {e}")
+            return []
+    
+    if date_before:
+        try:
+            day, month, year = date_before.split('/')
+            params['before-year'] = year
+            params['before-month'] = month
+            params['before-day'] = day
+        except ValueError as e:
+            logging.error(f"Invalid date_before format: {e}")
+            return []
+    
+    # Build initial URL
+    param_strings = [f"{k}={v}" for k, v in params.items()]
+    initial_url = f"{base_url}/?{'&'.join(param_strings)}"  # Remove /search/
+
+    st.write(f"Searching URL: {initial_url}")  # Debug URL
+    
+    try:
+        total_pages = get_total_pages(initial_url)
+        if total_pages == 0:
+            st.warning("No results found")
+            return []
+            
+        logging.info(f"Total pages to scrape: {total_pages}")
+        
+        if max_pages:
+            total_pages = min(total_pages, max_pages)
+        
+        # Setup progress tracking
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        while current_page <= total_pages:
+            # Build page URL
+            page_url = initial_url if current_page == 1 else f"{base_url}/page/{current_page}/?{'&'.join(param_strings)}"
+            
+            # Update progress
+            status_text.text(f"Scraping page {current_page} of {total_pages}...")
+            progress_bar.progress(current_page / total_pages)
+            
+            # Scrape page
+            reports = scrape_page(page_url)
+            
+            if reports:
+                all_reports.extend(reports)
+                logging.info(f"Found {len(reports)} reports on page {current_page}")
+            else:
+                logging.warning(f"No reports found on page {current_page}")
+                if current_page > 1:
+                    break
+            
+            current_page += 1
+        
+        progress_bar.progress(1.0)
+        status_text.text(f"Completed! Total reports found: {len(all_reports)}")
+        
+        return all_reports
+    
+    except Exception as e:
+        logging.error(f"Error in scrape_pfd_reports: {e}")
+        st.error(f"An error occurred while scraping reports: {e}")
+        return []
+
 def scrape_all_categories() -> List[Dict]:
     """Scrape reports from all available categories"""
     all_reports = []
@@ -355,8 +552,20 @@ def render_scraping_tab():
             ], format_func=lambda x: x[1])
         
         with col2:
-            date_after = st.date_input("Published after:", None)
-            date_before = st.date_input("Published before:", None)
+            date_after = st.date_input(
+                "Published after:",
+                None,
+                format="DD/MM/YYYY",
+                help="Select start date for report search"
+            )
+            
+            date_before = st.date_input(
+                "Published before:",
+                None,
+                format="DD/MM/YYYY",
+                help="Select end date for report search"
+            )
+            
             max_pages = st.number_input(
                 "Maximum pages to scrape (0 for all):", 
                 min_value=0, 
@@ -486,7 +695,7 @@ def render_scraping_tab():
                                 key="download_pdfs_zip"
                             )
                         
-                        # Cleanup
+                        # Cleanup zip file after download
                         try:
                             os.remove(pdf_zip_path)
                         except Exception as e:
