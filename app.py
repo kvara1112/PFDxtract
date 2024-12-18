@@ -114,27 +114,50 @@ def clean_text(text: str) -> str:
         return ""
 
 def extract_metadata(content: str) -> dict:
+    """Extract comprehensive metadata from report content with UK date handling"""
     metadata = {
         'date_of_report': None,
         'ref': None,
         'deceased_name': None,
         'coroner_name': None,
         'coroner_area': None,
-        'categories': []
+        'categories': [],
+        'hearing_date': None,
+        'investigation_date': None,
+        'report_sent_to': None,
+        'response_due_date': None,
+        'report_author': None,
+        'report_recipient': None,
+        'organisation': None,
+        'location': None
     }
     
     if not content:
         return metadata
         
     try:
+        # Extract dates with UK format handling
         date_patterns = [
-            r'Date of report:\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})',
-            r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})',
-            r'DATED this (\d{1,2}(?:st|nd|rd|th)?\s+day of [A-Za-z]+\s+\d{4})',
-            r'Date:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})'
+            # Date of report patterns
+            (r'Date of report:\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', 'date_of_report'),
+            (r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', 'date_of_report'),
+            (r'DATED this (\d{1,2}(?:st|nd|rd|th)?\s+day of [A-Za-z]+\s+\d{4})', 'date_of_report'),
+            (r'Date:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})', 'date_of_report'),
+            
+            # Investigation date patterns
+            (r'Investigation (?:concluded|completed) on:?\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', 'investigation_date'),
+            (r'Investigation date:?\s*(\d{1,2}/\d{1,2}/\d{4})', 'investigation_date'),
+            
+            # Hearing date patterns
+            (r'(?:Inquest|Hearing) concluded on:?\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', 'hearing_date'),
+            (r'Hearing date:?\s*(\d{1,2}/\d{1,2}/\d{4})', 'hearing_date'),
+            
+            # Response due date patterns
+            (r'Response due:?\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', 'response_due_date'),
+            (r'Response required by:?\s*(\d{1,2}/\d{1,2}/\d{4})', 'response_due_date')
         ]
         
-        for pattern in date_patterns:
+        for pattern, field in date_patterns:
             date_match = re.search(pattern, content, re.IGNORECASE)
             if date_match:
                 date_str = date_match.group(1)
@@ -149,31 +172,51 @@ def extract_metadata(content: str) -> dict:
                         except ValueError:
                             date_obj = datetime.strptime(date_str, '%d %b %Y')
                     
-                    metadata['date_of_report'] = date_obj.strftime('%d/%m/%Y')
-                    break
+                    metadata[field] = date_obj.strftime('%d/%m/%Y')
                 except ValueError as e:
-                    logging.warning(f"Invalid date format found: {date_str} - {e}")
+                    logging.warning(f"Invalid date format found for {field}: {date_str} - {e}")
         
-        ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', content)
-        if ref_match:
-            metadata['ref'] = ref_match.group(1).strip()
+        # Extract reference number (expanded patterns)
+        ref_patterns = [
+            r'Ref(?:erence)?:?\s*([-\d]+)',
+            r'Our ref(?:erence)?:?\s*([-\d/]+)',
+            r'Report ref(?:erence)?:?\s*([-\d/]+)'
+        ]
+        for pattern in ref_patterns:
+            ref_match = re.search(pattern, content, re.IGNORECASE)
+            if ref_match:
+                metadata['ref'] = ref_match.group(1).strip()
+                break
         
-        name_match = re.search(r'Deceased name:?\s*([^\n]+)', content)
-        if name_match:
-            metadata['deceased_name'] = clean_text(name_match.group(1)).strip()
+        # Extract names and details with expanded patterns
+        name_patterns = [
+            (r'(?:Name of )?[Dd]eceased(?:\'s name)?:?\s*([^\n]+)', 'deceased_name'),
+            (r'Coroner(?:\'?s)? name:?\s*([^\n]+)', 'coroner_name'),
+            (r'Coroner(?:\'?s)? Area:?\s*([^\n]+)', 'coroner_area'),
+            (r'Report made by:?\s*([^\n]+)', 'report_author'),
+            (r'Report (?:sent|addressed) to:?\s*([^\n]+)', 'report_recipient'),
+            (r'Organisation:?\s*([^\n]+)', 'organisation'),
+            (r'Location:?\s*([^\n]+)', 'location')
+        ]
         
-        coroner_match = re.search(r'Coroner(?:\'?s)? name:?\s*([^\n]+)', content)
-        if coroner_match:
-            metadata['coroner_name'] = clean_text(coroner_match.group(1)).strip()
+        for pattern, field in name_patterns:
+            match = re.search(pattern, content, re.IGNORECASE)
+            if match:
+                metadata[field] = clean_text(match.group(1)).strip()
         
-        area_match = re.search(r'Coroner(?:\'?s)? Area:?\s*([^\n]+)', content)
-        if area_match:
-            metadata['coroner_area'] = clean_text(area_match.group(1)).strip()
-        
+        # Extract categories
         cat_match = re.search(r'Category:?\s*([^\n]+)', content)
         if cat_match:
             categories = cat_match.group(1).split('|')
             metadata['categories'] = [clean_text(cat).strip() for cat in categories if clean_text(cat).strip()]
+        
+        # Additional cleaning
+        for key in metadata:
+            if isinstance(metadata[key], str):
+                # Remove common unwanted suffixes
+                metadata[key] = re.sub(r'\s*\(continued\)$', '', metadata[key])
+                metadata[key] = re.sub(r'\s*\[.*?\]$', '', metadata[key])
+                metadata[key] = metadata[key].strip()
         
         return metadata
         
