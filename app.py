@@ -942,33 +942,58 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             
             # Cleanup zip file
             os.remove(pdf_zip_path)
-
 def render_analysis_tab(data: pd.DataFrame):
-    """Render the analysis tab with working filters"""
+    """Render the analysis tab with comprehensive error handling"""
+    # Log the input data type and value for debugging
+    logging.info(f"Entering render_analysis_tab. Data type: {type(data)}")
+    logging.info(f"Data is None: {data is None}")
+    
     try:
-        # Validate data
-        if data is None or len(data) == 0:
-            st.warning("No data available for analysis. Please scrape or upload data first.")
+        # Extensive validation before processing
+        if data is None:
+            st.error("No data available. Please scrape or upload data first.")
+            logging.error("render_analysis_tab called with None data")
             return
-            
+        
+        if not isinstance(data, pd.DataFrame):
+            st.error(f"Invalid data type: {type(data)}. Expected pandas DataFrame.")
+            logging.error(f"Invalid data type received: {type(data)}")
+            return
+        
+        # Check if the DataFrame is empty
+        if len(data) == 0:
+            st.warning("The dataset is empty.")
+            logging.warning("Received an empty DataFrame")
+            return
+        
+        # Log column information for debugging
+        logging.info(f"Columns in data: {list(data.columns)}")
+        
         # Check required columns
         required_columns = ['date_of_report', 'categories', 'coroner_area']
         missing_columns = [col for col in required_columns if col not in data.columns]
         if missing_columns:
             st.error(f"Missing required columns: {', '.join(missing_columns)}")
+            logging.error(f"Missing columns: {missing_columns}")
             return
 
         st.header("Reports Analysis")
         
         # Ensure date_of_report is datetime
         if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
-            data['date_of_report'] = pd.to_datetime(data['date_of_report'], errors='coerce')
+            try:
+                data['date_of_report'] = pd.to_datetime(data['date_of_report'], errors='coerce')
+            except Exception as e:
+                st.error(f"Error converting date column: {e}")
+                logging.error(f"Date conversion error: {e}")
+                return
         
         # Handle missing dates
         if data['date_of_report'].isna().all():
             st.error("No valid dates found in the data.")
+            logging.error("All dates are NaT (Not a Time)")
             return
-            
+        
         # Store the original data
         if 'original_analysis_data' not in st.session_state:
             st.session_state.original_analysis_data = data.copy()
@@ -1072,9 +1097,6 @@ def render_analysis_tab(data: pd.DataFrame):
         # Display filtered results count
         st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
         
-        # Rest of the existing function remains the same...
-        # (Overview metrics, Visualizations, Export options)
-        
         # Overview metrics
         st.subheader("Overview")
         col1, col2, col3, col4 = st.columns(4)
@@ -1088,8 +1110,8 @@ def render_analysis_tab(data: pd.DataFrame):
                                  for cats in filtered_df['categories'].dropna())
             st.metric("Total Category Tags", categories_count)
         with col4:
-            date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
-            avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
+            date_range_days = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
+            avg_reports_month = len(filtered_df) / (date_range_days / 30) if date_range_days > 0 else len(filtered_df)
             st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
         
         # Visualizations
@@ -1122,9 +1144,8 @@ def render_analysis_tab(data: pd.DataFrame):
         show_export_options(filtered_df, "filtered")
 
     except Exception as e:
-        st.error(f"An error occurred in the analysis tab: {str(e)}")
-        logging.error(f"Analysis error: {e}", exc_info=True)
-        
+        st.error(f"An unexpected error occurred in the analysis tab: {str(e)}")
+        logging.error(f"Unexpected error in render_analysis_tab: {e}", exc_info=True)
 
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
