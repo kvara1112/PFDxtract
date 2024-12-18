@@ -1383,9 +1383,6 @@ def initialize_session_state():
     """Initialize all required session state variables"""
     # Check if already initialized to prevent repeated clearing
     if not hasattr(st.session_state, 'initialized') or not st.session_state.initialized:
-        # Safer way to clear existing session state
-        keys_to_preserve = []
-        
         # Reset specific keys
         default_state = {
             'data_source': None,
@@ -1413,8 +1410,8 @@ def initialize_session_state():
         for key, value in default_state.items():
             setattr(st.session_state, key, value)
     
-    # Perform PDF cleanup - moved to a separate method for clarity
-    def cleanup_pdf_files():
+    # Perform PDF cleanup
+    if not st.session_state.cleanup_done:
         try:
             pdf_dir = 'pdfs'
             os.makedirs(pdf_dir, exist_ok=True)
@@ -1433,16 +1430,6 @@ def initialize_session_state():
                             cleanup_count += 1
                 except Exception as e:
                     logging.warning(f"Error cleaning up file {file_path}: {e}")
-        
-        except Exception as e:
-            logging.error(f"Error during PDF cleanup: {e}")
-        
-        return cleanup_count
-    
-    # Only perform cleanup if not already done
-    if not st.session_state.cleanup_done:
-        try:
-            cleanup_count = cleanup_pdf_files()
             
             if cleanup_count > 0:
                 logging.info(f"Cleaned up {cleanup_count} old PDF files")
@@ -1451,7 +1438,7 @@ def initialize_session_state():
             st.session_state.cleanup_done = True
         
         except Exception as e:
-            logging.error(f"Unexpected error in PDF cleanup: {e}")
+            logging.error(f"Error during PDF cleanup: {e}")
             st.session_state.cleanup_done = False
 
 def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
