@@ -943,13 +943,9 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             # Cleanup zip file
             os.remove(pdf_zip_path)
 
-    
 def render_analysis_tab(data: pd.DataFrame):
     """Render the analysis tab with working filters"""
     try:
-        # Generate a unique key prefix for this session
-        unique_id = f"{int(time.time() * 1000)}"
-        
         # Validate data
         if data is None or len(data) == 0:
             st.warning("No data available for analysis. Please scrape or upload data first.")
@@ -980,7 +976,15 @@ def render_analysis_tab(data: pd.DataFrame):
         # Get date range for the data
         min_date = data['date_of_report'].min().date()
         max_date = data['date_of_report'].max().date()
-            
+        
+        # Initialize filter state if not exists
+        if 'analysis_filters' not in st.session_state:
+            st.session_state.analysis_filters = {
+                'date_range': (min_date, max_date),
+                'selected_categories': [],
+                'selected_areas': []
+            }
+        
         # Filters sidebar
         with st.sidebar:
             st.header("Analysis Filters")
@@ -988,10 +992,10 @@ def render_analysis_tab(data: pd.DataFrame):
             # Date range filter
             date_range = st.date_input(
                 "Date Range",
-                value=(min_date, max_date),
+                value=st.session_state.analysis_filters['date_range'],
                 min_value=min_date,
                 max_value=max_date,
-                key=f"date_range_{unique_id}"
+                key="date_range_filter"
             )
             
             # Category filter
@@ -1003,7 +1007,8 @@ def render_analysis_tab(data: pd.DataFrame):
             selected_categories = st.multiselect(
                 "Categories",
                 options=sorted(all_categories),
-                key=f"categories_{unique_id}"
+                default=st.session_state.analysis_filters['selected_categories'],
+                key="categories_filter"
             )
             
             # Coroner area filter
@@ -1011,15 +1016,20 @@ def render_analysis_tab(data: pd.DataFrame):
             selected_areas = st.multiselect(
                 "Coroner Areas",
                 options=coroner_areas,
-                key=f"areas_{unique_id}"
+                default=st.session_state.analysis_filters['selected_areas'],
+                key="areas_filter"
             )
             
+            # Update session state for filters
+            st.session_state.analysis_filters['date_range'] = date_range
+            st.session_state.analysis_filters['selected_categories'] = selected_categories
+            st.session_state.analysis_filters['selected_areas'] = selected_areas
+            
             # Add a clear filters button
-            if st.button("Clear Filters", key=f"clear_filters_{unique_id}"):
-                st.session_state[f"date_range_{unique_id}"] = (min_date, max_date)
-                st.session_state[f"categories_{unique_id}"] = []
-                st.session_state[f"areas_{unique_id}"] = []
-                st.rerun()
+            if st.button("Clear Filters", key="clear_analysis_filters"):
+                st.session_state.analysis_filters['date_range'] = (min_date, max_date)
+                st.session_state.analysis_filters['selected_categories'] = []
+                st.session_state.analysis_filters['selected_areas'] = []
         
         # Apply filters
         filtered_df = data.copy()
@@ -1045,7 +1055,7 @@ def render_analysis_tab(data: pd.DataFrame):
         
         # Show filter status
         active_filters = []
-        if len(date_range) == 2:
+        if len(date_range) == 2 and (date_range[0] != min_date or date_range[1] != max_date):
             active_filters.append(f"Date range: {date_range[0]} to {date_range[1]}")
         if selected_categories:
             active_filters.append(f"Categories: {', '.join(selected_categories)}")
@@ -1061,6 +1071,9 @@ def render_analysis_tab(data: pd.DataFrame):
             
         # Display filtered results count
         st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
+        
+        # Rest of the existing function remains the same...
+        # (Overview metrics, Visualizations, Export options)
         
         # Overview metrics
         st.subheader("Overview")
