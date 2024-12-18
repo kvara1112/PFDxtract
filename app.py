@@ -1522,7 +1522,7 @@ def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, 
     return True, "Data is valid"
 
 def analyze_data_quality(df: pd.DataFrame) -> None:
-    """Comprehensive data quality analysis with improved visualization"""
+    """Comprehensive data quality analysis with robust list handling"""
     # Create columns for high-level metrics
     col1, col2, col3, col4 = st.columns(4)
     
@@ -1583,34 +1583,53 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
     
     with tab1:
         # Categorical Column Analysis
-        categorical_cols = df.select_dtypes(include=['object', 'category']).columns
+        categorical_cols = ['categories', 'coroner_area']
         
         for col in categorical_cols:
-            # Special handling for list-type categories
-            if col == 'categories' and df[col].dtype == 'object':
-                try:
-                    # Flatten list categories
-                    all_categories = [item for sublist in df[col].dropna() for item in eval(sublist)]
+            if col in df.columns:
+                # Special handling for categories column
+                if col == 'categories':
+                    # Flatten categories, handling both list and string representations
+                    try:
+                        # Attempt to handle both list and string representations
+                        all_categories = []
+                        for cats in df[col].dropna():
+                            # If it's a string representation of a list, eval it
+                            if isinstance(cats, str):
+                                try:
+                                    parsed_cats = eval(cats)
+                                    if isinstance(parsed_cats, list):
+                                        all_categories.extend(parsed_cats)
+                                except:
+                                    # If eval fails, treat as a single category
+                                    all_categories.append(cats)
+                            # If it's already a list
+                            elif isinstance(cats, list):
+                                all_categories.extend(cats)
+                    except Exception as e:
+                        st.error(f"Error processing categories: {e}")
+                        continue
+                    
+                    # Count categories
                     category_counts = pd.Series(all_categories).value_counts()
-                except:
+                else:
+                    # For other categorical columns
                     category_counts = df[col].value_counts()
-            else:
-                category_counts = df[col].value_counts()
-            
-            # Top 10 categories
-            top_categories = category_counts.head(10)
-            
-            fig_cat = px.bar(
-                x=top_categories.index, 
-                y=top_categories.values,
-                title=f'Top 10 Categories in {col}',
-                labels={'x': 'Category', 'y': 'Count'}
-            )
-            fig_cat.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig_cat, use_container_width=True)
+                
+                # Visualize top categories
+                top_categories = category_counts.head(10)
+                
+                fig_cat = px.bar(
+                    x=top_categories.index, 
+                    y=top_categories.values,
+                    title=f'Top 10 Categories in {col}',
+                    labels={'x': 'Category', 'y': 'Count'}
+                )
+                fig_cat.update_layout(xaxis_tickangle=-45)
+                st.plotly_chart(fig_cat, use_container_width=True)
     
     with tab2:
-        # Numerical Column Analysis
+        # Numerical Column Analysis would remain the same as in previous implementation
         numerical_cols = df.select_dtypes(include=['int64', 'float64']).columns
         
         if len(numerical_cols) > 0:
@@ -1630,7 +1649,7 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
             st.plotly_chart(fig_box, use_container_width=True)
     
     with tab3:
-        # Date Column Analysis
+        # Date Column Analysis would remain the same as in previous implementation
         date_cols = df.select_dtypes(include=['datetime64']).columns
         
         for col in date_cols:
@@ -1657,6 +1676,7 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
                 st.metric("Latest Date", max_date.strftime('%Y-%m-%d'))
             with col3:
                 st.metric("Total Date Range", f"{(max_date - min_date).days} days")
+                
 def main():
     try:
         initialize_session_state()
