@@ -832,6 +832,79 @@ def render_scraping_tab():
                     
                     st.success(f"Found {len(reports)} reports")
                     
+                    # Display results table
+                    st.subheader("Results")
+                    st.dataframe(
+                        df,
+                        column_config={
+                            "URL": st.column_config.LinkColumn("Report Link"),
+                            "date_of_report": st.column_config.DateColumn("Date of Report"),
+                            "categories": st.column_config.ListColumn("Categories")
+                        },
+                        hide_index=True
+                    )
+                    
+                    # Export options
+                    st.subheader("Export Options")
+                    
+                    # Generate filename
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"pfd_reports_{search_keyword}_{timestamp}"
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    # CSV Export
+                    with col1:
+                        csv = df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            "📥 Download Reports (CSV)",
+                            csv,
+                            f"{filename}.csv",
+                            "text/csv",
+                            key="download_csv_scrape"
+                        )
+                    
+                    # Excel Export
+                    with col2:
+                        excel_data = export_to_excel(df)
+                        st.download_button(
+                            "📥 Download Reports (Excel)",
+                            excel_data,
+                            f"{filename}.xlsx",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key="download_excel_scrape"
+                        )
+                    
+                    # PDF Download
+                    st.subheader("Download PDFs")
+                    if st.button("Download all PDFs"):
+                        with st.spinner("Preparing PDF download..."):
+                            pdf_zip_path = f"{filename}_pdfs.zip"
+                            
+                            with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
+                                unique_pdfs = set()
+                                pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
+                                
+                                for col in pdf_columns:
+                                    paths = df[col].dropna()
+                                    unique_pdfs.update(paths)
+                                
+                                for pdf_path in unique_pdfs:
+                                    if pdf_path and os.path.exists(pdf_path):
+                                        zipf.write(pdf_path, os.path.basename(pdf_path))
+                            
+                            with open(pdf_zip_path, 'rb') as f:
+                                st.download_button(
+                                    "📦 Download All PDFs (ZIP)",
+                                    f.read(),
+                                    pdf_zip_path,
+                                    "application/zip",
+                                    key="download_pdfs_zip_scrape"
+                                )
+                            
+                            # Cleanup zip file
+                            os.remove(pdf_zip_path)
+                    
                     return True
                 else:
                     st.warning("No reports found matching your search criteria")
@@ -841,6 +914,7 @@ def render_scraping_tab():
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
+            
 
 def render_file_upload():
     """Render file upload section"""
