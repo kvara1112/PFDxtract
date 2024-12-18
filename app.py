@@ -526,7 +526,7 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
 def plot_timeline(df: pd.DataFrame) -> None:
     """Plot timeline of reports"""
     timeline_data = df.groupby(
-        pd.Grouper(key='date_of_report', freq='M')
+        pd.Grouper(key='date_of_report', freq='ME')
     ).size().reset_index()
     timeline_data.columns = ['Date', 'Count']
     
@@ -1657,7 +1657,7 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
             max_date = df[col].max()
             
             # Monthly distribution
-            monthly_dist = df.groupby(pd.Grouper(key=col, freq='M')).size()
+            monthly_dist = df.groupby(pd.Grouper(key=col, freq='ME')).size()
             
             fig_date = px.line(
                 x=monthly_dist.index, 
