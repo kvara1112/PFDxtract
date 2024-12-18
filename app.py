@@ -945,9 +945,9 @@ def show_export_options(df: pd.DataFrame, prefix: str):
 
     
 def render_analysis_tab(data: pd.DataFrame):
-    """Render the analysis tab"""
+    """Render the analysis tab with working filters"""
     try:
-        # Generate a unique key prefix for this session that includes milliseconds
+        # Generate a unique key prefix for this session
         unique_id = f"{int(time.time() * 1000)}"
         
         # Validate data
@@ -973,20 +973,29 @@ def render_analysis_tab(data: pd.DataFrame):
             st.error("No valid dates found in the data.")
             return
             
+        # Store the original data in session state if not already present
+        if 'original_analysis_data' not in st.session_state:
+            st.session_state.original_analysis_data = data.copy()
+            
+        # Initialize filter states if not present
+        if 'filter_date_range' not in st.session_state:
+            st.session_state.filter_date_range = [
+                data['date_of_report'].min().date(),
+                data['date_of_report'].max().date()
+            ]
+        if 'filter_categories' not in st.session_state:
+            st.session_state.filter_categories = []
+        if 'filter_areas' not in st.session_state:
+            st.session_state.filter_areas = []
+            
         # Filters sidebar
         with st.sidebar:
             st.header("Analysis Filters")
             
-            # Date range filter with validation
-            min_date = data['date_of_report'].min()
-            max_date = data['date_of_report'].max()
-            if pd.isna(min_date) or pd.isna(max_date):
-                st.error("Invalid date range in data")
-                return
-                
+            # Date range filter
             date_range = st.date_input(
                 "Date Range",
-                value=[min_date.date(), max_date.date()],
+                value=st.session_state.filter_date_range,
                 key=f"date_range_{unique_id}"
             )
             
@@ -996,44 +1005,77 @@ def render_analysis_tab(data: pd.DataFrame):
                 if isinstance(cats, list):
                     all_categories.update(cats)
             
-            if all_categories:
-                selected_categories = st.multiselect(
-                    "Categories",
-                    options=sorted(all_categories),
-                    key=f"categories_{unique_id}"
-                )
+            selected_categories = st.multiselect(
+                "Categories",
+                options=sorted(all_categories),
+                default=st.session_state.filter_categories,
+                key=f"categories_{unique_id}"
+            )
             
             # Coroner area filter
             coroner_areas = sorted(data['coroner_area'].dropna().unique())
-            if len(coroner_areas) > 0:
-                selected_areas = st.multiselect(
-                    "Coroner Areas",
-                    options=coroner_areas,
-                    key=f"areas_{unique_id}"
-                )
-            else:
-                selected_areas = []
+            selected_areas = st.multiselect(
+                "Coroner Areas",
+                options=coroner_areas,
+                default=st.session_state.filter_areas,
+                key=f"areas_{unique_id}"
+            )
+            
+            # Add a clear filters button
+            if st.button("Clear Filters", key=f"clear_filters_{unique_id}"):
+                st.session_state.filter_date_range = [
+                    data['date_of_report'].min().date(),
+                    data['date_of_report'].max().date()
+                ]
+                st.session_state.filter_categories = []
+                st.session_state.filter_areas = []
+                st.rerun()
+        
+        # Update session state with new filter values
+        st.session_state.filter_date_range = list(date_range)
+        st.session_state.filter_categories = selected_categories
+        st.session_state.filter_areas = selected_areas
         
         # Apply filters
-        mask = pd.Series(True, index=data.index)
+        filtered_df = data.copy()
         
+        # Date filter
         if len(date_range) == 2:
-            mask &= (data['date_of_report'].dt.date >= date_range[0]) & \
-                    (data['date_of_report'].dt.date <= date_range[1])
+            filtered_df = filtered_df[
+                (filtered_df['date_of_report'].dt.date >= date_range[0]) &
+                (filtered_df['date_of_report'].dt.date <= date_range[1])
+            ]
         
+        # Category filter
         if selected_categories:
-            mask &= data['categories'].apply(
-                lambda x: any(cat in x for cat in selected_categories) if isinstance(x, list) else False
-            )
+            filtered_df = filtered_df[
+                filtered_df['categories'].apply(
+                    lambda x: any(cat in x for cat in selected_categories) if isinstance(x, list) else False
+                )
+            ]
         
+        # Area filter
         if selected_areas:
-            mask &= data['coroner_area'].isin(selected_areas)
+            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
         
-        filtered_df = data[mask]
+        # Show filter status
+        active_filters = []
+        if len(date_range) == 2:
+            active_filters.append(f"Date range: {date_range[0]} to {date_range[1]}")
+        if selected_categories:
+            active_filters.append(f"Categories: {', '.join(selected_categories)}")
+        if selected_areas:
+            active_filters.append(f"Areas: {', '.join(selected_areas)}")
+            
+        if active_filters:
+            st.info(f"Active filters: {' • '.join(active_filters)}")
         
         if len(filtered_df) == 0:
             st.warning("No data matches the selected filters.")
             return
+            
+        # Display filtered results count
+        st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
         
         # Overview metrics
         st.subheader("Overview")
@@ -1441,10 +1483,10 @@ def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, 
             return False, "Categories must be stored as lists or None values."
     
     return True, "Data is valid"
+    
 def main():
     try:
         initialize_session_state()
-        
         st.title("UK Judiciary PFD Reports Analysis")
         st.markdown("""
         This application allows you to analyze Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
