@@ -973,20 +973,13 @@ def render_analysis_tab(data: pd.DataFrame):
             st.error("No valid dates found in the data.")
             return
             
-        # Store the original data in session state if not already present
+        # Store the original data
         if 'original_analysis_data' not in st.session_state:
             st.session_state.original_analysis_data = data.copy()
-            
-        # Initialize filter states if not present
-        if 'filter_date_range' not in st.session_state:
-            st.session_state.filter_date_range = [
-                data['date_of_report'].min().date(),
-                data['date_of_report'].max().date()
-            ]
-        if 'filter_categories' not in st.session_state:
-            st.session_state.filter_categories = []
-        if 'filter_areas' not in st.session_state:
-            st.session_state.filter_areas = []
+        
+        # Get date range for the data
+        min_date = data['date_of_report'].min().date()
+        max_date = data['date_of_report'].max().date()
             
         # Filters sidebar
         with st.sidebar:
@@ -995,7 +988,9 @@ def render_analysis_tab(data: pd.DataFrame):
             # Date range filter
             date_range = st.date_input(
                 "Date Range",
-                value=st.session_state.filter_date_range,
+                value=(min_date, max_date),
+                min_value=min_date,
+                max_value=max_date,
                 key=f"date_range_{unique_id}"
             )
             
@@ -1008,7 +1003,6 @@ def render_analysis_tab(data: pd.DataFrame):
             selected_categories = st.multiselect(
                 "Categories",
                 options=sorted(all_categories),
-                default=st.session_state.filter_categories,
                 key=f"categories_{unique_id}"
             )
             
@@ -1017,24 +1011,15 @@ def render_analysis_tab(data: pd.DataFrame):
             selected_areas = st.multiselect(
                 "Coroner Areas",
                 options=coroner_areas,
-                default=st.session_state.filter_areas,
                 key=f"areas_{unique_id}"
             )
             
             # Add a clear filters button
             if st.button("Clear Filters", key=f"clear_filters_{unique_id}"):
-                st.session_state.filter_date_range = [
-                    data['date_of_report'].min().date(),
-                    data['date_of_report'].max().date()
-                ]
-                st.session_state.filter_categories = []
-                st.session_state.filter_areas = []
+                st.session_state[f"date_range_{unique_id}"] = (min_date, max_date)
+                st.session_state[f"categories_{unique_id}"] = []
+                st.session_state[f"areas_{unique_id}"] = []
                 st.rerun()
-        
-        # Update session state with new filter values
-        st.session_state.filter_date_range = list(date_range)
-        st.session_state.filter_categories = selected_categories
-        st.session_state.filter_areas = selected_areas
         
         # Apply filters
         filtered_df = data.copy()
@@ -1050,7 +1035,7 @@ def render_analysis_tab(data: pd.DataFrame):
         if selected_categories:
             filtered_df = filtered_df[
                 filtered_df['categories'].apply(
-                    lambda x: any(cat in x for cat in selected_categories) if isinstance(x, list) else False
+                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
                 )
             ]
         
@@ -1086,7 +1071,9 @@ def render_analysis_tab(data: pd.DataFrame):
         with col2:
             st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique())
         with col3:
-            st.metric("Categories", len(all_categories))
+            categories_count = sum(len(cats) if isinstance(cats, list) else 0 
+                                 for cats in filtered_df['categories'].dropna())
+            st.metric("Total Category Tags", categories_count)
         with col4:
             date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
             avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
@@ -1118,42 +1105,8 @@ def render_analysis_tab(data: pd.DataFrame):
             except Exception as e:
                 st.error(f"Error creating coroner areas plot: {str(e)}")
         
-        # Export options
-        st.subheader("Export Options")
-        
-        # Generate filename
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"pfd_reports_analysis_{timestamp}"
-        
-        col1, col2 = st.columns(2)
-        
-        # CSV Export
-        with col1:
-            try:
-                csv = filtered_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "📥 Download Filtered Data (CSV)",
-                    csv,
-                    f"{filename}.csv",
-                    "text/csv",
-                    key=f"download_csv_{unique_id}"
-                )
-            except Exception as e:
-                st.error(f"Error preparing CSV download: {str(e)}")
-        
-        # Excel Export
-        with col2:
-            try:
-                excel_data = export_to_excel(filtered_df)
-                st.download_button(
-                    "📥 Download Filtered Data (Excel)",
-                    excel_data,
-                    f"{filename}.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"download_excel_{unique_id}"
-                )
-            except Exception as e:
-                st.error(f"Error preparing Excel download: {str(e)}")
+        # Export filtered data
+        show_export_options(filtered_df, "filtered")
 
     except Exception as e:
         st.error(f"An error occurred in the analysis tab: {str(e)}")
