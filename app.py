@@ -996,6 +996,165 @@ def render_topic_modeling_tab() -> None:
             st.error(f"Error in topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
 
+def render_scraping_tab():
+    """Render the scraping tab UI and functionality"""
+    # Initialize directories if they don't exist
+    os.makedirs('pdfs', exist_ok=True)
+    
+    st.markdown("""
+    ## UK Judiciary PFD Reports Scraper
+    This tool scrapes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can search by keywords, categories, and date ranges.
+    """)
+    
+    with st.form("search_form"):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            search_keyword = st.text_input("Search keywords:", "")
+            category = st.selectbox("PFD Report type:", [""] + get_pfd_categories())
+            order = st.selectbox("Sort by:", [
+                "relevance",
+                "desc",
+                "asc"
+            ], format_func=lambda x: {
+                "relevance": "Relevance",
+                "desc": "Newest first",
+                "asc": "Oldest first"
+            }[x])
+        
+        with col2:
+            date_after = st.date_input(
+                "Published after:",
+                None,
+                format="DD/MM/YYYY"
+            )
+            
+            date_before = st.date_input(
+                "Published before:",
+                None,
+                format="DD/MM/YYYY"
+            )
+            
+            max_pages = st.number_input(
+                "Maximum pages to scrape (0 for all):", 
+                min_value=0, 
+                value=0
+            )
+        
+        submitted = st.form_submit_button("Search Reports")
+    
+    if submitted:
+        try:
+            with st.spinner("Searching for reports..."):
+                # Convert dates to required format
+                date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
+                date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
+                
+                # Set max pages
+                max_pages_val = None if max_pages == 0 else max_pages
+                
+                # Perform scraping
+                reports = scrape_pfd_reports(
+                    keyword=search_keyword,
+                    category=category if category else None,
+                    date_after=date_after_str,
+                    date_before=date_before_str,
+                    order=order,
+                    max_pages=max_pages_val
+                )
+                
+                if reports:
+                    # Process the data
+                    df = pd.DataFrame(reports)
+                    df = process_scraped_data(df)
+                    
+                    # Store in session state
+                    st.session_state.scraped_data = df
+                    
+                    st.success(f"Found {len(reports)} reports")
+                    
+                    # Display results
+                    st.header("Results")
+                    st.dataframe(
+                        df,
+                        column_config={
+                            "URL": st.column_config.LinkColumn("Report Link"),
+                            "date_of_report": st.column_config.DateColumn("Date of Report"),
+                            "categories": st.column_config.ListColumn("Categories")
+                        },
+                        hide_index=True
+                    )
+                    
+                    # Export options
+                    st.header("Export Options")
+                    
+                    # Generate filename
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"pfd_reports_{search_keyword}_{timestamp}"
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    # CSV Export
+                    with col1:
+                        csv = df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            "📥 Download Reports (CSV)",
+                            csv,
+                            f"{filename}.csv",
+                            "text/csv",
+                            key="download_csv"
+                        )
+                    
+                    # Excel Export
+                    with col2:
+                        excel_buffer = io.BytesIO()
+                        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+                            df.to_excel(writer, index=False)
+                        excel_data = excel_buffer.getvalue()
+                        st.download_button(
+                            "📥 Download Reports (Excel)",
+                            excel_data,
+                            f"{filename}.xlsx",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key="download_excel"
+                        )
+                    
+                    # PDF Download
+                    st.header("Download PDFs")
+                    if st.button("Download all PDFs"):
+                        with st.spinner("Preparing PDF download..."):
+                            pdf_zip_path = f"{filename}_pdfs.zip"
+                            
+                            with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
+                                unique_pdfs = set()
+                                pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
+                                
+                                for col in pdf_columns:
+                                    paths = df[col].dropna()
+                                    unique_pdfs.update(paths)
+                                
+                                for pdf_path in unique_pdfs:
+                                    if pdf_path and os.path.exists(pdf_path):
+                                        zipf.write(pdf_path, os.path.basename(pdf_path))
+                            
+                            with open(pdf_zip_path, 'rb') as f:
+                                st.download_button(
+                                    "📦 Download All PDFs (ZIP)",
+                                    f.read(),
+                                    pdf_zip_path,
+                                    "application/zip",
+                                    key="download_pdfs_zip"
+                                )
+                            
+                            # Cleanup zip file
+                            os.remove(pdf_zip_path)
+                else:
+                    st.warning("No reports found matching your search criteria")
+                    
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+            logging.error(f"Scraping error: {e}")
 def render_analysis_tab() -> None:
     """Render the analysis tab"""
     st.header("Reports Analysis")
