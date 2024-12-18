@@ -1433,7 +1433,6 @@ def initialize_session_state():
 
 def main():
     try:
-        # Initialize session state
         initialize_session_state()
         
         st.title("UK Judiciary PFD Reports Analysis")
@@ -1442,22 +1441,25 @@ def main():
         You can either scrape new reports or upload existing data for analysis.
         """)
         
-        # Generate unique tab keys
-        tab_id = int(time.time() * 1000)
-        tabs = st.tabs([
-            "🔍 Scrape Reports",
-            "📤 Upload Data",
-            "📊 Analysis",
-            "🔬 Topic Modeling"
-        ])
+        # Create separate tab selection to avoid key conflicts
+        current_tab = st.radio(
+            "Select section:",
+            ["🔍 Scrape Reports", "📤 Upload Data", "📊 Analysis", "🔬 Topic Modeling"],
+            label_visibility="collapsed",
+            horizontal=True,
+            key="main_tab_selector"
+        )
         
-        with tabs[0]:
+        st.markdown("---")  # Add separator
+        
+        # Handle tab content
+        if current_tab == "🔍 Scrape Reports":
             render_scraping_tab()
         
-        with tabs[1]:
+        elif current_tab == "📤 Upload Data":
             render_file_upload()
         
-        with tabs[2]:
+        elif current_tab == "📊 Analysis":
             if st.session_state.current_data is not None:
                 is_valid, message = validate_data(st.session_state.current_data, "analysis")
                 if is_valid:
@@ -1467,7 +1469,7 @@ def main():
             else:
                 st.warning("Please scrape or upload data first")
         
-        with tabs[3]:
+        elif current_tab == "🔬 Topic Modeling":
             if st.session_state.current_data is not None:
                 is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
                 if is_valid:
@@ -1477,11 +1479,21 @@ def main():
             else:
                 st.warning("Please scrape or upload data first")
         
+        # Show data source indicator in sidebar
         if st.session_state.data_source:
             st.sidebar.success(f"Currently using {st.session_state.data_source} data")
         
+        # Add footer
+        st.markdown("---")
+        st.markdown(
+            """<div style='text-align: center'>
+            <p>Built with Streamlit • Data from UK Judiciary</p>
+            </div>""",
+            unsafe_allow_html=True
+        )
+        
     except Exception as e:
-        st.error("An error occurred in the application. Please try again.")
+        st.error(f"An application error occurred: {str(e)}")
         logging.error(f"Application error: {e}", exc_info=True)
 
 if __name__ == "__main__":
