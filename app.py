@@ -539,15 +539,33 @@ def render_scraping_tab():
             ], format_func=lambda x: x[1])
         
         with col2:
-            date_after = st.date_input("Published after:", None)
-            date_before = st.date_input("Published before:", None)
+            # Date inputs with UK format and no restrictions
+            date_after = st.date_input(
+                "Published after:",
+                None,
+                format="DD/MM/YYYY",
+                help="Select start date for report search"
+            )
+            
+            date_before = st.date_input(
+                "Published before:",
+                None,
+                format="DD/MM/YYYY",
+                help="Select end date for report search"
+            )
+            
+            # Maximum pages input
             max_pages = st.number_input(
                 "Maximum pages to scrape (0 for all):", 
                 min_value=0, 
                 value=0,
                 help="Set to 0 to scrape all available pages"
             )
-        
+            
+            # Add a separator for visual clarity
+            st.markdown("---")
+    
+
         col3, col4 = st.columns(2)
         with col3:
             search_mode = st.radio(
