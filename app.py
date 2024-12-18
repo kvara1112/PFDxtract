@@ -69,6 +69,39 @@ def cleanup_temp_files(directory='pdfs', max_age_hours=24):
     except Exception as e:
         logging.error(f"Error in cleanup_temp_files: {e}")
 
+def clean_text(text):
+    """Clean text while preserving structure and metadata formatting"""
+    if not text:
+        return ""
+    
+    try:
+        text = str(text)
+        text = unicodedata.normalize('NFKD', text)
+        
+        replacements = {
+            'â€™': "'",
+            'â€œ': '"',
+            'â€': '"',
+            'â€¦': '...',
+            'â€"': '-',
+            'â€¢': '•',
+            'Â': '',
+            '\u200b': '',
+            '\uf0b7': ''
+        }
+        
+        for encoded, replacement in replacements.items():
+            text = text.replace(encoded, replacement)
+        
+        text = re.sub(r'<[^>]+>', '', text)
+        text = ''.join(char if char.isprintable() or char == '\n' else ' ' for char in text)
+        
+        return text.strip()
+    
+    except Exception as e:
+        logging.error(f"Error in clean_text: {e}")
+        return ""
+        
 def clean_pdf_content(content: str) -> str:
     """Clean PDF content by removing headers and normalizing text"""
     if pd.isna(content) or not content:
