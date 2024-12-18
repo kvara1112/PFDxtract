@@ -50,7 +50,7 @@ def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[request
         try:
             time.sleep(delay)  # Add delay between requests
             response = requests.get(url, headers=headers, verify=False, timeout=30)
-            st.write(f"Response status code: {response.status_code}")  # Debug response
+            #st.write(f"Response status code: {response.status_code}")  # Debug response
             response.raise_for_status()
             return response
         except Exception as e:
