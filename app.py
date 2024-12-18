@@ -1676,7 +1676,7 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
                 st.metric("Latest Date", max_date.strftime('%Y-%m-%d'))
             with col3:
                 st.metric("Total Date Range", f"{(max_date - min_date).days} days")
-                
+
 def main():
     try:
         initialize_session_state()
