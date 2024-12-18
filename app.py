@@ -95,6 +95,7 @@ def clean_text(text: str) -> str:
         text = str(text)
         text = unicodedata.normalize('NFKD', text)
         
+        # Enhanced replacements for special characters
         replacements = {
             'â€™': "'",
             'â€œ': '"',
@@ -102,16 +103,28 @@ def clean_text(text: str) -> str:
             'â€¦': '...',
             'â€"': '-',
             'â€¢': '•',
-            'Â': '',
+            'Â': ' ',
             '\u200b': '',
-            '\uf0b7': ''
+            '\uf0b7': '',
+            '\u2019': "'",
+            '\u201c': '"',
+            '\u201d': '"',
+            '\u2013': '-',
+            '\u2022': '•'
         }
         
         for encoded, replacement in replacements.items():
             text = text.replace(encoded, replacement)
         
+        # Remove HTML tags while preserving newlines
         text = re.sub(r'<[^>]+>', '', text)
+        
+        # Handle special characters while preserving structure
         text = ''.join(char if char.isprintable() or char == '\n' else ' ' for char in text)
+        
+        # Remove multiple spaces while preserving newlines
+        text = re.sub(r' +', ' ', text)
+        text = re.sub(r'\n+', '\n', text)
         
         return text.strip()
     
@@ -134,41 +147,65 @@ def extract_metadata(content: str) -> dict:
         return metadata
         
     try:
-        # Extract date
-        date_match = re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', content)
-        if date_match:
-            try:
+        # Extract date - handle multiple date formats
+        date_patterns = [
+            r'Date of report:\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})',  # e.g., "15th February 2022"
+            r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})',  # e.g., "22/07/2024"
+            r'DATED this (\d{1,2}(?:st|nd|rd|th)?\s+day of [A-Za-z]+\s+\d{4})',  # e.g., "20th day of April 2020"
+            r'Date:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})'  # e.g., "20 April 2020"
+        ]
+        
+        for pattern in date_patterns:
+            date_match = re.search(pattern, content, re.IGNORECASE)
+            if date_match:
                 date_str = date_match.group(1)
-                datetime.strptime(date_str, '%d/%m/%Y')  # Validate date format
-                metadata['date_of_report'] = date_str
-            except ValueError:
-                logging.warning(f"Invalid date format found: {date_match.group(1)}")
+                try:
+                    # Convert to standard format
+                    if '/' in date_str:
+                        date_obj = datetime.strptime(date_str, '%d/%m/%Y')
+                    else:
+                        # Remove ordinal indicators and normalize
+                        date_str = re.sub(r'(?<=\d)(st|nd|rd|th)', '', date_str)
+                        date_str = re.sub(r'day of ', '', date_str)
+                        try:
+                            date_obj = datetime.strptime(date_str, '%d %B %Y')
+                        except ValueError:
+                            date_obj = datetime.strptime(date_str, '%d %b %Y')
+                    
+                    metadata['date_of_report'] = date_obj.strftime('%d/%m/%Y')
+                    break
+                except ValueError as e:
+                    logging.warning(f"Invalid date format found: {date_str} - {e}")
         
-        # Extract reference number
-        ref_match = re.search(r'Ref:\s*([\d-]+)', content)
+        # Extract reference number - enhanced pattern
+        ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', content)
         if ref_match:
-            metadata['ref'] = ref_match.group(1)
+            metadata['ref'] = ref_match.group(1).strip()
         
-        # Extract deceased name
-        name_match = re.search(r'Deceased name:\s*([^\n]+)', content)
+        # Extract deceased name with improved pattern
+        name_match = re.search(r'Deceased name:?\s*([^\n]+)', content)
         if name_match:
-            metadata['deceased_name'] = name_match.group(1).strip()
+            metadata['deceased_name'] = clean_text(name_match.group(1)).strip()
         
-        # Extract coroner details
-        coroner_match = re.search(r'Coroner(?:s)? name:\s*([^\n]+)', content)
+        # Extract coroner details with improved patterns
+        coroner_match = re.search(r'Coroner(?:\'?s)? name:?\s*([^\n]+)', content)
         if coroner_match:
-            metadata['coroner_name'] = coroner_match.group(1).strip()
+            metadata['coroner_name'] = clean_text(coroner_match.group(1)).strip()
         
-        area_match = re.search(r'Coroner(?:s)? Area:\s*([^\n]+)', content)
+        area_match = re.search(r'Coroner(?:\'?s)? Area:?\s*([^\n]+)', content)
         if area_match:
-            metadata['coroner_area'] = area_match.group(1).strip()
+            metadata['coroner_area'] = clean_text(area_match.group(1)).strip()
         
-        # Extract categories
-        cat_match = re.search(r'Category:\s*([^\n]+)', content)
+        # Extract categories with improved handling
+        cat_match = re.search(r'Category:?\s*([^\n]+)', content)
         if cat_match:
             categories = cat_match.group(1).split('|')
-            metadata['categories'] = [cat.strip() for cat in categories if cat.strip()]
+            metadata['categories'] = [clean_text(cat).strip() for cat in categories if clean_text(cat).strip()]
         
+        return metadata
+        
+    except Exception as e:
+        logging.error(f"Error extracting metadata: {e}")
         return metadata
         
     except Exception as e:
