@@ -865,13 +865,23 @@ def render_scraping_tab():
                     df = pd.DataFrame(reports)
                     df = process_scraped_data(df)
                     
-                    # Store in session state
-                    st.session_state.scraped_data = df
-                    st.session_state.data_source = 'scraped'
-                    st.session_state.current_data = df
-                    
-                    # Instead of experimental_rerun, use regular rerun
-                    st.rerun()
+                    # Ensure we have a valid, non-empty DataFrame
+                    if not df.empty:
+                        # Clear any existing data first
+                        st.session_state.current_data = None
+                        st.session_state.scraped_data = None
+                        st.session_state.uploaded_data = None
+                        st.session_state.data_source = None
+
+                        # Store in session state
+                        st.session_state.scraped_data = df.copy()
+                        st.session_state.data_source = 'scraped'
+                        st.session_state.current_data = df.copy()
+                        
+                        # Rerun to refresh the page
+                        st.rerun()
+                    else:
+                        st.warning("Scraping completed, but no valid data was found.")
                 else:
                     st.warning("No reports found matching your search criteria")
                     return False
@@ -880,7 +890,6 @@ def render_scraping_tab():
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
-
 def show_export_options(df: pd.DataFrame, prefix: str):
     """Show export options for the data"""
     st.subheader("Export Options")
@@ -1372,35 +1381,40 @@ def render_file_upload():
 
 def initialize_session_state():
     """Initialize all required session state variables"""
-    # Initialize basic state variables if they don't exist
-    if not hasattr(st.session_state, 'initialized'):
-        # Clear all existing session state
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+    # Check if already initialized to prevent repeated clearing
+    if not hasattr(st.session_state, 'initialized') or not st.session_state.initialized:
+        # Safer way to clear existing session state
+        keys_to_preserve = []
         
-        # Set new session state variables
-        st.session_state.data_source = None
-        st.session_state.current_data = None
-        st.session_state.scraped_data = None
-        st.session_state.uploaded_data = None
-        st.session_state.topic_model = None
-        st.session_state.cleanup_done = False
-        st.session_state.last_scrape_time = None
-        st.session_state.last_upload_time = None
-        st.session_state.analysis_filters = {
-            'date_range': None,
-            'selected_categories': None,
-            'selected_areas': None
+        # Reset specific keys
+        default_state = {
+            'data_source': None,
+            'current_data': None,
+            'scraped_data': None,
+            'uploaded_data': None,
+            'topic_model': None,
+            'cleanup_done': False,
+            'last_scrape_time': None,
+            'last_upload_time': None,
+            'analysis_filters': {
+                'date_range': None,
+                'selected_categories': [],
+                'selected_areas': []
+            },
+            'topic_model_settings': {
+                'num_topics': 5,
+                'max_features': 1000,
+                'similarity_threshold': 0.3
+            },
+            'initialized': True
         }
-        st.session_state.topic_model_settings = {
-            'num_topics': 5,
-            'max_features': 1000,
-            'similarity_threshold': 0.3
-        }
-        st.session_state.initialized = True
+        
+        # Set default values
+        for key, value in default_state.items():
+            setattr(st.session_state, key, value)
     
-    # Perform PDF cleanup if not done
-    if not st.session_state.cleanup_done:
+    # Perform PDF cleanup - moved to a separate method for clarity
+    def cleanup_pdf_files():
         try:
             pdf_dir = 'pdfs'
             os.makedirs(pdf_dir, exist_ok=True)
@@ -1411,20 +1425,35 @@ def initialize_session_state():
             for file in os.listdir(pdf_dir):
                 file_path = os.path.join(pdf_dir, file)
                 try:
+                    # Check if it's a file and older than 24 hours
                     if os.path.isfile(file_path):
-                        if os.stat(file_path).st_mtime < current_time - 86400:
+                        file_age = current_time - os.path.getmtime(file_path)
+                        if file_age > 86400:  # 24 hours in seconds
                             os.remove(file_path)
                             cleanup_count += 1
                 except Exception as e:
                     logging.warning(f"Error cleaning up file {file_path}: {e}")
-                    continue
+        
+        except Exception as e:
+            logging.error(f"Error during PDF cleanup: {e}")
+        
+        return cleanup_count
+    
+    # Only perform cleanup if not already done
+    if not st.session_state.cleanup_done:
+        try:
+            cleanup_count = cleanup_pdf_files()
             
             if cleanup_count > 0:
                 logging.info(f"Cleaned up {cleanup_count} old PDF files")
-        except Exception as e:
-            logging.error(f"Error during PDF cleanup: {e}")
-        finally:
+            
+            # Mark cleanup as done
             st.session_state.cleanup_done = True
+        
+        except Exception as e:
+            logging.error(f"Unexpected error in PDF cleanup: {e}")
+            st.session_state.cleanup_done = False
+
 def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
     """
     Validate data for different purposes
@@ -1481,6 +1510,13 @@ def main():
         You can either scrape new reports or upload existing data for analysis.
         """)
         
+        # Debugging session state
+        st.sidebar.write("Debug Information:")
+        st.sidebar.write(f"Current Data: {st.session_state.current_data}")
+        st.sidebar.write(f"Scraped Data: {st.session_state.scraped_data}")
+        st.sidebar.write(f"Uploaded Data: {st.session_state.uploaded_data}")
+        st.sidebar.write(f"Data Source: {st.session_state.data_source}")
+        
         # Create separate tab selection to avoid key conflicts
         current_tab = st.radio(
             "Select section:",
@@ -1500,22 +1536,34 @@ def main():
             render_file_upload()
         
         elif current_tab == "📊 Analysis":
+            # Add explicit logging and checks
+            logging.info("Entering Analysis Tab")
+            logging.info(f"Session State Data: {st.session_state.current_data}")
+            
             if st.session_state.current_data is not None:
-                is_valid, message = validate_data(st.session_state.current_data, "analysis")
-                if is_valid:
-                    render_analysis_tab(st.session_state.current_data)
-                else:
-                    st.error(message)
+                try:
+                    is_valid, message = validate_data(st.session_state.current_data, "analysis")
+                    if is_valid:
+                        render_analysis_tab(st.session_state.current_data)
+                    else:
+                        st.error(message)
+                except Exception as e:
+                    st.error(f"Error in analysis validation: {e}")
+                    logging.error(f"Analysis validation error: {e}", exc_info=True)
             else:
                 st.warning("Please scrape or upload data first")
         
         elif current_tab == "🔬 Topic Modeling":
             if st.session_state.current_data is not None:
-                is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
-                if is_valid:
-                    render_topic_modeling_tab(st.session_state.current_data)
-                else:
-                    st.error(message)
+                try:
+                    is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
+                    if is_valid:
+                        render_topic_modeling_tab(st.session_state.current_data)
+                    else:
+                        st.error(message)
+                except Exception as e:
+                    st.error(f"Error in topic modeling: {e}")
+                    logging.error(f"Topic modeling error: {e}", exc_info=True)
             else:
                 st.warning("Please scrape or upload data first")
         
