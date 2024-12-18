@@ -38,16 +38,26 @@ HEADERS = {
 
 def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[requests.Response]:
     """Make HTTP request with retries and delay"""
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Connection': 'keep-alive',
+        'Referer': 'https://judiciary.uk/'
+    }
+    
     for attempt in range(retries):
         try:
             time.sleep(delay)  # Add delay between requests
-            response = requests.get(url, headers=HEADERS, verify=False, timeout=30)
+            response = requests.get(url, headers=headers, verify=False, timeout=30)
+            st.write(f"Response status code: {response.status_code}")  # Debug response
             response.raise_for_status()
             return response
         except Exception as e:
             if attempt == retries - 1:
+                st.error(f"Request failed: {str(e)}")
                 raise e
-            time.sleep(delay * (attempt + 1))  # Exponential backoff
+            time.sleep(delay * (attempt + 1))
     return None
 
 # Initialize Streamlit
@@ -409,7 +419,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     """Scrape PFD reports with comprehensive filtering"""
     all_reports = []
     current_page = 1
-    base_url = "https://www.judiciary.uk"
+    base_url = "https://judiciary.uk"  # Remove www.
     
     # Build query parameters
     params = {
@@ -422,13 +432,11 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     if category:
         params['pfd_report_type'] = category
     
-    # Handle date parameters
+    # Handle date parameters - Changed to match website format
     if date_after:
         try:
             day, month, year = date_after.split('/')
-            params['after-year'] = year
-            params['after-month'] = month
-            params['after-day'] = day
+            params['after_date'] = f"{year}-{month}-{day}"  # Changed format
         except ValueError as e:
             logging.error(f"Invalid date_after format: {e}")
             return []
@@ -436,17 +444,16 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     if date_before:
         try:
             day, month, year = date_before.split('/')
-            params['before-year'] = year
-            params['before-month'] = month
-            params['before-day'] = day
+            params['before_date'] = f"{year}-{month}-{day}"  # Changed format
         except ValueError as e:
             logging.error(f"Invalid date_before format: {e}")
             return []
-    
+
     # Build initial URL
     param_strings = [f"{k}={v}" for k, v in params.items()]
-    initial_url = f"{base_url}/?{'&'.join(param_strings)}"
+    initial_url = f"{base_url}/search/?{'&'.join(param_strings)}"  # Added /search/
     
+    st.write(f"Searching URL: {initial_url}")  # Debug URL
     try:
         total_pages = get_total_pages(initial_url)
         if total_pages == 0:
