@@ -609,7 +609,7 @@ def plot_coroner_areas(df: pd.DataFrame) -> None:
 
 def clean_text_for_modeling(text: str) -> str:
     """Clean text for topic modeling"""
-    if not isinstance(text, str):
+    if not isinstance(text, str) or not text.strip():
         return ""
     
     try:
@@ -617,18 +617,38 @@ def clean_text_for_modeling(text: str) -> str:
         text = ''.join([char for char in text if ord(char) < 128])
         text = text.lower()
         
-        # Tokenize and filter
+        # Remove special characters but keep alphanumeric words
+        text = re.sub(r'[^a-z0-9\s]', ' ', text)
+        
+        # Tokenize
         tokens = word_tokenize(text)
+        
+        # Get stop words
         stop_words = set(stopwords.words('english'))
         
-        # Remove stopwords and keep meaningful tokens
-        tokens = [word for word in tokens if word.isalpha() and word not in stop_words and len(word) > 2]
+        # Add custom stop words specific to PFD reports
+        custom_stop_words = {
+            'report', 'pfd', 'death', 'deaths', 'deceased', 'coroner', 'coroners',
+            'date', 'ref', 'name', 'area', 'regulation', 'paragraph', 'section',
+            'prevention', 'future', 'investigation', 'inquest', 'circumstances',
+            'response', 'duty', 'action', 'actions', 'concern', 'concerns', 'trust',
+            'hospital', 'service', 'services', 'chief', 'executive', 'family',
+            'dear', 'sincerely', 'following', 'report', 'reports', 'days'
+        }
+        stop_words.update(custom_stop_words)
         
-        # POS tagging and filtering for nouns
-        tagged_words = nltk.pos_tag(tokens)
-        filtered_tokens = [word for word, pos in tagged_words if pos.startswith('NN')]
+        # Filter tokens
+        tokens = [
+            word for word in tokens 
+            if (word not in stop_words and  # Remove stop words
+                len(word) > 2 and  # Remove very short words
+                not word.isnumeric() and  # Remove pure numbers
+                not all(c.isdigit() or c == '/' for c in word)  # Remove dates
+            )
+        ]
         
-        return ' '.join(filtered_tokens)
+        # Return cleaned text
+        return ' '.join(tokens)
     
     except Exception as e:
         logging.error(f"Error cleaning text for modeling: {e}")
@@ -637,19 +657,54 @@ def clean_text_for_modeling(text: str) -> str:
 def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int = 1000) -> Tuple[LatentDirichletAllocation, TfidfVectorizer, np.ndarray]:
     """Extract topics using LDA"""
     try:
-        # Prepare text data
-        texts = df['Content'].fillna('').apply(clean_text_for_modeling)
+        # Prepare text data by combining relevant fields
+        texts = []
+        for idx, row in df.iterrows():
+            # Combine main content and PDF contents
+            content_parts = [row['Content']]
+            
+            # Add PDF contents if available
+            pdf_columns = [col for col in df.columns if col.endswith('_Content')]
+            for pdf_col in pdf_columns:
+                if pd.notna(row.get(pdf_col)):
+                    content_parts.append(row[pdf_col])
+            
+            # Clean and combine all text
+            cleaned_text = ' '.join(clean_text_for_modeling(text) for text in content_parts if text)
+            if cleaned_text.strip():  # Only add non-empty texts
+                texts.append(cleaned_text)
         
-        # TF-IDF Vectorization
-        vectorizer = TfidfVectorizer(max_features=max_features)
+        if not texts:
+            raise ValueError("No valid text content found after preprocessing")
+        
+        # Configure vectorizer
+        vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            min_df=2,  # Term must appear in at least 2 documents
+            max_df=0.95,  # Term must not appear in more than 95% of documents
+            stop_words='english',
+            ngram_range=(1, 2)  # Allow both unigrams and bigrams
+        )
+        
+        # Create document-term matrix
         tfidf_matrix = vectorizer.fit_transform(texts)
+        
+        # Check if we have valid terms
+        if tfidf_matrix.shape[1] == 0:
+            raise ValueError("No valid terms found after vectorization")
+        
+        # Normalize the matrix
         tfidf_matrix = normalize(tfidf_matrix, norm='l2', axis=1)
         
-        # LDA Model
+        # Configure and fit LDA model
         lda_model = LatentDirichletAllocation(
             n_components=num_topics,
             random_state=42,
-            max_iter=20
+            max_iter=20,
+            learning_method='batch',
+            n_jobs=-1,
+            doc_topic_prior=0.1,
+            topic_word_prior=0.01
         )
         
         # Fit model and get topic distribution
