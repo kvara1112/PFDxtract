@@ -953,7 +953,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             os.remove(pdf_zip_path)
             
 def render_analysis_tab(data: pd.DataFrame):
-    """Render the analysis tab with comprehensive error handling"""
+    """Render the analysis tab with comprehensive error handling and data source selection"""
     # Immediate type and value checking
     logging.info(f"Entering render_analysis_tab. Input data type: {type(data)}")
     
@@ -1001,9 +1001,32 @@ def render_analysis_tab(data: pd.DataFrame):
     try:
         st.header("Reports Analysis")
         
+        # Check for multiple data sources
+        available_sources = []
+        if hasattr(st.session_state, 'scraped_data') and st.session_state.scraped_data is not None:
+            available_sources.append('Scraped Data')
+        if hasattr(st.session_state, 'uploaded_data') and st.session_state.uploaded_data is not None:
+            available_sources.append('Uploaded Data')
+        
+        # Data source selection if multiple sources exist
+        selected_source = data
+        if len(available_sources) > 1:
+            with st.sidebar:
+                st.header("Data Source")
+                data_source = st.radio(
+                    "Choose Data Source",
+                    available_sources,
+                    key="data_source_selector"
+                )
+                
+                if data_source == 'Scraped Data':
+                    selected_source = st.session_state.scraped_data
+                elif data_source == 'Uploaded Data':
+                    selected_source = st.session_state.uploaded_data
+        
         # Get date range for the data
-        min_date = data['date_of_report'].min().date()
-        max_date = data['date_of_report'].max().date()
+        min_date = selected_source['date_of_report'].min().date()
+        max_date = selected_source['date_of_report'].max().date()
         
         # Sidebar for filtering
         with st.sidebar:
@@ -1020,7 +1043,7 @@ def render_analysis_tab(data: pd.DataFrame):
             
             # Category filter
             all_categories = set()
-            for cats in data['categories'].dropna():
+            for cats in selected_source['categories'].dropna():
                 if isinstance(cats, list):
                     all_categories.update(cats)
             
@@ -1031,7 +1054,7 @@ def render_analysis_tab(data: pd.DataFrame):
             )
             
             # Coroner area filter
-            coroner_areas = sorted(data['coroner_area'].dropna().unique())
+            coroner_areas = sorted(selected_source['coroner_area'].dropna().unique())
             selected_areas = st.multiselect(
                 "Coroner Areas",
                 options=coroner_areas,
@@ -1039,7 +1062,7 @@ def render_analysis_tab(data: pd.DataFrame):
             )
         
         # Apply filters
-        filtered_df = data.copy()
+        filtered_df = selected_source.copy()
         
         # Date filter
         if len(date_range) == 2:
@@ -1077,7 +1100,7 @@ def render_analysis_tab(data: pd.DataFrame):
             return
             
         # Display filtered results count
-        st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
+        st.write(f"Showing {len(filtered_df)} of {len(selected_source)} reports")
         
         # Overview metrics
         st.subheader("Overview")
@@ -1128,7 +1151,6 @@ def render_analysis_tab(data: pd.DataFrame):
     except Exception as e:
         st.error(f"An unexpected error occurred in the analysis tab: {str(e)}")
         logging.error(f"Unexpected error in render_analysis_tab: {e}", exc_info=True)
-        
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """Handle Excel export with proper buffer management"""
