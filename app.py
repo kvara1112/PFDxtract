@@ -583,6 +583,7 @@ def render_scraping_tab():
             with st.spinner("Searching for reports..."):
                 try:
                     if search_mode == "Search with filters":
+                        # Convert dates to string format if provided
                         date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
                         date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
                         
