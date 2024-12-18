@@ -16,7 +16,7 @@ import unicodedata
 
 # Local imports (these files need to be created)
 from analysis_tab import render_analysis_tab
-from topic_modeling_tab import render_topic_modeling_tab, add_topic_modeling_tab
+from topic_modeling_tab import render_topic_modeling_tab
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s: %(message)s')
@@ -375,6 +375,7 @@ def scrape_page(url):
     except Exception as e:
         logging.error(f"Error fetching page {url}: {e}")
         return []
+
 def get_total_pages(url):
     """Get total number of pages"""
     headers = {
@@ -543,9 +544,8 @@ def render_scraping_tab():
             try:
                 if search_mode == "Search with filters":
                     # Convert dates to string format if provided
-                    date_after_str = date_after.strftime('%Y/%m/%d') if date_after else None
-                    date_before_str = date_before.strftime('%Y/%m/%d') if date_before else None
-
+                    date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
+                    date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
                     
                     # Get the actual sort order value from the tuple
                     sort_order = order[0] if isinstance(order, tuple) else order
@@ -661,9 +661,8 @@ def main():
     st.title("UK Judiciary PFD Reports Analysis")
     
     # Create tabs
-    #tab1, tab2 = st.tabs(["Scrape Reports", "Analyze Reports"])
     tab1, tab2, tab3 = st.tabs(["Scrape Reports", "Analyze Reports", "Topic Modeling"])
-    add_topic_modeling_tab(app_tabs)  # This line looks problematic
+
     # Initialize session state for sharing data between tabs
     if 'scraped_data' not in st.session_state:
         st.session_state.scraped_data = None
