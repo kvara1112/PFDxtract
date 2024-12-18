@@ -8,13 +8,11 @@ import time
 import urllib3
 import io
 import pdfplumber
-import tempfile
 import logging
 import os
 import zipfile
 import unicodedata
 from pathlib import Path
-import shutil
 from typing import Dict, List, Optional, Tuple
 
 # Configure logging
@@ -30,8 +28,35 @@ logging.basicConfig(
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Global headers for all requests
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Connection': 'keep-alive',
+}
+
+def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[requests.Response]:
+    """Make HTTP request with retries and delay"""
+    for attempt in range(retries):
+        try:
+            time.sleep(delay)  # Add delay between requests
+            response = requests.get(url, headers=HEADERS, verify=False, timeout=30)
+            response.raise_for_status()
+            return response
+        except Exception as e:
+            if attempt == retries - 1:
+                raise e
+            time.sleep(delay * (attempt + 1))  # Exponential backoff
+    return None
+
 # Initialize Streamlit
-st.set_page_config(page_title="UK Judiciary PFD Reports Analysis", layout="wide")
+st.set_page_config(
+    page_title="UK Judiciary PFD Reports Analysis",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 # Import local modules with error handling
 try:
@@ -48,28 +73,7 @@ except ImportError as e:
     def render_topic_modeling_tab():
         st.error("Topic modeling functionality not available. Please check installation.")
 
-def cleanup_temp_files(directory='pdfs', max_age_hours=24):
-    """Clean up old temporary files"""
-    try:
-        current_time = time.time()
-        directory_path = Path(directory)
-        
-        if not directory_path.exists():
-            return
-            
-        for file_path in directory_path.glob('*'):
-            if file_path.is_file():
-                if current_time - file_path.stat().st_mtime > max_age_hours * 3600:
-                    try:
-                        file_path.unlink()
-                        logging.info(f"Cleaned up old file: {file_path}")
-                    except Exception as e:
-                        logging.error(f"Error removing file {file_path}: {e}")
-                        
-    except Exception as e:
-        logging.error(f"Error in cleanup_temp_files: {e}")
-
-def clean_text(text):
+def clean_text(text: str) -> str:
     """Clean text while preserving structure and metadata formatting"""
     if not text:
         return ""
@@ -101,37 +105,6 @@ def clean_text(text):
     except Exception as e:
         logging.error(f"Error in clean_text: {e}")
         return ""
-        
-def clean_pdf_content(content: str) -> str:
-    """Clean PDF content by removing headers and normalizing text"""
-    if pd.isna(content) or not content:
-        return ""
-    
-    try:
-        content = str(content)
-        
-        # Remove PDF filename headers
-        content = re.sub(r'PDF FILENAME:.*?\n', '', content)
-        
-        # Fix encoding issues
-        replacements = {
-            'â€™': "'",
-            'â€œ': '"',
-            'â€': '"',
-            'â€¦': '...',
-            'â€"': '-',
-            'â€¢': '•'
-        }
-        for old, new in replacements.items():
-            content = content.replace(old, new)
-        
-        # Normalize whitespace
-        content = re.sub(r'\s+', ' ', content).strip()
-        
-        return content
-    except Exception as e:
-        logging.error(f"Error cleaning PDF content: {e}")
-        return ""
 
 def extract_metadata(content: str) -> dict:
     """Extract structured metadata from report content"""
@@ -153,8 +126,7 @@ def extract_metadata(content: str) -> dict:
         if date_match:
             try:
                 date_str = date_match.group(1)
-                # Validate date format
-                datetime.strptime(date_str, '%d/%m/%Y')
+                datetime.strptime(date_str, '%d/%m/%Y')  # Validate date format
                 metadata['date_of_report'] = date_str
             except ValueError:
                 logging.warning(f"Invalid date format found: {date_match.group(1)}")
@@ -189,47 +161,6 @@ def extract_metadata(content: str) -> dict:
     except Exception as e:
         logging.error(f"Error extracting metadata: {e}")
         return metadata
-
-def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data"""
-    try:
-        # Create a copy to avoid modifying the original
-        df = df.copy()
-        
-        # Clean PDF content
-        pdf_cols = [col for col in df.columns if col.endswith('_Content')]
-        for col in pdf_cols:
-            try:
-                df[col] = df[col].fillna("").astype(str)
-                df[col] = df[col].apply(clean_pdf_content)
-            except Exception as e:
-                logging.error(f"Error processing column {col}: {e}")
-        
-        # Extract metadata
-        try:
-            metadata = df['Content'].fillna("").apply(extract_metadata)
-            metadata_df = pd.DataFrame(metadata.tolist())
-            
-            # Combine with original data
-            result = pd.concat([df, metadata_df], axis=1)
-            
-            # Convert date strings to datetime
-            try:
-                result['date_of_report'] = pd.to_datetime(result['date_of_report'], 
-                                                        format='%d/%m/%Y', 
-                                                        errors='coerce')
-            except Exception as e:
-                logging.error(f"Error converting dates: {e}")
-            
-            return result
-            
-        except Exception as e:
-            logging.error(f"Error extracting metadata: {e}")
-            return df
-            
-    except Exception as e:
-        logging.error(f"Error in process_scraped_data: {e}")
-        return df
 
 def get_pfd_categories() -> List[str]:
     """Get all available PFD report categories"""
@@ -277,12 +208,9 @@ def save_pdf(pdf_url: str, base_dir: str = 'pdfs') -> Tuple[Optional[str], Optio
     try:
         os.makedirs(base_dir, exist_ok=True)
         
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
-        
-        response = requests.get(pdf_url, headers=headers, verify=False, timeout=10)
-        response.raise_for_status()  # Raise exception for bad status codes
+        response = make_request(pdf_url)
+        if not response:
+            return None, None
         
         filename = os.path.basename(pdf_url)
         filename = re.sub(r'[^\w\-_\. ]', '_', filename)
@@ -297,33 +225,57 @@ def save_pdf(pdf_url: str, base_dir: str = 'pdfs') -> Tuple[Optional[str], Optio
         logging.error(f"Error saving PDF {pdf_url}: {e}")
         return None, None
 
+def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Process and clean scraped data"""
+    try:
+        # Create a copy to avoid modifying the original
+        df = df.copy()
+        
+        # Extract metadata
+        metadata = df['Content'].fillna("").apply(extract_metadata)
+        metadata_df = pd.DataFrame(metadata.tolist())
+        
+        # Combine with original data
+        result = pd.concat([df, metadata_df], axis=1)
+        
+        # Convert dates to datetime
+        try:
+            result['date_of_report'] = pd.to_datetime(
+                result['date_of_report'],
+                format='%d/%m/%Y',
+                errors='coerce'
+            )
+        except Exception as e:
+            logging.error(f"Error converting dates: {e}")
+        
+        return result
+            
+    except Exception as e:
+        logging.error(f"Error in process_scraped_data: {e}")
+        return df
+
 def get_report_content(url: str) -> Optional[Dict]:
     """Get full content from report page with multiple PDF handling"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
     try:
         logging.info(f"Fetching content from: {url}")
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        response.raise_for_status()  # Raise exception for bad status codes
+        response = make_request(url)
+        if not response:
+            return None
         
         soup = BeautifulSoup(response.text, 'html.parser')
-        
         content = soup.find('div', class_='flow') or soup.find('article', class_='single__post')
         
         if not content:
             logging.warning(f"No content found at {url}")
             return None
         
-        webpage_text = ""
-        pdf_contents = []
-        pdf_paths = []
-        pdf_names = []
-        
         # Extract text content
         paragraphs = content.find_all(['p', 'table'])
         webpage_text = '\n\n'.join(p.get_text(strip=True, separator=' ') for p in paragraphs)
+        
+        pdf_contents = []
+        pdf_paths = []
+        pdf_names = []
         
         # Find PDF links
         pdf_links = (
@@ -342,7 +294,6 @@ def get_report_content(url: str) -> Optional[Dict]:
             
             if pdf_path:
                 pdf_content = extract_pdf_content(pdf_path)
-                
                 pdf_contents.append(pdf_content)
                 pdf_paths.append(pdf_path)
                 pdf_names.append(pdf_name)
@@ -360,17 +311,14 @@ def get_report_content(url: str) -> Optional[Dict]:
 
 def scrape_page(url: str) -> List[Dict]:
     """Scrape a single page of search results"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
     try:
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        response.raise_for_status()
+        response = make_request(url)
+        if not response:
+            return []
         
         soup = BeautifulSoup(response.text, 'html.parser')
-        
         results_list = soup.find('ul', class_='search__list')
+        
         if not results_list:
             logging.warning(f"No results list found on page: {url}")
             return []
@@ -401,9 +349,10 @@ def scrape_page(url: str) -> List[Dict]:
                         'Content': content_data['content']
                     }
                     
+                    # Add PDF data
                     for i, (name, content, path) in enumerate(zip(
-                        content_data['pdf_names'], 
-                        content_data['pdf_contents'], 
+                        content_data['pdf_names'],
+                        content_data['pdf_contents'],
                         content_data['pdf_paths']
                     ), 1):
                         report[f'PDF_{i}_Name'] = name
@@ -425,27 +374,22 @@ def scrape_page(url: str) -> List[Dict]:
 
 def get_total_pages(url: str) -> int:
     """Get total number of pages"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-    }
-    
     try:
-        response = requests.get(url, headers=headers, verify=False, timeout=10)
-        response.raise_for_status()
+        response = make_request(url)
+        if not response:
+            return 0
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
+        # Check pagination
         pagination = soup.find('nav', class_='navigation pagination')
         if pagination:
             page_numbers = pagination.find_all('a', class_='page-numbers')
-            numbers = []
-            for p in page_numbers:
-                text = p.text.strip()
-                if text.isdigit():
-                    numbers.append(int(text))
+            numbers = [int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()]
             if numbers:
                 return max(numbers)
         
+        # Check if at least one page of results exists
         results = soup.find('ul', class_='search__list')
         if results and results.find_all('div', class_='card'):
             return 1
@@ -456,27 +400,29 @@ def get_total_pages(url: str) -> int:
         logging.error(f"Error getting total pages: {e}")
         return 0
 
-def scrape_pfd_reports(keyword: Optional[str] = None, 
-                      category: Optional[str] = None, 
-                      date_after: Optional[str] = None, 
-                      date_before: Optional[str] = None, 
-                      order: str = "relevance", 
+def scrape_pfd_reports(keyword: Optional[str] = None,
+                      category: Optional[str] = None,
+                      date_after: Optional[str] = None,
+                      date_before: Optional[str] = None,
+                      order: str = "relevance",
                       max_pages: Optional[int] = None) -> List[Dict]:
     """Scrape PFD reports with comprehensive filtering"""
     all_reports = []
     current_page = 1
     base_url = "https://www.judiciary.uk"
     
+    # Build query parameters
     params = {
         'post_type': 'pfd',
         'order': order
     }
     
     if keyword and keyword.strip():
-        params['s'] = keyword
+        params['s'] = keyword.strip()
     if category:
         params['pfd_report_type'] = category
     
+    # Handle date parameters
     if date_after:
         try:
             day, month, year = date_after.split('/')
@@ -497,6 +443,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             logging.error(f"Invalid date_before format: {e}")
             return []
     
+    # Build initial URL
     param_strings = [f"{k}={v}" for k, v in params.items()]
     initial_url = f"{base_url}/?{'&'.join(param_strings)}"
     
@@ -511,15 +458,19 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         if max_pages:
             total_pages = min(total_pages, max_pages)
         
+        # Setup progress tracking
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         while current_page <= total_pages:
+            # Build page URL
             page_url = initial_url if current_page == 1 else f"{base_url}/page/{current_page}/?{'&'.join(param_strings)}"
             
+            # Update progress
             status_text.text(f"Scraping page {current_page} of {total_pages}...")
             progress_bar.progress(current_page / total_pages)
             
+            # Scrape page
             reports = scrape_page(page_url)
             
             if reports:
@@ -531,7 +482,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                     break
             
             current_page += 1
-            time.sleep(1)  # Rate limiting
         
         progress_bar.progress(1.0)
         status_text.text(f"Completed! Total reports found: {len(all_reports)}")
@@ -561,6 +511,7 @@ def scrape_all_categories() -> List[Dict]:
     return all_reports
 
 def render_scraping_tab():
+    """Render the scraping tab UI and functionality"""
     # Initialize directories if they don't exist
     os.makedirs('pdfs', exist_ok=True)
     
@@ -570,7 +521,8 @@ def render_scraping_tab():
         st.session_state.cleanup_scheduled = True
     
     st.markdown("""
-    This app scrapes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    ## UK Judiciary PFD Reports Scraper
+    This tool scrapes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
     You can search by keywords, categories, and date ranges.
     """)
     
@@ -589,16 +541,20 @@ def render_scraping_tab():
         with col2:
             date_after = st.date_input("Published after:", None)
             date_before = st.date_input("Published before:", None)
-            max_pages = st.number_input("Maximum pages to scrape (0 for all):", 
-                                      min_value=0, 
-                                      value=0,
-                                      help="Set to 0 to scrape all available pages")
+            max_pages = st.number_input(
+                "Maximum pages to scrape (0 for all):", 
+                min_value=0, 
+                value=0,
+                help="Set to 0 to scrape all available pages"
+            )
         
         col3, col4 = st.columns(2)
         with col3:
-            search_mode = st.radio("Search mode:",
-                                 ["Search with filters", "Scrape all categories"],
-                                 help="Choose whether to search with specific filters or scrape all categories")
+            search_mode = st.radio(
+                "Search mode:",
+                ["Search with filters", "Scrape all categories"],
+                help="Choose whether to search with specific filters or scrape all categories"
+            )
         
         submitted = st.form_submit_button("Search Reports")
     
@@ -637,10 +593,12 @@ def render_scraping_tab():
                 df = pd.DataFrame(reports)
                 df = process_scraped_data(df)
                 
+                # Store in session state for other tabs
                 st.session_state.scraped_data = df
                 st.success(f"Found {len(reports):,} reports")
                 
-                st.subheader("Reports Data")
+                # Display results
+                st.header("Results")
                 st.dataframe(
                     df,
                     column_config={
@@ -651,14 +609,17 @@ def render_scraping_tab():
                     hide_index=True
                 )
                 
-                st.subheader("Export Options")
+                # Export options
+                st.header("Export Options")
+                
+                # Generate filename
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"pfd_reports_{search_keyword}_{timestamp}"
                 
                 col1, col2 = st.columns(2)
                 
+                # CSV Export
                 with col1:
-                    # CSV Export
                     csv = df.to_csv(index=False).encode('utf-8')
                     st.download_button(
                         "📥 Download Reports (CSV)",
@@ -668,8 +629,8 @@ def render_scraping_tab():
                         key="download_csv"
                     )
                 
+                # Excel Export
                 with col2:
-                    # Excel Export
                     excel_buffer = io.BytesIO()
                     with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
                         df.to_excel(writer, index=False)
@@ -682,7 +643,8 @@ def render_scraping_tab():
                         key="download_excel"
                     )
                 
-                st.subheader("Download PDFs")
+                # PDF Download
+                st.header("Download PDFs")
                 if st.button("Download all PDFs"):
                     with st.spinner("Preparing PDF download..."):
                         pdf_zip_path = f"{filename}_pdfs.zip"
@@ -708,7 +670,7 @@ def render_scraping_tab():
                                 key="download_pdfs_zip"
                             )
                         
-                        # Cleanup zip file after download
+                        # Cleanup
                         try:
                             os.remove(pdf_zip_path)
                         except Exception as e:
@@ -724,26 +686,50 @@ def render_scraping_tab():
             st.error(f"An error occurred during processing: {e}")
             logging.error(f"Processing error: {e}", exc_info=True)
 
-def main():
-    st.title("UK Judiciary PFD Reports Analysis")
-    
-    # Create tabs
-    tab1, tab2, tab3 = st.tabs(["Scrape Reports", "Analyze Reports", "Topic Modeling"])
-    
-    # Initialize session state
+def initialize_session_state():
+    """Initialize all required session state variables"""
     if 'scraped_data' not in st.session_state:
         st.session_state.scraped_data = None
-    
-    # Render tabs
-    with tab1:
-        render_scraping_tab()
-    
-    with tab2:
-        render_analysis_tab()
-    
-    with tab3:
-        render_topic_modeling_tab()
+    if 'cleanup_scheduled' not in st.session_state:
+        st.session_state.cleanup_scheduled = False
+
+def main():
+    try:
+        # Initialize session state
+        initialize_session_state()
+        
+        # App title
+        st.title("UK Judiciary PFD Reports Analysis")
+        
+        # Create tabs
+        tab1, tab2, tab3 = st.tabs([
+            "🔍 Scrape Reports",
+            "📊 Analyze Reports",
+            "🔬 Topic Modeling"
+        ])
+        
+        # Render tabs
+        with tab1:
+            render_scraping_tab()
+        
+        with tab2:
+            render_analysis_tab()
+        
+        with tab3:
+            render_topic_modeling_tab()
+        
+        # Footer
+        st.markdown("---")
+        st.markdown(
+            """<div style='text-align: center'>
+            <p>Built with Streamlit • Data from UK Judiciary</p>
+            </div>""",
+            unsafe_allow_html=True
+        )
+        
+    except Exception as e:
+        st.error("An error occurred in the application. Please try again.")
+        logging.error(f"Application error: {e}", exc_info=True)
 
 if __name__ == "__main__":
     main()
-
