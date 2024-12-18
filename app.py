@@ -490,25 +490,41 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
             # If that fails, try other common formats
             mask = result['date_of_report'].isna()
             if mask.any():
-                # Try parsing remaining dates with dateutil parser
                 result.loc[mask, 'date_of_report'] = pd.to_datetime(
                     result.loc[mask, 'date_of_report'],
                     errors='coerce'
                 )
-            
-            # Convert any successfully parsed dates to UK format in the display
-            result['date_of_report_display'] = result['date_of_report'].dt.strftime('%d/%m/%Y')
-            
         except Exception as e:
             logging.error(f"Error converting dates: {e}")
             raise
+
+        # Process categories to ensure they are lists
+        def convert_to_list(val):
+            if pd.isna(val):
+                return None
+            if isinstance(val, list):
+                return val
+            if isinstance(val, str):
+                try:
+                    # Try to evaluate if it's a string representation of a list
+                    evaluated = ast.literal_eval(val)
+                    if isinstance(evaluated, list):
+                        return evaluated
+                    return [evaluated]
+                except:
+                    # If it's a simple string, split by comma or return as single item
+                    if ',' in val:
+                        return [item.strip() for item in val.split(',')]
+                    return [val.strip()]
+            return None
+
+        result['categories'] = result['categories'].apply(convert_to_list)
         
         return result
             
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
-        
 
 def plot_timeline(df: pd.DataFrame) -> None:
     timeline_data = df.groupby(
@@ -1118,6 +1134,29 @@ def render_analysis_tab(data: pd.DataFrame):
                 else:
                     st.error("Unsupported file type")
                     return
+
+                # Convert categories to list format before validation
+                if 'categories' in df.columns:
+                    def convert_to_list(val):
+                        if pd.isna(val):
+                            return None
+                        if isinstance(val, list):
+                            return val
+                        if isinstance(val, str):
+                            try:
+                                # Try to evaluate if it's a string representation of a list
+                                evaluated = ast.literal_eval(val)
+                                if isinstance(evaluated, list):
+                                    return evaluated
+                                return [evaluated]
+                            except:
+                                # If it's a simple string, split by comma or return as single item
+                                if ',' in val:
+                                    return [item.strip() for item in val.split(',')]
+                                return [val.strip()]
+                        return None
+
+                    df['categories'] = df['categories'].apply(convert_to_list)
                 
                 required_columns = [
                     'Title', 'URL', 'Content', 
