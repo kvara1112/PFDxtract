@@ -419,7 +419,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     """Scrape PFD reports with comprehensive filtering"""
     all_reports = []
     current_page = 1
-    base_url = "https://judiciary.uk"  # Remove www.
+    base_url = "https://www.judiciary.uk"  # Add www. back
     
     # Build query parameters
     params = {
@@ -432,11 +432,13 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     if category:
         params['pfd_report_type'] = category
     
-    # Handle date parameters - Changed to match website format
+    # Handle date parameters - Keep original format
     if date_after:
         try:
             day, month, year = date_after.split('/')
-            params['after_date'] = f"{year}-{month}-{day}"  # Changed format
+            params['after-year'] = year
+            params['after-month'] = month
+            params['after-day'] = day
         except ValueError as e:
             logging.error(f"Invalid date_after format: {e}")
             return []
@@ -444,14 +446,16 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     if date_before:
         try:
             day, month, year = date_before.split('/')
-            params['before_date'] = f"{year}-{month}-{day}"  # Changed format
+            params['before-year'] = year
+            params['before-month'] = month
+            params['before-day'] = day
         except ValueError as e:
             logging.error(f"Invalid date_before format: {e}")
             return []
-
+    
     # Build initial URL
     param_strings = [f"{k}={v}" for k, v in params.items()]
-    initial_url = f"{base_url}/search/?{'&'.join(param_strings)}"  # Added /search/
+    initial_url = f"{base_url}/?{'&'.join(param_strings)}"  # Remove /search/
     
     st.write(f"Searching URL: {initial_url}")  # Debug URL
     try:
