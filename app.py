@@ -1522,97 +1522,141 @@ def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, 
     return True, "Data is valid"
 
 def analyze_data_quality(df: pd.DataFrame) -> None:
-    """Perform and visualize data quality analysis"""
-    # Overall completeness
-    st.subheader("Data Completeness")
-    
-    # Calculate missing values
-    missing_data = df.isnull().sum()
-    missing_percentages = 100 * df.isnull().sum() / len(df)
-    
-    # Create a DataFrame for missing value analysis
-    missing_df = pd.DataFrame({
-        'Missing Values': missing_data,
-        'Percentage Missing (%)': missing_percentages.round(2)
-    })
-    
-    # Filter to only columns with missing values
-    missing_df = missing_df[missing_df['Missing Values'] > 0]
-    
-    # Visualize missing values
-    if not missing_df.empty:
-        fig_missing = px.bar(
-            missing_df, 
-            x=missing_df.index, 
-            y='Percentage Missing (%)',
-            title='Percentage of Missing Values by Column',
-            labels={'x': 'Columns', 'Percentage Missing (%)': 'Percentage Missing'}
-        )
-        fig_missing.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig_missing, use_container_width=True)
-    else:
-        st.success("No missing values found in the dataset!")
-    
-    # Duplicate analysis
-    st.subheader("Duplicate Analysis")
-    
-    # Check for duplicate rows
-    duplicates = df.duplicated()
-    duplicate_count = duplicates.sum()
-    
-    col1, col2 = st.columns(2)
+    """Comprehensive data quality analysis with improved visualization"""
+    # Create columns for high-level metrics
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.metric("Total Duplicate Rows", duplicate_count)
+        st.metric("Total Records", len(df))
     
     with col2:
-        st.metric("Duplicate Percentage", f"{(duplicate_count/len(df)*100):.2f}%")
+        # Calculate overall completeness
+        completeness = 100 - (df.isnull().sum().sum() / (len(df.columns) * len(df)) * 100)
+        st.metric("Data Completeness", f"{completeness:.2f}%")
     
-    # Unique value analysis for categorical columns
-    st.subheader("Categorical Column Analysis")
+    with col3:
+        # Check for duplicates
+        duplicates = df.duplicated().sum()
+        st.metric("Duplicate Records", duplicates)
     
-    # Select categorical columns
-    categorical_cols = ['categories', 'coroner_area']
+    with col4:
+        # Unique records
+        unique_records = len(df) - duplicates
+        st.metric("Unique Records", unique_records)
     
-    for col in categorical_cols:
-        if col in df.columns:
+    # Detailed Completeness Analysis
+    st.subheader("Column Completeness")
+    
+    # Calculate missing values per column
+    missing_data = df.isnull().sum()
+    missing_percentages = (missing_data / len(df)) * 100
+    
+    # Create completeness DataFrame
+    completeness_df = pd.DataFrame({
+        'Column': missing_data.index,
+        'Missing Values': missing_data.values,
+        'Completeness (%)': (100 - missing_percentages).round(2)
+    }).sort_values('Missing Values', ascending=False)
+    
+    # Visualization of column completeness
+    fig_completeness = px.bar(
+        completeness_df,
+        x='Column',
+        y='Completeness (%)',
+        title='Column Completeness',
+        labels={'Completeness (%)': 'Completeness (%)'},
+        color='Completeness (%)',
+        color_continuous_scale='RdYlGn'
+    )
+    fig_completeness.update_layout(xaxis_tickangle=-45)
+    st.plotly_chart(fig_completeness, use_container_width=True)
+    
+    # Detailed Column Analysis
+    st.subheader("Detailed Column Analysis")
+    
+    # Tabs for different types of columns
+    tab1, tab2, tab3 = st.tabs([
+        "Categorical Columns", 
+        "Numerical Columns", 
+        "Date Columns"
+    ])
+    
+    with tab1:
+        # Categorical Column Analysis
+        categorical_cols = df.select_dtypes(include=['object', 'category']).columns
+        
+        for col in categorical_cols:
             # Special handling for list-type categories
-            if col == 'categories':
-                # Flatten the list of categories
-                all_categories = [cat for cats in df[col].dropna() for cat in cats]
-                category_counts = pd.Series(all_categories).value_counts()
+            if col == 'categories' and df[col].dtype == 'object':
+                try:
+                    # Flatten list categories
+                    all_categories = [item for sublist in df[col].dropna() for item in eval(sublist)]
+                    category_counts = pd.Series(all_categories).value_counts()
+                except:
+                    category_counts = df[col].value_counts()
             else:
                 category_counts = df[col].value_counts()
             
-            # Visualize top categories
-            fig_categories = px.bar(
-                x=category_counts.head(10).index, 
-                y=category_counts.head(10).values,
-                title=f'Top 10 {col.replace("_", " ").title()}',
-                labels={'x': col.title(), 'y': 'Count'}
-            )
-            fig_categories.update_layout(xaxis_tickangle=-45)
-            st.plotly_chart(fig_categories, use_container_width=True)
-    
-    # Date range analysis
-    if 'date_of_report' in df.columns:
-        st.subheader("Date Range Analysis")
-        
-        # Ensure date column is datetime
-        df['date_of_report'] = pd.to_datetime(df['date_of_report'])
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("Earliest Date", df['date_of_report'].min().strftime('%Y-%m-%d'))
-        
-        with col2:
-            st.metric("Latest Date", df['date_of_report'].max().strftime('%Y-%m-%d'))
-        
-        with col3:
-            date_range = (df['date_of_report'].max() - df['date_of_report'].min()).days
-            st.metric("Total Date Range (Days)", date_range)
+            # Top 10 categories
+            top_categories = category_counts.head(10)
             
+            fig_cat = px.bar(
+                x=top_categories.index, 
+                y=top_categories.values,
+                title=f'Top 10 Categories in {col}',
+                labels={'x': 'Category', 'y': 'Count'}
+            )
+            fig_cat.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_cat, use_container_width=True)
+    
+    with tab2:
+        # Numerical Column Analysis
+        numerical_cols = df.select_dtypes(include=['int64', 'float64']).columns
+        
+        if len(numerical_cols) > 0:
+            # Descriptive statistics
+            desc_stats = df[numerical_cols].describe()
+            st.dataframe(desc_stats)
+            
+            # Box plot for numerical columns
+            fig_box = go.Figure()
+            for col in numerical_cols:
+                fig_box.add_trace(go.Box(y=df[col], name=col))
+            
+            fig_box.update_layout(
+                title='Distribution of Numerical Columns',
+                yaxis_title='Values'
+            )
+            st.plotly_chart(fig_box, use_container_width=True)
+    
+    with tab3:
+        # Date Column Analysis
+        date_cols = df.select_dtypes(include=['datetime64']).columns
+        
+        for col in date_cols:
+            # Date range
+            min_date = df[col].min()
+            max_date = df[col].max()
+            
+            # Monthly distribution
+            monthly_dist = df.groupby(pd.Grouper(key=col, freq='M')).size()
+            
+            fig_date = px.line(
+                x=monthly_dist.index, 
+                y=monthly_dist.values,
+                title=f'Monthly Distribution of {col}',
+                labels={'x': 'Date', 'y': 'Number of Records'}
+            )
+            st.plotly_chart(fig_date, use_container_width=True)
+            
+            # Date range information
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Earliest Date", min_date.strftime('%Y-%m-%d'))
+            with col2:
+                st.metric("Latest Date", max_date.strftime('%Y-%m-%d'))
+            with col3:
+                st.metric("Total Date Range", f"{(max_date - min_date).days} days")
 def main():
     try:
         initialize_session_state()
