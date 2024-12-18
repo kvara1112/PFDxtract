@@ -15,6 +15,12 @@ import unicodedata
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+# Import local modules
+from scraping_tab import render_scraping_tab
+from analysis_tab import render_analysis_tab
+from topic_modeling_tab import render_topic_modeling_tab
+
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -36,6 +42,15 @@ HEADERS = {
     'Connection': 'keep-alive',
 }
 
+def initialize_session_state():
+    """Initialize all required session state variables"""
+    if 'scraped_data' not in st.session_state:
+        st.session_state.scraped_data = None
+    if 'cleanup_scheduled' not in st.session_state:
+        st.session_state.cleanup_scheduled = False
+    if 'current_tab' not in st.session_state:
+        st.session_state.current_tab = "Scrape Reports"
+        
 def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[requests.Response]:
     """Make HTTP request with retries and delay"""
     headers = {
@@ -726,22 +741,26 @@ def main():
         # App title
         st.title("UK Judiciary PFD Reports Analysis")
         
-        # Create tabs
-        tab1, tab2, tab3 = st.tabs([
-            "🔍 Scrape Reports",
-            "📊 Analyze Reports",
-            "🔬 Topic Modeling"
-        ])
+        # Create tabs with state management
+        tabs = ["🔍 Scrape Reports", "📊 Analyze Reports", "🔬 Topic Modeling"]
+        current_tab = st.tabs(tabs)
         
-        # Render tabs
-        with tab1:
-            render_scraping_tab()
-        
-        with tab2:
-            render_analysis_tab()
-        
-        with tab3:
-            render_topic_modeling_tab()
+        # Update current tab in session state
+        for i, tab in enumerate(current_tab):
+            with tab:
+                if tabs[i] == "🔍 Scrape Reports":
+                    render_scraping_tab()
+                elif tabs[i] == "📊 Analyze Reports":
+                    # Move sidebar filters inside the analysis tab
+                    if st.session_state.scraped_data is not None:
+                        render_analysis_tab()
+                    else:
+                        st.warning("Please scrape reports first in the 'Scrape Reports' tab")
+                else:  # Topic Modeling tab
+                    if st.session_state.scraped_data is not None:
+                        render_topic_modeling_tab()
+                    else:
+                        st.warning("Please scrape reports first in the 'Scrape Reports' tab")
         
         # Footer
         st.markdown("---")
