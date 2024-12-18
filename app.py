@@ -1497,12 +1497,17 @@ def main():
         You can either scrape new reports or upload existing data for analysis.
         """)
         
-        # Debugging session state
-        st.sidebar.write("Debug Information:")
-        st.sidebar.write(f"Current Data: {st.session_state.current_data}")
-        st.sidebar.write(f"Scraped Data: {st.session_state.scraped_data}")
-        st.sidebar.write(f"Uploaded Data: {st.session_state.uploaded_data}")
-        st.sidebar.write(f"Data Source: {st.session_state.data_source}")
+        # Detailed debugging information
+        st.sidebar.header("Debug Information")
+        st.sidebar.write("Session State Details:")
+        
+        # Safe way to display session state information
+        try:
+            st.sidebar.write(f"Data Source: {getattr(st.session_state, 'data_source', 'Not Set')}")
+            st.sidebar.write(f"Current Data: {type(st.session_state.current_data) if hasattr(st.session_state, 'current_data') else 'Not Set'}")
+            st.sidebar.write(f"Current Data Length: {len(st.session_state.current_data) if hasattr(st.session_state, 'current_data') and st.session_state.current_data is not None else 'N/A'}")
+        except Exception as debug_e:
+            st.sidebar.error(f"Error displaying debug info: {debug_e}")
         
         # Create separate tab selection to avoid key conflicts
         current_tab = st.radio(
@@ -1523,39 +1528,58 @@ def main():
             render_file_upload()
         
         elif current_tab == "📊 Analysis":
-            # Add explicit logging and checks
+            # Extensive logging and checks
             logging.info("Entering Analysis Tab")
-            logging.info(f"Session State Data: {st.session_state.current_data}")
             
-            if st.session_state.current_data is not None:
-                try:
-                    is_valid, message = validate_data(st.session_state.current_data, "analysis")
-                    if is_valid:
-                        render_analysis_tab(st.session_state.current_data)
-                    else:
-                        st.error(message)
-                except Exception as e:
-                    st.error(f"Error in analysis validation: {e}")
-                    logging.error(f"Analysis validation error: {e}", exc_info=True)
-            else:
-                st.warning("Please scrape or upload data first")
+            # Check current_data existence and type
+            if not hasattr(st.session_state, 'current_data'):
+                st.warning("No current data in session state. Please scrape or upload data first.")
+                return
+            
+            if st.session_state.current_data is None:
+                st.warning("Current data is None. Please scrape or upload data first.")
+                return
+            
+            if not isinstance(st.session_state.current_data, pd.DataFrame):
+                st.error(f"Invalid data type: {type(st.session_state.current_data)}")
+                return
+            
+            try:
+                is_valid, message = validate_data(st.session_state.current_data, "analysis")
+                if is_valid:
+                    render_analysis_tab(st.session_state.current_data)
+                else:
+                    st.error(message)
+            except Exception as e:
+                st.error(f"Error in analysis validation: {e}")
+                logging.error(f"Analysis validation error: {e}", exc_info=True)
         
         elif current_tab == "🔬 Topic Modeling":
-            if st.session_state.current_data is not None:
-                try:
-                    is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
-                    if is_valid:
-                        render_topic_modeling_tab(st.session_state.current_data)
-                    else:
-                        st.error(message)
-                except Exception as e:
-                    st.error(f"Error in topic modeling: {e}")
-                    logging.error(f"Topic modeling error: {e}", exc_info=True)
-            else:
-                st.warning("Please scrape or upload data first")
+            # Similar extensive checks for topic modeling
+            if not hasattr(st.session_state, 'current_data'):
+                st.warning("No current data in session state. Please scrape or upload data first.")
+                return
+            
+            if st.session_state.current_data is None:
+                st.warning("Current data is None. Please scrape or upload data first.")
+                return
+            
+            if not isinstance(st.session_state.current_data, pd.DataFrame):
+                st.error(f"Invalid data type: {type(st.session_state.current_data)}")
+                return
+            
+            try:
+                is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
+                if is_valid:
+                    render_topic_modeling_tab(st.session_state.current_data)
+                else:
+                    st.error(message)
+            except Exception as e:
+                st.error(f"Error in topic modeling: {e}")
+                logging.error(f"Topic modeling error: {e}", exc_info=True)
         
         # Show data source indicator in sidebar
-        if st.session_state.data_source:
+        if hasattr(st.session_state, 'data_source') and st.session_state.data_source:
             st.sidebar.success(f"Currently using {st.session_state.data_source} data")
         
         # Add footer
