@@ -539,7 +539,6 @@ def render_scraping_tab():
             ], format_func=lambda x: x[1])
         
         with col2:
-            # Date inputs with UK format and no restrictions
             date_after = st.date_input(
                 "Published after:",
                 None,
@@ -554,18 +553,13 @@ def render_scraping_tab():
                 help="Select end date for report search"
             )
             
-            # Maximum pages input
             max_pages = st.number_input(
                 "Maximum pages to scrape (0 for all):", 
                 min_value=0, 
                 value=0,
                 help="Set to 0 to scrape all available pages"
             )
-            
-            # Add a separator for visual clarity
-            st.markdown("---")
-    
-
+        
         col3, col4 = st.columns(2)
         with col3:
             search_mode = st.radio(
@@ -583,7 +577,6 @@ def render_scraping_tab():
             with st.spinner("Searching for reports..."):
                 try:
                     if search_mode == "Search with filters":
-                        # Convert dates to string format if provided
                         date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
                         date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
                         
@@ -689,7 +682,7 @@ def render_scraping_tab():
                                 key="download_pdfs_zip"
                             )
                         
-                        # Cleanup
+                        # Cleanup zip file after download
                         try:
                             os.remove(pdf_zip_path)
                         except Exception as e:
