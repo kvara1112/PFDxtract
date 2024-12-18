@@ -1320,27 +1320,45 @@ def render_topic_modeling_tab(data: pd.DataFrame):
 
 
 def render_file_upload():
-    """Render file upload section"""
+    """Render file upload section with comprehensive debugging"""
     st.header("Upload Existing Data")
     
-    # Generate unique key for the file uploader
+    # Add logging
+    logging.info("Entering render_file_upload function")
+    
+    # Generate a unique key to prevent caching issues
     upload_key = f"file_uploader_{int(time.time() * 1000)}"
     
+    # File uploader with explicit type hints and debugging
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file", 
         type=['csv', 'xlsx'],
         key=upload_key
     )
     
+    # Debugging: Show file uploader status
+    st.write(f"Uploaded file status: {uploaded_file is not None}")
+    
     if uploaded_file is not None:
         try:
-            # Determine file type and read
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
+            # Log file details
+            st.write(f"Uploaded file name: {uploaded_file.name}")
+            st.write(f"Uploaded file size: {uploaded_file.size} bytes")
             
-            # Validate required columns
+            # Determine file type and read
+            if uploaded_file.name.lower().endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            elif uploaded_file.name.lower().endswith(('.xls', '.xlsx')):
+                df = pd.read_excel(uploaded_file)
+            else:
+                st.error("Unsupported file type")
+                return False
+            
+            # Validate DataFrame
+            st.write(f"DataFrame shape: {df.shape}")
+            st.write("Columns:", list(df.columns))
+            
+            # Required columns check
             required_columns = [
                 'Title', 'URL', 'Content', 
                 'date_of_report', 'categories', 'coroner_area'
@@ -1349,26 +1367,23 @@ def render_file_upload():
             
             if missing_columns:
                 st.error(f"Missing required columns: {', '.join(missing_columns)}")
-                st.warning("Please upload a file with the correct structure.")
                 return False
             
             # Process uploaded data
-            df = process_scraped_data(df)
+            processed_df = process_scraped_data(df)
             
-            # Persist data across sessions
-            if 'uploaded_data' not in st.session_state:
-                st.session_state.uploaded_data = df.copy()
-            
-            # Update current data and source
-            st.session_state.current_data = df.copy()
+            # Update session state
+            st.session_state.uploaded_data = processed_df.copy()
+            st.session_state.current_data = processed_df.copy()
             st.session_state.data_source = 'uploaded'
             
-            st.success(f"File uploaded successfully! Total reports: {len(df)}")
+            # Success message
+            st.success(f"File uploaded successfully! Total reports: {len(processed_df)}")
             
-            # Show the uploaded data
+            # Preview uploaded data
             st.subheader("Uploaded Data Preview")
             st.dataframe(
-                df,
+                processed_df,
                 column_config={
                     "URL": st.column_config.LinkColumn("Report Link"),
                     "date_of_report": st.column_config.DateColumn("Date of Report"),
@@ -1377,20 +1392,15 @@ def render_file_upload():
                 hide_index=True
             )
             
-            # Trigger a rerun to refresh the app state
-            st.rerun()
+            # Force rerun to refresh state
+            st.experimental_rerun()
             
             return True
-            
-        except pd.errors.EmptyDataError:
-            st.error("The uploaded file is empty.")
-        except pd.errors.ParserError:
-            st.error("Error parsing the file. Please check the file format.")
+        
         except Exception as e:
             st.error(f"Unexpected error uploading file: {str(e)}")
             logging.error(f"File upload error: {e}", exc_info=True)
-        
-        return False
+            return False
     
     return False
 
