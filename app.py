@@ -951,82 +951,68 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             
             # Cleanup zip file
             os.remove(pdf_zip_path)
+            
 def render_analysis_tab(data: pd.DataFrame):
     """Render the analysis tab with comprehensive error handling"""
-    # Log the input data type and value for debugging
-    logging.info(f"Entering render_analysis_tab. Data type: {type(data)}")
-    logging.info(f"Data is None: {data is None}")
+    # Immediate type and value checking
+    logging.info(f"Entering render_analysis_tab. Input data type: {type(data)}")
     
-    try:
-        # Extensive validation before processing
-        if data is None:
-            st.error("No data available. Please scrape or upload data first.")
-            logging.error("render_analysis_tab called with None data")
-            return
-        
-        if not isinstance(data, pd.DataFrame):
-            st.error(f"Invalid data type: {type(data)}. Expected pandas DataFrame.")
-            logging.error(f"Invalid data type received: {type(data)}")
-            return
-        
-        # Check if the DataFrame is empty
-        if len(data) == 0:
-            st.warning("The dataset is empty.")
-            logging.warning("Received an empty DataFrame")
-            return
-        
-        # Log column information for debugging
-        logging.info(f"Columns in data: {list(data.columns)}")
-        
-        # Check required columns
-        required_columns = ['date_of_report', 'categories', 'coroner_area']
-        missing_columns = [col for col in required_columns if col not in data.columns]
-        if missing_columns:
-            st.error(f"Missing required columns: {', '.join(missing_columns)}")
-            logging.error(f"Missing columns: {missing_columns}")
-            return
+    # First-level validation
+    if data is None:
+        st.error("No data available. Please scrape or upload data first.")
+        logging.error("render_analysis_tab called with None data")
+        return
+    
+    if not isinstance(data, pd.DataFrame):
+        st.error(f"Invalid data type: {type(data)}. Expected pandas DataFrame.")
+        logging.error(f"Invalid data type received: {type(data)}")
+        return
+    
+    # Check DataFrame contents
+    if len(data) == 0:
+        st.warning("The dataset is empty.")
+        logging.warning("Received an empty DataFrame")
+        return
+    
+    # Detailed column checking
+    required_columns = ['date_of_report', 'categories', 'coroner_area']
+    missing_columns = [col for col in required_columns if col not in data.columns]
+    if missing_columns:
+        st.error(f"Missing required columns: {', '.join(missing_columns)}")
+        logging.error(f"Missing columns: {missing_columns}")
+        return
 
-        st.header("Reports Analysis")
-        
-        # Ensure date_of_report is datetime
+    # Attempt to convert date column safely
+    try:
         if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
-            try:
-                data['date_of_report'] = pd.to_datetime(data['date_of_report'], errors='coerce')
-            except Exception as e:
-                st.error(f"Error converting date column: {e}")
-                logging.error(f"Date conversion error: {e}")
-                return
-        
-        # Handle missing dates
-        if data['date_of_report'].isna().all():
-            st.error("No valid dates found in the data.")
-            logging.error("All dates are NaT (Not a Time)")
-            return
-        
-        # Store the original data
-        if 'original_analysis_data' not in st.session_state:
-            st.session_state.original_analysis_data = data.copy()
+            data['date_of_report'] = pd.to_datetime(data['date_of_report'], errors='coerce')
+    except Exception as e:
+        st.error(f"Error converting date column: {e}")
+        logging.error(f"Date conversion error: {e}")
+        return
+
+    # Check for valid dates
+    if data['date_of_report'].isna().all():
+        st.error("No valid dates found in the data.")
+        logging.error("All dates are NaT (Not a Time)")
+        return
+
+    # Proceed with analysis
+    try:
+        st.header("Reports Analysis")
         
         # Get date range for the data
         min_date = data['date_of_report'].min().date()
         max_date = data['date_of_report'].max().date()
         
-        # Initialize filter state if not exists
-        if 'analysis_filters' not in st.session_state:
-            st.session_state.analysis_filters = {
-                'date_range': (min_date, max_date),
-                'selected_categories': [],
-                'selected_areas': []
-            }
-        
-        # Filters sidebar
+        # Sidebar for filtering
         with st.sidebar:
             st.header("Analysis Filters")
             
             # Date range filter
             date_range = st.date_input(
                 "Date Range",
-                value=st.session_state.analysis_filters['date_range'],
+                value=(min_date, max_date),
                 min_value=min_date,
                 max_value=max_date,
                 key="date_range_filter"
@@ -1041,7 +1027,6 @@ def render_analysis_tab(data: pd.DataFrame):
             selected_categories = st.multiselect(
                 "Categories",
                 options=sorted(all_categories),
-                default=st.session_state.analysis_filters['selected_categories'],
                 key="categories_filter"
             )
             
@@ -1050,20 +1035,8 @@ def render_analysis_tab(data: pd.DataFrame):
             selected_areas = st.multiselect(
                 "Coroner Areas",
                 options=coroner_areas,
-                default=st.session_state.analysis_filters['selected_areas'],
                 key="areas_filter"
             )
-            
-            # Update session state for filters
-            st.session_state.analysis_filters['date_range'] = date_range
-            st.session_state.analysis_filters['selected_categories'] = selected_categories
-            st.session_state.analysis_filters['selected_areas'] = selected_areas
-            
-            # Add a clear filters button
-            if st.button("Clear Filters", key="clear_analysis_filters"):
-                st.session_state.analysis_filters['date_range'] = (min_date, max_date)
-                st.session_state.analysis_filters['selected_categories'] = []
-                st.session_state.analysis_filters['selected_areas'] = []
         
         # Apply filters
         filtered_df = data.copy()
@@ -1155,7 +1128,7 @@ def render_analysis_tab(data: pd.DataFrame):
     except Exception as e:
         st.error(f"An unexpected error occurred in the analysis tab: {str(e)}")
         logging.error(f"Unexpected error in render_analysis_tab: {e}", exc_info=True)
-
+        
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """Handle Excel export with proper buffer management"""
