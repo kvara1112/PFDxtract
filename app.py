@@ -27,6 +27,7 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
 
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -784,6 +785,52 @@ def create_network_diagram(topic_words: List[str],
         logging.error(f"Error creating network diagram: {e}")
         return None
 
+def render_file_upload():
+    """Render file upload section with more flexibility"""
+    st.header("Upload Existing Data")
+    
+    uploaded_file = st.file_uploader("Upload CSV or Excel file", type=['csv', 'xlsx'])
+    
+    if uploaded_file is not None:
+        try:
+            # Read the file
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            
+            # Convert date column to datetime if it exists
+            if 'date_of_report' in df.columns:
+                df['date_of_report'] = pd.to_datetime(df['date_of_report'], errors='coerce')
+            
+            # Ensure categories are lists
+            if 'categories' in df.columns:
+                df['categories'] = df['categories'].apply(lambda x: eval(x) if isinstance(x, str) else x)
+            
+            # Store in session state
+            st.session_state.scraped_data = df
+            st.success("File uploaded successfully!")
+            
+            # Show basic information about the uploaded data
+            st.subheader("Data Overview")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Total Reports", len(df))
+            
+            with col2:
+                unique_categories = set()
+                for cats in df['categories'].dropna():
+                    if isinstance(cats, list):
+                        unique_categories.update(cats)
+                st.metric("Unique Categories", len(unique_categories))
+            
+            with col3:
+                st.metric("Date Range", f"{df['date_of_report'].min().strftime('%d/%m/%Y')} to {df['date_of_report'].max().strftime('%d/%m/%Y')}")
+        
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            
 def render_topic_modeling_tab():
     """Render the topic modeling tab"""
     st.header("Topic Modeling Analysis")
@@ -1260,8 +1307,9 @@ def main():
         st.title("UK Judiciary PFD Reports Analysis")
         
         # Create tabs
-        tab1, tab2, tab3 = st.tabs([
+        tab1, tab2, tab3, tab4 = st.tabs([
             "🔍 Scrape Reports",
+            "📤 Upload Data",
             "📊 Analyze Reports",
             "🔬 Topic Modeling"
         ])
@@ -1270,12 +1318,15 @@ def main():
             render_scraping_tab()
         
         with tab2:
+            render_file_upload()
+        
+        with tab3:
             if st.session_state.scraped_data is not None:
                 render_analysis_tab()
             else:
                 st.warning("Please scrape or upload data first")
         
-        with tab3:
+        with tab4:
             if st.session_state.scraped_data is not None:
                 render_topic_modeling_tab()
             else:
