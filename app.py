@@ -113,6 +113,7 @@ def clean_text(text: str) -> str:
         logging.error(f"Error in clean_text: {e}")
         return ""
 
+
 def extract_metadata(content: str) -> dict:
     """Extract comprehensive metadata from report content with UK date handling"""
     metadata = {
