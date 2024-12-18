@@ -958,12 +958,26 @@ def render_file_upload():
     
     if uploaded_file is not None:
         try:
+            # Read the file
             if uploaded_file.name.endswith('.csv'):
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file)
             
-            # Process uploaded data
+            # Convert date_of_report to datetime
+            if 'date_of_report' in df.columns:
+                df['date_of_report'] = pd.to_datetime(df['date_of_report'], errors='coerce')
+            
+            # Convert categories to list if it's a string representation
+            if 'categories' in df.columns:
+                df['categories'] = df['categories'].apply(
+                    lambda x: eval(x) if isinstance(x, str) and x.strip().startswith('[') else 
+                    [x] if isinstance(x, str) else 
+                    x if isinstance(x, list) else 
+                    None
+                )
+            
+            # Process any additional metadata
             df = process_scraped_data(df)
             
             # Clear any existing data first
@@ -990,6 +1004,9 @@ def render_file_upload():
                 },
                 hide_index=True
             )
+            
+            # Show export options for the uploaded data
+            show_export_options(df, "uploaded")
             
             return True
             
