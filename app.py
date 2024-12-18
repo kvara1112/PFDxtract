@@ -1111,6 +1111,7 @@ def render_analysis_tab(data: pd.DataFrame):
     except Exception as e:
         st.error(f"An error occurred in the analysis tab: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
+        
 
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
