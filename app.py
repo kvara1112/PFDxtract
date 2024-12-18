@@ -1121,10 +1121,11 @@ def render_analysis_tab(data: pd.DataFrame):
         
         # Visualizations
         st.subheader("Visualizations")
-        viz_tab1, viz_tab2, viz_tab3 = st.tabs([
+        viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
             "Timeline",
             "Categories",
-            "Coroner Areas"
+            "Coroner Areas",
+            "Data Quality"  # New tab
         ])
         
         with viz_tab1:
@@ -1144,6 +1145,11 @@ def render_analysis_tab(data: pd.DataFrame):
                 plot_coroner_areas(filtered_df)
             except Exception as e:
                 st.error(f"Error creating coroner areas plot: {str(e)}")
+        with viz_tab4:
+            try:
+                analyze_data_quality(filtered_df)
+            except Exception as e:
+                st.error(f"Error creating data quality analysis: {str(e)}")
         
         # Export filtered data
         show_export_options(filtered_df, "filtered")
@@ -1514,7 +1520,99 @@ def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, 
             return False, "Categories must be stored as lists or None values."
     
     return True, "Data is valid"
+
+def analyze_data_quality(df: pd.DataFrame) -> None:
+    """Perform and visualize data quality analysis"""
+    # Overall completeness
+    st.subheader("Data Completeness")
     
+    # Calculate missing values
+    missing_data = df.isnull().sum()
+    missing_percentages = 100 * df.isnull().sum() / len(df)
+    
+    # Create a DataFrame for missing value analysis
+    missing_df = pd.DataFrame({
+        'Missing Values': missing_data,
+        'Percentage Missing (%)': missing_percentages.round(2)
+    })
+    
+    # Filter to only columns with missing values
+    missing_df = missing_df[missing_df['Missing Values'] > 0]
+    
+    # Visualize missing values
+    if not missing_df.empty:
+        fig_missing = px.bar(
+            missing_df, 
+            x=missing_df.index, 
+            y='Percentage Missing (%)',
+            title='Percentage of Missing Values by Column',
+            labels={'x': 'Columns', 'Percentage Missing (%)': 'Percentage Missing'}
+        )
+        fig_missing.update_layout(xaxis_tickangle=-45)
+        st.plotly_chart(fig_missing, use_container_width=True)
+    else:
+        st.success("No missing values found in the dataset!")
+    
+    # Duplicate analysis
+    st.subheader("Duplicate Analysis")
+    
+    # Check for duplicate rows
+    duplicates = df.duplicated()
+    duplicate_count = duplicates.sum()
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.metric("Total Duplicate Rows", duplicate_count)
+    
+    with col2:
+        st.metric("Duplicate Percentage", f"{(duplicate_count/len(df)*100):.2f}%")
+    
+    # Unique value analysis for categorical columns
+    st.subheader("Categorical Column Analysis")
+    
+    # Select categorical columns
+    categorical_cols = ['categories', 'coroner_area']
+    
+    for col in categorical_cols:
+        if col in df.columns:
+            # Special handling for list-type categories
+            if col == 'categories':
+                # Flatten the list of categories
+                all_categories = [cat for cats in df[col].dropna() for cat in cats]
+                category_counts = pd.Series(all_categories).value_counts()
+            else:
+                category_counts = df[col].value_counts()
+            
+            # Visualize top categories
+            fig_categories = px.bar(
+                x=category_counts.head(10).index, 
+                y=category_counts.head(10).values,
+                title=f'Top 10 {col.replace("_", " ").title()}',
+                labels={'x': col.title(), 'y': 'Count'}
+            )
+            fig_categories.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig_categories, use_container_width=True)
+    
+    # Date range analysis
+    if 'date_of_report' in df.columns:
+        st.subheader("Date Range Analysis")
+        
+        # Ensure date column is datetime
+        df['date_of_report'] = pd.to_datetime(df['date_of_report'])
+        
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("Earliest Date", df['date_of_report'].min().strftime('%Y-%m-%d'))
+        
+        with col2:
+            st.metric("Latest Date", df['date_of_report'].max().strftime('%Y-%m-%d'))
+        
+        with col3:
+            date_range = (df['date_of_report'].max() - df['date_of_report'].min()).days
+            st.metric("Total Date Range (Days)", date_range)
+            
 def main():
     try:
         initialize_session_state()
