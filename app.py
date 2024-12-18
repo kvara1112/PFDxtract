@@ -1430,7 +1430,52 @@ def initialize_session_state():
             logging.error(f"Error during PDF cleanup: {e}")
         finally:
             st.session_state.cleanup_done = True
-
+def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
+    """
+    Validate data for different purposes
+    
+    Args:
+        data: DataFrame to validate
+        purpose: Purpose of validation ('analysis' or 'topic_modeling')
+        
+    Returns:
+        tuple: (is_valid, message)
+    """
+    if data is None:
+        return False, "No data available. Please scrape or upload data first."
+    
+    if not isinstance(data, pd.DataFrame):
+        return False, "Invalid data format. Expected pandas DataFrame."
+    
+    if len(data) == 0:
+        return False, "Dataset is empty."
+        
+    if purpose == "analysis":
+        required_columns = ['date_of_report', 'categories', 'coroner_area']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            return False, f"Missing required columns: {', '.join(missing_columns)}"
+            
+    elif purpose == "topic_modeling":
+        if 'Content' not in data.columns:
+            return False, "Missing required column: Content"
+            
+        valid_docs = data['Content'].dropna().str.strip().str.len() > 0
+        if valid_docs.sum() < 2:
+            return False, "Not enough valid documents found. Please ensure you have documents with text content."
+            
+    # Add type checking for critical columns
+    if 'date_of_report' in data.columns and not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
+        try:
+            pd.to_datetime(data['date_of_report'])
+        except Exception:
+            return False, "Invalid date format in date_of_report column."
+            
+    if 'categories' in data.columns:
+        if not data['categories'].apply(lambda x: isinstance(x, (list, type(None)))).all():
+            return False, "Categories must be stored as lists or None values."
+    
+    return True, "Data is valid"
 def main():
     try:
         initialize_session_state()
