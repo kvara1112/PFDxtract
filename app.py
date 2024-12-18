@@ -948,116 +948,167 @@ def render_file_upload():
     
 def render_analysis_tab(data: pd.DataFrame):
     """Render the analysis tab"""
-    st.header("Reports Analysis")
-    
-    # Filters sidebar
-    with st.sidebar:
-        st.header("Analysis Filters")
+    try:
+        # Validate data
+        if data is None or len(data) == 0:
+            st.warning("No data available for analysis. Please scrape or upload data first.")
+            return
+            
+        # Check required columns
+        required_columns = ['date_of_report', 'categories', 'coroner_area']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            st.error(f"Missing required columns: {', '.join(missing_columns)}")
+            return
+
+        st.header("Reports Analysis")
         
-        # Date range filter
-        date_range = st.date_input(
-            "Date Range",
-            value=[data['date_of_report'].min(), data['date_of_report'].max()],
-            key="analysis_date_range"
-        )
+        # Ensure date_of_report is datetime
+        if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
+            data['date_of_report'] = pd.to_datetime(data['date_of_report'], errors='coerce')
         
-        # Category filter
-        all_categories = set()
-        for cats in data['categories'].dropna():
-            if isinstance(cats, list):
-                all_categories.update(cats)
+        # Handle missing dates
+        if data['date_of_report'].isna().all():
+            st.error("No valid dates found in the data.")
+            return
+            
+        # Filters sidebar
+        with st.sidebar:
+            st.header("Analysis Filters")
+            
+            # Date range filter with validation
+            min_date = data['date_of_report'].min()
+            max_date = data['date_of_report'].max()
+            if pd.isna(min_date) or pd.isna(max_date):
+                st.error("Invalid date range in data")
+                return
                 
-        selected_categories = st.multiselect(
-            "Categories",
-            options=sorted(all_categories)
-        )
+            date_range = st.date_input(
+                "Date Range",
+                value=[min_date.date(), max_date.date()],
+                key="analysis_date_range"
+            )
+            
+            # Category filter
+            all_categories = set()
+            for cats in data['categories'].dropna():
+                if isinstance(cats, list):
+                    all_categories.update(cats)
+            
+            if all_categories:
+                selected_categories = st.multiselect(
+                    "Categories",
+                    options=sorted(all_categories)
+                )
+            
+            # Coroner area filter
+            coroner_areas = sorted(data['coroner_area'].dropna().unique())
+            if len(coroner_areas) > 0:
+                selected_areas = st.multiselect(
+                    "Coroner Areas",
+                    options=coroner_areas
+                )
+            else:
+                selected_areas = []
         
-        # Coroner area filter
-        coroner_areas = sorted(data['coroner_area'].dropna().unique())
-        selected_areas = st.multiselect(
-            "Coroner Areas",
-            options=coroner_areas
-        )
-    
-    # Apply filters
-    mask = pd.Series(True, index=data.index)
-    
-    if len(date_range) == 2:
-        mask &= (data['date_of_report'].dt.date >= date_range[0]) & \
-                (data['date_of_report'].dt.date <= date_range[1])
-    
-    if selected_categories:
-        mask &= data['categories'].apply(
-            lambda x: any(cat in x for cat in selected_categories) if isinstance(x, list) else False
-        )
-    
-    if selected_areas:
-        mask &= data['coroner_area'].isin(selected_areas)
-    
-    filtered_df = data[mask]
-    
-    if len(filtered_df) == 0:
-        st.warning("No data matches the selected filters.")
-        return
-    
-    # Overview metrics
-    st.subheader("Overview")
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Total Reports", len(filtered_df))
-    with col2:
-        st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique())
-    with col3:
-        st.metric("Categories", len(all_categories))
-    with col4:
-        date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
-        avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
-        st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
-    
-    # Visualizations
-    st.subheader("Visualizations")
-    viz_tab1, viz_tab2, viz_tab3 = st.tabs(["Timeline", "Categories", "Coroner Areas"])
-    
-    with viz_tab1:
-        plot_timeline(filtered_df)
-    
-    with viz_tab2:
-        plot_category_distribution(filtered_df)
-    
-    with viz_tab3:
-        plot_coroner_areas(filtered_df)
-    
-    # Export options
-    st.header("Export Options")
-    
-    # Generate filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"pfd_reports_analysis_{timestamp}"
-    
-    col1, col2 = st.columns(2)
-    
-    # CSV Export
-    with col1:
-        csv = filtered_df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            "📥 Download Filtered Data (CSV)",
-            csv,
-            f"{filename}.csv",
-            "text/csv",
-            key="download_filtered_csv"
-        )
-    
-    # Excel Export
-    with col2:
-        excel_data = export_to_excel(filtered_df)
-        st.download_button(
-            "📥 Download Filtered Data (Excel)",
-            excel_data,
-            f"{filename}.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key="download_filtered_excel"
-        )
+        # Apply filters
+        mask = pd.Series(True, index=data.index)
+        
+        if len(date_range) == 2:
+            mask &= (data['date_of_report'].dt.date >= date_range[0]) & \
+                    (data['date_of_report'].dt.date <= date_range[1])
+        
+        if selected_categories:
+            mask &= data['categories'].apply(
+                lambda x: any(cat in x for cat in selected_categories) if isinstance(x, list) else False
+            )
+        
+        if selected_areas:
+            mask &= data['coroner_area'].isin(selected_areas)
+        
+        filtered_df = data[mask]
+        
+        if len(filtered_df) == 0:
+            st.warning("No data matches the selected filters.")
+            return
+        
+        # Overview metrics
+        st.subheader("Overview")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total Reports", len(filtered_df))
+        with col2:
+            st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique())
+        with col3:
+            st.metric("Categories", len(all_categories))
+        with col4:
+            date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
+            avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
+            st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
+        
+        # Visualizations
+        st.subheader("Visualizations")
+        viz_tab1, viz_tab2, viz_tab3 = st.tabs(["Timeline", "Categories", "Coroner Areas"])
+        
+        with viz_tab1:
+            try:
+                plot_timeline(filtered_df)
+            except Exception as e:
+                st.error(f"Error creating timeline plot: {str(e)}")
+        
+        with viz_tab2:
+            try:
+                plot_category_distribution(filtered_df)
+            except Exception as e:
+                st.error(f"Error creating category distribution plot: {str(e)}")
+        
+        with viz_tab3:
+            try:
+                plot_coroner_areas(filtered_df)
+            except Exception as e:
+                st.error(f"Error creating coroner areas plot: {str(e)}")
+        
+        # Export options
+        st.subheader("Export Options")
+        
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"pfd_reports_analysis_{timestamp}"
+        
+        col1, col2 = st.columns(2)
+        
+        # CSV Export
+        with col1:
+            try:
+                csv = filtered_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Download Filtered Data (CSV)",
+                    csv,
+                    f"{filename}.csv",
+                    "text/csv",
+                    key="download_filtered_csv"
+                )
+            except Exception as e:
+                st.error(f"Error preparing CSV download: {str(e)}")
+        
+        # Excel Export
+        with col2:
+            try:
+                excel_data = export_to_excel(filtered_df)
+                st.download_button(
+                    "📥 Download Filtered Data (Excel)",
+                    excel_data,
+                    f"{filename}.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_filtered_excel"
+                )
+            except Exception as e:
+                st.error(f"Error preparing Excel download: {str(e)}")
+
+    except Exception as e:
+        st.error(f"An error occurred in the analysis tab: {str(e)}")
+        logging.error(f"Analysis error: {e}", exc_info=True)
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """Handle Excel export with proper buffer management"""
