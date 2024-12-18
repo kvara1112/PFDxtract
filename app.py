@@ -383,12 +383,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                       date_after: Optional[str] = None,
                       date_before: Optional[str] = None,
                       order: str = "relevance",
-                      max_pages: Optional[int]
-def scrape_pfd_reports(keyword: Optional[str] = None,
-                      category: Optional[str] = None,
-                      date_after: Optional[str] = None,
-                      date_before: Optional[str] = None,
-                      order: str = "relevance",
                       max_pages: Optional[int] = None) -> List[Dict]:
     all_reports = []
     current_page = 1
