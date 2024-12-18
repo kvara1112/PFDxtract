@@ -27,7 +27,6 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
 
-
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -64,20 +63,13 @@ HEADERS = {
     'Referer': 'https://judiciary.uk/'
 }
 
+# Core utility functions
 def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[requests.Response]:
     """Make HTTP request with retries and delay"""
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-        'Connection': 'keep-alive',
-        'Referer': 'https://judiciary.uk/'
-    }
-    
     for attempt in range(retries):
         try:
-            time.sleep(delay)  # Add delay between requests
-            response = requests.get(url, headers=headers, verify=False, timeout=30)
+            time.sleep(delay)
+            response = requests.get(url, headers=HEADERS, verify=False, timeout=30)
             response.raise_for_status()
             return response
         except Exception as e:
@@ -96,7 +88,6 @@ def clean_text(text: str) -> str:
         text = str(text)
         text = unicodedata.normalize('NFKD', text)
         
-        # Enhanced replacements for special characters
         replacements = {
             'â€™': "'",
             'â€œ': '"',
@@ -117,13 +108,8 @@ def clean_text(text: str) -> str:
         for encoded, replacement in replacements.items():
             text = text.replace(encoded, replacement)
         
-        # Remove HTML tags while preserving newlines
         text = re.sub(r'<[^>]+>', '', text)
-        
-        # Handle special characters while preserving structure
         text = ''.join(char if char.isprintable() or char == '\n' else ' ' for char in text)
-        
-        # Remove multiple spaces while preserving newlines
         text = re.sub(r' +', ' ', text)
         text = re.sub(r'\n+', '\n', text)
         
@@ -148,12 +134,12 @@ def extract_metadata(content: str) -> dict:
         return metadata
         
     try:
-        # Extract date - handle multiple date formats
+        # Extract date patterns
         date_patterns = [
-            r'Date of report:\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})',  # e.g., "15th February 2022"
-            r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})',  # e.g., "22/07/2024"
-            r'DATED this (\d{1,2}(?:st|nd|rd|th)?\s+day of [A-Za-z]+\s+\d{4})',  # e.g., "20th day of April 2020"
-            r'Date:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})'  # e.g., "20 April 2020"
+            r'Date of report:\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})',
+            r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})',
+            r'DATED this (\d{1,2}(?:st|nd|rd|th)?\s+day of [A-Za-z]+\s+\d{4})',
+            r'Date:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})'
         ]
         
         for pattern in date_patterns:
@@ -161,11 +147,9 @@ def extract_metadata(content: str) -> dict:
             if date_match:
                 date_str = date_match.group(1)
                 try:
-                    # Convert to standard format
                     if '/' in date_str:
                         date_obj = datetime.strptime(date_str, '%d/%m/%Y')
                     else:
-                        # Remove ordinal indicators and normalize
                         date_str = re.sub(r'(?<=\d)(st|nd|rd|th)', '', date_str)
                         date_str = re.sub(r'day of ', '', date_str)
                         try:
@@ -178,17 +162,17 @@ def extract_metadata(content: str) -> dict:
                 except ValueError as e:
                     logging.warning(f"Invalid date format found: {date_str} - {e}")
         
-        # Extract reference number - enhanced pattern
+        # Extract reference number
         ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', content)
         if ref_match:
             metadata['ref'] = ref_match.group(1).strip()
         
-        # Extract deceased name with improved pattern
+        # Extract deceased name
         name_match = re.search(r'Deceased name:?\s*([^\n]+)', content)
         if name_match:
             metadata['deceased_name'] = clean_text(name_match.group(1)).strip()
         
-        # Extract coroner details with improved patterns
+        # Extract coroner details
         coroner_match = re.search(r'Coroner(?:\'?s)? name:?\s*([^\n]+)', content)
         if coroner_match:
             metadata['coroner_name'] = clean_text(coroner_match.group(1)).strip()
@@ -197,16 +181,12 @@ def extract_metadata(content: str) -> dict:
         if area_match:
             metadata['coroner_area'] = clean_text(area_match.group(1)).strip()
         
-        # Extract categories with improved handling
+        # Extract categories
         cat_match = re.search(r'Category:?\s*([^\n]+)', content)
         if cat_match:
             categories = cat_match.group(1).split('|')
             metadata['categories'] = [clean_text(cat).strip() for cat in categories if clean_text(cat).strip()]
         
-        return metadata
-        
-    except Exception as e:
-        logging.error(f"Error extracting metadata: {e}")
         return metadata
         
     except Exception as e:
@@ -234,7 +214,7 @@ def get_pfd_categories() -> List[str]:
         "suicide-from-2015",
         "wales-prevention-of-future-deaths-reports-2019-onwards"
     ]
-
+# PDF handling functions
 def save_pdf(pdf_url: str, base_dir: str = 'pdfs') -> Tuple[Optional[str], Optional[str]]:
     """Download and save PDF, return local path and filename"""
     try:
@@ -291,7 +271,6 @@ def get_report_content(url: str) -> Optional[Dict]:
             logging.warning(f"No content found at {url}")
             return None
         
-        # Extract text content
         paragraphs = content.find_all(['p', 'table'])
         webpage_text = '\n\n'.join(p.get_text(strip=True, separator=' ') for p in paragraphs)
         
@@ -299,7 +278,6 @@ def get_report_content(url: str) -> Optional[Dict]:
         pdf_paths = []
         pdf_names = []
         
-        # Find PDF links
         pdf_links = (
             soup.find_all('a', class_='related-content__link', href=re.compile(r'\.pdf$')) or
             soup.find_all('a', href=re.compile(r'\.pdf$'))
@@ -308,7 +286,6 @@ def get_report_content(url: str) -> Optional[Dict]:
         for pdf_link in pdf_links:
             pdf_url = pdf_link['href']
             
-            # Handle relative URLs
             if not pdf_url.startswith(('http://', 'https://')):
                 pdf_url = f"https://www.judiciary.uk{pdf_url}" if not pdf_url.startswith('/') else f"https://www.judiciary.uk/{pdf_url}"
             
@@ -331,6 +308,7 @@ def get_report_content(url: str) -> Optional[Dict]:
         logging.error(f"Error getting report content: {e}")
         return None
 
+# Scraping functions
 def scrape_page(url: str) -> List[Dict]:
     """Scrape a single page of search results"""
     try:
@@ -371,7 +349,6 @@ def scrape_page(url: str) -> List[Dict]:
                         'Content': content_data['content']
                     }
                     
-                    # Add PDF data
                     for i, (name, content, path) in enumerate(zip(
                         content_data['pdf_names'],
                         content_data['pdf_contents'],
@@ -545,7 +522,6 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
-
 def plot_timeline(df: pd.DataFrame) -> None:
     """Plot timeline of reports"""
     timeline_data = df.groupby(
@@ -641,20 +617,18 @@ def clean_text_for_modeling(text: str) -> str:
         # Filter tokens
         tokens = [
             word for word in tokens 
-            if (word not in stop_words and  # Remove stop words
-                len(word) > 2 and  # Remove very short words
-                not word.isnumeric() and  # Remove pure numbers
-                not all(c.isdigit() or c == '/' for c in word)  # Remove dates
+            if (word not in stop_words and
+                len(word) > 2 and
+                not word.isnumeric() and
+                not all(c.isdigit() or c == '/' for c in word)
             )
         ]
         
-        # Return cleaned text
         return ' '.join(tokens)
     
     except Exception as e:
         logging.error(f"Error cleaning text for modeling: {e}")
         return ""
-
 def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int = 1000) -> Tuple[LatentDirichletAllocation, TfidfVectorizer, np.ndarray]:
     """Extract topics using LDA"""
     try:
@@ -681,10 +655,10 @@ def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int 
         # Configure vectorizer
         vectorizer = TfidfVectorizer(
             max_features=max_features,
-            min_df=2,  # Term must appear in at least 2 documents
-            max_df=0.95,  # Term must not appear in more than 95% of documents
+            min_df=2,
+            max_df=0.95,
             stop_words='english',
-            ngram_range=(1, 2)  # Allow both unigrams and bigrams
+            ngram_range=(1, 2)
         )
         
         # Create document-term matrix
@@ -785,245 +759,11 @@ def create_network_diagram(topic_words: List[str],
         logging.error(f"Error creating network diagram: {e}")
         return None
 
-def render_file_upload():
-    """Render file upload section with more flexibility"""
-    st.header("Upload Existing Data")
-    
-    uploaded_file = st.file_uploader("Upload CSV or Excel file", type=['csv', 'xlsx'])
-    
-    if uploaded_file is not None:
-        try:
-            # Read the file
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
-            
-            # Convert date column to datetime if it exists
-            if 'date_of_report' in df.columns:
-                df['date_of_report'] = pd.to_datetime(df['date_of_report'], errors='coerce')
-            
-            # Ensure categories are lists
-            if 'categories' in df.columns:
-                df['categories'] = df['categories'].apply(lambda x: eval(x) if isinstance(x, str) else x)
-            
-            # Store in session state
-            st.session_state.scraped_data = df
-            st.success("File uploaded successfully!")
-            
-            # Show basic information about the uploaded data
-            st.subheader("Data Overview")
-            col1, col2, col3 = st.columns(3)
-            
-            with col1:
-                st.metric("Total Reports", len(df))
-            
-            with col2:
-                unique_categories = set()
-                for cats in df['categories'].dropna():
-                    if isinstance(cats, list):
-                        unique_categories.update(cats)
-                st.metric("Unique Categories", len(unique_categories))
-            
-            with col3:
-                st.metric("Date Range", f"{df['date_of_report'].min().strftime('%d/%m/%Y')} to {df['date_of_report'].max().strftime('%d/%m/%Y')}")
-        
-        except Exception as e:
-            st.error(f"Error uploading file: {str(e)}")
-            
-def render_topic_modeling_tab():
-    """Render the topic modeling tab"""
-    st.header("Topic Modeling Analysis")
-    
-    if st.session_state.scraped_data is None:
-        st.warning("Please scrape or upload data first")
-        return
-    
-    # Sidebar controls
-    with st.sidebar:
-        st.header("Topic Modeling Options")
-        
-        num_topics = st.slider(
-            "Number of Topics",
-            min_value=2,
-            max_value=20,
-            value=5,
-            help="Select number of topics to extract"
-        )
-        
-        max_features = st.slider(
-            "Maximum Features",
-            min_value=100,
-            max_value=5000,
-            value=1000,
-            step=100,
-            help="Maximum number of words to include in analysis"
-        )
-        
-        min_doc_freq = st.slider(
-            "Minimum Document Frequency",
-            min_value=1,
-            max_value=10,
-            value=2,
-            help="Minimum number of documents a word must appear in"
-        )
-
-        similarity_threshold = st.slider(
-            "Word Similarity Threshold",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.3,
-            help="Minimum similarity score for word connections"
-        )
-    
-    # Run topic modeling
-    if st.button("Extract Topics"):
-        try:
-            with st.spinner("Preprocessing text and extracting topics..."):
-                # First, check if we have enough valid text
-                valid_docs = st.session_state.scraped_data['Content'].dropna().str.strip().str.len() > 0
-                if valid_docs.sum() < 2:
-                    st.error("Not enough valid documents found. Please ensure you have scraped or uploaded documents with text content.")
-                    return
-                
-                # Extract topics
-                result = extract_topics_lda(
-                    st.session_state.scraped_data,
-                    num_topics=num_topics,
-                    max_features=max_features
-                )
-                
-                if result[0] is None:
-                    return
-                
-                lda_model, vectorizer, doc_topics = result
-                
-                # Store results
-                st.session_state.topic_model = {
-                    'model': lda_model,
-                    'vectorizer': vectorizer,
-                    'doc_topics': doc_topics
-                }
-                
-                st.success("Topic extraction complete!")
-        
-        except Exception as e:
-            st.error(f"Error during topic extraction: {str(e)}")
-            logging.error(f"Topic modeling error: {e}", exc_info=True)
-            return
-    
-    # Display results if model exists
-    if hasattr(st.session_state, 'topic_model') and st.session_state.topic_model:
-        st.subheader("Topic Analysis Results")
-        
-        # Get topic words
-        feature_names = st.session_state.topic_model['vectorizer'].get_feature_names_out()
-        
-        # Create tabs for different visualizations
-        topic_tab, dist_tab, network_tab, doc_tab = st.tabs([
-            "Topic Keywords",
-            "Topic Distribution",
-            "Word Networks",
-            "Documents by Topic"
-        ])
-        
-        with topic_tab:
-            # Display top words per topic
-            for idx, topic in enumerate(st.session_state.topic_model['model'].components_):
-                # Get top words and their weights
-                top_indices = topic.argsort()[:-11:-1]
-                top_words = [feature_names[i] for i in top_indices]
-                weights = [topic[i] for i in top_indices]
-                
-                # Create word-weight pairs
-                word_weights = [f"{word} ({weight:.3f})" for word, weight in zip(top_words, weights)]
-                
-                st.write(f"**Topic {idx + 1}:** {', '.join(word_weights)}")
-        
-        with dist_tab:
-            # Plot topic distribution
-            topic_dist = np.sum(st.session_state.topic_model['doc_topics'], axis=0)
-            topic_props = topic_dist / topic_dist.sum() * 100
-            
-            fig = px.bar(
-                x=[f"Topic {i+1}" for i in range(num_topics)],
-                y=topic_props,
-                title="Topic Distribution Across Documents",
-                labels={'x': 'Topic', 'y': 'Percentage of Documents (%)'}
-            )
-            fig.update_layout(showlegend=False)
-            st.plotly_chart(fig)
-        
-        with network_tab:
-            # Create network diagrams for each topic
-            for idx, topic in enumerate(st.session_state.topic_model['model'].components_):
-                with st.expander(f"Topic {idx + 1} Network"):
-                    top_indices = topic.argsort()[:-11:-1]
-                    top_words = [feature_names[i] for i in top_indices]
-                    fig = create_network_diagram(
-                        top_words,
-                        st.session_state.topic_model['model'].components_[idx].reshape(1, -1),
-                        similarity_threshold
-                    )
-                    if fig:
-                        st.plotly_chart(fig)
-        
-        with doc_tab:
-            # Show example documents for each topic
-            doc_topics = st.session_state.topic_model['doc_topics']
-            df = st.session_state.scraped_data
-            
-            for topic_idx in range(num_topics):
-                with st.expander(f"Topic {topic_idx + 1} Documents"):
-                    # Get documents where this topic has the highest probability
-                    topic_docs = [i for i, doc_topic in enumerate(doc_topics) 
-                                if np.argmax(doc_topic) == topic_idx]
-                    
-                    if topic_docs:
-                        st.write(f"Number of documents: {len(topic_docs)}")
-                        
-                        # Show top 3 documents
-                        for i, doc_idx in enumerate(topic_docs[:3], 1):
-                            st.markdown(f"**Document {i}**")
-                            st.markdown(f"*Title:* {df.iloc[doc_idx]['Title']}")
-                            st.markdown(f"*URL:* {df.iloc[doc_idx]['URL']}")
-                            
-                            # Show document preview
-                            content = df.iloc[doc_idx]['Content']
-                            preview = content[:500] + "..." if len(content) > 500 else content
-                            st.text_area(f"Content Preview {i}", preview, height=150)
-                    else:
-                        st.info("No documents found predominantly featuring this topic")
-            
-            # Add option to download topic assignments
-            topic_assignments = pd.DataFrame({
-                'Document': df['Title'],
-                'URL': df['URL'],
-                'Dominant_Topic': np.argmax(doc_topics, axis=1) + 1,
-                'Topic_Probability': np.max(doc_topics, axis=1)
-            })
-            
-            csv = topic_assignments.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "📥 Download Topic Assignments",
-                csv,
-                "topic_assignments.csv",
-                "text/csv",
-                key="download_topics"
-            )
-                        
 def render_scraping_tab():
-    """Render the scraping tab UI and functionality"""
-    # Initialize directories if they don't exist
-    os.makedirs('pdfs', exist_ok=True)
+    """Render the scraping tab"""
+    st.header("Scrape PFD Reports")
     
-    st.markdown("""
-    ## UK Judiciary PFD Reports Scraper
-    This tool scrapes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can search by keywords, categories, and date ranges.
-    """)
-    
-    with st.form("search_form"):
+    with st.form("scraping_form"):
         col1, col2 = st.columns(2)
         
         with col1:
@@ -1087,92 +827,20 @@ def render_scraping_tab():
                     
                     # Store in session state
                     st.session_state.scraped_data = df
+                    st.session_state.data_source = 'scraped'
+                    st.session_state.current_data = df
                     
                     st.success(f"Found {len(reports)} reports")
                     
-                    # Display results
-                    st.header("Results")
-                    st.dataframe(
-                        df,
-                        column_config={
-                            "URL": st.column_config.LinkColumn("Report Link"),
-                            "date_of_report": st.column_config.DateColumn("Date of Report"),
-                            "categories": st.column_config.ListColumn("Categories")
-                        },
-                        hide_index=True
-                    )
-                    
-                    # Export options
-                    st.header("Export Options")
-                    
-                    # Generate filename
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"pfd_reports_{search_keyword}_{timestamp}"
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    # CSV Export
-                    with col1:
-                        csv = df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            "📥 Download Reports (CSV)",
-                            csv,
-                            f"{filename}.csv",
-                            "text/csv",
-                            key="download_csv"
-                        )
-                    
-                    # Excel Export
-                    with col2:
-                        excel_buffer = io.BytesIO()
-                        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                            df.to_excel(writer, index=False)
-                        excel_data = excel_buffer.getvalue()
-                        st.download_button(
-                            "📥 Download Reports (Excel)",
-                            excel_data,
-                            f"{filename}.xlsx",
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            key="download_excel"
-                        )
-                    
-                    # PDF Download
-                    st.header("Download PDFs")
-                    if st.button("Download all PDFs"):
-                        with st.spinner("Preparing PDF download..."):
-                            pdf_zip_path = f"{filename}_pdfs.zip"
-                            
-                            with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
-                                unique_pdfs = set()
-                                pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
-                                
-                                for col in pdf_columns:
-                                    paths = df[col].dropna()
-                                    unique_pdfs.update(paths)
-                                
-                                for pdf_path in unique_pdfs:
-                                    if pdf_path and os.path.exists(pdf_path):
-                                        zipf.write(pdf_path, os.path.basename(pdf_path))
-                            
-                            with open(pdf_zip_path, 'rb') as f:
-                                st.download_button(
-                                    "📦 Download All PDFs (ZIP)",
-                                    f.read(),
-                                    pdf_zip_path,
-                                    "application/zip",
-                                    key="download_pdfs_zip"
-                                )
-                            
-                            # Cleanup zip file
-                            os.remove(pdf_zip_path)
+                    return True
                 else:
                     st.warning("No reports found matching your search criteria")
+                    return False
                     
         except Exception as e:
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
-
-
+            return False
 
 def render_file_upload():
     """Render file upload section"""
@@ -1187,17 +855,26 @@ def render_file_upload():
             else:
                 df = pd.read_excel(uploaded_file)
             
-            st.session_state.scraped_data = df
-            st.success("File uploaded successfully!")
+            # Process uploaded data
+            df = process_scraped_data(df)
+            
+            st.session_state.uploaded_data = df
+            st.session_state.data_source = 'uploaded'
+            st.session_state.current_data = df
+            
+            st.success("File uploaded and processed successfully!")
+            return True
             
         except Exception as e:
             st.error(f"Error uploading file: {str(e)}")
-
-def render_analysis_tab():
+            logging.error(f"File upload error: {e}", exc_info=True)
+            return False
+    
+    return False
+    
+def render_analysis_tab(data: pd.DataFrame):
     """Render the analysis tab"""
     st.header("Reports Analysis")
-    
-    df = st.session_state.scraped_data
     
     # Filters sidebar
     with st.sidebar:
@@ -1206,13 +883,13 @@ def render_analysis_tab():
         # Date range filter
         date_range = st.date_input(
             "Date Range",
-            value=[df['date_of_report'].min(), df['date_of_report'].max()],
+            value=[data['date_of_report'].min(), data['date_of_report'].max()],
             key="analysis_date_range"
         )
         
         # Category filter
         all_categories = set()
-        for cats in df['categories'].dropna():
+        for cats in data['categories'].dropna():
             if isinstance(cats, list):
                 all_categories.update(cats)
                 
@@ -1222,28 +899,28 @@ def render_analysis_tab():
         )
         
         # Coroner area filter
-        coroner_areas = sorted(df['coroner_area'].dropna().unique())
+        coroner_areas = sorted(data['coroner_area'].dropna().unique())
         selected_areas = st.multiselect(
             "Coroner Areas",
             options=coroner_areas
         )
     
     # Apply filters
-    mask = pd.Series(True, index=df.index)
+    mask = pd.Series(True, index=data.index)
     
     if len(date_range) == 2:
-        mask &= (df['date_of_report'].dt.date >= date_range[0]) & \
-                (df['date_of_report'].dt.date <= date_range[1])
+        mask &= (data['date_of_report'].dt.date >= date_range[0]) & \
+                (data['date_of_report'].dt.date <= date_range[1])
     
     if selected_categories:
-        mask &= df['categories'].apply(
+        mask &= data['categories'].apply(
             lambda x: any(cat in x for cat in selected_categories) if isinstance(x, list) else False
         )
     
     if selected_areas:
-        mask &= df['coroner_area'].isin(selected_areas)
+        mask &= data['coroner_area'].isin(selected_areas)
     
-    filtered_df = df[mask]
+    filtered_df = data[mask]
     
     if len(filtered_df) == 0:
         st.warning("No data matches the selected filters.")
@@ -1277,40 +954,245 @@ def render_analysis_tab():
     with viz_tab3:
         plot_coroner_areas(filtered_df)
     
-    # Raw Data View
-    if st.checkbox("Show Raw Data"):
-        st.subheader("Raw Data")
-        st.dataframe(
-            filtered_df,
-            column_config={
-                "URL": st.column_config.LinkColumn("Report Link"),
-                "date_of_report": st.column_config.DateColumn("Date of Report"),
-                "categories": st.column_config.ListColumn("Categories")
-            },
-            hide_index=True
+    # Export options
+    st.header("Export Options")
+    
+    # Generate filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"pfd_reports_analysis_{timestamp}"
+    
+    col1, col2 = st.columns(2)
+    
+    # CSV Export
+    with col1:
+        csv = filtered_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "📥 Download Filtered Data (CSV)",
+            csv,
+            f"{filename}.csv",
+            "text/csv",
+            key="download_filtered_csv"
         )
+    
+    # Excel Export
+    with col2:
+        excel_data = export_to_excel(filtered_df)
+        st.download_button(
+            "📥 Download Filtered Data (Excel)",
+            excel_data,
+            f"{filename}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_filtered_excel"
+        )
+
+def export_to_excel(df: pd.DataFrame) -> bytes:
+    """Handle Excel export with proper buffer management"""
+    excel_buffer = io.BytesIO()
+    try:
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False)
+        return excel_buffer.getvalue()
+    finally:
+        excel_buffer.close()
+        
+def render_topic_modeling_tab(data: pd.DataFrame):
+    """Render the topic modeling tab"""
+    st.header("Topic Modeling Analysis")
+    
+    # Sidebar controls
+    with st.sidebar:
+        st.header("Topic Modeling Options")
+        
+        num_topics = st.slider(
+            "Number of Topics",
+            min_value=2,
+            max_value=20,
+            value=5,
+            help="Select number of topics to extract"
+        )
+        
+        max_features = st.slider(
+            "Maximum Features",
+            min_value=100,
+            max_value=5000,
+            value=1000,
+            step=100,
+            help="Maximum number of words to include in analysis"
+        )
+        
+        similarity_threshold = st.slider(
+            "Word Similarity Threshold",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.3,
+            help="Minimum similarity score for word connections"
+        )
+    
+    # Run topic modeling
+    if st.button("Extract Topics"):
+        try:
+            with st.spinner("Preprocessing text and extracting topics..."):
+                # Check for valid documents
+                valid_docs = data['Content'].dropna().str.strip().str.len() > 0
+                if valid_docs.sum() < 2:
+                    st.error("Not enough valid documents found. Please ensure you have documents with text content.")
+                    return
+                
+                # Extract topics
+                result = extract_topics_lda(
+                    data,
+                    num_topics=num_topics,
+                    max_features=max_features
+                )
+                
+                if result[0] is None:
+                    return
+                
+                lda_model, vectorizer, doc_topics = result
+                
+                # Store results
+                st.session_state.topic_model = {
+                    'model': lda_model,
+                    'vectorizer': vectorizer,
+                    'doc_topics': doc_topics
+                }
+                
+                st.success("Topic extraction complete!")
+                
+                # Display results
+                st.subheader("Topic Analysis Results")
+                
+                # Get topic words
+                feature_names = vectorizer.get_feature_names_out()
+                
+                # Create tabs for different visualizations
+                topic_tab, dist_tab, network_tab, doc_tab = st.tabs([
+                    "Topic Keywords",
+                    "Topic Distribution",
+                    "Word Networks",
+                    "Documents by Topic"
+                ])
+                
+                with topic_tab:
+                    for idx, topic in enumerate(lda_model.components_):
+                        top_indices = topic.argsort()[:-11:-1]
+                        top_words = [feature_names[i] for i in top_indices]
+                        weights = [topic[i] for i in top_indices]
+                        word_weights = [f"{word} ({weight:.3f})" for word, weight in zip(top_words, weights)]
+                        st.write(f"**Topic {idx + 1}:** {', '.join(word_weights)}")
+                
+                with dist_tab:
+                    topic_dist = np.sum(doc_topics, axis=0)
+                    topic_props = topic_dist / topic_dist.sum() * 100
+                    
+                    fig = px.bar(
+                        x=[f"Topic {i+1}" for i in range(num_topics)],
+                        y=topic_props,
+                        title="Topic Distribution Across Documents",
+                        labels={'x': 'Topic', 'y': 'Percentage of Documents (%)'}
+                    )
+                    fig.update_layout(showlegend=False)
+                    st.plotly_chart(fig)
+                
+                with network_tab:
+                    for idx, topic in enumerate(lda_model.components_):
+                        with st.expander(f"Topic {idx + 1} Network"):
+                            top_indices = topic.argsort()[:-11:-1]
+                            top_words = [feature_names[i] for i in top_indices]
+                            fig = create_network_diagram(
+                                top_words,
+                                lda_model.components_[idx].reshape(1, -1),
+                                similarity_threshold
+                            )
+                            if fig:
+                                st.plotly_chart(fig)
+                
+                with doc_tab:
+                    for topic_idx in range(num_topics):
+                        with st.expander(f"Topic {topic_idx + 1} Documents"):
+                            topic_docs = [i for i, doc_topic in enumerate(doc_topics) 
+                                        if np.argmax(doc_topic) == topic_idx]
+                            
+                            if topic_docs:
+                                st.write(f"Number of documents: {len(topic_docs)}")
+                                
+                                for i, doc_idx in enumerate(topic_docs[:3], 1):
+                                    st.markdown(f"**Document {i}**")
+                                    st.markdown(f"*Title:* {data.iloc[doc_idx]['Title']}")
+                                    st.markdown(f"*URL:* {data.iloc[doc_idx]['URL']}")
+                                    
+                                    content = data.iloc[doc_idx]['Content']
+                                    preview = content[:500] + "..." if len(content) > 500 else content
+                                    st.text_area(f"Content Preview {i}", preview, height=150)
+                            else:
+                                st.info("No documents found predominantly featuring this topic")
+                    
+                    # Download topic assignments
+                    topic_assignments = pd.DataFrame({
+                        'Document': data['Title'],
+                        'URL': data['URL'],
+                        'Dominant_Topic': np.argmax(doc_topics, axis=1) + 1,
+                        'Topic_Probability': np.max(doc_topics, axis=1)
+                    })
+                    
+                    csv = topic_assignments.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "📥 Download Topic Assignments",
+                        csv,
+                        "topic_assignments.csv",
+                        "text/csv",
+                        key="download_topics"
+                    )
+        
+        except Exception as e:
+            st.error(f"Error during topic modeling: {str(e)}")
+            logging.error(f"Topic modeling error: {e}", exc_info=True)
+
+
+
+
 def initialize_session_state():
-    """Initialize all required session state variables"""
+    """Initialize all required session state variables and cleanup"""
+    if 'data_source' not in st.session_state:
+        st.session_state.data_source = None
     if 'scraped_data' not in st.session_state:
         st.session_state.scraped_data = None
+    if 'uploaded_data' not in st.session_state:
+        st.session_state.uploaded_data = None
+    if 'current_data' not in st.session_state:
+        st.session_state.current_data = None
     if 'topic_model' not in st.session_state:
         st.session_state.topic_model = None
-    if 'cleanup_scheduled' not in st.session_state:
-        st.session_state.cleanup_scheduled = False
-
+    
+    # PDF cleanup
+    if not st.session_state.get('cleanup_done'):
+        try:
+            pdf_dir = 'pdfs'
+            os.makedirs(pdf_dir, exist_ok=True)  # Create directory if it doesn't exist
+            current_time = time.time()
+            for file in os.listdir(pdf_dir):
+                file_path = os.path.join(pdf_dir, file)
+                if os.stat(file_path).st_mtime < current_time - 86400:
+                    os.remove(file_path)
+        except Exception as e:
+            logging.error(f"Cleanup error: {e}")
+        finally:
+            st.session_state.cleanup_done = True
+            
 def main():
     try:
-        # Initialize session state
         initialize_session_state()
         
-        # App title
         st.title("UK Judiciary PFD Reports Analysis")
+        st.markdown("""
+        This application allows you to analyze Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+        You can either scrape new reports or upload existing data for analysis.
+        """)
         
-        # Create tabs
         tab1, tab2, tab3, tab4 = st.tabs([
             "🔍 Scrape Reports",
             "📤 Upload Data",
-            "📊 Analyze Reports",
+            "📊 Analysis",
             "🔬 Topic Modeling"
         ])
         
@@ -1321,18 +1203,20 @@ def main():
             render_file_upload()
         
         with tab3:
-            if st.session_state.scraped_data is not None:
-                render_analysis_tab()
+            if st.session_state.current_data is not None:
+                render_analysis_tab(st.session_state.current_data)
             else:
                 st.warning("Please scrape or upload data first")
         
         with tab4:
-            if st.session_state.scraped_data is not None:
-                render_topic_modeling_tab()
+            if st.session_state.current_data is not None:
+                render_topic_modeling_tab(st.session_state.current_data)
             else:
                 st.warning("Please scrape or upload data first")
         
-        # Footer
+        if st.session_state.data_source:
+            st.sidebar.success(f"Currently using {st.session_state.data_source} data")
+        
         st.markdown("---")
         st.markdown(
             """<div style='text-align: center'>
