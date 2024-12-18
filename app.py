@@ -922,11 +922,18 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             # Cleanup zip file
             os.remove(pdf_zip_path)
 
-def render_file_upload():
+ef render_file_upload():
     """Render file upload section"""
     st.header("Upload Existing Data")
     
-    uploaded_file = st.file_uploader("Upload CSV or Excel file", type=['csv', 'xlsx'])
+    # Generate unique key for the file uploader
+    upload_key = f"file_uploader_{int(time.time() * 1000)}"
+    
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file", 
+        type=['csv', 'xlsx'],
+        key=upload_key
+    )
     
     if uploaded_file is not None:
         try:
@@ -938,11 +945,31 @@ def render_file_upload():
             # Process uploaded data
             df = process_scraped_data(df)
             
-            st.session_state.uploaded_data = df
+            # Clear any existing data first
+            st.session_state.current_data = None
+            st.session_state.scraped_data = None
+            st.session_state.uploaded_data = None
+            st.session_state.data_source = None
+            
+            # Then set new data
+            st.session_state.uploaded_data = df.copy()
             st.session_state.data_source = 'uploaded'
-            st.session_state.current_data = df
+            st.session_state.current_data = df.copy()
             
             st.success("File uploaded and processed successfully!")
+            
+            # Show the uploaded data
+            st.subheader("Uploaded Data Preview")
+            st.dataframe(
+                df,
+                column_config={
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "date_of_report": st.column_config.DateColumn("Date of Report"),
+                    "categories": st.column_config.ListColumn("Categories")
+                },
+                hide_index=True
+            )
+            
             return True
             
         except Exception as e:
@@ -1291,59 +1318,98 @@ def render_topic_modeling_tab(data: pd.DataFrame):
 
 
 
+def render_file_upload():
+    """Render file upload section"""
+    st.header("Upload Existing Data")
+    
+    # Generate unique key for the file uploader
+    upload_key = f"file_uploader_{int(time.time() * 1000)}"
+    
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file", 
+        type=['csv', 'xlsx'],
+        key=upload_key
+    )
+    
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            
+            # Process uploaded data
+            df = process_scraped_data(df)
+            
+            # Clear any existing data first
+            st.session_state.current_data = None
+            st.session_state.scraped_data = None
+            st.session_state.uploaded_data = None
+            st.session_state.data_source = None
+            
+            # Then set new data
+            st.session_state.uploaded_data = df.copy()
+            st.session_state.data_source = 'uploaded'
+            st.session_state.current_data = df.copy()
+            
+            st.success("File uploaded and processed successfully!")
+            
+            # Show the uploaded data
+            st.subheader("Uploaded Data Preview")
+            st.dataframe(
+                df,
+                column_config={
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "date_of_report": st.column_config.DateColumn("Date of Report"),
+                    "categories": st.column_config.ListColumn("Categories")
+                },
+                hide_index=True
+            )
+            
+            return True
+            
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            logging.error(f"File upload error: {e}", exc_info=True)
+            return False
+    
+    return False
 
 def initialize_session_state():
     """Initialize all required session state variables"""
-    # Define all required session state variables
-    if 'data_source' not in st.session_state:
+    # Initialize basic state variables if they don't exist
+    if not hasattr(st.session_state, 'initialized'):
+        # Clear all existing session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        
+        # Set new session state variables
         st.session_state.data_source = None
-        
-    if 'current_data' not in st.session_state:
         st.session_state.current_data = None
-        
-    if 'scraped_data' not in st.session_state:
         st.session_state.scraped_data = None
-        
-    if 'uploaded_data' not in st.session_state:
         st.session_state.uploaded_data = None
-        
-    if 'topic_model' not in st.session_state:
         st.session_state.topic_model = None
-        
-    if 'cleanup_done' not in st.session_state:
         st.session_state.cleanup_done = False
-        
-    if 'tab_key' not in st.session_state:
-        st.session_state.tab_key = f"session_{int(time.time())}"
-        
-    if 'last_scrape_time' not in st.session_state:
         st.session_state.last_scrape_time = None
-        
-    if 'last_upload_time' not in st.session_state:
         st.session_state.last_upload_time = None
-        
-    if 'analysis_filters' not in st.session_state:
         st.session_state.analysis_filters = {
             'date_range': None,
             'selected_categories': None,
             'selected_areas': None
         }
-        
-    if 'topic_model_settings' not in st.session_state:
         st.session_state.topic_model_settings = {
             'num_topics': 5,
             'max_features': 1000,
             'similarity_threshold': 0.3
         }
+        st.session_state.initialized = True
     
     # Perform PDF cleanup if not done
     if not st.session_state.cleanup_done:
         try:
             pdf_dir = 'pdfs'
-            # Create PDF directory if it doesn't exist
             os.makedirs(pdf_dir, exist_ok=True)
             
-            # Cleanup PDFs older than 24 hours
             current_time = time.time()
             cleanup_count = 0
             
@@ -1351,7 +1417,6 @@ def initialize_session_state():
                 file_path = os.path.join(pdf_dir, file)
                 try:
                     if os.path.isfile(file_path):
-                        # Check if file is older than 24 hours
                         if os.stat(file_path).st_mtime < current_time - 86400:
                             os.remove(file_path)
                             cleanup_count += 1
@@ -1361,59 +1426,14 @@ def initialize_session_state():
             
             if cleanup_count > 0:
                 logging.info(f"Cleaned up {cleanup_count} old PDF files")
-                
         except Exception as e:
             logging.error(f"Error during PDF cleanup: {e}")
         finally:
-            # Mark cleanup as done even if there were errors
             st.session_state.cleanup_done = True
-    
-    # Validate existing data if present
-    if st.session_state.current_data is not None:
-        try:
-            df = st.session_state.current_data
-            if len(df) == 0 or not isinstance(df, pd.DataFrame):
-                st.session_state.current_data = None
-                st.session_state.data_source = None
-        except Exception:
-            # Reset invalid data
-            st.session_state.current_data = None
-            st.session_state.data_source = None
-    
-    # Create log directory if it doesn't exist
-    try:
-        log_dir = 'logs'
-        os.makedirs(log_dir, exist_ok=True)
-    except Exception as e:
-        logging.error(f"Error creating log directory: {e}")
-            
-def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> tuple[bool, str]:
-    """Validate data for different purposes"""
-    if data is None:
-        return False, "No data available. Please scrape or upload data first."
-    
-    if len(data) == 0:
-        return False, "Dataset is empty."
-        
-    if purpose == "analysis":
-        required_columns = ['date_of_report', 'categories', 'coroner_area']
-        missing_columns = [col for col in required_columns if col not in data.columns]
-        if missing_columns:
-            return False, f"Missing required columns: {', '.join(missing_columns)}"
-            
-    elif purpose == "topic_modeling":
-        if 'Content' not in data.columns:
-            return False, "Missing required column: Content"
-            
-        valid_docs = data['Content'].dropna().str.strip().str.len() > 0
-        if valid_docs.sum() < 2:
-            return False, "Not enough valid documents found. Please ensure you have documents with text content."
-    
-    return True, "Data is valid"
 
-# Then in main():
 def main():
     try:
+        # Initialize session state
         initialize_session_state()
         
         st.title("UK Judiciary PFD Reports Analysis")
@@ -1422,20 +1442,22 @@ def main():
         You can either scrape new reports or upload existing data for analysis.
         """)
         
-        tab1, tab2, tab3, tab4 = st.tabs([
+        # Generate unique tab keys
+        tab_id = int(time.time() * 1000)
+        tabs = st.tabs([
             "🔍 Scrape Reports",
             "📤 Upload Data",
             "📊 Analysis",
             "🔬 Topic Modeling"
         ])
         
-        with tab1:
+        with tabs[0]:
             render_scraping_tab()
         
-        with tab2:
+        with tabs[1]:
             render_file_upload()
         
-        with tab3:
+        with tabs[2]:
             if st.session_state.current_data is not None:
                 is_valid, message = validate_data(st.session_state.current_data, "analysis")
                 if is_valid:
@@ -1445,7 +1467,7 @@ def main():
             else:
                 st.warning("Please scrape or upload data first")
         
-        with tab4:
+        with tabs[3]:
             if st.session_state.current_data is not None:
                 is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
                 if is_valid:
