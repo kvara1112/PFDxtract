@@ -795,6 +795,7 @@ def render_topic_modeling_tab():
                     )
                     if fig:
                         st.plotly_chart(fig)
+                        
 def render_scraping_tab():
     """Render the scraping tab UI and functionality"""
     # Initialize directories if they don't exist
@@ -954,6 +955,9 @@ def render_scraping_tab():
         except Exception as e:
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
+
+
+
 def render_file_upload():
     """Render file upload section"""
     st.header("Upload Existing Data")
@@ -973,6 +977,102 @@ def render_file_upload():
         except Exception as e:
             st.error(f"Error uploading file: {str(e)}")
 
+def render_analysis_tab():
+    """Render the analysis tab"""
+    st.header("Reports Analysis")
+    
+    df = st.session_state.scraped_data
+    
+    # Filters sidebar
+    with st.sidebar:
+        st.header("Analysis Filters")
+        
+        # Date range filter
+        date_range = st.date_input(
+            "Date Range",
+            value=[df['date_of_report'].min(), df['date_of_report'].max()],
+            key="analysis_date_range"
+        )
+        
+        # Category filter
+        all_categories = set()
+        for cats in df['categories'].dropna():
+            if isinstance(cats, list):
+                all_categories.update(cats)
+                
+        selected_categories = st.multiselect(
+            "Categories",
+            options=sorted(all_categories)
+        )
+        
+        # Coroner area filter
+        coroner_areas = sorted(df['coroner_area'].dropna().unique())
+        selected_areas = st.multiselect(
+            "Coroner Areas",
+            options=coroner_areas
+        )
+    
+    # Apply filters
+    mask = pd.Series(True, index=df.index)
+    
+    if len(date_range) == 2:
+        mask &= (df['date_of_report'].dt.date >= date_range[0]) & \
+                (df['date_of_report'].dt.date <= date_range[1])
+    
+    if selected_categories:
+        mask &= df['categories'].apply(
+            lambda x: any(cat in x for cat in selected_categories) if isinstance(x, list) else False
+        )
+    
+    if selected_areas:
+        mask &= df['coroner_area'].isin(selected_areas)
+    
+    filtered_df = df[mask]
+    
+    if len(filtered_df) == 0:
+        st.warning("No data matches the selected filters.")
+        return
+    
+    # Overview metrics
+    st.subheader("Overview")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("Total Reports", len(filtered_df))
+    with col2:
+        st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique())
+    with col3:
+        st.metric("Categories", len(all_categories))
+    with col4:
+        date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
+        avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
+        st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
+    
+    # Visualizations
+    st.subheader("Visualizations")
+    viz_tab1, viz_tab2, viz_tab3 = st.tabs(["Timeline", "Categories", "Coroner Areas"])
+    
+    with viz_tab1:
+        plot_timeline(filtered_df)
+    
+    with viz_tab2:
+        plot_category_distribution(filtered_df)
+    
+    with viz_tab3:
+        plot_coroner_areas(filtered_df)
+    
+    # Raw Data View
+    if st.checkbox("Show Raw Data"):
+        st.subheader("Raw Data")
+        st.dataframe(
+            filtered_df,
+            column_config={
+                "URL": st.column_config.LinkColumn("Report Link"),
+                "date_of_report": st.column_config.DateColumn("Date of Report"),
+                "categories": st.column_config.ListColumn("Categories")
+            },
+            hide_index=True
+        )
 def initialize_session_state():
     """Initialize all required session state variables"""
     if 'scraped_data' not in st.session_state:
