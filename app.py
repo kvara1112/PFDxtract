@@ -1152,6 +1152,8 @@ def render_analysis_tab(data: pd.DataFrame):
         st.error(f"An unexpected error occurred in the analysis tab: {str(e)}")
         logging.error(f"Unexpected error in render_analysis_tab: {e}", exc_info=True)
 
+
+
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """Handle Excel export with proper buffer management"""
     excel_buffer = io.BytesIO()
@@ -1332,26 +1334,36 @@ def render_file_upload():
     
     if uploaded_file is not None:
         try:
+            # Determine file type and read
             if uploaded_file.name.endswith('.csv'):
                 df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file)
             
+            # Validate required columns
+            required_columns = [
+                'Title', 'URL', 'Content', 
+                'date_of_report', 'categories', 'coroner_area'
+            ]
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                st.error(f"Missing required columns: {', '.join(missing_columns)}")
+                st.warning("Please upload a file with the correct structure.")
+                return False
+            
             # Process uploaded data
             df = process_scraped_data(df)
             
-            # Clear any existing data first
-            st.session_state.current_data = None
-            st.session_state.scraped_data = None
-            st.session_state.uploaded_data = None
-            st.session_state.data_source = None
+            # Persist data across sessions
+            if 'uploaded_data' not in st.session_state:
+                st.session_state.uploaded_data = df.copy()
             
-            # Then set new data
-            st.session_state.uploaded_data = df.copy()
-            st.session_state.data_source = 'uploaded'
+            # Update current data and source
             st.session_state.current_data = df.copy()
+            st.session_state.data_source = 'uploaded'
             
-            st.success("File uploaded and processed successfully!")
+            st.success(f"File uploaded successfully! Total reports: {len(df)}")
             
             # Show the uploaded data
             st.subheader("Uploaded Data Preview")
@@ -1365,12 +1377,20 @@ def render_file_upload():
                 hide_index=True
             )
             
+            # Trigger a rerun to refresh the app state
+            st.rerun()
+            
             return True
             
+        except pd.errors.EmptyDataError:
+            st.error("The uploaded file is empty.")
+        except pd.errors.ParserError:
+            st.error("Error parsing the file. Please check the file format.")
         except Exception as e:
-            st.error(f"Error uploading file: {str(e)}")
+            st.error(f"Unexpected error uploading file: {str(e)}")
             logging.error(f"File upload error: {e}", exc_info=True)
-            return False
+        
+        return False
     
     return False
 
