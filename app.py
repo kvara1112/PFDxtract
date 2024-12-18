@@ -949,6 +949,9 @@ def render_file_upload():
 def render_analysis_tab(data: pd.DataFrame):
     """Render the analysis tab"""
     try:
+        # Generate a unique key prefix for this session
+        tab_key = f"analysis_{int(time.time())}"
+        
         # Validate data
         if data is None or len(data) == 0:
             st.warning("No data available for analysis. Please scrape or upload data first.")
@@ -976,7 +979,7 @@ def render_analysis_tab(data: pd.DataFrame):
         with st.sidebar:
             st.header("Analysis Filters")
             
-            # Date range filter with validation
+            # Date range filter with validation and unique key
             min_date = data['date_of_report'].min()
             max_date = data['date_of_report'].max()
             if pd.isna(min_date) or pd.isna(max_date):
@@ -986,10 +989,10 @@ def render_analysis_tab(data: pd.DataFrame):
             date_range = st.date_input(
                 "Date Range",
                 value=[min_date.date(), max_date.date()],
-                key="analysis_date_range"
+                key=f"{tab_key}_date_range"
             )
             
-            # Category filter
+            # Category filter with unique key
             all_categories = set()
             for cats in data['categories'].dropna():
                 if isinstance(cats, list):
@@ -998,15 +1001,17 @@ def render_analysis_tab(data: pd.DataFrame):
             if all_categories:
                 selected_categories = st.multiselect(
                     "Categories",
-                    options=sorted(all_categories)
+                    options=sorted(all_categories),
+                    key=f"{tab_key}_categories"
                 )
             
-            # Coroner area filter
+            # Coroner area filter with unique key
             coroner_areas = sorted(data['coroner_area'].dropna().unique())
             if len(coroner_areas) > 0:
                 selected_areas = st.multiselect(
                     "Coroner Areas",
-                    options=coroner_areas
+                    options=coroner_areas,
+                    key=f"{tab_key}_areas"
                 )
             else:
                 selected_areas = []
@@ -1037,19 +1042,23 @@ def render_analysis_tab(data: pd.DataFrame):
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Total Reports", len(filtered_df))
+            st.metric("Total Reports", len(filtered_df), key=f"{tab_key}_metric_total")
         with col2:
-            st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique())
+            st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique(), key=f"{tab_key}_metric_areas")
         with col3:
-            st.metric("Categories", len(all_categories))
+            st.metric("Categories", len(all_categories), key=f"{tab_key}_metric_cats")
         with col4:
             date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
             avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
-            st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
+            st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}", key=f"{tab_key}_metric_avg")
         
-        # Visualizations
+        # Visualizations with unique keys
         st.subheader("Visualizations")
-        viz_tab1, viz_tab2, viz_tab3 = st.tabs(["Timeline", "Categories", "Coroner Areas"])
+        viz_tab1, viz_tab2, viz_tab3 = st.tabs([
+            "Timeline",
+            "Categories",
+            "Coroner Areas"
+        ])
         
         with viz_tab1:
             try:
@@ -1069,7 +1078,7 @@ def render_analysis_tab(data: pd.DataFrame):
             except Exception as e:
                 st.error(f"Error creating coroner areas plot: {str(e)}")
         
-        # Export options
+        # Export options with unique keys
         st.subheader("Export Options")
         
         # Generate filename
@@ -1087,7 +1096,7 @@ def render_analysis_tab(data: pd.DataFrame):
                     csv,
                     f"{filename}.csv",
                     "text/csv",
-                    key="download_filtered_csv"
+                    key=f"{tab_key}_download_csv"
                 )
             except Exception as e:
                 st.error(f"Error preparing CSV download: {str(e)}")
@@ -1101,7 +1110,7 @@ def render_analysis_tab(data: pd.DataFrame):
                     excel_data,
                     f"{filename}.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="download_filtered_excel"
+                    key=f"{tab_key}_download_excel"
                 )
             except Exception as e:
                 st.error(f"Error preparing Excel download: {str(e)}")
