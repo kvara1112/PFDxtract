@@ -955,8 +955,8 @@ def render_file_upload():
 def render_analysis_tab(data: pd.DataFrame):
     """Render the analysis tab"""
     try:
-        # Generate a unique key prefix for this session
-        tab_key = f"analysis_{int(time.time())}"
+        # Generate a unique key prefix for this session that includes milliseconds
+        unique_id = f"{int(time.time() * 1000)}"
         
         # Validate data
         if data is None or len(data) == 0:
@@ -995,7 +995,7 @@ def render_analysis_tab(data: pd.DataFrame):
             date_range = st.date_input(
                 "Date Range",
                 value=[min_date.date(), max_date.date()],
-                key=f"{tab_key}_date_range"
+                key=f"date_range_{unique_id}"
             )
             
             # Category filter
@@ -1008,7 +1008,7 @@ def render_analysis_tab(data: pd.DataFrame):
                 selected_categories = st.multiselect(
                     "Categories",
                     options=sorted(all_categories),
-                    key=f"{tab_key}_categories"
+                    key=f"categories_{unique_id}"
                 )
             
             # Coroner area filter
@@ -1017,7 +1017,7 @@ def render_analysis_tab(data: pd.DataFrame):
                 selected_areas = st.multiselect(
                     "Coroner Areas",
                     options=coroner_areas,
-                    key=f"{tab_key}_areas"
+                    key=f"areas_{unique_id}"
                 )
             else:
                 selected_areas = []
@@ -1043,7 +1043,7 @@ def render_analysis_tab(data: pd.DataFrame):
             st.warning("No data matches the selected filters.")
             return
         
-        # Overview metrics - removed key parameter
+        # Overview metrics
         st.subheader("Overview")
         col1, col2, col3, col4 = st.columns(4)
         
@@ -1102,7 +1102,7 @@ def render_analysis_tab(data: pd.DataFrame):
                     csv,
                     f"{filename}.csv",
                     "text/csv",
-                    key=f"{tab_key}_download_csv"
+                    key=f"download_csv_{unique_id}"
                 )
             except Exception as e:
                 st.error(f"Error preparing CSV download: {str(e)}")
@@ -1116,7 +1116,7 @@ def render_analysis_tab(data: pd.DataFrame):
                     excel_data,
                     f"{filename}.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"{tab_key}_download_excel"
+                    key=f"download_excel_{unique_id}"
                 )
             except Exception as e:
                 st.error(f"Error preparing Excel download: {str(e)}")
