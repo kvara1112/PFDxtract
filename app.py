@@ -336,6 +336,101 @@ def scrape_page(url: str) -> List[Dict]:
         logging.error(f"Error fetching page {url}: {e}")
         return []
 
+def scrape_pfd_reports(keyword: Optional[str] = None,
+                      category: Optional[str] = None,
+                      date_after: Optional[str] = None,
+                      date_before: Optional[str] = None,
+                      order: str = "relevance",
+                      max_pages: Optional[int] = None) -> List[Dict]:
+    """Scrape PFD reports with comprehensive filtering"""
+    all_reports = []
+    current_page = 1
+    base_url = "https://www.judiciary.uk"
+    
+    # Build query parameters
+    params = {
+        'post_type': 'pfd',
+        'order': order
+    }
+    
+    if keyword and keyword.strip():
+        params['s'] = keyword.strip()
+    if category:
+        params['pfd_report_type'] = category
+    
+    # Handle date parameters
+    if date_after:
+        try:
+            day, month, year = date_after.split('/')
+            params['after-year'] = year
+            params['after-month'] = month
+            params['after-day'] = day
+        except ValueError as e:
+            logging.error(f"Invalid date_after format: {e}")
+            return []
+    
+    if date_before:
+        try:
+            day, month, year = date_before.split('/')
+            params['before-year'] = year
+            params['before-month'] = month
+            params['before-day'] = day
+        except ValueError as e:
+            logging.error(f"Invalid date_before format: {e}")
+            return []
+    
+    # Build initial URL
+    param_strings = [f"{k}={v}" for k, v in params.items()]
+    initial_url = f"{base_url}/?{'&'.join(param_strings)}"
+    
+    st.write(f"Searching URL: {initial_url}")
+    
+    try:
+        total_pages = get_total_pages(initial_url)
+        if total_pages == 0:
+            st.warning("No results found")
+            return []
+            
+        logging.info(f"Total pages to scrape: {total_pages}")
+        
+        if max_pages:
+            total_pages = min(total_pages, max_pages)
+        
+        # Setup progress tracking
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        while current_page <= total_pages:
+            # Build page URL
+            page_url = initial_url if current_page == 1 else f"{base_url}/page/{current_page}/?{'&'.join(param_strings)}"
+            
+            # Update progress
+            status_text.text(f"Scraping page {current_page} of {total_pages}...")
+            progress_bar.progress(current_page / total_pages)
+            
+            # Scrape page
+            reports = scrape_page(page_url)
+            
+            if reports:
+                all_reports.extend(reports)
+                logging.info(f"Found {len(reports)} reports on page {current_page}")
+            else:
+                logging.warning(f"No reports found on page {current_page}")
+                if current_page > 1:
+                    break
+            
+            current_page += 1
+        
+        progress_bar.progress(1.0)
+        status_text.text(f"Completed! Total reports found: {len(all_reports)}")
+        
+        return all_reports
+    
+    except Exception as e:
+        logging.error(f"Error in scrape_pfd_reports: {e}")
+        st.error(f"An error occurred while scraping reports: {e}")
+        return []
+        
 def get_total_pages(url: str) -> int:
     """Get total number of pages"""
     try:
