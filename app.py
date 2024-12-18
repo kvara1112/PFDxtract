@@ -336,6 +336,34 @@ def scrape_page(url: str) -> List[Dict]:
         logging.error(f"Error fetching page {url}: {e}")
         return []
 
+def get_total_pages(url: str) -> int:
+    """Get total number of pages"""
+    try:
+        response = make_request(url)
+        if not response:
+            return 0
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Check pagination
+        pagination = soup.find('nav', class_='navigation pagination')
+        if pagination:
+            page_numbers = pagination.find_all('a', class_='page-numbers')
+            numbers = [int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()]
+            if numbers:
+                return max(numbers)
+        
+        # Check if at least one page of results exists
+        results = soup.find('ul', class_='search__list')
+        if results and results.find_all('div', class_='card'):
+            return 1
+            
+        return 0
+        
+    except Exception as e:
+        logging.error(f"Error getting total pages: {e}")
+        return 0
+
 def scrape_pfd_reports(keyword: Optional[str] = None,
                       category: Optional[str] = None,
                       date_after: Optional[str] = None,
@@ -430,118 +458,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
         return []
-        
-def get_total_pages(url: str) -> int:
-    """Get total number of pages"""
-    try:
-        response = make_request(url)
-        if not response:
-            return 0
-        
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Check pagination
-        pagination = soup.find('nav', class_='navigation pagination')
-        if pagination:
-            page_numbers = pagination.find_all('a', class_='page-numbers')
-            numbers = [int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()]
-            if numbers:
-                return max(numbers)
-        
-        # Check if at least one page of results exists
-        results = soup.find('ul', class_='search__list')
-        if results and results.find_all('div', class_='card'):
-            return 1
-            
-        return 0
-        
-    except Exception as e:
-        logging.error(f"Error getting total pages: {e}")
-        return 0
-
-# Build query parameters
-params = {
-    'post_type': 'pfd',
-    'order': order
-}
-
-if keyword and keyword.strip():
-    params['s'] = keyword.strip()
-if category:
-    params['pfd_report_type'] = category
-
-# Handle date parameters
-if date_after:
-    try:
-        day, month, year = date_after.split('/')
-        params['after-year'] = year
-        params['after-month'] = month
-        params['after-day'] = day
-    except ValueError as e:
-        logging.error(f"Invalid date_after format: {e}")
-        return []
-
-if date_before:
-    try:
-        day, month, year = date_before.split('/')
-        params['before-year'] = year
-        params['before-month'] = month
-        params['before-day'] = day
-    except ValueError as e:
-        logging.error(f"Invalid date_before format: {e}")
-        return []
-
-# Build initial URL - This is the critical fix
-param_strings = [f"{k}={v}" for k, v in params.items()]
-initial_url = f"{base_url}/?{'&'.join(param_strings)}"  # Changed from ''.join to '&'.join
-
-    st.write(f"Searching URL: {initial_url}")
-    
-    try:
-        total_pages = get_total_pages(initial_url)
-        if total_pages == 0:
-            st.warning("No results found")
-            return []
-            
-        logging.info(f"Total pages to scrape: {total_pages}")
-        
-        if max_pages:
-            total_pages = min(total_pages, max_pages)
-        
-        # Setup progress tracking
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        while current_page <= total_pages:
-            # Build page URL
-            page_url = initial_url if current_page == 1 else f"{base_url}/page/{current_page}/?{''.join(param_strings)}"
-            
-            # Update progress
-            status_text.text(f"Scraping page {current_page} of {total_pages}...")
-            progress_bar.progress(current_page / total_pages)
-            
-            # Scrape page
-            reports = scrape_page(page_url)
-            
-            if reports:
-                all_reports.extend(reports)
-                logging.info(f"Found {len(reports)} reports on page {current_page}")
-            else:
-                logging.warning(f"No reports found on page {current_page}")
-                if current_page > 1:
-                    break
-            
-            current_page += 1
-        
-        progress_bar.progress(1.0)
-        status_text.text(f"Completed! Total reports found: {len(all_reports)}")
-        
-        return all_reports
-    
-    except Exception as e:
-        logging.error(f"Error in scrape_pfd_reports: {e}")
-        st.error(f"An error occurred while scraping reports: {e}")
-        return []
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data"""
@@ -572,165 +488,272 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
 
-def render_scraping_tab():
-    """Render the scraping tab UI and functionality"""
-    # Initialize directories if they don't exist
-    os.makedirs('pdfs', exist_ok=True)
+def plot_timeline(df: pd.DataFrame) -> None:
+    """Plot timeline of reports"""
+    timeline_data = df.groupby(
+        pd.Grouper(key='date_of_report', freq='M')
+    ).size().reset_index()
+    timeline_data.columns = ['Date', 'Count']
     
-    st.markdown("""
-    ## UK Judiciary PFD Reports Scraper
-    This tool scrapes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can search by keywords, categories, and date ranges.
-    """)
+    fig = px.line(timeline_data, x='Date', y='Count',
+                  title='Reports Timeline',
+                  labels={'Count': 'Number of Reports'})
     
-    with st.form("search_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            search_keyword = st.text_input("Search keywords:", "")
-            category = st.selectbox("PFD Report type:", [""] + get_pfd_categories())
-            order = st.selectbox("Sort by:", [
-                "relevance",
-                "desc",
-                "asc"
-            ], format_func=lambda x: {
-                "relevance": "Relevance",
-                "desc": "Newest first",
-                "asc": "Oldest first"
-            }[x])
-        
-        with col2:
-            date_after = st.date_input(
-                "Published after:",
-                None,
-                format="DD/MM/YYYY"
-            )
-            
-            date_before = st.date_input(
-                "Published before:",
-                None,
-                format="DD/MM/YYYY"
-            )
-            
-            max_pages = st.number_input(
-                "Maximum pages to scrape (0 for all):", 
-                min_value=0, 
-                value=0
-            )
-        
-        submitted = st.form_submit_button("Search Reports")
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Number of Reports",
+        hovermode='x unified'
+    )
     
-    if submitted:
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_category_distribution(df: pd.DataFrame) -> None:
+    """Plot category distribution"""
+    all_cats = []
+    for cats in df['categories'].dropna():
+        if isinstance(cats, list):
+            all_cats.extend(cats)
+    
+    cat_counts = pd.Series(all_cats).value_counts()
+    
+    fig = px.bar(
+        x=cat_counts.index,
+        y=cat_counts.values,
+        title='Category Distribution',
+        labels={'x': 'Category', 'y': 'Count'}
+    )
+    
+    fig.update_layout(
+        xaxis_title="Category",
+        yaxis_title="Number of Reports",
+        xaxis={'tickangle': 45}
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_coroner_areas(df: pd.DataFrame) -> None:
+    """Plot coroner areas distribution"""
+    area_counts = df['coroner_area'].value_counts().head(20)
+    
+    fig = px.bar(
+        x=area_counts.index,
+        y=area_counts.values,
+        title='Top 20 Coroner Areas',
+        labels={'x': 'Area', 'y': 'Count'}
+    )
+    
+    fig.update_layout(
+        xaxis_title="Coroner Area",
+        yaxis_title="Number of Reports",
+        xaxis={'tickangle': 45}
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def clean_text_for_modeling(text: str) -> str:
+    """Clean text for topic modeling"""
+    if not isinstance(text, str):
+        return ""
+    
+    try:
+        # Convert to lowercase
+        text = text.lower()
+        
+        # Remove special characters and digits
+        text = re.sub(r'[^a-zA-Z\s]', ' ', text)
+        
+        # Remove extra whitespace
+        text = ' '.join(text.split())
+        
+        return text
+    except Exception as e:
+        logging.error(f"Error cleaning text for modeling: {e}")
+        return ""
+
+def create_topic_model(documents: List[str], num_topics: int) -> Optional[Tuple[BERTopic, List[int], np.ndarray]]:
+    """Create and train topic model"""
+    try:
+        # Check if CUDA is available
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        st.info(f"Using device: {device}")
+        
+        # Initialize embedding model
+        with st.spinner("Loading embedding model..."):
+            embedding_model = SentenceTransformer('all-MiniLM-L6-v2', device=device)
+        
+        # Initialize BERTopic with parameters
+        with st.spinner("Initializing topic model..."):
+            topic_model = BERTopic(
+                embedding_model=embedding_model,
+                nr_topics=num_topics,
+                low_memory=True,
+                calculate_probabilities=True,
+                verbose=True
+            )
+        
+        # Fit the model and transform documents
+        with st.spinner("Training topic model..."):
+            topics, probs = topic_model.fit_transform(documents)
+        
+        return topic_model, topics, probs
+        
+    except Exception as e:
+        logging.error(f"Error creating topic model: {e}")
+        st.error(f"Topic modeling error: {str(e)}")
+        return None
+
+def plot_topic_distribution(topic_model: BERTopic, topics: List[int]) -> None:
+    """Plot distribution of documents across topics"""
+    topic_counts = pd.Series(topics).value_counts()
+    
+    fig = px.bar(
+        x=topic_counts.index,
+        y=topic_counts.values,
+        labels={'x': 'Topic', 'y': 'Count'},
+        title='Distribution of Documents Across Topics'
+    )
+    
+    fig.update_layout(
+        xaxis_title="Topic",
+        yaxis_title="Number of Documents",
+        bargap=0.2
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_topic_timeline(df: pd.DataFrame, topics: List[int]) -> None:
+    """Plot topic evolution over time"""
+    if 'date_of_report' not in df.columns:
+        return
+    
+    topic_evolution = pd.DataFrame({
+        'Date': df['date_of_report'],
+        'Topic': topics
+    })
+    
+    topic_evolution = topic_evolution.groupby([
+        pd.Grouper(key='Date', freq='M'),
+        'Topic'
+    ]).size().reset_index(name='Count')
+    
+    fig = px.line(
+        topic_evolution,
+        x='Date',
+        y='Count',
+        color='Topic',
+        title='Topic Evolution Over Time'
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_topic_similarity(topic_model: BERTopic) -> None:
+    """Plot topic similarity heatmap"""
+    similarity_matrix = topic_model.get_topic_similarity_matrix()
+    
+    fig = go.Figure(data=go.Heatmap(
+        z=similarity_matrix,
+        x=[f'Topic {i}' for i in range(len(similarity_matrix))],
+        y=[f'Topic {i}' for i in range(len(similarity_matrix))],
+        colorscale='Viridis'
+    ))
+    
+    fig.update_layout(
+        title='Topic Similarity Heatmap',
+        xaxis_title='Topics',
+        yaxis_title='Topics'
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Process and clean scraped data"""
+    try:
+        # Create a copy to avoid modifying the original
+        df = df.copy()
+        
+        # Extract metadata
+        metadata = df['Content'].fillna("").apply(extract_metadata)
+        metadata_df = pd.DataFrame(metadata.tolist())
+        
+        # Combine with original data
+        result = pd.concat([df, metadata_df], axis=1)
+        
+        # Convert dates to datetime
         try:
-            with st.spinner("Searching for reports..."):
-                # Convert dates to required format
-                date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
-                date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
-                
-                # Set max pages
-                max_pages_val = None if max_pages == 0 else max_pages
-                
-                # Perform scraping
-                reports = scrape_pfd_reports(
-                    keyword=search_keyword,
-                    category=category if category else None,
-                    date_after=date_after_str,
-                    date_before=date_before_str,
-                    order=order,
-                    max_pages=max_pages_val
-                )
-                
-                if reports:
-                    # Process the data
-                    df = pd.DataFrame(reports)
-                    df = process_scraped_data(df)
-                    
-                    # Store in session state
-                    st.session_state.scraped_data = df
-                    
-                    st.success(f"Found {len(reports)} reports")
-                    
-                    # Display results
-                    st.header("Results")
-                    st.dataframe(
-                        df,
-                        column_config={
-                            "URL": st.column_config.LinkColumn("Report Link"),
-                            "date_of_report": st.column_config.DateColumn("Date of Report"),
-                            "categories": st.column_config.ListColumn("Categories")
-                        },
-                        hide_index=True
-                    )
-                    
-                    # Export options
-                    st.header("Export Options")
-                    
-                    # Generate filename
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"pfd_reports_{search_keyword}_{timestamp}"
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    # CSV Export
-                    with col1:
-                        csv = df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            "📥 Download Reports (CSV)",
-                            csv,
-                            f"{filename}.csv",
-                            "text/csv",
-                            key="download_csv"
-                        )
-                    
-                    # Excel Export
-                    with col2:
-                        excel_buffer = io.BytesIO()
-                        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-                            df.to_excel(writer, index=False)
-                        excel_data = excel_buffer.getvalue()
-                        st.download_button(
-                            "📥 Download Reports (Excel)",
-                            excel_data,
-                            f"{filename}.xlsx",
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            key="download_excel"
-                        )
-                    
-                    # PDF Download
-                    st.header("Download PDFs")
-                    if st.button("Download all PDFs"):
-                        with st.spinner("Preparing PDF download..."):
-                            pdf_zip_path = f"{filename}_pdfs.zip"
-                            
-                            with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
-                                unique_pdfs = set()
-                                pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
-                                
-                                for col in pdf_columns:
-                                    paths = df[col].dropna()
-                                    unique_pdfs.update(paths)
-                                
-                                for pdf_path in unique_pdfs:
-                                    if pdf_path and os.path.exists(pdf_path):
-                                        zipf.write(pdf_path, os.path.basename(pdf_path))
-                            
-                            with open(pdf_zip_path, 'rb') as f:
-                                st.download_button(
-                                    "📦 Download All PDFs (ZIP)",
-                                    f.read(),
-                                    pdf_zip_path,
-                                    "application/zip",
-                                    key="download_pdfs_zip"
-                                )
-                            
-                            # Cleanup zip file
-                            os.remove(pdf_zip_path)
-                else:
-                    st.warning("No reports found matching your search criteria")
-                    
+            result['date_of_report'] = pd.to_datetime(
+                result['date_of_report'],
+                format='%d/%m/%Y',
+                errors='coerce'
+            )
         except Exception as e:
-            st.error(f"An error occurred: {e}")
-            logging.error(f"Scraping error: {e}")
+            logging.error(f"Error converting dates: {e}")
+        
+        return result
+            
+    except Exception as e:
+        logging.error(f"Error in process_scraped_data: {e}")
+        return df
+
+def plot_timeline(df: pd.DataFrame) -> None:
+    """Plot timeline of reports"""
+    timeline_data = df.groupby(
+        pd.Grouper(key='date_of_report', freq='M')
+    ).size().reset_index()
+    timeline_data.columns = ['Date', 'Count']
+    
+    fig = px.line(timeline_data, x='Date', y='Count',
+                  title='Reports Timeline',
+                  labels={'Count': 'Number of Reports'})
+    
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Number of Reports",
+        hovermode='x unified'
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_category_distribution(df: pd.DataFrame) -> None:
+    """Plot category distribution"""
+    all_cats = []
+    for cats in df['categories'].dropna():
+        if isinstance(cats, list):
+            all_cats.extend(cats)
+    
+    cat_counts = pd.Series(all_cats).value_counts()
+    
+    fig = px.bar(
+        x=cat_counts.index,
+        y=cat_counts.values,
+        title='Category Distribution',
+        labels={'x': 'Category', 'y': 'Count'}
+    )
+    
+    fig.update_layout(
+        xaxis_title="Category",
+        yaxis_title="Number of Reports",
+        xaxis={'tickangle': 45}
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_coroner_areas(df: pd.DataFrame) -> None:
+    """Plot coroner areas distribution"""
+    area_counts = df['coroner_area'].value_counts().head(20)
+    
+    fig = px.bar(
+        x=area_counts.index,
+        y=area_counts.values,
+        title='Top 20 Coroner Areas',
+        labels={'x': 'Area', 'y': 'Count'}
+    )
+    
+    fig.update_layout(
+        xaxis_title="Coroner Area",
+        yaxis_title="Number of Reports",
+        xaxis={'tickangle': 45}
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
 
 def clean_text_for_modeling(text: str) -> str:
     """Clean text for topic modeling"""
