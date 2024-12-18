@@ -16,6 +16,7 @@ lib64/
 parts/
 sdist/
 var/
+wheels/
 *.egg-info/
 .installed.cfg
 *.egg
@@ -23,19 +24,23 @@ var/
 # Virtual Environment
 venv/
 ENV/
+.env
 
-# IDE
+# Logs
+*.log
+app.log
+
+# Downloaded PDFs and temporary files
+pdfs/
+*.pdf
+*.zip
+
+# IDE specific files
 .idea/
 .vscode/
 *.swp
 *.swo
 
-# Project specific
-pdfs/
-*.pdf
-*.csv
-*.xlsx
-*.zip
-
-# Streamlit
-.streamlit/secrets.toml
+# OS specific files
+.DS_Store
+Thumbs.db
