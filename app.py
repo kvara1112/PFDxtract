@@ -849,7 +849,8 @@ def render_scraping_tab():
                     st.session_state.data_source = 'scraped'
                     st.session_state.current_data = df
                     
-                    st.experimental_rerun()
+                    # Instead of experimental_rerun, use regular rerun
+                    st.rerun()
                 else:
                     st.warning("No reports found matching your search criteria")
                     return False
