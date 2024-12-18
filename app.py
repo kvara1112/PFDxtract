@@ -166,7 +166,7 @@ def extract_metadata(content: str) -> dict:
             categories = cat_match.group(1).split('|')
             metadata['categories'] = [cat.strip() for cat in categories if cat.strip()]
         
-        return metadata
+    return metadata
         
     except Exception as e:
         logging.error(f"Error extracting metadata: {e}")
@@ -258,7 +258,7 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         except Exception as e:
             logging.error(f"Error converting dates: {e}")
         
-        return result
+    return result
             
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
@@ -308,11 +308,12 @@ def get_report_content(url: str) -> Optional[Dict]:
                 pdf_paths.append(pdf_path)
                 pdf_names.append(pdf_name)
         
-        return {
-            'content': clean_text(webpage_text),
-            'pdf_contents': pdf_contents,
-            'pdf_paths': pdf_paths,
-            'pdf_names': pdf_names
+        
+    return {
+        'content': clean_text(webpage_text),
+        'pdf_contents': pdf_contents,
+        'pdf_paths': pdf_paths,
+        'pdf_names': pdf_names
         }
         
     except Exception as e:
@@ -376,7 +377,7 @@ def scrape_page(url: str) -> List[Dict]:
                 logging.error(f"Error processing card: {e}")
                 continue
         
-        return reports
+    return reports
         
     except Exception as e:
         logging.error(f"Error fetching page {url}: {e}")
@@ -497,30 +498,12 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         progress_bar.progress(1.0)
         status_text.text(f"Completed! Total reports found: {len(all_reports)}")
         
-        return all_reports
+    return all_reports
     
     except Exception as e:
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
         return []
-
-def scrape_all_categories() -> List[Dict]:
-    """Scrape reports from all available categories"""
-    all_reports = []
-    categories = get_pfd_categories()
-    
-    for category in categories:
-        try:
-            st.info(f"Scraping category: {category}")
-            reports = scrape_pfd_reports(category=category)
-            all_reports.extend(reports)
-            st.success(f"Found {len(reports)} reports in category {category}")
-        except Exception as e:
-            st.error(f"Error scraping category {category}: {e}")
-            continue
-    
-    return all_reports
-
 def render_scraping_tab():
     """Render the scraping tab UI and functionality"""
     # Initialize directories if they don't exist
@@ -708,6 +691,11 @@ def render_scraping_tab():
         except Exception as e:
             st.error(f"An error occurred during processing: {e}")
             logging.error(f"Processing error: {e}", exc_info=True)
+
+
+
+
+
 
 def initialize_session_state():
     """Initialize all required session state variables"""
