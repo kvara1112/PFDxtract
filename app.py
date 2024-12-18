@@ -26,6 +26,7 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
+import ast
 
 # Configure logging
 logging.basicConfig(
@@ -1589,26 +1590,24 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
             if col in df.columns:
                 # Special handling for categories column
                 if col == 'categories':
-                    # Flatten categories, handling both list and string representations
-                    try:
-                        # Attempt to handle both list and string representations
-                        all_categories = []
-                        for cats in df[col].dropna():
-                            # If it's a string representation of a list, eval it
-                            if isinstance(cats, str):
-                                try:
-                                    parsed_cats = eval(cats)
-                                    if isinstance(parsed_cats, list):
-                                        all_categories.extend(parsed_cats)
-                                except:
-                                    # If eval fails, treat as a single category
-                                    all_categories.append(cats)
-                            # If it's already a list
-                            elif isinstance(cats, list):
-                                all_categories.extend(cats)
-                    except Exception as e:
-                        st.error(f"Error processing categories: {e}")
-                        continue
+                    # Flatten categories, converting to a standard list
+                    all_categories = []
+                    for cats in df[col].dropna():
+                        # If it's a string representation of a list, safely convert
+                        if isinstance(cats, str):
+                            try:
+                                # Safely evaluate the string to a list
+                                parsed_cats = ast.literal_eval(cats)
+                                if isinstance(parsed_cats, list):
+                                    all_categories.extend(parsed_cats)
+                                else:
+                                    all_categories.append(parsed_cats)
+                            except:
+                                # If parsing fails, treat as a single category
+                                all_categories.append(cats)
+                        # If it's already a list
+                        elif isinstance(cats, list):
+                            all_categories.extend(cats)
                     
                     # Count categories
                     category_counts = pd.Series(all_categories).value_counts()
@@ -1629,7 +1628,7 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
                 st.plotly_chart(fig_cat, use_container_width=True)
     
     with tab2:
-        # Numerical Column Analysis would remain the same as in previous implementation
+        # Numerical Column Analysis
         numerical_cols = df.select_dtypes(include=['int64', 'float64']).columns
         
         if len(numerical_cols) > 0:
@@ -1649,7 +1648,7 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
             st.plotly_chart(fig_box, use_container_width=True)
     
     with tab3:
-        # Date Column Analysis would remain the same as in previous implementation
+        # Date Column Analysis
         date_cols = df.select_dtypes(include=['datetime64']).columns
         
         for col in date_cols:
