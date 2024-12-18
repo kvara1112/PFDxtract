@@ -985,7 +985,7 @@ def render_analysis_tab(data: pd.DataFrame):
         with st.sidebar:
             st.header("Analysis Filters")
             
-            # Date range filter with validation and unique key
+            # Date range filter with validation
             min_date = data['date_of_report'].min()
             max_date = data['date_of_report'].max()
             if pd.isna(min_date) or pd.isna(max_date):
@@ -998,7 +998,7 @@ def render_analysis_tab(data: pd.DataFrame):
                 key=f"{tab_key}_date_range"
             )
             
-            # Category filter with unique key
+            # Category filter
             all_categories = set()
             for cats in data['categories'].dropna():
                 if isinstance(cats, list):
@@ -1011,7 +1011,7 @@ def render_analysis_tab(data: pd.DataFrame):
                     key=f"{tab_key}_categories"
                 )
             
-            # Coroner area filter with unique key
+            # Coroner area filter
             coroner_areas = sorted(data['coroner_area'].dropna().unique())
             if len(coroner_areas) > 0:
                 selected_areas = st.multiselect(
@@ -1043,22 +1043,22 @@ def render_analysis_tab(data: pd.DataFrame):
             st.warning("No data matches the selected filters.")
             return
         
-        # Overview metrics
+        # Overview metrics - removed key parameter
         st.subheader("Overview")
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            st.metric("Total Reports", len(filtered_df), key=f"{tab_key}_metric_total")
+            st.metric("Total Reports", len(filtered_df))
         with col2:
-            st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique(), key=f"{tab_key}_metric_areas")
+            st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique())
         with col3:
-            st.metric("Categories", len(all_categories), key=f"{tab_key}_metric_cats")
+            st.metric("Categories", len(all_categories))
         with col4:
             date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
             avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
-            st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}", key=f"{tab_key}_metric_avg")
+            st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
         
-        # Visualizations with unique keys
+        # Visualizations
         st.subheader("Visualizations")
         viz_tab1, viz_tab2, viz_tab3 = st.tabs([
             "Timeline",
@@ -1084,7 +1084,7 @@ def render_analysis_tab(data: pd.DataFrame):
             except Exception as e:
                 st.error(f"Error creating coroner areas plot: {str(e)}")
         
-        # Export options with unique keys
+        # Export options
         st.subheader("Export Options")
         
         # Generate filename
@@ -1124,6 +1124,7 @@ def render_analysis_tab(data: pd.DataFrame):
     except Exception as e:
         st.error(f"An error occurred in the analysis tab: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
+
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """Handle Excel export with proper buffer management"""
