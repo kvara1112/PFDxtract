@@ -1320,89 +1320,91 @@ def render_topic_modeling_tab(data: pd.DataFrame):
 
 
 def render_file_upload():
-    """Render file upload section with comprehensive debugging"""
+    """Render file upload section with extensive debugging"""
     st.header("Upload Existing Data")
     
-    # Add logging
-    logging.info("Entering render_file_upload function")
+    # Add comprehensive debugging
+    st.write("Debugging Information:")
+    st.write(f"Session State Initialized: {hasattr(st.session_state, 'initialized')}")
     
-    # Generate a unique key to prevent caching issues
-    upload_key = f"file_uploader_{int(time.time() * 1000)}"
-    
-    # File uploader with explicit type hints and debugging
-    uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file", 
-        type=['csv', 'xlsx'],
-        key=upload_key
-    )
-    
-    # Debugging: Show file uploader status
-    st.write(f"Uploaded file status: {uploaded_file is not None}")
-    
-    if uploaded_file is not None:
-        try:
-            # Log file details
-            st.write(f"Uploaded file name: {uploaded_file.name}")
-            st.write(f"Uploaded file size: {uploaded_file.size} bytes")
-            
-            # Determine file type and read
-            if uploaded_file.name.lower().endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-            elif uploaded_file.name.lower().endswith(('.xls', '.xlsx')):
-                df = pd.read_excel(uploaded_file)
-            else:
-                st.error("Unsupported file type")
-                return False
-            
-            # Validate DataFrame
-            st.write(f"DataFrame shape: {df.shape}")
-            st.write("Columns:", list(df.columns))
-            
-            # Required columns check
-            required_columns = [
-                'Title', 'URL', 'Content', 
-                'date_of_report', 'categories', 'coroner_area'
-            ]
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            
-            if missing_columns:
-                st.error(f"Missing required columns: {', '.join(missing_columns)}")
-                return False
-            
-            # Process uploaded data
-            processed_df = process_scraped_data(df)
-            
-            # Update session state
-            st.session_state.uploaded_data = processed_df.copy()
-            st.session_state.current_data = processed_df.copy()
-            st.session_state.data_source = 'uploaded'
-            
-            # Success message
-            st.success(f"File uploaded successfully! Total reports: {len(processed_df)}")
-            
-            # Preview uploaded data
-            st.subheader("Uploaded Data Preview")
-            st.dataframe(
-                processed_df,
-                column_config={
-                    "URL": st.column_config.LinkColumn("Report Link"),
-                    "date_of_report": st.column_config.DateColumn("Date of Report"),
-                    "categories": st.column_config.ListColumn("Categories")
-                },
-                hide_index=True
-            )
-            
-            # Force rerun to refresh state
-            st.experimental_rerun()
-            
-            return True
+    try:
+        # Generate a unique key to prevent caching issues
+        upload_key = f"file_uploader_{int(time.time() * 1000)}"
         
-        except Exception as e:
-            st.error(f"Unexpected error uploading file: {str(e)}")
-            logging.error(f"File upload error: {e}", exc_info=True)
-            return False
+        # File uploader with explicit debugging
+        st.write("Attempting to create file uploader...")
+        uploaded_file = st.file_uploader(
+            "Upload CSV or Excel file", 
+            type=['csv', 'xlsx'],
+            key=upload_key
+        )
+        
+        # Extensive logging
+        st.write(f"Uploaded file: {uploaded_file}")
+        st.write(f"Uploaded file type: {type(uploaded_file)}")
+        
+        if uploaded_file is not None:
+            st.write("File detected!")
+            st.write(f"File name: {uploaded_file.name}")
+            st.write(f"File size: {uploaded_file.size} bytes")
+            
+            try:
+                # Read the file based on extension
+                if uploaded_file.name.lower().endswith('.csv'):
+                    df = pd.read_csv(uploaded_file)
+                elif uploaded_file.name.lower().endswith(('.xls', '.xlsx')):
+                    df = pd.read_excel(uploaded_file)
+                else:
+                    st.error("Unsupported file type")
+                    return False
+                
+                # Display basic information about the DataFrame
+                st.write("DataFrame Information:")
+                st.write(f"Shape: {df.shape}")
+                st.write("Columns:", list(df.columns))
+                
+                # Required columns
+                required_columns = [
+                    'Title', 'URL', 'Content', 
+                    'date_of_report', 'categories', 'coroner_area'
+                ]
+                
+                # Check for missing columns
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                
+                if missing_columns:
+                    st.error(f"Missing required columns: {', '.join(missing_columns)}")
+                    st.write("Columns in your file:", list(df.columns))
+                    return False
+                
+                # Process the data
+                processed_df = process_scraped_data(df)
+                
+                # Update session state
+                st.session_state.uploaded_data = processed_df.copy()
+                st.session_state.current_data = processed_df.copy()
+                st.session_state.data_source = 'uploaded'
+                
+                # Success message
+                st.success(f"File uploaded successfully! Total reports: {len(processed_df)}")
+                
+                # Preview data
+                st.subheader("Uploaded Data Preview")
+                st.dataframe(processed_df.head())
+                
+                return True
+            
+            except Exception as read_error:
+                st.error(f"Error reading file: {read_error}")
+                logging.error(f"File read error: {read_error}", exc_info=True)
+                return False
+        
+        return False
     
-    return False
+    except Exception as e:
+        st.error(f"Unexpected error in file upload: {e}")
+        logging.error(f"Unexpected file upload error: {e}", exc_info=True)
+        return False
 
 def initialize_session_state():
     """Initialize all required session state variables"""
