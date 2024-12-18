@@ -299,6 +299,7 @@ def get_report_content(url: str) -> Optional[Dict]:
             logging.warning(f"No content found at {url}")
             return None
         
+        # Extract text content
         paragraphs = content.find_all(['p', 'table'])
         webpage_text = '\n\n'.join(p.get_text(strip=True, separator=' ') for p in paragraphs)
         
@@ -306,6 +307,7 @@ def get_report_content(url: str) -> Optional[Dict]:
         pdf_paths = []
         pdf_names = []
         
+        # Find and process PDFs
         pdf_links = (
             soup.find_all('a', class_='related-content__link', href=re.compile(r'\.pdf$')) or
             soup.find_all('a', href=re.compile(r'\.pdf$'))
@@ -375,6 +377,12 @@ def scrape_page(url: str) -> List[Dict]:
                         'Content': content_data['content']
                     }
                     
+                    # Extract and add metadata from webpage content
+                    metadata = extract_metadata(content_data['content'])
+                    for key, value in metadata.items():
+                        report[key.title()] = value
+                    
+                    # Process PDFs
                     for i, (name, content, path) in enumerate(zip(
                         content_data['pdf_names'],
                         content_data['pdf_contents'],
@@ -383,6 +391,13 @@ def scrape_page(url: str) -> List[Dict]:
                         report[f'PDF_{i}_Name'] = name
                         report[f'PDF_{i}_Content'] = content
                         report[f'PDF_{i}_Path'] = path
+                        
+                        # Extract additional metadata from PDF content
+                        pdf_metadata = extract_metadata(content)
+                        for key, value in pdf_metadata.items():
+                            # Only update if not already set or if current value is None/empty
+                            if key not in report or not report[key.title()]:
+                                report[key.title()] = value
                     
                     reports.append(report)
                     logging.info(f"Successfully processed: {title}")
@@ -796,17 +811,31 @@ def render_scraping_tab():
         st.success(f"Found {len(st.session_state.scraped_data)} reports")
         
         st.subheader("Results")
+        display_columns = [
+            'Title', 'URL', 'Date_Of_Report', 'Ref', 'Deceased_Name', 
+            'Coroner_Name', 'Coroner_Area', 'Categories', 'Hearing_Date',
+            'Investigation_Date', 'Report_Sent_To', 'Response_Due_Date',
+            'Report_Author', 'Report_Recipient', 'Organisation', 'Location'
+        ]
+        
+        # Filter columns that actually exist in the DataFrame
+        display_columns = [col for col in display_columns if col in st.session_state.scraped_data.columns]
+        
         st.dataframe(
-            st.session_state.scraped_data,
+            st.session_state.scraped_data[display_columns],
             column_config={
                 "URL": st.column_config.LinkColumn("Report Link"),
-                "date_of_report": st.column_config.DateColumn("Date of Report"),
-                "categories": st.column_config.ListColumn("Categories")
+                "Date_Of_Report": st.column_config.DateColumn("Date of Report", format="%d/%m/%Y"),
+                "Categories": st.column_config.ListColumn("Categories"),
+                "Hearing_Date": st.column_config.DateColumn("Hearing Date", format="%d/%m/%Y"),
+                "Investigation_Date": st.column_config.DateColumn("Investigation Date", format="%d/%m/%Y"),
+                "Response_Due_Date": st.column_config.DateColumn("Response Due", format="%d/%m/%Y")
             },
             hide_index=True
         )
         
         show_export_options(st.session_state.scraped_data, "scraped")
+
     
     with st.form("scraping_form"):
         col1, col2 = st.columns(2)
