@@ -763,6 +763,25 @@ def render_scraping_tab():
     """Render the scraping tab"""
     st.header("Scrape PFD Reports")
     
+    if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
+        # Show existing results if available
+        st.success(f"Found {len(st.session_state.scraped_data)} reports")
+        
+        # Display results table
+        st.subheader("Results")
+        st.dataframe(
+            st.session_state.scraped_data,
+            column_config={
+                "URL": st.column_config.LinkColumn("Report Link"),
+                "date_of_report": st.column_config.DateColumn("Date of Report"),
+                "categories": st.column_config.ListColumn("Categories")
+            },
+            hide_index=True
+        )
+        
+        # Show export options
+        show_export_options(st.session_state.scraped_data, "scraped")
+    
     with st.form("scraping_form"):
         col1, col2 = st.columns(2)
         
@@ -830,82 +849,7 @@ def render_scraping_tab():
                     st.session_state.data_source = 'scraped'
                     st.session_state.current_data = df
                     
-                    st.success(f"Found {len(reports)} reports")
-                    
-                    # Display results table
-                    st.subheader("Results")
-                    st.dataframe(
-                        df,
-                        column_config={
-                            "URL": st.column_config.LinkColumn("Report Link"),
-                            "date_of_report": st.column_config.DateColumn("Date of Report"),
-                            "categories": st.column_config.ListColumn("Categories")
-                        },
-                        hide_index=True
-                    )
-                    
-                    # Export options
-                    st.subheader("Export Options")
-                    
-                    # Generate filename
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    filename = f"pfd_reports_{search_keyword}_{timestamp}"
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    # CSV Export
-                    with col1:
-                        csv = df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            "📥 Download Reports (CSV)",
-                            csv,
-                            f"{filename}.csv",
-                            "text/csv",
-                            key="download_csv_scrape"
-                        )
-                    
-                    # Excel Export
-                    with col2:
-                        excel_data = export_to_excel(df)
-                        st.download_button(
-                            "📥 Download Reports (Excel)",
-                            excel_data,
-                            f"{filename}.xlsx",
-                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            key="download_excel_scrape"
-                        )
-                    
-                    # PDF Download
-                    st.subheader("Download PDFs")
-                    if st.button("Download all PDFs"):
-                        with st.spinner("Preparing PDF download..."):
-                            pdf_zip_path = f"{filename}_pdfs.zip"
-                            
-                            with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
-                                unique_pdfs = set()
-                                pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
-                                
-                                for col in pdf_columns:
-                                    paths = df[col].dropna()
-                                    unique_pdfs.update(paths)
-                                
-                                for pdf_path in unique_pdfs:
-                                    if pdf_path and os.path.exists(pdf_path):
-                                        zipf.write(pdf_path, os.path.basename(pdf_path))
-                            
-                            with open(pdf_zip_path, 'rb') as f:
-                                st.download_button(
-                                    "📦 Download All PDFs (ZIP)",
-                                    f.read(),
-                                    pdf_zip_path,
-                                    "application/zip",
-                                    key="download_pdfs_zip_scrape"
-                                )
-                            
-                            # Cleanup zip file
-                            os.remove(pdf_zip_path)
-                    
-                    return True
+                    st.experimental_rerun()
                 else:
                     st.warning("No reports found matching your search criteria")
                     return False
@@ -914,7 +858,68 @@ def render_scraping_tab():
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
+
+def show_export_options(df: pd.DataFrame, prefix: str):
+    """Show export options for the data"""
+    st.subheader("Export Options")
+    
+    # Generate filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"pfd_reports_{prefix}_{timestamp}"
+    
+    col1, col2 = st.columns(2)
+    
+    # CSV Export
+    with col1:
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "📥 Download Reports (CSV)",
+            csv,
+            f"{filename}.csv",
+            "text/csv",
+            key=f"download_csv_{prefix}_{timestamp}"
+        )
+    
+    # Excel Export
+    with col2:
+        excel_data = export_to_excel(df)
+        st.download_button(
+            "📥 Download Reports (Excel)",
+            excel_data,
+            f"{filename}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"download_excel_{prefix}_{timestamp}"
+        )
+    
+    # PDF Download
+    st.subheader("Download PDFs")
+    if st.button(f"Download all PDFs_{timestamp}", key=f"pdf_button_{prefix}_{timestamp}"):
+        with st.spinner("Preparing PDF download..."):
+            pdf_zip_path = f"{filename}_pdfs.zip"
             
+            with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
+                unique_pdfs = set()
+                pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
+                
+                for col in pdf_columns:
+                    paths = df[col].dropna()
+                    unique_pdfs.update(paths)
+                
+                for pdf_path in unique_pdfs:
+                    if pdf_path and os.path.exists(pdf_path):
+                        zipf.write(pdf_path, os.path.basename(pdf_path))
+            
+            with open(pdf_zip_path, 'rb') as f:
+                st.download_button(
+                    "📦 Download All PDFs (ZIP)",
+                    f.read(),
+                    pdf_zip_path,
+                    "application/zip",
+                    key=f"download_pdfs_zip_{prefix}_{timestamp}"
+                )
+            
+            # Cleanup zip file
+            os.remove(pdf_zip_path)
 
 def render_file_upload():
     """Render file upload section"""
@@ -1286,33 +1291,125 @@ def render_topic_modeling_tab(data: pd.DataFrame):
 
 
 def initialize_session_state():
-    """Initialize all required session state variables and cleanup"""
+    """Initialize all required session state variables"""
+    # Define all required session state variables
     if 'data_source' not in st.session_state:
         st.session_state.data_source = None
-    if 'scraped_data' not in st.session_state:
-        st.session_state.scraped_data = None
-    if 'uploaded_data' not in st.session_state:
-        st.session_state.uploaded_data = None
+        
     if 'current_data' not in st.session_state:
         st.session_state.current_data = None
+        
+    if 'scraped_data' not in st.session_state:
+        st.session_state.scraped_data = None
+        
+    if 'uploaded_data' not in st.session_state:
+        st.session_state.uploaded_data = None
+        
     if 'topic_model' not in st.session_state:
         st.session_state.topic_model = None
+        
+    if 'cleanup_done' not in st.session_state:
+        st.session_state.cleanup_done = False
+        
+    if 'tab_key' not in st.session_state:
+        st.session_state.tab_key = f"session_{int(time.time())}"
+        
+    if 'last_scrape_time' not in st.session_state:
+        st.session_state.last_scrape_time = None
+        
+    if 'last_upload_time' not in st.session_state:
+        st.session_state.last_upload_time = None
+        
+    if 'analysis_filters' not in st.session_state:
+        st.session_state.analysis_filters = {
+            'date_range': None,
+            'selected_categories': None,
+            'selected_areas': None
+        }
+        
+    if 'topic_model_settings' not in st.session_state:
+        st.session_state.topic_model_settings = {
+            'num_topics': 5,
+            'max_features': 1000,
+            'similarity_threshold': 0.3
+        }
     
-    # PDF cleanup
-    if not st.session_state.get('cleanup_done'):
+    # Perform PDF cleanup if not done
+    if not st.session_state.cleanup_done:
         try:
             pdf_dir = 'pdfs'
-            os.makedirs(pdf_dir, exist_ok=True)  # Create directory if it doesn't exist
+            # Create PDF directory if it doesn't exist
+            os.makedirs(pdf_dir, exist_ok=True)
+            
+            # Cleanup PDFs older than 24 hours
             current_time = time.time()
+            cleanup_count = 0
+            
             for file in os.listdir(pdf_dir):
                 file_path = os.path.join(pdf_dir, file)
-                if os.stat(file_path).st_mtime < current_time - 86400:
-                    os.remove(file_path)
-        except Exception as e:
-            logging.error(f"Cleanup error: {e}")
-        finally:
-            st.session_state.cleanup_done = True
+                try:
+                    if os.path.isfile(file_path):
+                        # Check if file is older than 24 hours
+                        if os.stat(file_path).st_mtime < current_time - 86400:
+                            os.remove(file_path)
+                            cleanup_count += 1
+                except Exception as e:
+                    logging.warning(f"Error cleaning up file {file_path}: {e}")
+                    continue
             
+            if cleanup_count > 0:
+                logging.info(f"Cleaned up {cleanup_count} old PDF files")
+                
+        except Exception as e:
+            logging.error(f"Error during PDF cleanup: {e}")
+        finally:
+            # Mark cleanup as done even if there were errors
+            st.session_state.cleanup_done = True
+    
+    # Validate existing data if present
+    if st.session_state.current_data is not None:
+        try:
+            df = st.session_state.current_data
+            if len(df) == 0 or not isinstance(df, pd.DataFrame):
+                st.session_state.current_data = None
+                st.session_state.data_source = None
+        except Exception:
+            # Reset invalid data
+            st.session_state.current_data = None
+            st.session_state.data_source = None
+    
+    # Create log directory if it doesn't exist
+    try:
+        log_dir = 'logs'
+        os.makedirs(log_dir, exist_ok=True)
+    except Exception as e:
+        logging.error(f"Error creating log directory: {e}")
+            
+def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> tuple[bool, str]:
+    """Validate data for different purposes"""
+    if data is None:
+        return False, "No data available. Please scrape or upload data first."
+    
+    if len(data) == 0:
+        return False, "Dataset is empty."
+        
+    if purpose == "analysis":
+        required_columns = ['date_of_report', 'categories', 'coroner_area']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            return False, f"Missing required columns: {', '.join(missing_columns)}"
+            
+    elif purpose == "topic_modeling":
+        if 'Content' not in data.columns:
+            return False, "Missing required column: Content"
+            
+        valid_docs = data['Content'].dropna().str.strip().str.len() > 0
+        if valid_docs.sum() < 2:
+            return False, "Not enough valid documents found. Please ensure you have documents with text content."
+    
+    return True, "Data is valid"
+
+# Then in main():
 def main():
     try:
         initialize_session_state()
@@ -1338,26 +1435,26 @@ def main():
         
         with tab3:
             if st.session_state.current_data is not None:
-                render_analysis_tab(st.session_state.current_data)
+                is_valid, message = validate_data(st.session_state.current_data, "analysis")
+                if is_valid:
+                    render_analysis_tab(st.session_state.current_data)
+                else:
+                    st.error(message)
             else:
                 st.warning("Please scrape or upload data first")
         
         with tab4:
             if st.session_state.current_data is not None:
-                render_topic_modeling_tab(st.session_state.current_data)
+                is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
+                if is_valid:
+                    render_topic_modeling_tab(st.session_state.current_data)
+                else:
+                    st.error(message)
             else:
                 st.warning("Please scrape or upload data first")
         
         if st.session_state.data_source:
             st.sidebar.success(f"Currently using {st.session_state.data_source} data")
-        
-        st.markdown("---")
-        st.markdown(
-            """<div style='text-align: center'>
-            <p>Built with Streamlit • Data from UK Judiciary</p>
-            </div>""",
-            unsafe_allow_html=True
-        )
         
     except Exception as e:
         st.error("An error occurred in the application. Please try again.")
