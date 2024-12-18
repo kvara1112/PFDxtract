@@ -1100,7 +1100,6 @@ def render_analysis_tab(data: pd.DataFrame):
     """Render the analysis tab with upload option"""
     st.header("Reports Analysis")
     
-    # Add option to clear current data and upload new file
     if st.session_state.current_data is not None:
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -1114,8 +1113,7 @@ def render_analysis_tab(data: pd.DataFrame):
                 st.session_state.scraped_data = None
                 st.session_state.uploaded_data = None
                 st.rerun()
-    
-    # Show file upload if no data or if data was cleared
+
     if st.session_state.current_data is None:
         upload_col1, upload_col2 = st.columns([3, 1])
         with upload_col1:
@@ -1126,7 +1124,6 @@ def render_analysis_tab(data: pd.DataFrame):
         
         if uploaded_file is not None:
             try:
-                # Read the file based on extension
                 if uploaded_file.name.lower().endswith('.csv'):
                     df = pd.read_csv(uploaded_file)
                 elif uploaded_file.name.lower().endswith(('.xls', '.xlsx')):
@@ -1134,62 +1131,20 @@ def render_analysis_tab(data: pd.DataFrame):
                 else:
                     st.error("Unsupported file type")
                     return
-
-                # Convert categories to list format before validation
-                if 'categories' in df.columns:
-                    def convert_to_list(val):
-                        if pd.isna(val):
-                            return None
-                        if isinstance(val, list):
-                            return val
-                        if isinstance(val, str):
-                            try:
-                                # Try to evaluate if it's a string representation of a list
-                                evaluated = ast.literal_eval(val)
-                                if isinstance(evaluated, list):
-                                    return evaluated
-                                return [evaluated]
-                            except:
-                                # If it's a simple string, split by comma or return as single item
-                                if ',' in val:
-                                    return [item.strip() for item in val.split(',')]
-                                return [val.strip()]
-                        return None
-
-                    df['categories'] = df['categories'].apply(convert_to_list)
                 
                 required_columns = [
                     'Title', 'URL', 'Content', 
                     'date_of_report', 'categories', 'coroner_area'
                 ]
                 
-                # Check for missing columns
                 missing_columns = [col for col in required_columns if col not in df.columns]
                 if missing_columns:
                     st.error(f"Missing required columns: {', '.join(missing_columns)}")
                     st.write("Available columns:", list(df.columns))
                     return
                 
-                # Try to convert dates before processing
-                try:
-                    if 'date_of_report' in df.columns:
-                        # First try UK format
-                        df['date_of_report'] = pd.to_datetime(df['date_of_report'], format='%d/%m/%Y', errors='coerce')
-                        # For any failed conversions, try flexible parsing
-                        mask = df['date_of_report'].isna()
-                        if mask.any():
-                            df.loc[mask, 'date_of_report'] = pd.to_datetime(
-                                df.loc[mask, 'date_of_report'],
-                                errors='coerce'
-                            )
-                except Exception as e:
-                    st.error(f"Error converting dates: {str(e)}")
-                    return
-                
-                # Process the data
                 processed_df = process_scraped_data(df)
                 
-                # Update session state
                 st.session_state.uploaded_data = processed_df.copy()
                 st.session_state.current_data = processed_df.copy()
                 st.session_state.data_source = 'uploaded'
@@ -1202,23 +1157,32 @@ def render_analysis_tab(data: pd.DataFrame):
                 logging.error(f"File read error: {read_error}", exc_info=True)
                 return
         return
-    
-    # If we have data, validate it before proceeding
+
     try:
         is_valid, message = validate_data(data, "analysis")
         if not is_valid:
             st.error(message)
             return
             
-        # Get date range for the data
-        min_date = data['date_of_report'].min().date()
-        max_date = data['date_of_report'].max().date()
+        # Safe date range calculation
+        valid_dates = data['date_of_report'].dropna()
+        if len(valid_dates) == 0:
+            st.error("No valid dates found in the data")
+            return
+            
+        min_date = valid_dates.min()
+        max_date = valid_dates.max()
         
-        # Sidebar for filtering
+        if pd.isna(min_date) or pd.isna(max_date):
+            st.error("Invalid date range in data")
+            return
+            
+        min_date = min_date.date()
+        max_date = max_date.date()
+        
         with st.sidebar:
             st.header("Analysis Filters")
             
-            # Date range filter with UK format
             date_range = st.date_input(
                 "Date Range",
                 value=(min_date, max_date),
@@ -1228,7 +1192,6 @@ def render_analysis_tab(data: pd.DataFrame):
                 key="date_range_filter"
             )
             
-            # Category filter
             all_categories = set()
             for cats in data['categories'].dropna():
                 if isinstance(cats, list):
@@ -1240,7 +1203,6 @@ def render_analysis_tab(data: pd.DataFrame):
                 key="categories_filter"
             )
             
-            # Coroner area filter
             coroner_areas = sorted(data['coroner_area'].dropna().unique())
             selected_areas = st.multiselect(
                 "Coroner Areas",
@@ -1248,17 +1210,14 @@ def render_analysis_tab(data: pd.DataFrame):
                 key="areas_filter"
             )
         
-        # Apply filters
         filtered_df = data.copy()
         
-        # Date filter
         if len(date_range) == 2:
             filtered_df = filtered_df[
                 (filtered_df['date_of_report'].dt.date >= date_range[0]) &
                 (filtered_df['date_of_report'].dt.date <= date_range[1])
             ]
         
-        # Category filter
         if selected_categories:
             filtered_df = filtered_df[
                 filtered_df['categories'].apply(
@@ -1266,11 +1225,9 @@ def render_analysis_tab(data: pd.DataFrame):
                 )
             ]
         
-        # Area filter
         if selected_areas:
             filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
         
-        # Show filter status
         active_filters = []
         if len(date_range) == 2 and (date_range[0] != min_date or date_range[1] != max_date):
             active_filters.append(f"Date range: {date_range[0].strftime('%d/%m/%Y')} to {date_range[1].strftime('%d/%m/%Y')}")
@@ -1286,10 +1243,8 @@ def render_analysis_tab(data: pd.DataFrame):
             st.warning("No data matches the selected filters.")
             return
             
-        # Display filtered results count
         st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
         
-        # Overview metrics
         st.subheader("Overview")
         col1, col2, col3, col4 = st.columns(4)
         
@@ -1306,7 +1261,6 @@ def render_analysis_tab(data: pd.DataFrame):
             avg_reports_month = len(filtered_df) / (date_range_days / 30) if date_range_days > 0 else len(filtered_df)
             st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
         
-        # Visualizations
         st.subheader("Visualizations")
         viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
             "Timeline",
@@ -1339,7 +1293,6 @@ def render_analysis_tab(data: pd.DataFrame):
             except Exception as e:
                 st.error(f"Error creating data quality analysis: {str(e)}")
         
-        # Show export options
         show_export_options(filtered_df, "filtered")
         
     except Exception as e:
