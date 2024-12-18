@@ -364,52 +364,41 @@ def get_total_pages(url: str) -> int:
         logging.error(f"Error getting total pages: {e}")
         return 0
 
-def scrape_pfd_reports(keyword: Optional[str] = None,
-                      category: Optional[str] = None,
-                      date_after: Optional[str] = None,
-                      date_before: Optional[str] = None,
-                      order: str = "relevance",
-                      max_pages: Optional[int] = None) -> List[Dict]:
-    """Scrape PFD reports with comprehensive filtering"""
-    all_reports = []
-    current_page = 1
-    base_url = "https://www.judiciary.uk"
-    
-    # Build query parameters
-    params = {
-        'post_type': 'pfd',
-        'order': order
-    }
-    
-    if keyword and keyword.strip():
-        params['s'] = keyword.strip()
-    if category:
-        params['pfd_report_type'] = category
-    
-    # Handle date parameters
-    if date_after:
-        try:
-            day, month, year = date_after.split('/')
-            params['after-year'] = year
-            params['after-month'] = month
-            params['after-day'] = day
-        except ValueError as e:
-            logging.error(f"Invalid date_after format: {e}")
-            return []
-    
-    if date_before:
-        try:
-            day, month, year = date_before.split('/')
-            params['before-year'] = year
-            params['before-month'] = month
-            params['before-day'] = day
-        except ValueError as e:
-            logging.error(f"Invalid date_before format: {e}")
-            return []
-    
-    # Build initial URL
-    param_strings = [f"{k}={v}" for k, v in params.items()]
-    initial_url = f"{base_url}/?{''.join(param_strings)}"
+# Build query parameters
+params = {
+    'post_type': 'pfd',
+    'order': order
+}
+
+if keyword and keyword.strip():
+    params['s'] = keyword.strip()
+if category:
+    params['pfd_report_type'] = category
+
+# Handle date parameters
+if date_after:
+    try:
+        day, month, year = date_after.split('/')
+        params['after-year'] = year
+        params['after-month'] = month
+        params['after-day'] = day
+    except ValueError as e:
+        logging.error(f"Invalid date_after format: {e}")
+        return []
+
+if date_before:
+    try:
+        day, month, year = date_before.split('/')
+        params['before-year'] = year
+        params['before-month'] = month
+        params['before-day'] = day
+    except ValueError as e:
+        logging.error(f"Invalid date_before format: {e}")
+        return []
+
+# Build initial URL - This is the critical fix
+param_strings = [f"{k}={v}" for k, v in params.items()]
+initial_url = f"{base_url}/?{'&'.join(param_strings)}"  # Changed from ''.join to '&'.join
 
     st.write(f"Searching URL: {initial_url}")
     
