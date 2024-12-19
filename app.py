@@ -196,6 +196,7 @@ def extract_metadata(content: str) -> dict:
             (r'Coroner(?:\'?s)? Area:?\s*([^\n]+)', 'coroner_area'),
             (r'Report made by:?\s*([^\n]+)', 'report_author'),
             (r'Report (?:sent|addressed) to:?\s*([^\n]+)', 'report_recipient'),
+            (r'Report sent to:?\s*([^\n]+)', 'report_sent_to'),
             (r'Organisation:?\s*([^\n]+)', 'organisation'),
             (r'Location:?\s*([^\n]+)', 'location')
         ]
@@ -214,11 +215,14 @@ def extract_metadata(content: str) -> dict:
         # Additional cleaning
         for key in metadata:
             if isinstance(metadata[key], str):
-                # Remove common unwanted suffixes
                 metadata[key] = re.sub(r'\s*\(continued\)$', '', metadata[key])
                 metadata[key] = re.sub(r'\s*\[.*?\]$', '', metadata[key])
                 metadata[key] = metadata[key].strip()
         
+        return metadata
+        
+    except Exception as e:
+        logging.error(f"Error extracting metadata: {e}")
         return metadata
         
     except Exception as e:
@@ -339,6 +343,7 @@ def get_report_content(url: str) -> Optional[Dict]:
         return None
 
 def scrape_page(url: str) -> List[Dict]:
+    """Scrape a single page of search results"""
     try:
         response = make_request(url)
         if not response:
@@ -805,6 +810,7 @@ def create_network_diagram(topic_words: List[str],
         return None
 
 def render_scraping_tab():
+    """Render the scraping tab"""
     st.header("Scrape PFD Reports")
     
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
