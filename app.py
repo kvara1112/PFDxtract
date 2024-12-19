@@ -416,21 +416,27 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         'order': order
     }
     
+    # Determine URL based on category
+    if category:
+        initial_url = f"{base_url}pfd-types/{category}/"
+        params['pfd_report_type'] = category
+    else:
+        initial_url = f"{base_url}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+    
     # Add keyword if exists
     if keyword and keyword.strip():
         params['s'] = keyword.strip()
-    
-    # Add category if selected
-    if category:
-        params['pfd_report_type'] = category
+        initial_url += f"?s={keyword.strip()}"
     
     # Handle date parameters
     if date_after:
         try:
             day, month, year = date_after.split('/')
-            params['after-day'] = day
-            params['after-month'] = month
-            params['after-year'] = year
+            params.update({
+                'after-day': day,
+                'after-month': month,
+                'after-year': year
+            })
         except ValueError as e:
             logging.error(f"Invalid date_after format: {e}")
             return []
@@ -438,16 +444,14 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     if date_before:
         try:
             day, month, year = date_before.split('/')
-            params['before-day'] = day
-            params['before-month'] = month
-            params['before-year'] = year
+            params.update({
+                'before-day': day,
+                'before-month': month,
+                'before-year': year
+            })
         except ValueError as e:
             logging.error(f"Invalid date_before format: {e}")
             return []
-    
-    # Build initial URL
-    param_strings = [f"{k}={v}" for k, v in params.items()]
-    initial_url = f"{base_url}?{'&'.join(param_strings)}"
     
     st.write(f"Searching URL: {initial_url}")
     
@@ -471,7 +475,11 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             if current_page == 1:
                 page_url = initial_url
             else:
-                page_url = f"{base_url}/page/{current_page}/?{'&'.join(param_strings)}"
+                # Different URL construction for category vs non-category
+                if category:
+                    page_url = f"{base_url}pfd-types/{category}/page/{current_page}/"
+                else:
+                    page_url = f"{base_url}/page/{current_page}/?{'&'.join(f'{k}={v}' for k, v in params.items())}"
             
             # Update progress
             status_text.text(f"Scraping page {current_page} of {total_pages}...")
