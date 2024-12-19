@@ -377,9 +377,28 @@ def get_total_pages(url: str) -> int:
     try:
         response = make_request(url)
         if not response:
+            st.write(f"No response from URL: {url}")
             return 0
         
         soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Debug: Print the entire page content
+        st.write("Page Content Debug:")
+        page_text = soup.get_text()
+        st.write(page_text[:2000])  # Print first 2000 characters
+        
+        # Check results count
+        results_header = soup.find('div', class_='search__header')
+        if results_header:
+            results_text = results_header.find('p')
+            if results_text:
+                st.write(f"Results text: {results_text.get_text()}")
+                # Try to extract number of results
+                match = re.search(r'found (\d+) results?', results_text.get_text(), re.IGNORECASE)
+                if match:
+                    total_results = int(match.group(1))
+                    st.write(f"Found {total_results} results")
+                    return (total_results + 9) // 10  # Assuming 10 results per page
         
         # Check pagination
         pagination = soup.find('nav', class_='navigation pagination')
@@ -397,7 +416,8 @@ def get_total_pages(url: str) -> int:
         return 0
         
     except Exception as e:
-        logging.error(f"Error getting total pages: {e}")
+        st.write(f"Error in get_total_pages: {str(e)}")
+        logging.error(f"Error getting total pages: {str(e)}")
         return 0
 
 def scrape_pfd_reports(keyword: Optional[str] = None,
