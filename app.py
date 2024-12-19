@@ -80,6 +80,147 @@ def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[request
             time.sleep(delay * (attempt + 1))
     return None
 
+
+def clean_text_for_modeling(text: str) -> str:
+    """Clean text for topic modeling"""
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    
+    try:
+        # Convert to lowercase
+        text = text.lower()
+        
+        # Remove URLs
+        text = re.sub(r'http\S+|www\S+|https\S+', '', text, flags=re.MULTILINE)
+        
+        # Remove email addresses
+        text = re.sub(r'\S+@\S+', '', text)
+        
+        # Remove special characters but keep words
+        text = re.sub(r'[^a-z0-9\s]', ' ', text)
+        
+        # Remove digits
+        text = re.sub(r'\d+', '', text)
+        
+        # Remove extra whitespace
+        text = re.sub(r'\s+', ' ', text)
+        
+        # Tokenize
+        tokens = word_tokenize(text)
+        
+        # Get stop words
+        stop_words = set(stopwords.words('english'))
+        
+        # Add custom stop words specific to PFD reports
+        custom_stop_words = {
+            'report', 'pfd', 'death', 'deaths', 'deceased', 'coroner', 'coroners',
+            'date', 'ref', 'name', 'area', 'regulation', 'paragraph', 'section',
+            'prevention', 'future', 'investigation', 'inquest', 'circumstances',
+            'response', 'duty', 'action', 'actions', 'concern', 'concerns', 'trust',
+            'hospital', 'service', 'services', 'chief', 'executive', 'family',
+            'dear', 'sincerely', 'following', 'report', 'reports', 'days', 'pdf',
+            'page', 'signed', 'address', 'tel', 'fax', 'email', 'website', 'www',
+            'http', 'https', 'com', 'uk', 'please', 'thank', 'regards', 'sir',
+            'madam', 'yours', 'faithfully', 'reference', 'number'
+        }
+        stop_words.update(custom_stop_words)
+        
+        # Filter tokens
+        filtered_tokens = []
+        for token in tokens:
+            if (len(token) > 2 and  # Keep tokens longer than 2 characters
+                not token.isnumeric() and  # Remove pure numbers
+                token not in stop_words):  # Remove stop words
+                filtered_tokens.append(token)
+        
+        # Return empty string if no valid tokens
+        if not filtered_tokens:
+            return ""
+            
+        return ' '.join(filtered_tokens)
+    
+    except Exception as e:
+        logging.error(f"Error cleaning text for modeling: {e}")
+        return ""
+
+def combine_document_text(row: pd.Series) -> str:
+    """Combine all text content from a document"""
+    text_parts = []
+    
+    # Add title
+    if pd.notna(row.get('Title')):
+        text_parts.append(str(row['Title']))
+    
+    # Add main content
+    if pd.notna(row.get('Content')):
+        text_parts.append(str(row['Content']))
+    
+    # Add PDF contents
+    pdf_columns = [col for col in row.index if col.startswith('PDF_') and col.endswith('_Content')]
+    for pdf_col in pdf_columns:
+        if pd.notna(row.get(pdf_col)):
+            text_parts.append(str(row[pdf_col]))
+    
+    return ' '.join(text_parts)
+
+def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int = 1000) -> Tuple[LatentDirichletAllocation, TfidfVectorizer, np.ndarray]:
+    """Extract topics using LDA with improved preprocessing"""
+    try:
+        # Combine and preprocess text from all available fields
+        texts = []
+        for idx, row in df.iterrows():
+            combined_text = combine_document_text(row)
+            cleaned_text = clean_text_for_modeling(combined_text)
+            if cleaned_text.strip():  # Only add non-empty texts
+                texts.append(cleaned_text)
+        
+        if len(texts) < 2:
+            raise ValueError("Not enough valid documents after preprocessing")
+            
+        logging.info(f"Processing {len(texts)} documents for topic modeling")
+        
+        # Configure vectorizer with better parameters
+        vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            min_df=2,  # Term must appear in at least 2 documents
+            max_df=0.95,  # Term must not appear in more than 95% of documents
+            stop_words='english',
+            ngram_range=(1, 2),  # Use both unigrams and bigrams
+            token_pattern=r'(?u)\b[a-zA-Z][a-zA-Z]+\b'  # Only words starting with letters
+        )
+        
+        # Create document-term matrix
+        logging.info("Creating document-term matrix...")
+        tfidf_matrix = vectorizer.fit_transform(texts)
+        
+        # Check if we have valid terms
+        if tfidf_matrix.shape[1] == 0:
+            raise ValueError("No valid terms found after vectorization")
+        
+        logging.info(f"Document-term matrix shape: {tfidf_matrix.shape}")
+        
+        # Configure and fit LDA model with better parameters
+        lda_model = LatentDirichletAllocation(
+            n_components=num_topics,
+            random_state=42,
+            max_iter=25,  # Increased iterations
+            learning_method='batch',
+            n_jobs=-1,
+            doc_topic_prior=0.1,  # Adjusted prior
+            topic_word_prior=0.01  # Adjusted prior
+        )
+        
+        # Fit model and get topic distribution
+        logging.info("Fitting LDA model...")
+        doc_topic_dist = lda_model.fit_transform(tfidf_matrix)
+        
+        logging.info("Topic modeling completed successfully")
+        return lda_model, vectorizer, doc_topic_dist
+    
+    except Exception as e:
+        logging.error(f"Error in topic extraction: {e}")
+        raise e
+        
 def clean_text(text: str) -> str:
     """Clean text while preserving structure and metadata formatting"""
     if not text:
