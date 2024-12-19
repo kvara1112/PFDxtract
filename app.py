@@ -461,7 +461,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                       date_before: Optional[str] = None,
                       order: str = "relevance",
                       max_pages: Optional[int] = None) -> List[Dict]:
-    """Scrape PFD reports with improved archive handling"""
+    """Scrape PFD reports with fixed category URL handling"""
     all_reports = []
     base_url = "https://www.judiciary.uk/"
     
@@ -470,23 +470,38 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     status_placeholder = st.empty()
     
     try:
-        # Handle category
+        # Handle category with improved slug construction
         if category:
-            category_slug = (category.lower()
-                           .replace(' ', '-')
-                           .replace('(', '')
-                           .replace(')', '')
-                           .replace(',', '')
-                           .replace('&', 'and'))
-            
-            # Try both URL patterns
-            url_patterns = [
-                f"{base_url}pfd-types/{category_slug}/",
-                f"{base_url}subject/{category_slug}/"
+            # Create multiple possible slug variations
+            category_variations = [
+                category.lower()
+                    .replace(' and ', '-and-')
+                    .replace('&', 'and')
+                    .replace(' ', '-')
+                    .replace('(', '')
+                    .replace(')', '')
+                    .replace(',', ''),
+                category.lower()
+                    .replace(' ', '-')
+                    .replace('&', 'and')
+                    .replace('(', '')
+                    .replace(')', '')
+                    .replace(',', '')
             ]
             
+            # Try different URL patterns
+            possible_urls = []
+            for slug in category_variations:
+                possible_urls.extend([
+                    f"{base_url}pfd-types/{slug}/",
+                    f"{base_url}subject/{slug}/",
+                    f"{base_url}prevention-of-future-death-reports/category/{slug}/"
+                ])
+            
+            # Try each URL until we find one that works
             initial_url = None
-            for url in url_patterns:
+            for url in possible_urls:
+                status_placeholder.info(f"Trying URL: {url}")
                 response = make_request(url)
                 if response and response.status_code == 200:
                     initial_url = url
@@ -498,7 +513,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         else:
             initial_url = f"{base_url}prevention-of-future-death-reports/"
         
-        status_placeholder.info("Checking available reports...")
+        status_placeholder.info(f"Using URL: {initial_url}")
         
         # Get total pages
         total_pages = get_total_pages(initial_url)
@@ -507,7 +522,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             status_placeholder.warning("No reports found")
             return []
         
-        # Apply max_pages limit if specified
         if max_pages is not None and max_pages > 0:
             total_pages = min(total_pages, max_pages)
         
@@ -524,7 +538,11 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             
             # Construct page URL
             if page > 1:
-                page_url = f"{initial_url}page/{page}/"
+                # Handle different pagination URL patterns
+                if '/page/' in initial_url:
+                    page_url = re.sub(r'/page/\d+/', f'/page/{page}/', initial_url)
+                else:
+                    page_url = f"{initial_url}page/{page}/"
             else:
                 page_url = initial_url
             
@@ -540,7 +558,11 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         # Complete progress
         progress_bar.progress(100)
-        status_placeholder.success(f"Completed! Total reports found: {len(all_reports)}")
+        
+        if all_reports:
+            status_placeholder.success(f"Completed! Total reports found: {len(all_reports)}")
+        else:
+            status_placeholder.warning("No reports found matching your criteria")
         
         return all_reports
         
