@@ -1931,6 +1931,17 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                                 sheet_name=f"Reports_Topic_{topic['id']}",
                                 index=False
                             )
+                    
+                    st.download_button(
+                        "📥 Download Analysis (Excel)",
+                        output.getvalue(),
+                        "topic_analysis.xlsx",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                
+        except Exception as e:
+            st.error(f"Error during topic modeling: {str(e)}")
+            logging.error(f"Topic modeling error: {e}", exc_info=True)
 
 
 
