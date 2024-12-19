@@ -81,66 +81,13 @@ def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[request
     return None
 
 
-def clean_text_for_modeling(text: str) -> str:
-    """Clean text for topic modeling with less aggressive filtering"""
-    if not isinstance(text, str) or not text.strip():
-        return ""
-    
-    try:
-        # Convert to lowercase
-        text = text.lower()
-        
-        # Remove URLs but keep the text around them
-        text = re.sub(r'http\S+|www\S+|https\S+', ' ', text, flags=re.MULTILINE)
-        
-        # Replace special characters with spaces, preserving sentence structure
-        text = re.sub(r'[^a-zA-Z0-9\s\.\,]', ' ', text)
-        
-        # Normalize whitespace
-        text = re.sub(r'\s+', ' ', text)
-        
-        # Tokenize while preserving important terms
-        tokens = word_tokenize(text)
-        
-        # Get stop words
-        stop_words = set(stopwords.words('english'))
-        
-        # Reduced list of custom stop words - keep more domain-specific terms
-        custom_stop_words = {
-            'pdf', 'page', 'signed', 'address', 'tel', 'fax', 'email', 'website',
-            'www', 'http', 'https', 'com', 'please', 'thank', 'regards', 'dear',
-            'sincerely', 'faithfully'
-        }
-        stop_words.update(custom_stop_words)
-        
-        # Filter tokens with less restrictive criteria
-        filtered_tokens = []
-        for token in tokens:
-            if (len(token) > 1 and  # Keep tokens longer than 1 character
-                not token.isnumeric() and  # Remove pure numbers
-                token not in stop_words):  # Remove stop words
-                filtered_tokens.append(token)
-        
-        # Return empty string if no valid tokens
-        if not filtered_tokens:
-            return ""
-            
-        return ' '.join(filtered_tokens)
-    
-    except Exception as e:
-        logging.error(f"Error cleaning text for modeling: {e}")
-        return ""
-
 def combine_document_text(row: pd.Series) -> str:
-    """Combine all text content from a document with weighting"""
+    """Combine all text content from a document"""
     text_parts = []
     
-    # Add title with repetition for more weight
+    # Simply combine all text fields
     if pd.notna(row.get('Title')):
-        title_text = str(row['Title'])
-        text_parts.extend([title_text] * 3)  # Repeat title for emphasis
-    
-    # Add main content
+        text_parts.append(str(row['Title']))
     if pd.notna(row.get('Content')):
         text_parts.append(str(row['Content']))
     
@@ -150,80 +97,58 @@ def combine_document_text(row: pd.Series) -> str:
         if pd.notna(row.get(pdf_col)):
             text_parts.append(str(row[pdf_col]))
     
-    combined_text = ' '.join(text_parts)
+    return ' '.join(text_parts)
+
+def clean_text_for_modeling(text: str) -> str:
+    """Minimal text cleaning for modeling"""
+    if not isinstance(text, str):
+        return ""
     
-    # Keep only ASCII characters but preserve document structure
-    combined_text = ''.join(char if ord(char) < 128 else ' ' for char in combined_text)
+    # Basic cleaning
+    text = text.lower()
+    text = re.sub(r'[^\w\s]', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
     
-    return combined_text
+    return text.strip()
 
 def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int = 1000) -> Tuple[LatentDirichletAllocation, TfidfVectorizer, np.ndarray]:
-    """Extract topics using LDA with improved preprocessing and validation"""
+    """Extract topics using LDA"""
     try:
-        # Combine and preprocess text from all available fields
+        # Combine and clean texts
         texts = []
-        valid_doc_count = 0
-        
-        for idx, row in df.iterrows():
+        for _, row in df.iterrows():
             combined_text = combine_document_text(row)
-            if not combined_text.strip():
-                logging.warning(f"Empty combined text for document {idx}")
-                continue
-                
             cleaned_text = clean_text_for_modeling(combined_text)
-            if cleaned_text.strip():
+            if cleaned_text:
                 texts.append(cleaned_text)
-                valid_doc_count += 1
-                if valid_doc_count % 100 == 0:
-                    logging.info(f"Processed {valid_doc_count} valid documents")
         
-        if len(texts) < 2:
-            raise ValueError(f"Only found {len(texts)} valid documents after preprocessing. Need at least 2.")
-            
-        logging.info(f"Processing {len(texts)} documents for topic modeling")
-        
-        # Configure vectorizer with adjusted parameters
+        # Simple vectorizer
         vectorizer = TfidfVectorizer(
             max_features=max_features,
-            min_df=1,  # Reduced from 2 to keep more terms
-            max_df=0.98,  # Increased from 0.95 to keep more terms
-            stop_words='english',
-            ngram_range=(1, 2),  # Use both unigrams and bigrams
-            token_pattern=r'(?u)\b\w+\b'  # More permissive token pattern
+            stop_words='english'
         )
         
         # Create document-term matrix
-        logging.info("Creating document-term matrix...")
         tfidf_matrix = vectorizer.fit_transform(texts)
         
-        # Validate term matrix
-        if tfidf_matrix.shape[1] == 0:
-            raise ValueError("No valid terms found after vectorization. Check preprocessing steps.")
-        
-        logging.info(f"Document-term matrix shape: {tfidf_matrix.shape}")
-        
-        # Configure and fit LDA model with adjusted parameters
+        # Fit LDA model
         lda_model = LatentDirichletAllocation(
             n_components=num_topics,
             random_state=42,
-            max_iter=25,
-            learning_method='batch',
-            n_jobs=-1,
-            doc_topic_prior=0.5,  # Increased from 0.1 for better topic mixing
-            topic_word_prior=0.1   # Increased from 0.01 for better term distribution
+            n_jobs=-1
         )
         
-        # Fit model and get topic distribution
-        logging.info("Fitting LDA model...")
         doc_topic_dist = lda_model.fit_transform(tfidf_matrix)
         
-        logging.info("Topic modeling completed successfully")
         return lda_model, vectorizer, doc_topic_dist
-    
-    except Exception as e:
-        logging.error(f"Error in topic extraction: {e}")
-        raise e
         
+    except Exception as e:
+        st.error(f"Error in topic extraction: {str(e)}")
+        raise e
+
+
+
+
 def clean_text(text: str) -> str:
     """Clean text while preserving structure and metadata formatting"""
     if not text:
