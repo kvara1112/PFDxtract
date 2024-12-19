@@ -374,50 +374,43 @@ def scrape_page(url: str) -> List[Dict]:
         return []
 
 def get_total_pages(url: str) -> int:
-    """Get total number of pages"""
+    """Get total number of pages with minimal debug output"""
     try:
         response = make_request(url)
         if not response:
-            st.write(f"No response from URL: {url}")
             return 0
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Debug: Print the entire page content
-        st.write("Page Content Debug:")
-        page_text = soup.get_text()
-        st.write(page_text[:2000])  # Print first 2000 characters
+        # First check for cards/results
+        results_list = soup.find('ul', class_='search__list')
+        if not results_list:
+            results_list = soup.find('div', class_='archive__listings')
         
-        # Check results count
-        results_header = soup.find('div', class_='search__header')
-        if results_header:
-            results_text = results_header.find('p')
-            if results_text:
-                st.write(f"Results text: {results_text.get_text()}")
-                # Try to extract number of results
-                match = re.search(r'found (\d+) results?', results_text.get_text(), re.IGNORECASE)
-                if match:
-                    total_results = int(match.group(1))
-                    st.write(f"Found {total_results} results")
-                    return (total_results + 9) // 10  # Assuming 10 results per page
-        
-        # Check pagination
-        pagination = soup.find('nav', class_='navigation pagination')
-        if pagination:
-            page_numbers = pagination.find_all('a', class_='page-numbers')
-            numbers = [int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()]
-            if numbers:
-                return max(numbers)
-        
-        # Check if at least one page of results exists
-        results = soup.find('ul', class_='search__list')
-        if results and results.find_all('div', class_='card'):
-            return 1
+        if results_list:
+            cards = results_list.find_all(['div', 'li'], class_=['card', 'card--full', 'search__item'])
+            if cards:
+                # If we found cards, we have at least one page
+                # Now check for pagination
+                pagination = soup.find('nav', class_='navigation pagination')
+                if pagination:
+                    page_numbers = pagination.find_all('a', class_='page-numbers')
+                    numbers = [int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()]
+                    if numbers:
+                        return max(numbers)
+                return 1  # No pagination but we have results
             
+        # If we get here, try to find a count in the text
+        count_text = soup.find('h1', class_='archive__title')
+        if count_text:
+            match = re.search(r'(\d+)\s+results?', count_text.text, re.IGNORECASE)
+            if match:
+                total_results = int(match.group(1))
+                return (total_results + 9) // 10  # 10 results per page
+        
         return 0
         
     except Exception as e:
-        st.write(f"Error in get_total_pages: {str(e)}")
         logging.error(f"Error getting total pages: {str(e)}")
         return 0
 
@@ -427,30 +420,32 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                       date_before: Optional[str] = None,
                       order: str = "relevance",
                       max_pages: Optional[int] = None) -> List[Dict]:
-    """Scrape PFD reports with comprehensive filtering and proper pagination"""
+    """Scrape PFD reports with clean progress display"""
     all_reports = []
     base_url = "https://www.judiciary.uk/"
     
-    # Validate and prepare category
-    if category:
-        matching_categories = [
-            cat for cat in get_pfd_categories() 
-            if cat.lower() == category.lower()
-        ]
-        
-        if not matching_categories:
-            st.error(f"No matching category found for: {category}")
-            return []
-        
-        category = matching_categories[0]
-        category_slug = category.lower().replace(' ', '-')
-        initial_url = f"{base_url}pfd-types/{category_slug}/"
-    else:
-        initial_url = f"{base_url}prevention-of-future-death-reports/"
-    
-    st.write(f"Initial URL: {initial_url}")
+    # Setup progress placeholder and status message
+    progress_placeholder = st.empty()
+    status_placeholder = st.empty()
     
     try:
+        # Validate and prepare category
+        if category:
+            matching_categories = [
+                cat for cat in get_pfd_categories() 
+                if cat.lower() == category.lower()
+            ]
+            
+            if not matching_categories:
+                st.error(f"No matching category found for: {category}")
+                return []
+            
+            category = matching_categories[0]
+            category_slug = category.lower().replace(' ', '-').replace('(', '').replace(')', '')
+            initial_url = f"{base_url}pfd-types/{category_slug}/"
+        else:
+            initial_url = f"{base_url}prevention-of-future-death-reports/"
+        
         # Build search parameters
         params = {}
         if keyword:
@@ -462,34 +457,41 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         if order and order != "relevance":
             params['order'] = order
             
-        # Get total number of pages
+        # Get first page URL
         first_page_url = initial_url
         if params:
             first_page_url += '?' + '&'.join(f"{k}={v}" for k, v in params.items())
             
+        # Get total pages
+        status_placeholder.info("Checking number of available reports...")
         total_pages = get_total_pages(first_page_url)
-        if total_pages == 0:
-            st.warning("No pages found")
-            return []
-            
-        st.write(f"Found {total_pages} pages to scrape")
         
-        # Limit pages if specified
+        if total_pages == 0:
+            status_placeholder.warning("No reports found")
+            return []
+        
+        # Update total pages based on max_pages
         if max_pages is not None and max_pages > 0:
             total_pages = min(total_pages, max_pages)
-            st.write(f"Will scrape {total_pages} pages due to max_pages limit")
+        
+        status_placeholder.info(f"Found {total_pages} page{'s' if total_pages > 1 else ''} to process")
+        
+        # Create progress bar
+        progress_bar = st.progress(0)
         
         # Scrape each page
-        progress_bar = st.progress(0)
         for page in range(1, total_pages + 1):
             # Update progress
             progress = int((page - 1) / total_pages * 100)
             progress_bar.progress(progress)
-            st.write(f"Scraping page {page} of {total_pages}...")
+            
+            # Update status with minimal output
+            status_placeholder.info(f"Processing page {page}/{total_pages}")
             
             # Build page URL
             page_params = params.copy()
             if page > 1:
+                page_params['page'] = str(page)
                 page_params['paged'] = str(page)
             
             page_url = initial_url
@@ -501,22 +503,20 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                 page_reports = scrape_page(page_url)
                 if page_reports:
                     all_reports.extend(page_reports)
-                    st.write(f"Found {len(page_reports)} reports on page {page}")
-                else:
-                    st.warning(f"No reports found on page {page}")
+                    progress_placeholder.text(f"Reports found: {len(all_reports)}")
             except Exception as page_error:
-                st.error(f"Error scraping page {page}: {str(page_error)}")
                 logging.error(f"Error on page {page}: {str(page_error)}")
                 continue
         
         # Complete progress bar
         progress_bar.progress(100)
         
-        st.success(f"Scraping completed. Total reports found: {len(all_reports)}")
+        # Final status update
+        status_placeholder.success(f"Completed! Total reports found: {len(all_reports)}")
         return all_reports
         
     except Exception as e:
-        st.error(f"Error during scraping: {str(e)}")
+        status_placeholder.error(f"Error during scraping: {str(e)}")
         logging.error(f"Scraping error: {str(e)}")
         return []
 
