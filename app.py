@@ -1748,13 +1748,12 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                 
                 lda_model, vectorizer, doc_topics = result
                 
-                # Format results for visualization
+                # Format results for visualization - removed num_words parameter
                 topics_data = format_topic_data(
                     lda_model, 
                     vectorizer, 
                     doc_topics, 
-                    data, 
-                    num_words=50
+                    data
                 )
                 
                 # Display topics
@@ -1814,16 +1813,6 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                                 st.markdown("**Summary:**")
                                 st.markdown(report['summary'])
                                 
-                                if report['keyFindings']:
-                                    st.markdown("**Key Findings:**")
-                                    for finding in report['keyFindings']:
-                                        st.markdown(f"- {finding}")
-                                
-                                if report['recommendations']:
-                                    st.markdown("**Recommendations:**")
-                                    for rec in report['recommendations']:
-                                        st.markdown(f"- {rec}")
-                                
                                 if report['otherTopics']:
                                     st.markdown("**Related Topics:**")
                                     for other_topic in report['otherTopics']:
@@ -1866,7 +1855,7 @@ def render_topic_modeling_tab(data: pd.DataFrame):
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
-    
+            
 def main():
     initialize_session_state()
     st.title("UK Judiciary PFD Reports Analysis")
