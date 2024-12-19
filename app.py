@@ -411,20 +411,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     current_page = 1
     base_url = "https://www.judiciary.uk/"
     
-    # Extensive logging and debugging
-    st.write("Debug Information:")
-    st.write(f"Keyword: {keyword}")
-    st.write(f"Category: {category}")
-    st.write(f"Date After: {date_after}")
-    st.write(f"Date Before: {date_before}")
-    st.write(f"Order: {order}")
-    
-    # Build query parameters
-    params = {
-        'post_type': 'pfd',
-        'order': order
-    }
-    
     # Validate and prepare category
     if category:
         # Find exact match, case-insensitive
@@ -435,24 +421,21 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         if not matching_categories:
             st.error(f"No matching category found for: {category}")
-            st.write("Available categories:", get_pfd_categories())
             return []
         
         category = matching_categories[0]
         
-        # Create URL-friendly slug with different variations
-        category_slugs = [
-            category.lower().replace(' ', '-'),
-            category.lower().replace(' ', '+'),
-            category.lower(),
-            category.replace(' ', '-')
-        ]
-        
-        st.write("Trying category slugs:", category_slugs)
-        
-        # Try multiple slug variations
-        for slug in category_slugs:
-            params['pfd_report_type'] = slug
+        # Create URL-friendly slug
+        category_slug = category.lower().replace(' ', '-')
+        initial_url = f"{base_url}pfd-types/{category_slug}/"
+    else:
+        initial_url = f"{base_url}prevention-of-future-death-reports/"
+    
+    # Build query parameters for additional filtering
+    params = {
+        'post_type': 'pfd',
+        'order': order
+    }
     
     # Add keyword if exists
     if keyword and keyword.strip():
@@ -467,7 +450,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             params['after-year'] = year
         except ValueError as e:
             logging.error(f"Invalid date_after format: {e}")
-            st.error(f"Invalid date_after format: {e}")
             return []
     
     if date_before:
@@ -478,83 +460,72 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             params['before-year'] = year
         except ValueError as e:
             logging.error(f"Invalid date_before format: {e}")
-            st.error(f"Invalid date_before format: {e}")
             return []
     
-    # Try multiple URL variations
-    url_variations = [
-        f"{base_url}prevention-of-future-death-reports/",
-        f"{base_url}prevention-of-future-deaths-reports/",
-        f"{base_url}"
-    ]
+    # Add parameters to URL if they exist
+    if params:
+        param_strings = [f"{k}={v}" for k, v in params.items() if k != 'post_type']
+        initial_url += f"?{'&'.join(param_strings)}"
     
-    for base_search_url in url_variations:
-        # Build initial URL
-        param_strings = [f"{k}={v}" for k, v in params.items()]
-        initial_url = f"{base_search_url}?{'&'.join(param_strings)}"
-        
-        st.write(f"Attempting URL: {initial_url}")
-        
-        try:
-            # Make a direct request to verify URL
-            response = make_request(initial_url)
-            if response:
-                st.write("Response received. Checking page content...")
-                
-                # Parse response
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # Check for results
-                results_header = soup.find('div', class_='search__header')
-                if results_header:
-                    results_text = results_header.find('p')
-                    if results_text:
-                        st.write("Results header text:", results_text.get_text())
-                
-                # Attempt to get total pages
-                total_pages = get_total_pages(initial_url)
-                st.write(f"Total pages found: {total_pages}")
-                
-                if total_pages > 0:
-                    # Proceed with scraping as before
-                    while current_page <= total_pages:
-                        # Build page URL
-                        if current_page == 1:
-                            page_url = initial_url
-                        else:
-                            page_url = f"{base_search_url}page/{current_page}/?{'&'.join(param_strings)}"
-                        
-                        # Update progress
-                        status_text = st.empty()
-                        progress_bar = st.progress(0)
-                        status_text.text(f"Scraping page {current_page} of {total_pages}...")
-                        progress_bar.progress(current_page / total_pages)
-                        
-                        # Scrape page
-                        reports = scrape_page(page_url)
-                        
-                        if reports:
-                            all_reports.extend(reports)
-                            logging.info(f"Found {len(reports)} reports on page {current_page}")
-                        else:
-                            logging.warning(f"No reports found on page {current_page}")
-                            if current_page > 1:
-                                break
-                        
-                        current_page += 1
-                    
-                    if all_reports:
-                        progress_bar.progress(1.0)
-                        status_text.text(f"Completed! Total reports found: {len(all_reports)}")
-                        return all_reports
+    st.write(f"Searching URL: {initial_url}")
+    
+    try:
+        total_pages = get_total_pages(initial_url)
+        if total_pages == 0:
+            st.warning("No results found")
+            return []
             
-            st.write("No results found with this URL.")
+        logging.info(f"Total pages to scrape: {total_pages}")
         
-        except Exception as e:
-            st.error(f"Error with URL {initial_url}: {str(e)}")
+        if max_pages:
+            total_pages = min(total_pages, max_pages)
+        
+        # Setup progress tracking
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        while current_page <= total_pages:
+            # Build page URL
+            if current_page == 1:
+                page_url = initial_url
+            else:
+                # Modify pagination URL for category pages
+                if category:
+                    page_url = f"{base_url}pfd-types/{category_slug}/page/{current_page}/"
+                else:
+                    page_url = f"{base_url}prevention-of-future-death-reports/page/{current_page}/"
+                
+                # Add back parameters if they exist
+                if params:
+                    param_strings = [f"{k}={v}" for k, v in params.items() if k != 'post_type']
+                    page_url += f"?{'&'.join(param_strings)}"
+            
+            # Update progress
+            status_text.text(f"Scraping page {current_page} of {total_pages}...")
+            progress_bar.progress(current_page / total_pages)
+            
+            # Scrape page
+            reports = scrape_page(page_url)
+            
+            if reports:
+                all_reports.extend(reports)
+                logging.info(f"Found {len(reports)} reports on page {current_page}")
+            else:
+                logging.warning(f"No reports found on page {current_page}")
+                if current_page > 1:
+                    break
+            
+            current_page += 1
+        
+        progress_bar.progress(1.0)
+        status_text.text(f"Completed! Total reports found: {len(all_reports)}")
+        
+        return all_reports
     
-    st.warning("No results found after trying multiple URL variations.")
-    return []
+    except Exception as e:
+        logging.error(f"Error in scrape_pfd_reports: {e}")
+        st.error(f"An error occurred while scraping reports: {e}")
+        return []
         
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
