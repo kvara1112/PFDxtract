@@ -421,143 +421,103 @@ def get_total_pages(url: str) -> int:
         logging.error(f"Error getting total pages: {str(e)}")
         return 0
 
-def scrape_pfd_reports(keyword: Optional[str] = None,
-                      category: Optional[str] = None,
-                      date_after: Optional[str] = None,
-                      date_before: Optional[str] = None,
-                      order: str = "relevance",
-                      max_pages: Optional[int] = None) -> List[Dict]:
-    """Scrape PFD reports with comprehensive filtering"""
-    all_reports = []
-    current_page = 1
-    base_url = "https://www.judiciary.uk/"
-    
-    # Validate and prepare category
-    if category:
-        # Find exact match, case-insensitive
-        matching_categories = [
-            cat for cat in get_pfd_categories() 
-            if cat.lower() == category.lower()
-        ]
-        
-        if not matching_categories:
-            st.error(f"No matching category found for: {category}")
-            return []
-        
-        category = matching_categories[0]
-        
-        # Create URL-friendly slug
-        category_slug = category.lower().replace(' ', '-')
-        base_search_url = f"{base_url}pfd-types/{category_slug}/"
-    else:
-        base_search_url = f"{base_url}prevention-of-future-death-reports/"
-    
+def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Process and clean scraped data with improved metadata extraction"""
     try:
-        while True:
-            # Construct page URL
-            page_url = f"{base_search_url}page/{current_page}/" if current_page > 1 else base_search_url
-            st.write(f"Scraping page {current_page}: {page_url}")
-            
-            # Get page content
-            response = make_request(page_url)
-            if not response:
-                break
-                
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Find report container
-            container_classes = [
-                ['archive__listings', 'search__listing'],
-                ['search__list'],
-                ['govuk-list'],
-                ['archive__posts']
-            ]
-            
-            report_container = None
-            for classes in container_classes:
-                report_container = soup.find('ul', class_=classes) or soup.find('div', class_=classes)
-                if report_container:
-                    break
-            
-            if not report_container:
-                st.warning(f"No report container found on page {current_page}")
-                break
-            
-            # Find report cards
-            report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full', 'search__item'])
-            
-            if not report_cards:
-                break  # No more reports found
-                
-            st.write(f"Found {len(report_cards)} reports on page {current_page}")
-            
-            # Process reports on current page
-            for card in report_cards:
-                try:
-                    title_elem = card.find(['h3', 'h2'], class_=['card__title'])
-                    if not title_elem:
-                        continue
-                    
-                    title_link = title_elem.find('a')
-                    if not title_link:
-                        continue
-                    
-                    title = clean_text(title_link.text)
-                    card_url = title_link['href']
-                    
-                    if not card_url.startswith(('http://', 'https://')):
-                        card_url = f"https://www.judiciary.uk{card_url}"
-                    
-                    # Get full content details
-                    content_data = get_report_content(card_url)
-                    
-                    if content_data:
-                        report = {
-                            'Title': title,
-                            'URL': card_url,
-                            'Content': content_data['content']
-                        }
-                        
-                        # Add PDF details
-                        for i, (name, content, path) in enumerate(zip(
-                            content_data['pdf_names'],
-                            content_data['pdf_contents'],
-                            content_data['pdf_paths']
-                        ), 1):
-                            report[f'PDF_{i}_Name'] = name
-                            report[f'PDF_{i}_Content'] = content
-                            report[f'PDF_{i}_Path'] = path
-                        
-                        all_reports.append(report)
-                        logging.info(f"Successfully processed: {title}")
-                    
-                except Exception as card_error:
-                    logging.error(f"Error processing card: {card_error}")
-                    continue
-            
-            # Check if we should continue to next page
-            if max_pages and current_page >= max_pages:
-                break
-                
-            # Look for next page link
-            next_page = soup.find('a', class_='next')
-            if not next_page:
-                pagination = soup.find('nav', class_='navigation pagination')
-                if pagination:
-                    next_page = pagination.find('a', class_='next page-numbers')
-            
-            if not next_page:
-                break
-                
-            current_page += 1
-            time.sleep(2)  # Add delay between pages
+        # Create a copy
+        df = df.copy()
         
-        return all_reports
-    
+        # Extract metadata from Content field if it exists
+        if 'Content' in df.columns:
+            # Process each row
+            processed_rows = []
+            for _, row in df.iterrows():
+                # Start with the original row data
+                processed_row = row.to_dict()
+                
+                # Extract metadata from Content
+                content = str(row.get('Content', ''))
+                
+                # Extract date
+                date_match = re.search(r'Date of report:\s*(\d{1,2}(?:/|-)\d{1,2}(?:/|-)\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', content)
+                if date_match:
+                    processed_row['date_of_report'] = date_match.group(1)
+                
+                # Rest of metadata extraction remains the same
+                ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', content)
+                if ref_match:
+                    processed_row['ref'] = ref_match.group(1)
+                
+                name_match = re.search(r'Deceased name:?\s*([^\n]+)', content)
+                if name_match:
+                    processed_row['deceased_name'] = name_match.group(1).strip()
+                
+                coroner_match = re.search(r'Coroner(?:\'?s)? name:?\s*([^\n]+)', content)
+                if coroner_match:
+                    processed_row['coroner_name'] = coroner_match.group(1).strip()
+                
+                area_match = re.search(r'Coroner(?:\'?s)? Area:?\s*([^\n]+)', content)
+                if area_match:
+                    processed_row['coroner_area'] = area_match.group(1).strip()
+                
+                cat_match = re.search(r'Category:?\s*([^\n]+)', content)
+                if cat_match:
+                    categories = cat_match.group(1).split('|')
+                    processed_row['categories'] = [cat.strip() for cat in categories if cat.strip()]
+                else:
+                    processed_row['categories'] = []
+                
+                processed_rows.append(processed_row)
+            
+            # Create new DataFrame from processed rows
+            result = pd.DataFrame(processed_rows)
+        else:
+            result = df.copy()
+        
+        # Convert date_of_report to datetime with UK format handling
+        if 'date_of_report' in result.columns:
+            def parse_date(date_str):
+                if pd.isna(date_str):
+                    return pd.NaT
+                
+                date_str = str(date_str).strip()
+                
+                # Remove ordinal indicators
+                date_str = re.sub(r'(\d)(st|nd|rd|th)', r'\1', date_str)
+                
+                # Try different date formats
+                formats = [
+                    ('%d/%m/%Y', '%d %B %Y'),
+                    ('%Y-%m-%d', '%d %B %Y'),
+                    ('%d-%m-%Y', '%d %B %Y'),
+                    ('%d %B %Y', '%d %B %Y'),
+                    ('%d %b %Y', '%d %B %Y')
+                ]
+                
+                for input_fmt, output_fmt in formats:
+                    try:
+                        date_obj = datetime.strptime(date_str, input_fmt)
+                        return date_obj.strftime(output_fmt)  # Return as UK format string
+                    except:
+                        continue
+                
+                # If all formats fail, try pandas default parser
+                try:
+                    date_obj = pd.to_datetime(date_str)
+                    return date_obj.strftime('%d %B %Y')  # Return as UK format string
+                except:
+                    return pd.NaT
+            
+            # Convert dates to UK format strings first
+            result['date_of_report'] = result['date_of_report'].apply(parse_date)
+            # Then convert to datetime for proper handling
+            result['date_of_report'] = pd.to_datetime(result['date_of_report'], format='%d %B %Y')
+        
+        return result
+            
     except Exception as e:
-        logging.error(f"Error in scrape_pfd_reports: {e}")
-        st.error(f"An error occurred while scraping reports: {e}")
-        return all_reports  # Return any reports collected before error
+        logging.error(f"Error in process_scraped_data: {e}")
+        return df
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
