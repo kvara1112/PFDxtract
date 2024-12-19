@@ -100,19 +100,34 @@ def combine_document_text(row: pd.Series) -> str:
     return ' '.join(text_parts)
 
 def clean_text_for_modeling(text: str) -> str:
-    """Minimal text cleaning for modeling"""
+    """Clean text with better preprocessing"""
     if not isinstance(text, str):
         return ""
     
-    # Basic cleaning
-    text = text.lower()
-    text = re.sub(r'[^\w\s]', ' ', text)
-    text = re.sub(r'\s+', ' ', text)
+    try:
+        # Convert to lowercase
+        text = text.lower()
+        
+        # Remove URLs
+        text = re.sub(r'http\S+|www\S+|https\S+', '', text)
+        
+        # Remove numbers and alphanumeric strings
+        text = re.sub(r'\b\w*\d+\w*\b', '', text)
+        
+        # Remove special characters
+        text = re.sub(r'[^a-z\s]', ' ', text)
+        
+        # Normalize whitespace
+        text = re.sub(r'\s+', ' ', text)
+        
+        return text.strip()
     
-    return text.strip()
+    except Exception as e:
+        logging.error(f"Error in text cleaning: {e}")
+        return ""
 
 def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int = 1000) -> Tuple[LatentDirichletAllocation, TfidfVectorizer, np.ndarray]:
-    """Extract topics using LDA"""
+    """Extract topics with improved preprocessing"""
     try:
         # Combine and clean texts
         texts = []
@@ -122,30 +137,40 @@ def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int 
             if cleaned_text:
                 texts.append(cleaned_text)
         
-        # Simple vectorizer
+        # Configure vectorizer with better parameters
         vectorizer = TfidfVectorizer(
             max_features=max_features,
-            stop_words='english'
+            min_df=2,  # Only keep terms appearing in at least 2 documents
+            max_df=0.95,  # Remove terms appearing in >95% of documents
+            stop_words='english',
+            token_pattern=r'(?u)\b[a-z]+\b'  # Only pure alphabetic words
         )
         
         # Create document-term matrix
         tfidf_matrix = vectorizer.fit_transform(texts)
         
-        # Fit LDA model
+        # Configure LDA
         lda_model = LatentDirichletAllocation(
             n_components=num_topics,
             random_state=42,
-            n_jobs=-1
+            n_jobs=-1,
+            learning_method='batch',
+            doc_topic_prior=0.1,
+            topic_word_prior=0.01
         )
         
+        # Fit model
         doc_topic_dist = lda_model.fit_transform(tfidf_matrix)
+        
+        # Normalize component weights
+        for idx in range(len(lda_model.components_)):
+            lda_model.components_[idx] = lda_model.components_[idx] / lda_model.components_[idx].sum()
         
         return lda_model, vectorizer, doc_topic_dist
         
     except Exception as e:
         st.error(f"Error in topic extraction: {str(e)}")
         raise e
-
 
 
 
@@ -1560,7 +1585,7 @@ def generate_topic_label(topic_words):
     return " & ".join([word for word, _ in topic_words[:3]]).title()
 
 def format_topic_data(lda_model, vectorizer, doc_topics, df):
-    """Format topic modeling results correctly"""
+    """Format topic modeling results with normalized weights"""
     feature_names = vectorizer.get_feature_names_out()
     topics_data = []
     
@@ -1572,45 +1597,47 @@ def format_topic_data(lda_model, vectorizer, doc_topics, df):
             doc_freq[word] = doc_freq.get(word, 0) + 1
 
     for idx, topic in enumerate(lda_model.components_):
-        # Get top words for this topic
-        top_word_indices = topic.argsort()[:-50-1:-1]  # Get top 50 words
+        # Get top words with normalized weights
+        top_word_indices = topic.argsort()[:-50-1:-1]
         topic_words = []
         
         for i in top_word_indices:
             word = feature_names[i]
-            weight = topic[i]
+            weight = float(topic[i] * 100)  # Convert to percentage
             count = sum(1 for doc in df['Content'].fillna('') 
                        if word in clean_text_for_modeling(doc).split())
             topic_words.append({
                 'word': word,
-                'weight': float(weight),
+                'weight': weight,
                 'count': count,
                 'documents': doc_freq.get(word, 0)
             })
 
-        # Get related documents
+        # Get related documents with normalized scores
         doc_scores = doc_topics[:, idx]
+        doc_scores = doc_scores / doc_scores.sum() if doc_scores.sum() > 0 else doc_scores
         related_docs = []
         
-        # Get documents strongly associated with this topic
-        for doc_idx in doc_scores.argsort()[:-11:-1]:  # Top 10 documents
-            if doc_scores[doc_idx] > 0.1:  # Document has significant topic presence
+        for doc_idx in doc_scores.argsort()[:-11:-1]:
+            if doc_scores[doc_idx] > 0.01:  # At least 1% relevance
                 doc = df.iloc[doc_idx]
                 
-                # Get other topics for this document
+                # Get other topics
                 other_topics = []
-                for other_idx, score in enumerate(doc_topics[doc_idx]):
-                    if other_idx != idx and score > 0.1:
-                        other_label = generate_topic_label([
-                            (feature_names[i], lda_model.components_[other_idx][i])
-                            for i in lda_model.components_[other_idx].argsort()[:-4:-1]
-                        ])
+                doc_topic_dist = doc_topics[doc_idx]
+                doc_topic_dist = doc_topic_dist / doc_topic_dist.sum() if doc_topic_dist.sum() > 0 else doc_topic_dist
+                
+                for other_idx, score in enumerate(doc_topic_dist):
+                    if other_idx != idx and score > 0.01:
+                        other_label = ' & '.join([
+                            feature_names[i] for i in 
+                            lda_model.components_[other_idx].argsort()[:-4:-1]
+                        ]).title()
                         other_topics.append({
                             'label': other_label,
                             'score': float(score)
                         })
                 
-                # Create document entry
                 content = str(doc.get('Content', ''))
                 related_docs.append({
                     'title': doc.get('Title', ''),
@@ -1619,21 +1646,19 @@ def format_topic_data(lda_model, vectorizer, doc_topics, df):
                     'topicRelevance': float(doc_scores[doc_idx]),
                     'coroner': doc.get('coroner_name', ''),
                     'area': doc.get('coroner_area', ''),
-                    'keyFindings': [],  # Simplified - remove if not needed
-                    'recommendations': [],  # Simplified - remove if not needed
                     'otherTopics': other_topics
                 })
 
         # Calculate topic prevalence
-        topic_prevalence = (doc_scores > 0.3).mean() * 100
+        topic_prevalence = (doc_scores > 0.05).mean() * 100  # Documents with >5% relevance
+        
+        # Create topic label from top words
+        label = ' & '.join([feature_names[i] for i in top_word_indices[:3]]).title()
         
         topics_data.append({
             'id': idx,
-            'label': generate_topic_label([
-                (feature_names[i], topic[i])
-                for i in top_word_indices[:3]
-            ]),
-            'description': f"Topic related to {', '.join(feature_names[i] for i in top_word_indices[:5])}",
+            'label': label,
+            'description': f"Topic frequently mentions: {', '.join(feature_names[i] for i in top_word_indices[:5])}",
             'words': topic_words,
             'relatedReports': related_docs,
             'prevalence': round(topic_prevalence, 1),
