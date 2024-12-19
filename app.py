@@ -1024,7 +1024,7 @@ def render_scraping_tab():
             st.session_state.scraped_data,
             column_config={
                 "URL": st.column_config.LinkColumn("Report Link"),
-                "date_of_report": st.column_config.DateColumn("Date of Report", format="dd MMMM YYYY"),
+                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY"),
                 "categories": st.column_config.ListColumn("Categories")
             },
             hide_index=True
