@@ -1555,18 +1555,16 @@ def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, 
     
     return True, "Data is valid"
 
-def generate_topic_label(topic_words, topic_docs):
-    """Generate a meaningful label for a topic based on its top words and documents"""
-    # This is a simple implementation - you might want to make it more sophisticated
-    top_words = [word for word, _ in topic_words[:3]]
-    return " & ".join(top_words).title()
+def generate_topic_label(topic_words):
+    """Generate a meaningful label for a topic based on its top words"""
+    return " & ".join([word for word, _ in topic_words[:3]]).title()
 
-def format_topic_data(lda_model, vectorizer, doc_topics, df, num_words=50):
-    """Format topic modeling results into the structure needed for visualization"""
+def format_topic_data(lda_model, vectorizer, doc_topics, df):
+    """Format topic modeling results correctly"""
     feature_names = vectorizer.get_feature_names_out()
     topics_data = []
     
-    # Calculate document frequencies for terms
+    # Calculate document frequencies
     doc_freq = {}
     for doc in df['Content'].fillna(''):
         words = set(clean_text_for_modeling(doc).split())
@@ -1575,12 +1573,12 @@ def format_topic_data(lda_model, vectorizer, doc_topics, df, num_words=50):
 
     for idx, topic in enumerate(lda_model.components_):
         # Get top words for this topic
-        top_indices = topic.argsort()[:-num_words-1:-1]
+        top_word_indices = topic.argsort()[:-50-1:-1]  # Get top 50 words
         topic_words = []
-        for i in top_indices:
+        
+        for i in top_word_indices:
             word = feature_names[i]
             weight = topic[i]
-            # Count total occurrences
             count = sum(1 for doc in df['Content'].fillna('') 
                        if word in clean_text_for_modeling(doc).split())
             topic_words.append({
@@ -1590,70 +1588,64 @@ def format_topic_data(lda_model, vectorizer, doc_topics, df, num_words=50):
                 'documents': doc_freq.get(word, 0)
             })
 
+        # Get related documents
+        doc_scores = doc_topics[:, idx]
+        related_docs = []
+        
         # Get documents strongly associated with this topic
-        topic_docs = []
-        for doc_idx, doc_topics in enumerate(doc_topics):
-            if doc_topics[idx] > 0.3:  # Document has significant topic presence
+        for doc_idx in doc_scores.argsort()[:-11:-1]:  # Top 10 documents
+            if doc_scores[doc_idx] > 0.1:  # Document has significant topic presence
                 doc = df.iloc[doc_idx]
                 
                 # Get other topics for this document
                 other_topics = []
-                for other_idx, score in enumerate(doc_topics):
+                for other_idx, score in enumerate(doc_topics[doc_idx]):
                     if other_idx != idx and score > 0.1:
+                        other_label = generate_topic_label([
+                            (feature_names[i], lda_model.components_[other_idx][i])
+                            for i in lda_model.components_[other_idx].argsort()[:-4:-1]
+                        ])
                         other_topics.append({
-                            'label': generate_topic_label(
-                                [(feature_names[i], lda_model.components_[other_idx][i]) 
-                                 for i in lda_model.components_[other_idx].argsort()[:-4:-1]], 
-                                []
-                            ),
+                            'label': other_label,
                             'score': float(score)
                         })
                 
-                # Extract key findings and recommendations
+                # Create document entry
                 content = str(doc.get('Content', ''))
-                key_findings = extract_key_points(content, 'findings')
-                recommendations = extract_key_points(content, 'recommendations')
-                
-                topic_docs.append({
+                related_docs.append({
                     'title': doc.get('Title', ''),
                     'date': doc.get('date_of_report', '').strftime('%Y-%m-%d') if pd.notna(doc.get('date_of_report')) else '',
                     'summary': content[:300] + '...' if len(content) > 300 else content,
-                    'topicRelevance': float(doc_topics[idx]),
+                    'topicRelevance': float(doc_scores[doc_idx]),
                     'coroner': doc.get('coroner_name', ''),
                     'area': doc.get('coroner_area', ''),
-                    'keyFindings': key_findings,
-                    'recommendations': recommendations,
+                    'keyFindings': [],  # Simplified - remove if not needed
+                    'recommendations': [],  # Simplified - remove if not needed
                     'otherTopics': other_topics
                 })
 
-        # Calculate topic prevalence and trend
-        topic_prevalence = (doc_topics[:, idx] > 0.3).mean() * 100
-        
-        # Calculate trend (you might want to adjust this based on your needs)
-        prev_months_prev = [topic_prevalence * 0.9, topic_prevalence * 0.95, 
-                           topic_prevalence * 0.98, topic_prevalence]
+        # Calculate topic prevalence
+        topic_prevalence = (doc_scores > 0.3).mean() * 100
         
         topics_data.append({
             'id': idx,
-            'label': generate_topic_label(
-                [(feature_names[i], topic[i]) for i in top_indices[:3]], 
-                topic_docs
-            ),
-            'description': generate_topic_description(
-                [(feature_names[i], topic[i]) for i in top_indices], 
-                topic_docs
-            ),
+            'label': generate_topic_label([
+                (feature_names[i], topic[i])
+                for i in top_word_indices[:3]
+            ]),
+            'description': f"Topic related to {', '.join(feature_names[i] for i in top_word_indices[:5])}",
             'words': topic_words,
-            'relatedReports': topic_docs,
+            'relatedReports': related_docs,
             'prevalence': round(topic_prevalence, 1),
             'trend': {
-                'direction': 'increasing' if prev_months_prev[-1] > prev_months_prev[-2] else 'stable',
-                'percentage': round(abs(prev_months_prev[-1] - prev_months_prev[-2]), 1),
-                'previousMonths': prev_months_prev
+                'direction': 'stable',
+                'percentage': 0,
+                'previousMonths': [topic_prevalence] * 4
             }
         })
     
     return topics_data
+
 
 def extract_key_points(text, point_type='findings'):
     """Extract key findings or recommendations from text"""
