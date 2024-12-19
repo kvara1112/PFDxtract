@@ -418,6 +418,8 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     
     if keyword and keyword.strip():
         params['s'] = keyword.strip()
+    
+    # Add back other filter parameters
     if category:
         params['pfd_report_type'] = category
     
@@ -493,7 +495,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
         return []
-
+        
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
     try:
