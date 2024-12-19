@@ -495,33 +495,99 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         return []
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data"""
+    """Process and clean scraped data with improved metadata extraction"""
     try:
-        # Create a copy to avoid modifying the original
+        # Create a copy
         df = df.copy()
         
-        # Extract metadata
-        metadata = df['Content'].fillna("").apply(extract_metadata)
-        metadata_df = pd.DataFrame(metadata.tolist())
+        # Extract metadata from Content field if it exists
+        if 'Content' in df.columns:
+            # Process each row
+            processed_rows = []
+            for _, row in df.iterrows():
+                # Start with the original row data
+                processed_row = row.to_dict()
+                
+                # Extract metadata from Content
+                content = str(row.get('Content', ''))
+                
+                # Extract date
+                date_match = re.search(r'Date of report:\s*(\d{1,2}(?:/|-)\d{1,2}(?:/|-)\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', content)
+                if date_match:
+                    processed_row['date_of_report'] = date_match.group(1)
+                
+                # Rest of metadata extraction remains the same
+                ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', content)
+                if ref_match:
+                    processed_row['ref'] = ref_match.group(1)
+                
+                name_match = re.search(r'Deceased name:?\s*([^\n]+)', content)
+                if name_match:
+                    processed_row['deceased_name'] = name_match.group(1).strip()
+                
+                coroner_match = re.search(r'Coroner(?:\'?s)? name:?\s*([^\n]+)', content)
+                if coroner_match:
+                    processed_row['coroner_name'] = coroner_match.group(1).strip()
+                
+                area_match = re.search(r'Coroner(?:\'?s)? Area:?\s*([^\n]+)', content)
+                if area_match:
+                    processed_row['coroner_area'] = area_match.group(1).strip()
+                
+                cat_match = re.search(r'Category:?\s*([^\n]+)', content)
+                if cat_match:
+                    categories = cat_match.group(1).split('|')
+                    processed_row['categories'] = [cat.strip() for cat in categories if cat.strip()]
+                else:
+                    processed_row['categories'] = []
+                
+                processed_rows.append(processed_row)
+            
+            # Create new DataFrame from processed rows
+            result = pd.DataFrame(processed_rows)
+        else:
+            result = df.copy()
         
-        # Combine with original data
-        result = pd.concat([df, metadata_df], axis=1)
-        
-        # Convert dates to datetime
-        try:
-            result['date_of_report'] = pd.to_datetime(
-                result['date_of_report'],
-                format='%d/%m/%Y',
-                errors='coerce'
-            )
-        except Exception as e:
-            logging.error(f"Error converting dates: {e}")
+        # Convert date_of_report to datetime with improved handling
+        if 'date_of_report' in result.columns:
+            def parse_date(date_str):
+                if pd.isna(date_str):
+                    return pd.NaT
+                
+                date_str = str(date_str).strip()
+                
+                # Try different date formats
+                formats = [
+                    '%d/%m/%Y',
+                    '%Y-%m-%d',
+                    '%d-%m-%Y',
+                    '%d %B %Y',
+                    '%d %b %Y'
+                ]
+                
+                # Remove ordinal indicators
+                date_str = re.sub(r'(\d)(st|nd|rd|th)', r'\1', date_str)
+                
+                for fmt in formats:
+                    try:
+                        return pd.to_datetime(date_str, format=fmt)
+                    except:
+                        continue
+                
+                # If all formats fail, try pandas default parser
+                try:
+                    return pd.to_datetime(date_str)
+                except:
+                    return pd.NaT
+            
+            result['date_of_report'] = result['date_of_report'].apply(parse_date)
         
         return result
             
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
+
+
 def plot_timeline(df: pd.DataFrame) -> None:
     """Plot timeline of reports"""
     timeline_data = df.groupby(
