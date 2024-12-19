@@ -1504,12 +1504,19 @@ def render_analysis_tab(data: pd.DataFrame):
                 logging.error(f"Data quality analysis error: {e}", exc_info=True)
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
-    """Handle Excel export with proper buffer management"""
+    """Handle Excel export with proper buffer management and error handling"""
     excel_buffer = io.BytesIO()
+    
     try:
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
             df.to_excel(writer, index=False)
-        return excel_buffer.getvalue()
+        excel_data = excel_buffer.getvalue()
+        return excel_data
+        
+    except Exception as e:
+        logging.error(f"Error exporting to Excel: {e}")
+        raise e
+        
     finally:
         excel_buffer.close()
         
