@@ -1468,8 +1468,6 @@ def render_analysis_tab(data: pd.DataFrame):
             st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
         
         # Visualizations
-        # In the render_analysis_tab function, update the visualization tabs section:
-
         st.subheader("Visualizations")
         viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
             "Timeline",
@@ -1503,6 +1501,11 @@ def render_analysis_tab(data: pd.DataFrame):
                 st.error(f"Error in data quality analysis: {str(e)}")
                 logging.error(f"Data quality analysis error: {e}", exc_info=True)
 
+    except Exception as e:
+        st.error(f"An error occurred in the analysis tab: {str(e)}")
+        logging.error(f"Analysis error: {e}", exc_info=True)
+
+
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """Handle Excel export with proper buffer management and error handling"""
     excel_buffer = io.BytesIO()
@@ -1519,7 +1522,8 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
         
     finally:
         excel_buffer.close()
-        
+
+
 def render_topic_modeling_tab(data: pd.DataFrame):
     """Render the topic modeling tab"""
     st.header("Topic Modeling Analysis")
