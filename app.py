@@ -1010,6 +1010,7 @@ def create_network_diagram(topic_words: List[str],
         logging.error(f"Error creating network diagram: {e}")
         return None
 
+
 def render_scraping_tab():
     """Render the scraping tab"""
     st.header("Scrape PFD Reports")
