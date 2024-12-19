@@ -196,24 +196,25 @@ def extract_metadata(content: str) -> dict:
 def get_pfd_categories() -> List[str]:
     """Get all available PFD report categories"""
     return [
-        "accident-at-work-and-health-and-safety-related-deaths",
-        "alcohol-drug-and-medication-related-deaths",
-        "care-home-health-related-deaths",
-        "child-death-from-2015",
-        "community-health-care-and-emergency-services-related-deaths",
-        "emergency-services-related-deaths-2019-onwards",
-        "hospital-death-clinical-procedures-and-medical-management-related-deaths",
-        "mental-health-related-deaths",
-        "other-related-deaths",
-        "police-related-deaths",
-        "product-related-deaths",
-        "railway-related-deaths",
-        "road-highways-safety-related-deaths",
-        "service-personnel-related-deaths",
-        "state-custody-related-deaths",
-        "suicide-from-2015",
-        "wales-prevention-of-future-deaths-reports-2019-onwards"
+        "Accident at Work and Health and Safety related deaths",
+        "Alcohol drug and medication related deaths",
+        "Care Home Health related deaths",
+        "Child Death from 2015",
+        "Community health care and emergency services related deaths",
+        "Emergency services related deaths 2019 onwards",
+        "Hospital Death Clinical Procedures and medical management related deaths",
+        "Mental Health related deaths",
+        "Other related deaths",
+        "Police related deaths",
+        "Product related deaths",
+        "Railway related deaths",
+        "Road Highways Safety related deaths",
+        "Service Personnel related deaths",
+        "State Custody related deaths", 
+        "Suicide from 2015",
+        "Wales prevention of future deaths reports 2019 onwards"
     ]
+    
 # PDF handling functions
 def save_pdf(pdf_url: str, base_dir: str = 'pdfs') -> Tuple[Optional[str], Optional[str]]:
     """Download and save PDF, return local path and filename"""
