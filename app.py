@@ -813,6 +813,126 @@ def plot_coroner_areas(df: pd.DataFrame) -> None:
     
     st.plotly_chart(fig, use_container_width=True)
 
+
+def analyze_data_quality(df: pd.DataFrame) -> None:
+    """Analyze and display data quality metrics for PFD reports"""
+    
+    # Calculate completeness metrics
+    total_records = len(df)
+    
+    def calculate_completeness(field):
+        if field not in df.columns:
+            return 0
+        non_empty = df[field].notna()
+        if field == 'categories':
+            non_empty = df[field].apply(lambda x: isinstance(x, list) and len(x) > 0)
+        return (non_empty.sum() / total_records) * 100
+    
+    completeness_metrics = {
+        'Title': calculate_completeness('Title'),
+        'Content': calculate_completeness('Content'),
+        'Date of Report': calculate_completeness('date_of_report'),
+        'Deceased Name': calculate_completeness('deceased_name'),
+        'Coroner Name': calculate_completeness('coroner_name'),
+        'Coroner Area': calculate_completeness('coroner_area'),
+        'Categories': calculate_completeness('categories')
+    }
+    
+    # Calculate consistency metrics
+    consistency_metrics = {
+        'Title Format': (df['Title'].str.len() >= 10).mean() * 100,
+        'Content Length': (df['Content'].str.len() >= 100).mean() * 100,
+        'Date Format': df['date_of_report'].notna().mean() * 100,
+        'Categories Format': df['categories'].apply(lambda x: isinstance(x, list)).mean() * 100
+    }
+    
+    # Calculate PDF metrics
+    pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
+    reports_with_pdf = df[pdf_columns].notna().any(axis=1).sum()
+    reports_with_multiple_pdfs = (df[pdf_columns].notna().sum(axis=1) > 1).sum()
+    
+    pdf_metrics = {
+        'Reports with PDFs': (reports_with_pdf / total_records) * 100,
+        'Reports with Multiple PDFs': (reports_with_multiple_pdfs / total_records) * 100
+    }
+    
+    # Display metrics using Streamlit
+    st.subheader("Data Quality Analysis")
+    
+    # Completeness
+    st.markdown("### Field Completeness")
+    completeness_df = pd.DataFrame(list(completeness_metrics.items()), 
+                                 columns=['Field', 'Completeness %'])
+    fig_completeness = px.bar(completeness_df, x='Field', y='Completeness %',
+                             title='Field Completeness Analysis')
+    fig_completeness.update_layout(xaxis_tickangle=-45)
+    st.plotly_chart(fig_completeness, use_container_width=True)
+    
+    # Consistency
+    st.markdown("### Data Consistency")
+    consistency_df = pd.DataFrame(list(consistency_metrics.items()),
+                                columns=['Metric', 'Consistency %'])
+    fig_consistency = px.bar(consistency_df, x='Metric', y='Consistency %',
+                            title='Data Consistency Analysis')
+    fig_consistency.update_layout(xaxis_tickangle=-45)
+    st.plotly_chart(fig_consistency, use_container_width=True)
+    
+    # PDF Analysis
+    st.markdown("### PDF Attachment Analysis")
+    pdf_df = pd.DataFrame(list(pdf_metrics.items()),
+                         columns=['Metric', 'Percentage'])
+    fig_pdf = px.bar(pdf_df, x='Metric', y='Percentage',
+                     title='PDF Coverage Analysis')
+    fig_pdf.update_layout(xaxis_tickangle=-45)
+    st.plotly_chart(fig_pdf, use_container_width=True)
+    
+    # Summary metrics
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric(
+            "Average Completeness",
+            f"{np.mean(list(completeness_metrics.values())):.1f}%"
+        )
+        
+    with col2:
+        st.metric(
+            "Average Consistency",
+            f"{np.mean(list(consistency_metrics.values())):.1f}%"
+        )
+        
+    with col3:
+        st.metric(
+            "PDF Coverage",
+            f"{pdf_metrics['Reports with PDFs']:.1f}%"
+        )
+    
+    # Detailed quality issues
+    st.markdown("### Detailed Quality Issues")
+    
+    issues = []
+    
+    # Check for missing crucial fields
+    for field, completeness in completeness_metrics.items():
+        if completeness < 95:  # Less than 95% complete
+            issues.append(f"- {field} is {completeness:.1f}% complete ({total_records - int(completeness * total_records / 100)} records missing)")
+    
+    # Check for consistency issues
+    for metric, consistency in consistency_metrics.items():
+        if consistency < 90:  # Less than 90% consistent
+            issues.append(f"- {metric} shows {consistency:.1f}% consistency")
+    
+    # Check PDF coverage
+    if pdf_metrics['Reports with PDFs'] < 90:
+        issues.append(f"- {100 - pdf_metrics['Reports with PDFs']:.1f}% of reports lack PDF attachments")
+    
+    if issues:
+        st.markdown("The following quality issues were identified:")
+        for issue in issues:
+            st.markdown(issue)
+    else:
+        st.success("No significant quality issues found in the dataset.")
+
 def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int = 1000) -> Tuple[LatentDirichletAllocation, TfidfVectorizer, np.ndarray]:
     """Extract topics using LDA"""
     try:
@@ -1348,6 +1468,8 @@ def render_analysis_tab(data: pd.DataFrame):
             st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
         
         # Visualizations
+        # In the render_analysis_tab function, update the visualization tabs section:
+
         st.subheader("Visualizations")
         viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
             "Timeline",
@@ -1378,16 +1500,8 @@ def render_analysis_tab(data: pd.DataFrame):
             try:
                 analyze_data_quality(filtered_df)
             except Exception as e:
-                st.error(f"Error creating data quality analysis: {str(e)}")
-        
-        # Export filtered data
-        show_export_options(filtered_df, "filtered")
-        
-    except Exception as e:
-        st.error(f"An unexpected error occurred in the analysis tab: {str(e)}")
-        logging.error(f"Unexpected error in render_analysis_tab: {e}", exc_info=True)
-
-
+                st.error(f"Error in data quality analysis: {str(e)}")
+                logging.error(f"Data quality analysis error: {e}", exc_info=True)
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """Handle Excel export with proper buffer management"""
