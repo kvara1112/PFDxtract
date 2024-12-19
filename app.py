@@ -494,6 +494,34 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         st.error(f"An error occurred while scraping reports: {e}")
         return []
 
+def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Process and clean scraped data"""
+    try:
+        # Create a copy to avoid modifying the original
+        df = df.copy()
+        
+        # Extract metadata
+        metadata = df['Content'].fillna("").apply(extract_metadata)
+        metadata_df = pd.DataFrame(metadata.tolist())
+        
+        # Combine with original data
+        result = pd.concat([df, metadata_df], axis=1)
+        
+        # Convert dates to datetime
+        try:
+            result['date_of_report'] = pd.to_datetime(
+                result['date_of_report'],
+                format='%d/%m/%Y',
+                errors='coerce'
+            )
+        except Exception as e:
+            logging.error(f"Error converting dates: {e}")
+        
+        return result
+            
+    except Exception as e:
+        logging.error(f"Error in process_scraped_data: {e}")
+        return df
 def plot_timeline(df: pd.DataFrame) -> None:
     """Plot timeline of reports"""
     timeline_data = df.groupby(
@@ -915,233 +943,16 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             # Cleanup zip file
             os.remove(pdf_zip_path)
 
-def render_file_upload():
-    """Render file upload section with improved error handling"""
-    st.header("Upload Existing Data")
     
-    # Generate unique key for the file uploader
-    upload_key = f"file_uploader_{int(time.time() * 1000)}"
-    
-    uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file", 
-        type=['csv', 'xlsx'],
-        key=upload_key
-    )
-    
-    if uploaded_file is not None:
-        try:
-            # Read the file
-            if uploaded_file.name.lower().endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
-            
-            # Validate required columns
-            required_columns = ['Title', 'URL', 'Content']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            
-            if missing_columns:
-                st.error(f"Missing required columns: {', '.join(missing_columns)}")
-                return False
-            
-            # Process the data
-            processed_df = process_scraped_data(df)
-            
-            # Clear existing data
-            st.session_state.current_data = None
-            st.session_state.scraped_data = None
-            st.session_state.uploaded_data = None
-            st.session_state.data_source = None
-            
-            # Set new data
-            st.session_state.uploaded_data = processed_df.copy()
-            st.session_state.data_source = 'uploaded'
-            st.session_state.current_data = processed_df.copy()
-            
-            st.success("File uploaded and processed successfully!")
-            
-            # Show preview
-            st.subheader("Uploaded Data Preview")
-            
-            # Configure column display
-            display_config = {
-                "URL": st.column_config.LinkColumn("Report Link"),
-                "date_of_report": st.column_config.DateColumn("Date of Report"),
-                "categories": st.column_config.ListColumn("Categories")
-            }
-            
-            # Show only key columns in preview
-            preview_columns = ['Title', 'URL', 'date_of_report', 'coroner_name', 'coroner_area']
-            preview_df = processed_df[preview_columns].copy()
-            
-            st.dataframe(
-                preview_df,
-                column_config=display_config,
-                hide_index=True
-            )
-            
-            # Show data info
-            st.write(f"Total rows: {len(processed_df)}")
-            if 'date_of_report' in processed_df.columns:
-                date_range = processed_df['date_of_report'].agg(['min', 'max'])
-                st.write(f"Date range: {date_range['min']} to {date_range['max']}")
-            
-            return True
-            
-        except Exception as e:
-            st.error(f"Error reading file: {str(e)}")
-            logging.error(f"File upload error: {e}", exc_info=True)
-            return False
-    
-    return False
-
-def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data with improved error handling"""
-    try:
-        # Create a copy
-        df = df.copy()
-        
-        # Extract metadata if Content column exists
-        if 'Content' in df.columns:
-            metadata = df['Content'].fillna("").apply(extract_metadata)
-            metadata_df = pd.DataFrame(metadata.tolist())
-            
-            # Combine with original data
-            result = pd.concat([df, metadata_df], axis=1)
-        else:
-            result = df.copy()
-        
-        # Handle date conversion
-        if 'date_of_report' in result.columns:
-            # Convert date strings to datetime
-            try:
-                result['date_of_report'] = pd.to_datetime(
-                    result['date_of_report'],
-                    format='%Y-%m-%d',  # Try exact format first
-                    errors='coerce'
-                )
-                
-                # If all dates are NaT, try flexible parsing
-                if result['date_of_report'].isna().all():
-                    result['date_of_report'] = pd.to_datetime(
-                        result['date_of_report'], 
-                        errors='coerce'
-                    )
-            except Exception as e:
-                logging.warning(f"Date conversion error: {e}")
-                result['date_of_report'] = pd.NaT
-        
-        # Handle categories
-        if 'categories' in result.columns:
-            def convert_to_list(x):
-                if pd.isna(x):
-                    return []
-                if isinstance(x, str):
-                    # Handle string representations of lists
-                    if x.startswith('[') and x.endswith(']'):
-                        try:
-                            return eval(x)
-                        except:
-                            return [x]
-                    return [x]
-                if isinstance(x, (list, tuple)):
-                    return list(x)
-                return []
-            
-            result['categories'] = result['categories'].apply(convert_to_list)
-        
-        return result
-            
-    except Exception as e:
-        logging.error(f"Error in process_scraped_data: {e}")
-        return df
-
-def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
-    """Validate data with improved Series handling"""
-    if data is None:
-        return False, "No data available. Please scrape or upload data first."
-    
-    if not isinstance(data, pd.DataFrame):
-        return False, "Invalid data format. Expected pandas DataFrame."
-    
-    if data.empty:
-        return False, "Dataset is empty."
-        
-    if purpose == "analysis":
-        required_columns = ['date_of_report', 'categories', 'coroner_area']
-        missing_columns = [col for col in required_columns if col not in data.columns]
-        
-        if missing_columns:
-            return False, f"Missing required columns: {', '.join(missing_columns)}"
-            
-        # Check date column
-        if 'date_of_report' in data.columns:
-            if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
-                valid_dates = pd.to_datetime(data['date_of_report'], errors='coerce')
-                if valid_dates.isna().all():
-                    return False, "No valid dates found in date_of_report column."
-                    
-    elif purpose == "topic_modeling":
-        if 'Content' not in data.columns:
-            return False, "Missing required column: Content"
-            
-        # Check for valid content
-        valid_content = (
-            data['Content']
-            .fillna('')
-            .astype(str)
-            .str.strip()
-            .str.len() > 0
-        )
-        
-        if valid_content.sum() < 2:
-            return False, "Not enough valid documents found."
-    
-    return True, "Data is valid"    
-
-def render_analysis_tab(data: pd.DataFrame = None):
-    """Render the analysis tab with upload functionality"""
+def render_analysis_tab(data: pd.DataFrame):
+    """Render the analysis tab with upload option"""
     st.header("Reports Analysis")
     
-    if data is None:
-        uploaded_file = st.file_uploader(
-            "Upload CSV or Excel file", 
-            type=['csv', 'xlsx'],
-            key="analysis_file_uploader"
-        )
-        
-        if uploaded_file is not None:
-            try:
-                # Read the file based on extension
-                if uploaded_file.name.lower().endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                else:
-                    df = pd.read_excel(uploaded_file)
-                
-                # Process the data
-                df = process_scraped_data(df)
-                
-                # Update session state
-                st.session_state.uploaded_data = df.copy()
-                st.session_state.current_data = df.copy()
-                st.session_state.data_source = 'uploaded'
-                
-                st.success(f"Successfully uploaded {len(df)} reports!")
-                st.rerun()
-                
-            except Exception as e:
-                st.error(f"Error uploading file: {str(e)}")
-                logging.error(f"Upload error: {e}", exc_info=True)
-                return
-        else:
-            st.warning("No data available. Please upload a file or scrape reports.")
-            return
-    
-    # Show current data info and clear option
+    # Add option to clear current data and upload new file
     if st.session_state.current_data is not None:
         col1, col2 = st.columns([3, 1])
         with col1:
-            total_reports = len(st.session_state.current_data)
+            total_reports = len(st.session_state.current_data) if isinstance(st.session_state.current_data, pd.DataFrame) else 0
             data_source = st.session_state.data_source or "unknown source"
             st.info(f"Currently analyzing {total_reports} reports from {data_source}")
         with col2:
@@ -1151,119 +962,201 @@ def render_analysis_tab(data: pd.DataFrame = None):
                 st.session_state.scraped_data = None
                 st.session_state.uploaded_data = None
                 st.rerun()
-
-        # Validate and display data
-        try:
-            is_valid, message = validate_data(st.session_state.current_data, "analysis")
-            if not is_valid:
-                st.error(message)
+    
+    # Show file upload if no data or if data was cleared
+    if st.session_state.current_data is None:
+        upload_col1, upload_col2 = st.columns([3, 1])
+        with upload_col1:
+            uploaded_file = st.file_uploader(
+                "Upload CSV or Excel file", 
+                type=['csv', 'xlsx']
+            )
+        
+        if uploaded_file is not None:
+            try:
+                # Read the file based on extension
+                if uploaded_file.name.lower().endswith('.csv'):
+                    df = pd.read_csv(uploaded_file)
+                elif uploaded_file.name.lower().endswith(('.xls', '.xlsx')):
+                    df = pd.read_excel(uploaded_file)
+                else:
+                    st.error("Unsupported file type")
+                    return
+                
+                # Required columns
+                required_columns = [
+                    'Title', 'URL', 'Content', 
+                    'date_of_report', 'categories', 'coroner_area'
+                ]
+                
+                # Check for missing columns
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                
+                if missing_columns:
+                    st.error(f"Missing required columns: {', '.join(missing_columns)}")
+                    st.write("Available columns:", list(df.columns))
+                    return
+                
+                # Process the data
+                processed_df = process_scraped_data(df)
+                
+                # Update session state
+                st.session_state.uploaded_data = processed_df.copy()
+                st.session_state.current_data = processed_df.copy()
+                st.session_state.data_source = 'uploaded'
+                
+                st.success(f"File uploaded successfully! Total reports: {len(processed_df)}")
+                st.rerun()
+                
+            except Exception as read_error:
+                st.error(f"Error reading file: {read_error}")
+                logging.error(f"File read error: {read_error}", exc_info=True)
                 return
+        return
+    
+    # If we have data, validate it before proceeding
+    try:
+        is_valid, message = validate_data(data, "analysis")
+        if not is_valid:
+            st.error(message)
+            return
             
-            # Display the data
-            if 'Title' in st.session_state.current_data.columns:
-                st.subheader("Data Preview")
-                st.dataframe(
-                    st.session_state.current_data[['Title', 'date_of_report', 'coroner_area']].head(),
-                    hide_index=True
+        # Get date range for the data
+        min_date = data['date_of_report'].min().date()
+        max_date = data['date_of_report'].max().date()
+        
+        # Sidebar for filtering
+        with st.sidebar:
+            st.header("Analysis Filters")
+            
+            # Date range filter
+            date_range = st.date_input(
+                "Date Range",
+                value=(min_date, max_date),
+                min_value=min_date,
+                max_value=max_date,
+                key="date_range_filter"
+            )
+            
+            # Category filter
+            all_categories = set()
+            for cats in data['categories'].dropna():
+                if isinstance(cats, list):
+                    all_categories.update(cats)
+            
+            selected_categories = st.multiselect(
+                "Categories",
+                options=sorted(all_categories),
+                key="categories_filter"
+            )
+            
+            # Coroner area filter
+            coroner_areas = sorted(data['coroner_area'].dropna().unique())
+            selected_areas = st.multiselect(
+                "Coroner Areas",
+                options=coroner_areas,
+                key="areas_filter"
+            )
+        
+        # Apply filters
+        filtered_df = data.copy()
+        
+        # Date filter
+        if len(date_range) == 2:
+            filtered_df = filtered_df[
+                (filtered_df['date_of_report'].dt.date >= date_range[0]) &
+                (filtered_df['date_of_report'].dt.date <= date_range[1])
+            ]
+        
+        # Category filter
+        if selected_categories:
+            filtered_df = filtered_df[
+                filtered_df['categories'].apply(
+                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
                 )
+            ]
+        
+        # Area filter
+        if selected_areas:
+            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
+        
+        # Show filter status
+        active_filters = []
+        if len(date_range) == 2 and (date_range[0] != min_date or date_range[1] != max_date):
+            active_filters.append(f"Date range: {date_range[0]} to {date_range[1]}")
+        if selected_categories:
+            active_filters.append(f"Categories: {', '.join(selected_categories)}")
+        if selected_areas:
+            active_filters.append(f"Areas: {', '.join(selected_areas)}")
             
-            # Show data summary
-            st.subheader("Data Summary")
-            col1, col2, col3 = st.columns(3)
+        if active_filters:
+            st.info(f"Active filters: {' • '.join(active_filters)}")
+        
+        if len(filtered_df) == 0:
+            st.warning("No data matches the selected filters.")
+            return
             
-            with col1:
-                total_reports = len(st.session_state.current_data)
-                st.metric("Total Reports", total_reports)
+        # Display filtered results count
+        st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
+        
+        # Overview metrics
+        st.subheader("Overview")
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric("Total Reports", len(filtered_df))
+        with col2:
+            st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique())
+        with col3:
+            categories_count = sum(len(cats) if isinstance(cats, list) else 0 
+                                 for cats in filtered_df['categories'].dropna())
+            st.metric("Total Category Tags", categories_count)
+        with col4:
+            date_range_days = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
+            avg_reports_month = len(filtered_df) / (date_range_days / 30) if date_range_days > 0 else len(filtered_df)
+            st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
+        
+        # Visualizations
+        st.subheader("Visualizations")
+        viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
+            "Timeline",
+            "Categories",
+            "Coroner Areas",
+            "Data Quality"
+        ])
+        
+        with viz_tab1:
+            try:
+                plot_timeline(filtered_df)
+            except Exception as e:
+                st.error(f"Error creating timeline plot: {str(e)}")
+        
+        with viz_tab2:
+            try:
+                plot_category_distribution(filtered_df)
+            except Exception as e:
+                st.error(f"Error creating category distribution plot: {str(e)}")
+        
+        with viz_tab3:
+            try:
+                plot_coroner_areas(filtered_df)
+            except Exception as e:
+                st.error(f"Error creating coroner areas plot: {str(e)}")
                 
-            with col2:
-                unique_areas = st.session_state.current_data['coroner_area'].nunique()
-                st.metric("Unique Coroner Areas", unique_areas)
-                
-            with col3:
-                date_range = pd.to_datetime(st.session_state.current_data['date_of_report'])
-                date_span = (date_range.max() - date_range.min()).days
-                st.metric("Date Range (days)", date_span)
-            
-            # Export options
-            st.subheader("Export Options")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                csv = st.session_state.current_data.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "Download CSV",
-                    csv,
-                    "pfd_reports.csv",
-                    "text/csv",
-                    key="download_csv"
-                )
-            
-            with col2:
-                buffer = io.BytesIO()
-                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                    st.session_state.current_data.to_excel(writer, index=False)
-                st.download_button(
-                    "Download Excel",
-                    buffer.getvalue(),
-                    "pfd_reports.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="download_excel"
-                )
-                
-        except Exception as e:
-            st.error(f"Analysis error: {str(e)}")
-            logging.error(f"Analysis error: {e}", exc_info=True)
+        with viz_tab4:
+            try:
+                analyze_data_quality(filtered_df)
+            except Exception as e:
+                st.error(f"Error creating data quality analysis: {str(e)}")
+        
+        # Export filtered data
+        show_export_options(filtered_df, "filtered")
+        
+    except Exception as e:
+        st.error(f"An unexpected error occurred in the analysis tab: {str(e)}")
+        logging.error(f"Unexpected error in render_analysis_tab: {e}", exc_info=True)
 
-def main():
-    # Initialize session state
-    if 'initialized' not in st.session_state:
-        st.session_state.initialized = True
-        st.session_state.current_data = None
-        st.session_state.scraped_data = None
-        st.session_state.uploaded_data = None
-        st.session_state.data_source = None
-    
-    # App title and description
-    st.title("UK Judiciary PFD Reports Analysis")
-    st.markdown("""
-    This application allows you to analyze Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can either scrape new reports or analyze existing data.
-    """)
-    
-    # Tab selection
-    current_tab = st.radio(
-        "Select section:",
-        ["🔍 Scrape Reports", "📊 Analysis", "🔬 Topic Modeling"],
-        label_visibility="collapsed",
-        horizontal=True,
-        key="main_tab_selector"
-    )
-    
-    st.markdown("---")
-    
-    # Handle tab content
-    if current_tab == "🔍 Scrape Reports":
-        if st.button("Start Scraping"):
-            st.info("Scraping functionality would be implemented here")
-    
-    elif current_tab == "📊 Analysis":
-        current_data = st.session_state.get('current_data')
-        render_analysis_tab(current_data)
-    
-    elif current_tab == "🔬 Topic Modeling":
-        if st.session_state.current_data is None:
-            st.warning("No data available. Please scrape reports or upload a file first.")
-        else:
-            st.info("Topic modeling functionality would be implemented here")
-    
-    # Footer
-    st.markdown("---")
-    st.markdown(
-        """<div style='text-align: center'>
-        <p>Built with Streamlit • Data from UK Judiciary</p>
-        </div>""",
-        unsafe_allow_html=True
-    )
+
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """Handle Excel export with proper buffer management"""
@@ -1428,6 +1321,65 @@ def render_topic_modeling_tab(data: pd.DataFrame):
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
 
+
+
+def render_file_upload():
+    """Render file upload section"""
+    st.header("Upload Existing Data")
+    
+    # Generate unique key for the file uploader
+    upload_key = f"file_uploader_{int(time.time() * 1000)}"
+    
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file", 
+        type=['csv', 'xlsx'],
+        key=upload_key
+    )
+    
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            
+            # Process uploaded data
+            df = process_scraped_data(df)
+            
+            # Clear any existing data first
+            st.session_state.current_data = None
+            st.session_state.scraped_data = None
+            st.session_state.uploaded_data = None
+            st.session_state.data_source = None
+            
+            # Then set new data
+            st.session_state.uploaded_data = df.copy()
+            st.session_state.data_source = 'uploaded'
+            st.session_state.current_data = df.copy()
+            
+            st.success("File uploaded and processed successfully!")
+            
+            # Show the uploaded data
+            st.subheader("Uploaded Data Preview")
+            st.dataframe(
+                df,
+                column_config={
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "date_of_report": st.column_config.DateColumn("Date of Report"),
+                    "categories": st.column_config.ListColumn("Categories")
+                },
+                hide_index=True
+            )
+            
+            return True
+            
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            logging.error(f"File upload error: {e}", exc_info=True)
+            return False
+    
+    return False
+
 def initialize_session_state():
     """Initialize all required session state variables"""
     # Initialize basic state variables if they don't exist
@@ -1483,6 +1435,52 @@ def initialize_session_state():
             logging.error(f"Error during PDF cleanup: {e}")
         finally:
             st.session_state.cleanup_done = True
+def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
+    """
+    Validate data for different purposes
+    
+    Args:
+        data: DataFrame to validate
+        purpose: Purpose of validation ('analysis' or 'topic_modeling')
+        
+    Returns:
+        tuple: (is_valid, message)
+    """
+    if data is None:
+        return False, "No data available. Please scrape or upload data first."
+    
+    if not isinstance(data, pd.DataFrame):
+        return False, "Invalid data format. Expected pandas DataFrame."
+    
+    if len(data) == 0:
+        return False, "Dataset is empty."
+        
+    if purpose == "analysis":
+        required_columns = ['date_of_report', 'categories', 'coroner_area']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            return False, f"Missing required columns: {', '.join(missing_columns)}"
+            
+    elif purpose == "topic_modeling":
+        if 'Content' not in data.columns:
+            return False, "Missing required column: Content"
+            
+        valid_docs = data['Content'].dropna().str.strip().str.len() > 0
+        if valid_docs.sum() < 2:
+            return False, "Not enough valid documents found. Please ensure you have documents with text content."
+            
+    # Add type checking for critical columns
+    if 'date_of_report' in data.columns and not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
+        try:
+            pd.to_datetime(data['date_of_report'])
+        except Exception:
+            return False, "Invalid date format in date_of_report column."
+            
+    if 'categories' in data.columns:
+        if not data['categories'].apply(lambda x: isinstance(x, (list, type(None)))).all():
+            return False, "Categories must be stored as lists or None values."
+    
+    return True, "Data is valid"
     
 def main():
     initialize_session_state()
