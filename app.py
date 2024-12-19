@@ -779,256 +779,222 @@ def create_network_diagram(topic_words: List[str],
     except Exception as e:
         logging.error(f"Error creating network diagram: {e}")
         return None
-    
 
-def analyze_data_quality(df: pd.DataFrame) -> None:
-    # High-level metrics
-    col1, col2, col3, col4 = st.columns(4)
+def render_scraping_tab():
+    """Render the scraping tab"""
+    st.header("Scrape PFD Reports")
     
-    with col1:
-        st.metric("Total Records", len(df))
-    
-    with col2:
-        # Calculate completeness excluding list columns
-        non_list_cols = df.select_dtypes(exclude=['object']).columns
-        completeness = 100 - (df[non_list_cols].isnull().sum().sum() / (len(non_list_cols) * len(df)) * 100)
-        st.metric("Data Completeness", f"{completeness:.2f}%")
-    
-    with col3:
-        # Calculate duplicates based on key columns
-        key_cols = ['Title', 'URL', 'date_of_report']
-        duplicates = df.duplicated(subset=key_cols).sum()
-        st.metric("Duplicate Records", duplicates)
-    
-    with col4:
-        unique_records = len(df) - duplicates
-        st.metric("Unique Records", unique_records)
-    
-    # Column Completeness Analysis
-    st.subheader("Column Completeness")
-    
-    # Handle non-list columns for completeness analysis
-    completeness_data = []
-    for column in df.columns:
-        if df[column].dtype != 'object' or not df[column].apply(lambda x: isinstance(x, list)).any():
-            missing = df[column].isnull().sum()
-            completeness_pct = (1 - missing / len(df)) * 100
-            completeness_data.append({
-                'Column': column,
-                'Missing Values': missing,
-                'Completeness (%)': round(completeness_pct, 2)
-            })
-    
-    completeness_df = pd.DataFrame(completeness_data).sort_values('Missing Values', ascending=False)
-    
-    # Create completeness visualization
-    if not completeness_df.empty:
-        fig_completeness = px.bar(
-            completeness_df,
-            x='Column',
-            y='Completeness (%)',
-            title='Column Completeness',
-            labels={'Completeness (%)': 'Completeness (%)'},
-            color='Completeness (%)',
-            color_continuous_scale='RdYlGn'
+    if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
+        # Show existing results if available
+        st.success(f"Found {len(st.session_state.scraped_data)} reports")
+        
+        # Display results table
+        st.subheader("Results")
+        st.dataframe(
+            st.session_state.scraped_data,
+            column_config={
+                "URL": st.column_config.LinkColumn("Report Link"),
+                "date_of_report": st.column_config.DateColumn("Date of Report"),
+                "categories": st.column_config.ListColumn("Categories")
+            },
+            hide_index=True
         )
-        fig_completeness.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig_completeness, use_container_width=True)
-    
-    # Detailed Column Analysis
-    st.subheader("Detailed Column Analysis")
-    
-    tab1, tab2, tab3 = st.tabs([
-        "Categorical Columns", 
-        "Numerical Columns", 
-        "Date Columns"
-    ])
-    
-    with tab1:
-        categorical_cols = ['categories', 'coroner_area']
         
-        for col in categorical_cols:
-            if col in df.columns:
-                if col == 'categories':
-                    # Flatten list columns safely
-                    all_values = []
-                    for value in df[col].dropna():
-                        if isinstance(value, list):
-                            all_values.extend(value)
-                        elif isinstance(value, str):
-                            try:
-                                parsed_value = ast.literal_eval(value)
-                                if isinstance(parsed_value, list):
-                                    all_values.extend(parsed_value)
-                            except:
-                                all_values.append(value)
-                    
-                    if all_values:
-                        value_counts = pd.Series(all_values).value_counts()
-                        top_values = value_counts.head(10)
-                        
-                        fig_cat = px.bar(
-                            x=top_values.index, 
-                            y=top_values.values,
-                            title=f'Top 10 Values in {col}',
-                            labels={'x': 'Value', 'y': 'Count'}
-                        )
-                        fig_cat.update_layout(xaxis_tickangle=-45)
-                        st.plotly_chart(fig_cat, use_container_width=True)
-                else:
-                    # Handle regular categorical columns
-                    value_counts = df[col].value_counts()
-                    if not value_counts.empty:
-                        top_values = value_counts.head(10)
-                        
-                        fig_cat = px.bar(
-                            x=top_values.index, 
-                            y=top_values.values,
-                            title=f'Top 10 Values in {col}',
-                            labels={'x': 'Value', 'y': 'Count'}
-                        )
-                        fig_cat.update_layout(xaxis_tickangle=-45)
-                        st.plotly_chart(fig_cat, use_container_width=True)
+        # Show export options
+        show_export_options(st.session_state.scraped_data, "scraped")
     
-    with tab2:
-        numerical_cols = df.select_dtypes(include=['int64', 'float64']).columns
+    with st.form("scraping_form"):
+        col1, col2 = st.columns(2)
         
-        if len(numerical_cols) > 0:
-            desc_stats = df[numerical_cols].describe()
-            st.dataframe(desc_stats)
-            
-            fig_box = go.Figure()
-            for col in numerical_cols:
-                fig_box.add_trace(go.Box(y=df[col], name=col))
-            
-            fig_box.update_layout(
-                title='Distribution of Numerical Columns',
-                yaxis_title='Values'
-            )
-            st.plotly_chart(fig_box, use_container_width=True)
-    
-    with tab3:
-        date_cols = df.select_dtypes(include=['datetime64']).columns
-        
-        for col in date_cols:
-            min_date = df[col].min()
-            max_date = df[col].max()
-            
-            monthly_dist = df.groupby(pd.Grouper(key=col, freq='ME')).size()
-            
-            fig_date = px.line(
-                x=monthly_dist.index, 
-                y=monthly_dist.values,
-                title=f'Monthly Distribution of {col}',
-                labels={'x': 'Date', 'y': 'Number of Records'}
-            )
-            st.plotly_chart(fig_date, use_container_width=True)
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Earliest Date", min_date.strftime('%Y-%m-%d'))
-            with col2:
-                st.metric("Latest Date", max_date.strftime('%Y-%m-%d'))
-            with col3:
-                st.metric("Total Date Range", f"{(max_date - min_date).days} days")
-
-
-def render_analysis_tab(data: pd.DataFrame):
-    """Render the analysis tab with upload option"""
-    st.header("Reports Analysis")
-    
-    if st.session_state.current_data is not None:
-        col1, col2 = st.columns([3, 1])
         with col1:
-            total_reports = len(st.session_state.current_data) if isinstance(st.session_state.current_data, pd.DataFrame) else 0
-            data_source = st.session_state.data_source or "unknown source"
-            st.info(f"Currently analyzing {total_reports} reports from {data_source}")
+            search_keyword = st.text_input("Search keywords:", "")
+            category = st.selectbox("PFD Report type:", [""] + get_pfd_categories())
+            order = st.selectbox("Sort by:", [
+                "relevance",
+                "desc",
+                "asc"
+            ], format_func=lambda x: {
+                "relevance": "Relevance",
+                "desc": "Newest first",
+                "asc": "Oldest first"
+            }[x])
+        
         with col2:
-            if st.button("Clear Current Data"):
-                st.session_state.current_data = None
-                st.session_state.data_source = None
-                st.session_state.scraped_data = None
-                st.session_state.uploaded_data = None
-                st.rerun()
-
-    if st.session_state.current_data is None:
-        upload_col1, upload_col2 = st.columns([3, 1])
-        with upload_col1:
-            uploaded_file = st.file_uploader(
-                "Upload CSV or Excel file", 
-                type=['csv', 'xlsx']
+            date_after = st.date_input(
+                "Published after:",
+                None,
+                format="DD/MM/YYYY"
+            )
+            
+            date_before = st.date_input(
+                "Published before:",
+                None,
+                format="DD/MM/YYYY"
+            )
+            
+            max_pages = st.number_input(
+                "Maximum pages to scrape (0 for all):", 
+                min_value=0, 
+                value=0
             )
         
-        if uploaded_file is not None:
-            try:
-                if uploaded_file.name.lower().endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                elif uploaded_file.name.lower().endswith(('.xls', '.xlsx')):
-                    df = pd.read_excel(uploaded_file)
+        submitted = st.form_submit_button("Search Reports")
+    
+    if submitted:
+        try:
+            with st.spinner("Searching for reports..."):
+                # Convert dates to required format
+                date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
+                date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
+                
+                # Set max pages
+                max_pages_val = None if max_pages == 0 else max_pages
+                
+                # Perform scraping
+                reports = scrape_pfd_reports(
+                    keyword=search_keyword,
+                    category=category if category else None,
+                    date_after=date_after_str,
+                    date_before=date_before_str,
+                    order=order,
+                    max_pages=max_pages_val
+                )
+                
+                if reports:
+                    # Process the data
+                    df = pd.DataFrame(reports)
+                    df = process_scraped_data(df)
+                    
+                    # Store in session state
+                    st.session_state.scraped_data = df
+                    st.session_state.data_source = 'scraped'
+                    st.session_state.current_data = df
+                    
+                    # Instead of experimental_rerun, use regular rerun
+                    st.rerun()
                 else:
-                    st.error("Unsupported file type")
-                    return
-                
-                required_columns = [
-                    'Title', 'URL', 'Content', 
-                    'date_of_report', 'categories', 'coroner_area'
-                ]
-                
-                missing_columns = [col for col in required_columns if col not in df.columns]
-                if missing_columns:
-                    st.error(f"Missing required columns: {', '.join(missing_columns)}")
-                    st.write("Available columns:", list(df.columns))
-                    return
-                
-                processed_df = process_scraped_data(df)
-                
-                st.session_state.uploaded_data = processed_df.copy()
-                st.session_state.current_data = processed_df.copy()
-                st.session_state.data_source = 'uploaded'
-                
-                st.success(f"File uploaded successfully! Total reports: {len(processed_df)}")
-                st.rerun()
-                
-            except Exception as read_error:
-                st.error(f"Error reading file: {read_error}")
-                logging.error(f"File read error: {read_error}", exc_info=True)
-                return
-        return
+                    st.warning("No reports found matching your search criteria")
+                    return False
+                    
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+            logging.error(f"Scraping error: {e}")
+            return False
 
+def show_export_options(df: pd.DataFrame, prefix: str):
+    """Show export options for the data"""
+    st.subheader("Export Options")
+    
+    # Generate filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"pfd_reports_{prefix}_{timestamp}"
+    
+    col1, col2 = st.columns(2)
+    
+    # CSV Export
+    with col1:
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "📥 Download Reports (CSV)",
+            csv,
+            f"{filename}.csv",
+            "text/csv",
+            key=f"download_csv_{prefix}_{timestamp}"
+        )
+    
+    # Excel Export
+    with col2:
+        excel_data = export_to_excel(df)
+        st.download_button(
+            "📥 Download Reports (Excel)",
+            excel_data,
+            f"{filename}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"download_excel_{prefix}_{timestamp}"
+        )
+    
+    # PDF Download
+    st.subheader("Download PDFs")
+    if st.button(f"Download all PDFs_{timestamp}", key=f"pdf_button_{prefix}_{timestamp}"):
+        with st.spinner("Preparing PDF download..."):
+            pdf_zip_path = f"{filename}_pdfs.zip"
+            
+            with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
+                unique_pdfs = set()
+                pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
+                
+                for col in pdf_columns:
+                    paths = df[col].dropna()
+                    unique_pdfs.update(paths)
+                
+                for pdf_path in unique_pdfs:
+                    if pdf_path and os.path.exists(pdf_path):
+                        zipf.write(pdf_path, os.path.basename(pdf_path))
+            
+            with open(pdf_zip_path, 'rb') as f:
+                st.download_button(
+                    "📦 Download All PDFs (ZIP)",
+                    f.read(),
+                    pdf_zip_path,
+                    "application/zip",
+                    key=f"download_pdfs_zip_{prefix}_{timestamp}"
+                )
+            
+            # Cleanup zip file
+            os.remove(pdf_zip_path)
+
+    
+def render_analysis_tab(data: pd.DataFrame):
+    """Render the analysis tab with working filters"""
     try:
-        is_valid, message = validate_data(data, "analysis")
-        if not is_valid:
-            st.error(message)
-            return
-            
-        # Safe date range calculation
-        valid_dates = data['date_of_report'].dropna()
-        if len(valid_dates) == 0:
-            st.error("No valid dates found in the data")
-            return
-            
-        min_date = valid_dates.min()
-        max_date = valid_dates.max()
+        # Generate a unique key prefix for this session
+        unique_id = f"{int(time.time() * 1000)}"
         
-        if pd.isna(min_date) or pd.isna(max_date):
-            st.error("Invalid date range in data")
+        # Validate data
+        if data is None or len(data) == 0:
+            st.warning("No data available for analysis. Please scrape or upload data first.")
             return
             
-        min_date = min_date.date()
-        max_date = max_date.date()
+        # Check required columns
+        required_columns = ['date_of_report', 'categories', 'coroner_area']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            st.error(f"Missing required columns: {', '.join(missing_columns)}")
+            return
+
+        st.header("Reports Analysis")
         
+        # Ensure date_of_report is datetime
+        if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
+            data['date_of_report'] = pd.to_datetime(data['date_of_report'], errors='coerce')
+        
+        # Handle missing dates
+        if data['date_of_report'].isna().all():
+            st.error("No valid dates found in the data.")
+            return
+            
+        # Store the original data
+        if 'original_analysis_data' not in st.session_state:
+            st.session_state.original_analysis_data = data.copy()
+        
+        # Get date range for the data
+        min_date = data['date_of_report'].min().date()
+        max_date = data['date_of_report'].max().date()
+            
+        # Filters sidebar
         with st.sidebar:
             st.header("Analysis Filters")
             
+            # Date range filter
             date_range = st.date_input(
                 "Date Range",
                 value=(min_date, max_date),
                 min_value=min_date,
                 max_value=max_date,
-                format="DD/MM/YYYY",
-                key="date_range_filter"
+                key=f"date_range_{unique_id}"
             )
             
+            # Category filter
             all_categories = set()
             for cats in data['categories'].dropna():
                 if isinstance(cats, list):
@@ -1037,24 +1003,35 @@ def render_analysis_tab(data: pd.DataFrame):
             selected_categories = st.multiselect(
                 "Categories",
                 options=sorted(all_categories),
-                key="categories_filter"
+                key=f"categories_{unique_id}"
             )
             
+            # Coroner area filter
             coroner_areas = sorted(data['coroner_area'].dropna().unique())
             selected_areas = st.multiselect(
                 "Coroner Areas",
                 options=coroner_areas,
-                key="areas_filter"
+                key=f"areas_{unique_id}"
             )
+            
+            # Add a clear filters button
+            if st.button("Clear Filters", key=f"clear_filters_{unique_id}"):
+                st.session_state[f"date_range_{unique_id}"] = (min_date, max_date)
+                st.session_state[f"categories_{unique_id}"] = []
+                st.session_state[f"areas_{unique_id}"] = []
+                st.rerun()
         
+        # Apply filters
         filtered_df = data.copy()
         
+        # Date filter
         if len(date_range) == 2:
             filtered_df = filtered_df[
                 (filtered_df['date_of_report'].dt.date >= date_range[0]) &
                 (filtered_df['date_of_report'].dt.date <= date_range[1])
             ]
         
+        # Category filter
         if selected_categories:
             filtered_df = filtered_df[
                 filtered_df['categories'].apply(
@@ -1062,12 +1039,14 @@ def render_analysis_tab(data: pd.DataFrame):
                 )
             ]
         
+        # Area filter
         if selected_areas:
             filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
         
+        # Show filter status
         active_filters = []
-        if len(date_range) == 2 and (date_range[0] != min_date or date_range[1] != max_date):
-            active_filters.append(f"Date range: {date_range[0].strftime('%d/%m/%Y')} to {date_range[1].strftime('%d/%m/%Y')}")
+        if len(date_range) == 2:
+            active_filters.append(f"Date range: {date_range[0]} to {date_range[1]}")
         if selected_categories:
             active_filters.append(f"Categories: {', '.join(selected_categories)}")
         if selected_areas:
@@ -1080,8 +1059,10 @@ def render_analysis_tab(data: pd.DataFrame):
             st.warning("No data matches the selected filters.")
             return
             
+        # Display filtered results count
         st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
         
+        # Overview metrics
         st.subheader("Overview")
         col1, col2, col3, col4 = st.columns(4)
         
@@ -1094,16 +1075,16 @@ def render_analysis_tab(data: pd.DataFrame):
                                  for cats in filtered_df['categories'].dropna())
             st.metric("Total Category Tags", categories_count)
         with col4:
-            date_range_days = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
-            avg_reports_month = len(filtered_df) / (date_range_days / 30) if date_range_days > 0 else len(filtered_df)
+            date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
+            avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
             st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
         
+        # Visualizations
         st.subheader("Visualizations")
-        viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
+        viz_tab1, viz_tab2, viz_tab3 = st.tabs([
             "Timeline",
             "Categories",
-            "Coroner Areas",
-            "Data Quality"
+            "Coroner Areas"
         ])
         
         with viz_tab1:
@@ -1123,20 +1104,18 @@ def render_analysis_tab(data: pd.DataFrame):
                 plot_coroner_areas(filtered_df)
             except Exception as e:
                 st.error(f"Error creating coroner areas plot: {str(e)}")
-                
-        with viz_tab4:
-            try:
-                analyze_data_quality(filtered_df)
-            except Exception as e:
-                st.error(f"Error creating data quality analysis: {str(e)}")
         
+        # Export filtered data
         show_export_options(filtered_df, "filtered")
-        
+
     except Exception as e:
-        st.error(f"An unexpected error occurred in the analysis tab: {str(e)}")
-        logging.error(f"Unexpected error in render_analysis_tab: {e}", exc_info=True)
+        st.error(f"An error occurred in the analysis tab: {str(e)}")
+        logging.error(f"Analysis error: {e}", exc_info=True)
+        
+
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
+    """Handle Excel export with proper buffer management"""
     excel_buffer = io.BytesIO()
     try:
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
@@ -1144,33 +1123,249 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
         return excel_buffer.getvalue()
     finally:
         excel_buffer.close()
+        
+def render_topic_modeling_tab(data: pd.DataFrame):
+    """Render the topic modeling tab"""
+    st.header("Topic Modeling Analysis")
+    
+    # Sidebar controls
+    with st.sidebar:
+        st.header("Topic Modeling Options")
+        
+        num_topics = st.slider(
+            "Number of Topics",
+            min_value=2,
+            max_value=20,
+            value=5,
+            help="Select number of topics to extract"
+        )
+        
+        max_features = st.slider(
+            "Maximum Features",
+            min_value=100,
+            max_value=5000,
+            value=1000,
+            step=100,
+            help="Maximum number of words to include in analysis"
+        )
+        
+        similarity_threshold = st.slider(
+            "Word Similarity Threshold",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.3,
+            help="Minimum similarity score for word connections"
+        )
+    
+    # Run topic modeling
+    if st.button("Extract Topics"):
+        try:
+            with st.spinner("Preprocessing text and extracting topics..."):
+                # Check for valid documents
+                valid_docs = data['Content'].dropna().str.strip().str.len() > 0
+                if valid_docs.sum() < 2:
+                    st.error("Not enough valid documents found. Please ensure you have documents with text content.")
+                    return
+                
+                # Extract topics
+                result = extract_topics_lda(
+                    data,
+                    num_topics=num_topics,
+                    max_features=max_features
+                )
+                
+                if result[0] is None:
+                    return
+                
+                lda_model, vectorizer, doc_topics = result
+                
+                # Store results
+                st.session_state.topic_model = {
+                    'model': lda_model,
+                    'vectorizer': vectorizer,
+                    'doc_topics': doc_topics
+                }
+                
+                st.success("Topic extraction complete!")
+                
+                # Display results
+                st.subheader("Topic Analysis Results")
+                
+                # Get topic words
+                feature_names = vectorizer.get_feature_names_out()
+                
+                # Create tabs for different visualizations
+                topic_tab, dist_tab, network_tab, doc_tab = st.tabs([
+                    "Topic Keywords",
+                    "Topic Distribution",
+                    "Word Networks",
+                    "Documents by Topic"
+                ])
+                
+                with topic_tab:
+                    for idx, topic in enumerate(lda_model.components_):
+                        top_indices = topic.argsort()[:-11:-1]
+                        top_words = [feature_names[i] for i in top_indices]
+                        weights = [topic[i] for i in top_indices]
+                        word_weights = [f"{word} ({weight:.3f})" for word, weight in zip(top_words, weights)]
+                        st.write(f"**Topic {idx + 1}:** {', '.join(word_weights)}")
+                
+                with dist_tab:
+                    topic_dist = np.sum(doc_topics, axis=0)
+                    topic_props = topic_dist / topic_dist.sum() * 100
+                    
+                    fig = px.bar(
+                        x=[f"Topic {i+1}" for i in range(num_topics)],
+                        y=topic_props,
+                        title="Topic Distribution Across Documents",
+                        labels={'x': 'Topic', 'y': 'Percentage of Documents (%)'}
+                    )
+                    fig.update_layout(showlegend=False)
+                    st.plotly_chart(fig)
+                
+                with network_tab:
+                    for idx, topic in enumerate(lda_model.components_):
+                        with st.expander(f"Topic {idx + 1} Network"):
+                            top_indices = topic.argsort()[:-11:-1]
+                            top_words = [feature_names[i] for i in top_indices]
+                            fig = create_network_diagram(
+                                top_words,
+                                lda_model.components_[idx].reshape(1, -1),
+                                similarity_threshold
+                            )
+                            if fig:
+                                st.plotly_chart(fig)
+                
+                with doc_tab:
+                    for topic_idx in range(num_topics):
+                        with st.expander(f"Topic {topic_idx + 1} Documents"):
+                            topic_docs = [i for i, doc_topic in enumerate(doc_topics) 
+                                        if np.argmax(doc_topic) == topic_idx]
+                            
+                            if topic_docs:
+                                st.write(f"Number of documents: {len(topic_docs)}")
+                                
+                                for i, doc_idx in enumerate(topic_docs[:3], 1):
+                                    st.markdown(f"**Document {i}**")
+                                    st.markdown(f"*Title:* {data.iloc[doc_idx]['Title']}")
+                                    st.markdown(f"*URL:* {data.iloc[doc_idx]['URL']}")
+                                    
+                                    content = data.iloc[doc_idx]['Content']
+                                    preview = content[:500] + "..." if len(content) > 500 else content
+                                    st.text_area(f"Content Preview {i}", preview, height=150)
+                            else:
+                                st.info("No documents found predominantly featuring this topic")
+                    
+                    # Download topic assignments
+                    topic_assignments = pd.DataFrame({
+                        'Document': data['Title'],
+                        'URL': data['URL'],
+                        'Dominant_Topic': np.argmax(doc_topics, axis=1) + 1,
+                        'Topic_Probability': np.max(doc_topics, axis=1)
+                    })
+                    
+                    csv = topic_assignments.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "📥 Download Topic Assignments",
+                        csv,
+                        "topic_assignments.csv",
+                        "text/csv",
+                        key="download_topics"
+                    )
+        
+        except Exception as e:
+            st.error(f"Error during topic modeling: {str(e)}")
+            logging.error(f"Topic modeling error: {e}", exc_info=True)
+
+
+
+def render_file_upload():
+    """Render file upload section"""
+    st.header("Upload Existing Data")
+    
+    # Generate unique key for the file uploader
+    upload_key = f"file_uploader_{int(time.time() * 1000)}"
+    
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file", 
+        type=['csv', 'xlsx'],
+        key=upload_key
+    )
+    
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            
+            # Process uploaded data
+            df = process_scraped_data(df)
+            
+            # Clear any existing data first
+            st.session_state.current_data = None
+            st.session_state.scraped_data = None
+            st.session_state.uploaded_data = None
+            st.session_state.data_source = None
+            
+            # Then set new data
+            st.session_state.uploaded_data = df.copy()
+            st.session_state.data_source = 'uploaded'
+            st.session_state.current_data = df.copy()
+            
+            st.success("File uploaded and processed successfully!")
+            
+            # Show the uploaded data
+            st.subheader("Uploaded Data Preview")
+            st.dataframe(
+                df,
+                column_config={
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "date_of_report": st.column_config.DateColumn("Date of Report"),
+                    "categories": st.column_config.ListColumn("Categories")
+                },
+                hide_index=True
+            )
+            
+            return True
+            
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            logging.error(f"File upload error: {e}", exc_info=True)
+            return False
+    
+    return False
 
 def initialize_session_state():
-    if not hasattr(st.session_state, 'initialized') or not st.session_state.initialized:
-        default_state = {
-            'data_source': None,
-            'current_data': None,
-            'scraped_data': None,
-            'uploaded_data': None,
-            'topic_model': None,
-            'cleanup_done': False,
-            'last_scrape_time': None,
-            'last_upload_time': None,
-            'analysis_filters': {
-                'date_range': None,
-                'selected_categories': [],
-                'selected_areas': []
-            },
-            'topic_model_settings': {
-                'num_topics': 5, 'max_features': 1000,
-                'similarity_threshold': 0.3
-            },
-            'initialized': True
-        }
+    """Initialize all required session state variables"""
+    # Initialize basic state variables if they don't exist
+    if not hasattr(st.session_state, 'initialized'):
+        # Clear all existing session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         
-        for key, value in default_state.items():
-            setattr(st.session_state, key, value)
+        # Set new session state variables
+        st.session_state.data_source = None
+        st.session_state.current_data = None
+        st.session_state.scraped_data = None
+        st.session_state.uploaded_data = None
+        st.session_state.topic_model = None
+        st.session_state.cleanup_done = False
+        st.session_state.last_scrape_time = None
+        st.session_state.last_upload_time = None
+        st.session_state.analysis_filters = {
+            'date_range': None,
+            'selected_categories': None,
+            'selected_areas': None
+        }
+        st.session_state.topic_model_settings = {
+            'num_topics': 5,
+            'max_features': 1000,
+            'similarity_threshold': 0.3
+        }
+        st.session_state.initialized = True
     
+    # Perform PDF cleanup if not done
     if not st.session_state.cleanup_done:
         try:
             pdf_dir = 'pdfs'
@@ -1183,71 +1378,129 @@ def initialize_session_state():
                 file_path = os.path.join(pdf_dir, file)
                 try:
                     if os.path.isfile(file_path):
-                        file_age = current_time - os.path.getmtime(file_path)
-                        if file_age > 86400:
+                        if os.stat(file_path).st_mtime < current_time - 86400:
                             os.remove(file_path)
                             cleanup_count += 1
                 except Exception as e:
                     logging.warning(f"Error cleaning up file {file_path}: {e}")
+                    continue
             
             if cleanup_count > 0:
                 logging.info(f"Cleaned up {cleanup_count} old PDF files")
-            
-            st.session_state.cleanup_done = True
-        
         except Exception as e:
             logging.error(f"Error during PDF cleanup: {e}")
-            st.session_state.cleanup_done = False
-
-def main():
-    initialize_session_state()
-    st.title("UK Judiciary PFD Reports Analysis")
-    st.markdown("""
-    This application allows you to analyze Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can either scrape new reports or analyze existing data.
-    """)
+        finally:
+            st.session_state.cleanup_done = True
+def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
+    """
+    Validate data for different purposes
     
-    current_tab = st.radio(
-        "Select section:",
-        ["🔍 Scrape Reports", "📊 Analysis", "🔬 Topic Modeling"],
-        label_visibility="collapsed",
-        horizontal=True,
-        key="main_tab_selector"
-    )
+    Args:
+        data: DataFrame to validate
+        purpose: Purpose of validation ('analysis' or 'topic_modeling')
+        
+    Returns:
+        tuple: (is_valid, message)
+    """
+    if data is None:
+        return False, "No data available. Please scrape or upload data first."
     
-    st.markdown("---")
+    if not isinstance(data, pd.DataFrame):
+        return False, "Invalid data format. Expected pandas DataFrame."
     
-    if current_tab == "🔍 Scrape Reports":
-        render_scraping_tab()
-    
-    elif current_tab == "📊 Analysis":
-        if hasattr(st.session_state, 'current_data'):
-            render_analysis_tab(st.session_state.current_data)
-        else:
-            st.warning("No data available. Please scrape reports or upload a file.")
-    
-    elif current_tab == "🔬 Topic Modeling":
-        if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
-            st.warning("No data available. Please scrape reports or upload a file first.")
-            return
+    if len(data) == 0:
+        return False, "Dataset is empty."
+        
+    if purpose == "analysis":
+        required_columns = ['date_of_report', 'categories', 'coroner_area']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            return False, f"Missing required columns: {', '.join(missing_columns)}"
             
+    elif purpose == "topic_modeling":
+        if 'Content' not in data.columns:
+            return False, "Missing required column: Content"
+            
+        valid_docs = data['Content'].dropna().str.strip().str.len() > 0
+        if valid_docs.sum() < 2:
+            return False, "Not enough valid documents found. Please ensure you have documents with text content."
+            
+    # Add type checking for critical columns
+    if 'date_of_report' in data.columns and not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
         try:
-            is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
-            if is_valid:
-                render_topic_modeling_tab(st.session_state.current_data)
-            else:
-                st.error(message)
-        except Exception as e:
-            st.error(f"Error in topic modeling: {e}")
-            logging.error(f"Topic modeling error: {e}", exc_info=True)
+            pd.to_datetime(data['date_of_report'])
+        except Exception:
+            return False, "Invalid date format in date_of_report column."
+            
+    if 'categories' in data.columns:
+        if not data['categories'].apply(lambda x: isinstance(x, (list, type(None)))).all():
+            return False, "Categories must be stored as lists or None values."
     
-    st.markdown("---")
-    st.markdown(
-        """<div style='text-align: center'>
-        <p>Built with Streamlit • Data from UK Judiciary</p>
-        </div>""",
-        unsafe_allow_html=True
-    )
+    return True, "Data is valid"
+    
+def main():
+    try:
+        initialize_session_state()
+        st.title("UK Judiciary PFD Reports Analysis")
+        st.markdown("""
+        This application allows you to analyze Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+        You can either scrape new reports or upload existing data for analysis.
+        """)
+        
+        # Create separate tab selection to avoid key conflicts
+        current_tab = st.radio(
+            "Select section:",
+            ["🔍 Scrape Reports", "📤 Upload Data", "📊 Analysis", "🔬 Topic Modeling"],
+            label_visibility="collapsed",
+            horizontal=True,
+            key="main_tab_selector"
+        )
+        
+        st.markdown("---")  # Add separator
+        
+        # Handle tab content
+        if current_tab == "🔍 Scrape Reports":
+            render_scraping_tab()
+        
+        elif current_tab == "📤 Upload Data":
+            render_file_upload()
+        
+        elif current_tab == "📊 Analysis":
+            if st.session_state.current_data is not None:
+                is_valid, message = validate_data(st.session_state.current_data, "analysis")
+                if is_valid:
+                    render_analysis_tab(st.session_state.current_data)
+                else:
+                    st.error(message)
+            else:
+                st.warning("Please scrape or upload data first")
+        
+        elif current_tab == "🔬 Topic Modeling":
+            if st.session_state.current_data is not None:
+                is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
+                if is_valid:
+                    render_topic_modeling_tab(st.session_state.current_data)
+                else:
+                    st.error(message)
+            else:
+                st.warning("Please scrape or upload data first")
+        
+        # Show data source indicator in sidebar
+        if st.session_state.data_source:
+            st.sidebar.success(f"Currently using {st.session_state.data_source} data")
+        
+        # Add footer
+        st.markdown("---")
+        st.markdown(
+            """<div style='text-align: center'>
+            <p>Built with Streamlit • Data from UK Judiciary</p>
+            </div>""",
+            unsafe_allow_html=True
+        )
+        
+    except Exception as e:
+        st.error(f"An application error occurred: {str(e)}")
+        logging.error(f"Application error: {e}", exc_info=True)
 
 if __name__ == "__main__":
     main()
