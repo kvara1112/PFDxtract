@@ -408,48 +408,46 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     """Scrape PFD reports with comprehensive filtering"""
     all_reports = []
     current_page = 1
-    base_url = "https://www.judiciary.uk/prevention-of-future-death-reports/"
+    base_url = "https://www.judiciary.uk/"
     
     # Build query parameters
-    params = []
+    params = {
+        'post_type': 'pfd',
+        'order': order
+    }
     
+    # Only add keyword if it exists
     if keyword and keyword.strip():
-        params.append(f"s={keyword.strip()}")
+        params['s'] = keyword.strip()
     
+    # Add category if selected
     if category:
-        params.append(f"pfd_report_type={category}")
-    
-    # Add sort order
-    params.append(f"order={order}")
-    
-    # Always add post type
-    params.append("post_type=pfd")
+        params['pfd_report_type'] = category
     
     # Handle date parameters
     if date_after:
         try:
             day, month, year = date_after.split('/')
-            params.extend([
-                f"after-day={day}",
-                f"after-month={month}",
-                f"after-year={year}"
-            ])
+            params['after-year'] = year
+            params['after-month'] = month
+            params['after-day'] = day
         except ValueError as e:
             logging.error(f"Invalid date_after format: {e}")
+            return []
     
     if date_before:
         try:
             day, month, year = date_before.split('/')
-            params.extend([
-                f"before-day={day}",
-                f"before-month={month}",
-                f"before-year={year}"
-            ])
+            params['before-year'] = year
+            params['before-month'] = month
+            params['before-day'] = day
         except ValueError as e:
             logging.error(f"Invalid date_before format: {e}")
+            return []
     
     # Build initial URL
-    initial_url = f"{base_url}?{'&'.join(params)}"
+    param_strings = [f"{k}={v}" for k, v in params.items()]
+    initial_url = f"{base_url}?{'&'.join(param_strings)}"
     
     st.write(f"Searching URL: {initial_url}")
     
@@ -470,10 +468,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         while current_page <= total_pages:
             # Build page URL
-            if current_page == 1:
-                page_url = initial_url
-            else:
-                page_url = f"{initial_url}&page={current_page}"
+            page_url = initial_url if current_page == 1 else f"{base_url}/page/{current_page}/?{'&'.join(param_strings)}"
             
             # Update progress
             status_text.text(f"Scraping page {current_page} of {total_pages}...")
