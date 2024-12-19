@@ -1099,15 +1099,49 @@ def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, 
     
     return True, "Data is valid"    
 
-def render_analysis_tab(data: pd.DataFrame):
-    """Render the analysis tab with fixed date handling"""
+def render_analysis_tab(data: pd.DataFrame = None):
+    """Render the analysis tab with upload functionality"""
     st.header("Reports Analysis")
     
-    # Add option to clear current data and upload new file
+    if data is None:
+        uploaded_file = st.file_uploader(
+            "Upload CSV or Excel file", 
+            type=['csv', 'xlsx'],
+            key="analysis_file_uploader"
+        )
+        
+        if uploaded_file is not None:
+            try:
+                # Read the file based on extension
+                if uploaded_file.name.lower().endswith('.csv'):
+                    df = pd.read_csv(uploaded_file)
+                else:
+                    df = pd.read_excel(uploaded_file)
+                
+                # Process the data
+                df = process_scraped_data(df)
+                
+                # Update session state
+                st.session_state.uploaded_data = df.copy()
+                st.session_state.current_data = df.copy()
+                st.session_state.data_source = 'uploaded'
+                
+                st.success(f"Successfully uploaded {len(df)} reports!")
+                st.rerun()
+                
+            except Exception as e:
+                st.error(f"Error uploading file: {str(e)}")
+                logging.error(f"Upload error: {e}", exc_info=True)
+                return
+        else:
+            st.warning("No data available. Please upload a file or scrape reports.")
+            return
+    
+    # Show current data info and clear option
     if st.session_state.current_data is not None:
         col1, col2 = st.columns([3, 1])
         with col1:
-            total_reports = len(st.session_state.current_data) if isinstance(st.session_state.current_data, pd.DataFrame) else 0
+            total_reports = len(st.session_state.current_data)
             data_source = st.session_state.data_source or "unknown source"
             st.info(f"Currently analyzing {total_reports} reports from {data_source}")
         with col2:
@@ -1117,152 +1151,119 @@ def render_analysis_tab(data: pd.DataFrame):
                 st.session_state.scraped_data = None
                 st.session_state.uploaded_data = None
                 st.rerun()
+
+        # Validate and display data
+        try:
+            is_valid, message = validate_data(st.session_state.current_data, "analysis")
+            if not is_valid:
+                st.error(message)
+                return
+            
+            # Display the data
+            if 'Title' in st.session_state.current_data.columns:
+                st.subheader("Data Preview")
+                st.dataframe(
+                    st.session_state.current_data[['Title', 'date_of_report', 'coroner_area']].head(),
+                    hide_index=True
+                )
+            
+            # Show data summary
+            st.subheader("Data Summary")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                total_reports = len(st.session_state.current_data)
+                st.metric("Total Reports", total_reports)
+                
+            with col2:
+                unique_areas = st.session_state.current_data['coroner_area'].nunique()
+                st.metric("Unique Coroner Areas", unique_areas)
+                
+            with col3:
+                date_range = pd.to_datetime(st.session_state.current_data['date_of_report'])
+                date_span = (date_range.max() - date_range.min()).days
+                st.metric("Date Range (days)", date_span)
+            
+            # Export options
+            st.subheader("Export Options")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                csv = st.session_state.current_data.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "Download CSV",
+                    csv,
+                    "pfd_reports.csv",
+                    "text/csv",
+                    key="download_csv"
+                )
+            
+            with col2:
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    st.session_state.current_data.to_excel(writer, index=False)
+                st.download_button(
+                    "Download Excel",
+                    buffer.getvalue(),
+                    "pfd_reports.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_excel"
+                )
+                
+        except Exception as e:
+            st.error(f"Analysis error: {str(e)}")
+            logging.error(f"Analysis error: {e}", exc_info=True)
+
+def main():
+    # Initialize session state
+    if 'initialized' not in st.session_state:
+        st.session_state.initialized = True
+        st.session_state.current_data = None
+        st.session_state.scraped_data = None
+        st.session_state.uploaded_data = None
+        st.session_state.data_source = None
     
-    # Validate data before proceeding
-    try:
-        is_valid, message = validate_data(data, "analysis")
-        if not is_valid:
-            st.error(message)
-            return
-            
-        # Convert date_of_report to datetime if it isn't already
-        if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
-            data['date_of_report'] = pd.to_datetime(data['date_of_report'], errors='coerce')
-            
-        # Get date range for the data
-        min_date = data['date_of_report'].min()
-        max_date = data['date_of_report'].max()
-        
-        if pd.isna(min_date) or pd.isna(max_date):
-            st.error("Invalid date range in data")
-            return
-            
-        # Convert timestamps to datetime.date for Streamlit's date_input
-        min_date = min_date.date()
-        max_date = max_date.date()
-        
-        # Sidebar for filtering
-        with st.sidebar:
-            st.header("Analysis Filters")
-            
-            # Date range filter with proper handling
-            try:
-                date_range = st.date_input(
-                    "Date Range",
-                    value=(min_date, max_date),
-                    min_value=min_date,
-                    max_value=max_date,
-                    key="date_range_filter"
-                )
-            except Exception as e:
-                st.error(f"Error setting date range: {str(e)}")
-                date_range = (min_date, max_date)
-            
-            # Category filter
-            all_categories = set()
-            for cats in data['categories'].dropna():
-                if isinstance(cats, list):
-                    all_categories.update(cats)
-            
-            selected_categories = st.multiselect(
-                "Categories",
-                options=sorted(all_categories),
-                key="categories_filter"
-            )
-            
-            # Coroner area filter
-            coroner_areas = sorted(data['coroner_area'].dropna().unique())
-            selected_areas = st.multiselect(
-                "Coroner Areas",
-                options=coroner_areas,
-                key="areas_filter"
-            )
-        
-        # Apply filters
-        filtered_df = data.copy()
-        
-        # Date filter with proper handling
-        if isinstance(date_range, tuple) and len(date_range) == 2:
-            start_date, end_date = date_range
-            filtered_df = filtered_df[
-                (filtered_df['date_of_report'].dt.date >= start_date) &
-                (filtered_df['date_of_report'].dt.date <= end_date)
-            ]
-        
-        # Category filter
-        if selected_categories:
-            filtered_df = filtered_df[
-                filtered_df['categories'].apply(
-                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
-                )
-            ]
-        
-        # Area filter
-        if selected_areas:
-            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
-        
-        # Show filter status
-        active_filters = []
-        if isinstance(date_range, tuple) and len(date_range) == 2:
-            if date_range[0] != min_date or date_range[1] != max_date:
-                active_filters.append(f"Date range: {date_range[0]} to {date_range[1]}")
-        if selected_categories:
-            active_filters.append(f"Categories: {', '.join(selected_categories)}")
-        if selected_areas:
-            active_filters.append(f"Areas: {', '.join(selected_areas)}")
-            
-        if active_filters:
-            st.info(f"Active filters: {' • '.join(active_filters)}")
-        
-        if len(filtered_df) == 0:
-            st.warning("No data matches the selected filters.")
-            return
-            
-        # Display filtered results count
-        st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
-        
-        # Overview metrics
-        st.subheader("Overview")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Total Reports", len(filtered_df))
-        with col2:
-            st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique())
-        with col3:
-            categories_count = sum(len(cats) if isinstance(cats, list) else 0 
-                                 for cats in filtered_df['categories'].dropna())
-            st.metric("Total Category Tags", categories_count)
-        with col4:
-            date_range_days = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
-            avg_reports_month = len(filtered_df) / (date_range_days / 30) if date_range_days > 0 else len(filtered_df)
-            st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
-        
-        # Visualizations
-        st.subheader("Visualizations")
-        viz_tab1, viz_tab2, viz_tab3 = st.tabs([
-            "Timeline",
-            "Categories",
-            "Coroner Areas"
-        ])
-        
-        with viz_tab1:
-            plot_timeline(filtered_df)
-        
-        with viz_tab2:
-            plot_category_distribution(filtered_df)
-        
-        with viz_tab3:
-            plot_coroner_areas(filtered_df)
-        
-        # Export filtered data
-        show_export_options(filtered_df, "filtered")
-        
-    except Exception as e:
-        st.error(f"An error occurred during analysis: {str(e)}")
-        logging.error(f"Analysis error: {e}", exc_info=True)
-
-
+    # App title and description
+    st.title("UK Judiciary PFD Reports Analysis")
+    st.markdown("""
+    This application allows you to analyze Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can either scrape new reports or analyze existing data.
+    """)
+    
+    # Tab selection
+    current_tab = st.radio(
+        "Select section:",
+        ["🔍 Scrape Reports", "📊 Analysis", "🔬 Topic Modeling"],
+        label_visibility="collapsed",
+        horizontal=True,
+        key="main_tab_selector"
+    )
+    
+    st.markdown("---")
+    
+    # Handle tab content
+    if current_tab == "🔍 Scrape Reports":
+        if st.button("Start Scraping"):
+            st.info("Scraping functionality would be implemented here")
+    
+    elif current_tab == "📊 Analysis":
+        current_data = st.session_state.get('current_data')
+        render_analysis_tab(current_data)
+    
+    elif current_tab == "🔬 Topic Modeling":
+        if st.session_state.current_data is None:
+            st.warning("No data available. Please scrape reports or upload a file first.")
+        else:
+            st.info("Topic modeling functionality would be implemented here")
+    
+    # Footer
+    st.markdown("---")
+    st.markdown(
+        """<div style='text-align: center'>
+        <p>Built with Streamlit • Data from UK Judiciary</p>
+        </div>""",
+        unsafe_allow_html=True
+    )
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """Handle Excel export with proper buffer management"""
