@@ -111,13 +111,17 @@ def clean_text_for_modeling(text: str) -> str:
         # Remove URLs
         text = re.sub(r'http\S+|www\S+|https\S+', '', text)
         
-        # Remove numbers and alphanumeric strings
+        # Remove email addresses
+        text = re.sub(r'\S+@\S+', '', text)
+        
+        # Remove any numbers or words containing numbers
         text = re.sub(r'\b\w*\d+\w*\b', '', text)
         
-        # Remove special characters
-        text = re.sub(r'[^a-z\s]', ' ', text)
+        # Remove single characters
+        text = re.sub(r'\b[a-z]\b', '', text)
         
-        # Normalize whitespace
+        # Remove special characters and multiple spaces
+        text = re.sub(r'[^a-z\s]', ' ', text)
         text = re.sub(r'\s+', ' ', text)
         
         return text.strip()
@@ -134,16 +138,16 @@ def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int 
         for _, row in df.iterrows():
             combined_text = combine_document_text(row)
             cleaned_text = clean_text_for_modeling(combined_text)
-            if cleaned_text:
+            if cleaned_text and len(cleaned_text.split()) > 3:  # Ensure meaningful content
                 texts.append(cleaned_text)
         
-        # Configure vectorizer with better parameters
+        # Configure vectorizer with stricter parameters
         vectorizer = TfidfVectorizer(
             max_features=max_features,
             min_df=2,  # Only keep terms appearing in at least 2 documents
             max_df=0.95,  # Remove terms appearing in >95% of documents
             stop_words='english',
-            token_pattern=r'(?u)\b[a-z]+\b'  # Only pure alphabetic words
+            token_pattern=r'(?u)\b[a-z]{2,}\b'  # Only words with 2+ letters
         )
         
         # Create document-term matrix
@@ -154,6 +158,7 @@ def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int 
             n_components=num_topics,
             random_state=42,
             n_jobs=-1,
+            max_iter=20,
             learning_method='batch',
             doc_topic_prior=0.1,
             topic_word_prior=0.01
@@ -162,7 +167,7 @@ def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int 
         # Fit model
         doc_topic_dist = lda_model.fit_transform(tfidf_matrix)
         
-        # Normalize component weights
+        # Normalize the components
         for idx in range(len(lda_model.components_)):
             lda_model.components_[idx] = lda_model.components_[idx] / lda_model.components_[idx].sum()
         
@@ -1585,7 +1590,7 @@ def generate_topic_label(topic_words):
     return " & ".join([word for word, _ in topic_words[:3]]).title()
 
 def format_topic_data(lda_model, vectorizer, doc_topics, df):
-    """Format topic modeling results with normalized weights"""
+    """Format topic modeling results with clean display"""
     feature_names = vectorizer.get_feature_names_out()
     topics_data = []
     
@@ -1603,17 +1608,18 @@ def format_topic_data(lda_model, vectorizer, doc_topics, df):
         
         for i in top_word_indices:
             word = feature_names[i]
-            weight = float(topic[i] * 100)  # Convert to percentage
-            count = sum(1 for doc in df['Content'].fillna('') 
-                       if word in clean_text_for_modeling(doc).split())
-            topic_words.append({
-                'word': word,
-                'weight': weight,
-                'count': count,
-                'documents': doc_freq.get(word, 0)
-            })
+            if len(word) > 1:  # Only include words longer than 1 character
+                weight = float(topic[i])  # Keep as decimal for later processing
+                count = sum(1 for doc in df['Content'].fillna('') 
+                           if word in clean_text_for_modeling(doc).split())
+                topic_words.append({
+                    'word': word,
+                    'weight': weight,
+                    'count': count,
+                    'documents': doc_freq.get(word, 0)
+                })
 
-        # Get related documents with normalized scores
+        # Get related documents
         doc_scores = doc_topics[:, idx]
         doc_scores = doc_scores / doc_scores.sum() if doc_scores.sum() > 0 else doc_scores
         related_docs = []
@@ -1650,15 +1656,19 @@ def format_topic_data(lda_model, vectorizer, doc_topics, df):
                 })
 
         # Calculate topic prevalence
-        topic_prevalence = (doc_scores > 0.05).mean() * 100  # Documents with >5% relevance
+        topic_prevalence = (doc_scores > 0.05).mean() * 100
         
-        # Create topic label from top words
-        label = ' & '.join([feature_names[i] for i in top_word_indices[:3]]).title()
+        # Create topic label from top meaningful words
+        meaningful_words = [
+            feature_names[i] for i in top_word_indices[:5]
+            if len(feature_names[i]) > 1
+        ][:3]
+        label = ' & '.join(meaningful_words).title()
         
         topics_data.append({
             'id': idx,
             'label': label,
-            'description': f"Topic frequently mentions: {', '.join(feature_names[i] for i in top_word_indices[:5])}",
+            'description': f"Topic frequently mentions: {', '.join(meaningful_words[:5])}",
             'words': topic_words,
             'relatedReports': related_docs,
             'prevalence': round(topic_prevalence, 1),
@@ -1730,7 +1740,7 @@ def generate_topic_description(topic_words, topic_docs):
     return description
 
 def render_topic_modeling_tab(data: pd.DataFrame):
-    """Updated topic modeling tab with fixed layout"""
+    """Render the topic modeling analysis tab"""
     st.header("Topic Modeling Analysis")
     
     # Sidebar controls
@@ -1764,7 +1774,7 @@ def render_topic_modeling_tab(data: pd.DataFrame):
     # Run topic modeling
     if st.button("Extract Topics"):
         try:
-            with st.spinner("Preprocessing text and extracting topics..."):
+            with st.spinner("Extracting topics from documents..."):
                 # Extract topics
                 result = extract_topics_lda(data, num_topics=num_topics, max_features=max_features)
                 if not result:
@@ -1784,16 +1794,7 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                 # Display topics
                 for topic in topics_data:
                     st.markdown(f"## Topic: {topic['label']} ({topic['prevalence']}% of reports)")
-                    
-                    # Topic description
                     st.markdown(f"**Description:** {topic['description']}")
-                    
-                    # Trend information
-                    trend = topic['trend']
-                    st.markdown(
-                        f"**Trend:** {trend['direction'].title()} "
-                        f"({trend['percentage']}% change)"
-                    )
                     
                     # Key terms section
                     st.markdown("### Key Terms")
@@ -1804,24 +1805,35 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                     )
                     
                     # Create term frequency table
-                    term_data = pd.DataFrame(
-                        topic['words'][:term_count],
-                        columns=['word', 'count', 'documents', 'weight']
-                    )
-                    term_data['relevance'] = term_data['weight'] * 100
+                    term_data = pd.DataFrame(topic['words'][:term_count])
+                    term_data['relevance'] = term_data['weight'].apply(lambda x: round(x * 100, 2))
+                    
                     st.dataframe(
                         term_data,
                         column_config={
-                            'word': 'Term',
-                            'count': 'Occurrences',
-                            'documents': 'Number of Reports',
+                            'word': st.column_config.TextColumn(
+                                'Term',
+                                width='medium'
+                            ),
+                            'count': st.column_config.NumberColumn(
+                                'Occurrences',
+                                width='small'
+                            ),
+                            'documents': st.column_config.NumberColumn(
+                                'Documents',
+                                help='Number of documents containing this term',
+                                width='small'
+                            ),
                             'relevance': st.column_config.ProgressColumn(
                                 'Relevance',
-                                format='%.1f%%',
+                                help='Percentage relevance to the topic',
+                                format="%.2f%%",
                                 min_value=0,
-                                max_value=100
+                                max_value=100,
+                                width='medium'
                             )
-                        }
+                        },
+                        hide_index=True
                     )
                     
                     # Related reports section
@@ -1829,12 +1841,12 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                     report_tab1, report_tab2 = st.tabs(["Summary View", "Detailed View"])
                     
                     with report_tab1:
-                        # Create a summary table of all related reports
+                        # Create a summary table
                         summary_data = [{
                             'Title': r['title'],
                             'Date': r['date'],
                             'Area': r['area'],
-                            'Relevance': f"{r['topicRelevance']*100:.1f}%"
+                            'Relevance': round(r['topicRelevance'] * 100, 2)
                         } for r in topic['relatedReports']]
                         
                         st.dataframe(
@@ -1843,8 +1855,15 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                                 'Title': st.column_config.TextColumn('Title', width='large'),
                                 'Date': st.column_config.TextColumn('Date', width='small'),
                                 'Area': st.column_config.TextColumn('Area', width='medium'),
-                                'Relevance': st.column_config.TextColumn('Topic Relevance', width='small')
-                            }
+                                'Relevance': st.column_config.ProgressColumn(
+                                    'Topic Relevance',
+                                    format="%.2f%%",
+                                    min_value=0,
+                                    max_value=100,
+                                    width='medium'
+                                )
+                            },
+                            hide_index=True
                         )
                     
                     with report_tab2:
@@ -1866,16 +1885,15 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                                 for other_topic in report['otherTopics']:
                                     st.markdown(
                                         f"- {other_topic['label']}: "
-                                        f"{other_topic['score']*100:.1f}%"
+                                        f"{other_topic['score']*100:.2f}%"
                                     )
                             st.markdown("---")
                     
                     st.markdown("---")
                 
                 # Add download functionality
-                st.markdown("### Export Results")
+                st.markdown("### Export Analysis")
                 if st.button("Download Analysis"):
-                    # Convert topics_data to Excel
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         # Topics overview
@@ -1883,30 +1901,39 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                             'Topic': t['label'],
                             'Description': t['description'],
                             'Prevalence': t['prevalence'],
-                            'Trend': t['trend']['direction']
+                            'Top Terms': ', '.join([w['word'] for w in t['words'][:10]])
                         } for t in topics_data])
                         topics_overview.to_excel(writer, sheet_name='Topics Overview', index=False)
                         
                         # Terms by topic
                         for topic in topics_data:
-                            terms_df = pd.DataFrame(topic['words'])
+                            terms_df = pd.DataFrame([{
+                                'Term': w['word'],
+                                'Relevance': f"{w['weight']*100:.2f}%",
+                                'Occurrences': w['count'],
+                                'Documents': w['documents']
+                            } for w in topic['words']])
                             terms_df.to_excel(
                                 writer, 
-                                sheet_name=f'Terms_{topic["id"]}',
+                                sheet_name=f"Terms_Topic_{topic['id']}",
                                 index=False
                             )
-                    
-                    st.download_button(
-                        "📥 Download Analysis (Excel)",
-                        output.getvalue(),
-                        "topic_analysis.xlsx",
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                    )
-                
-        except Exception as e:
-            st.error(f"Error during topic modeling: {str(e)}")
-            logging.error(f"Topic modeling error: {e}", exc_info=True)
-            
+                            
+                            # Related reports
+                            reports_df = pd.DataFrame([{
+                                'Title': r['title'],
+                                'Date': r['date'],
+                                'Area': r['area'],
+                                'Relevance': f"{r['topicRelevance']*100:.2f}%"
+                            } for r in topic['relatedReports']])
+                            reports_df.to_excel(
+                                writer,
+                                sheet_name=f"Reports_Topic_{topic['id']}",
+                                index=False
+                            )
+
+
+
 def main():
     initialize_session_state()
     st.title("UK Judiciary PFD Reports Analysis")
