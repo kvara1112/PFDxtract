@@ -307,7 +307,6 @@ def get_report_content(url: str) -> Optional[Dict]:
         return None
 
 def scrape_page(url: str) -> List[Dict]:
-    """Scrape a single page of search results"""
     try:
         response = make_request(url)
         if not response:
@@ -340,12 +339,23 @@ def scrape_page(url: str) -> List[Dict]:
                 content_data = get_report_content(card_url)
                 
                 if content_data:
+                    # Extract metadata first
+                    metadata = extract_metadata(content_data['content'])
+                    
+                    # Create report with all fields
                     report = {
                         'Title': title,
                         'URL': card_url,
-                        'Content': content_data['content']
+                        'Content': content_data['content'],
+                        'date_of_report': metadata['date_of_report'],
+                        'ref': metadata['ref'],
+                        'deceased_name': metadata['deceased_name'],
+                        'coroner_name': metadata['coroner_name'],
+                        'coroner_area': metadata['coroner_area'],
+                        'categories': metadata['categories']
                     }
                     
+                    # Add PDF content
                     for i, (name, content, path) in enumerate(zip(
                         content_data['pdf_names'],
                         content_data['pdf_contents'],
@@ -354,6 +364,22 @@ def scrape_page(url: str) -> List[Dict]:
                         report[f'PDF_{i}_Name'] = name
                         report[f'PDF_{i}_Content'] = content
                         report[f'PDF_{i}_Path'] = path
+                        
+                        # Extract additional metadata from PDF content
+                        pdf_metadata = extract_metadata(content)
+                        # Only update if main metadata is missing
+                        if not report['date_of_report']:
+                            report['date_of_report'] = pdf_metadata['date_of_report']
+                        if not report['ref']:
+                            report['ref'] = pdf_metadata['ref']
+                        if not report['deceased_name']:
+                            report['deceased_name'] = pdf_metadata['deceased_name']
+                        if not report['coroner_name']:
+                            report['coroner_name'] = pdf_metadata['coroner_name']
+                        if not report['coroner_area']:
+                            report['coroner_area'] = pdf_metadata['coroner_area']
+                        if not report['categories'] and pdf_metadata['categories']:
+                            report['categories'] = pdf_metadata['categories']
                     
                     reports.append(report)
                     logging.info(f"Successfully processed: {title}")
