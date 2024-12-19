@@ -427,14 +427,12 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                       date_before: Optional[str] = None,
                       order: str = "relevance",
                       max_pages: Optional[int] = None) -> List[Dict]:
-    """Scrape PFD reports with comprehensive filtering"""
+    """Scrape PFD reports with comprehensive filtering and proper pagination"""
     all_reports = []
-    current_page = 1
     base_url = "https://www.judiciary.uk/"
     
     # Validate and prepare category
     if category:
-        # Find exact match, case-insensitive
         matching_categories = [
             cat for cat in get_pfd_categories() 
             if cat.lower() == category.lower()
@@ -445,99 +443,82 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             return []
         
         category = matching_categories[0]
-        
-        # Create URL-friendly slug
         category_slug = category.lower().replace(' ', '-')
         initial_url = f"{base_url}pfd-types/{category_slug}/"
     else:
         initial_url = f"{base_url}prevention-of-future-death-reports/"
     
-    st.write(f"Searching URL: {initial_url}")
+    st.write(f"Initial URL: {initial_url}")
     
     try:
-        # Direct request to get the page content
-        response = make_request(initial_url)
-        if not response:
-            st.error("Failed to retrieve page content")
+        # Build search parameters
+        params = {}
+        if keyword:
+            params['s'] = keyword
+        if date_after:
+            params['date-after'] = date_after
+        if date_before:
+            params['date-before'] = date_before
+        if order and order != "relevance":
+            params['order'] = order
+            
+        # Get total number of pages
+        first_page_url = initial_url
+        if params:
+            first_page_url += '?' + '&'.join(f"{k}={v}" for k, v in params.items())
+            
+        total_pages = get_total_pages(first_page_url)
+        if total_pages == 0:
+            st.warning("No pages found")
             return []
+            
+        st.write(f"Found {total_pages} pages to scrape")
         
-        # Parse the page
-        soup = BeautifulSoup(response.text, 'html.parser')
+        # Limit pages if specified
+        if max_pages is not None and max_pages > 0:
+            total_pages = min(total_pages, max_pages)
+            st.write(f"Will scrape {total_pages} pages due to max_pages limit")
         
-        # Multiple strategies to find report container
-        container_classes = [
-            ['archive__listings', 'search__listing'],
-            ['search__list'],
-            ['govuk-list'],
-            ['archive__posts']
-        ]
-        
-        report_container = None
-        for classes in container_classes:
-            report_container = soup.find('ul', class_=classes) or soup.find('div', class_=classes)
-            if report_container:
-                break
-        
-        if not report_container:
-            st.warning("No report container found")
-            return []
-        
-        # Find all report cards
-        report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full', 'search__item'])
-        
-        st.write(f"Found {len(report_cards)} potential report cards")
-        
-        for card in report_cards:
+        # Scrape each page
+        progress_bar = st.progress(0)
+        for page in range(1, total_pages + 1):
+            # Update progress
+            progress = int((page - 1) / total_pages * 100)
+            progress_bar.progress(progress)
+            st.write(f"Scraping page {page} of {total_pages}...")
+            
+            # Build page URL
+            page_params = params.copy()
+            if page > 1:
+                page_params['paged'] = str(page)
+            
+            page_url = initial_url
+            if page_params:
+                page_url += '?' + '&'.join(f"{k}={v}" for k, v in page_params.items())
+            
+            # Scrape the page
             try:
-                # Extract title
-                title_elem = card.find(['h3', 'h2'], class_=['card__title'])
-                if not title_elem:
-                    continue
-                
-                title_link = title_elem.find('a')
-                if not title_link:
-                    continue
-                
-                title = title_link.text.strip()
-                card_url = title_link['href']
-                
-                # Get full content details
-                content_data = get_report_content(card_url)
-                
-                if content_data:
-                    # Construct report dictionary matching original structure
-                    report = {
-                        'Title': title,
-                        'URL': card_url,
-                        'Content': content_data['content']
-                    }
-                    
-                    # Add PDF details if available
-                    for i, (name, content, path) in enumerate(zip(
-                        content_data['pdf_names'],
-                        content_data['pdf_contents'],
-                        content_data['pdf_paths']
-                    ), 1):
-                        report[f'PDF_{i}_Name'] = name
-                        report[f'PDF_{i}_Content'] = content
-                        report[f'PDF_{i}_Path'] = path
-                    
-                    all_reports.append(report)
-                    logging.info(f"Successfully processed: {title}")
-                
-            except Exception as card_error:
-                logging.error(f"Error processing card: {card_error}")
+                page_reports = scrape_page(page_url)
+                if page_reports:
+                    all_reports.extend(page_reports)
+                    st.write(f"Found {len(page_reports)} reports on page {page}")
+                else:
+                    st.warning(f"No reports found on page {page}")
+            except Exception as page_error:
+                st.error(f"Error scraping page {page}: {str(page_error)}")
+                logging.error(f"Error on page {page}: {str(page_error)}")
                 continue
         
+        # Complete progress bar
+        progress_bar.progress(100)
+        
+        st.success(f"Scraping completed. Total reports found: {len(all_reports)}")
         return all_reports
-    
+        
     except Exception as e:
-        logging.error(f"Error in scrape_pfd_reports: {e}")
-        st.error(f"An error occurred while scraping reports: {e}")
+        st.error(f"Error during scraping: {str(e)}")
+        logging.error(f"Scraping error: {str(e)}")
         return []
-
-
-
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
