@@ -115,50 +115,29 @@ def clean_text(text: str) -> str:
 
 
 def extract_metadata(content: str) -> dict:
-    """Extract comprehensive metadata from report content with UK date handling"""
+    """Extract structured metadata from report content"""
     metadata = {
         'date_of_report': None,
         'ref': None,
         'deceased_name': None,
         'coroner_name': None,
         'coroner_area': None,
-        'categories': [],
-        'hearing_date': None,
-        'investigation_date': None,
-        'report_sent_to': None,
-        'response_due_date': None,
-        'report_author': None,
-        'report_recipient': None,
-        'organisation': None,
-        'location': None
+        'categories': []
     }
     
     if not content:
         return metadata
         
     try:
-        # Extract dates with UK format handling
+        # Extract date patterns
         date_patterns = [
-            # Date of report patterns
-            (r'Date of report:\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', 'date_of_report'),
-            (r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', 'date_of_report'),
-            (r'DATED this (\d{1,2}(?:st|nd|rd|th)?\s+day of [A-Za-z]+\s+\d{4})', 'date_of_report'),
-            (r'Date:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})', 'date_of_report'),
-            
-            # Investigation date patterns
-            (r'Investigation (?:concluded|completed) on:?\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', 'investigation_date'),
-            (r'Investigation date:?\s*(\d{1,2}/\d{1,2}/\d{4})', 'investigation_date'),
-            
-            # Hearing date patterns
-            (r'(?:Inquest|Hearing) concluded on:?\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', 'hearing_date'),
-            (r'Hearing date:?\s*(\d{1,2}/\d{1,2}/\d{4})', 'hearing_date'),
-            
-            # Response due date patterns
-            (r'Response due:?\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', 'response_due_date'),
-            (r'Response required by:?\s*(\d{1,2}/\d{1,2}/\d{4})', 'response_due_date')
+            r'Date of report:\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})',
+            r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})',
+            r'DATED this (\d{1,2}(?:st|nd|rd|th)?\s+day of [A-Za-z]+\s+\d{4})',
+            r'Date:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})'
         ]
         
-        for pattern, field in date_patterns:
+        for pattern in date_patterns:
             date_match = re.search(pattern, content, re.IGNORECASE)
             if date_match:
                 date_str = date_match.group(1)
@@ -173,38 +152,29 @@ def extract_metadata(content: str) -> dict:
                         except ValueError:
                             date_obj = datetime.strptime(date_str, '%d %b %Y')
                     
-                    metadata[field] = date_obj.strftime('%d/%m/%Y')
+                    metadata['date_of_report'] = date_obj.strftime('%d/%m/%Y')
+                    break
                 except ValueError as e:
-                    logging.warning(f"Invalid date format found for {field}: {date_str} - {e}")
+                    logging.warning(f"Invalid date format found: {date_str} - {e}")
         
-        # Extract reference number (expanded patterns)
-        ref_patterns = [
-            r'Ref(?:erence)?:?\s*([-\d]+)',
-            r'Our ref(?:erence)?:?\s*([-\d/]+)',
-            r'Report ref(?:erence)?:?\s*([-\d/]+)'
-        ]
-        for pattern in ref_patterns:
-            ref_match = re.search(pattern, content, re.IGNORECASE)
-            if ref_match:
-                metadata['ref'] = ref_match.group(1).strip()
-                break
+        # Extract reference number
+        ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', content)
+        if ref_match:
+            metadata['ref'] = ref_match.group(1).strip()
         
-        # Extract names and details with expanded patterns
-        name_patterns = [
-            (r'(?:Name of )?[Dd]eceased(?:\'s name)?:?\s*([^\n]+)', 'deceased_name'),
-            (r'Coroner(?:\'?s)? name:?\s*([^\n]+)', 'coroner_name'),
-            (r'Coroner(?:\'?s)? Area:?\s*([^\n]+)', 'coroner_area'),
-            (r'Report made by:?\s*([^\n]+)', 'report_author'),
-            (r'Report (?:sent|addressed) to:?\s*([^\n]+)', 'report_recipient'),
-            (r'Report sent to:?\s*([^\n]+)', 'report_sent_to'),
-            (r'Organisation:?\s*([^\n]+)', 'organisation'),
-            (r'Location:?\s*([^\n]+)', 'location')
-        ]
+        # Extract deceased name
+        name_match = re.search(r'Deceased name:?\s*([^\n]+)', content)
+        if name_match:
+            metadata['deceased_name'] = clean_text(name_match.group(1)).strip()
         
-        for pattern, field in name_patterns:
-            match = re.search(pattern, content, re.IGNORECASE)
-            if match:
-                metadata[field] = clean_text(match.group(1)).strip()
+        # Extract coroner details
+        coroner_match = re.search(r'Coroner(?:\'?s)? name:?\s*([^\n]+)', content)
+        if coroner_match:
+            metadata['coroner_name'] = clean_text(coroner_match.group(1)).strip()
+        
+        area_match = re.search(r'Coroner(?:\'?s)? Area:?\s*([^\n]+)', content)
+        if area_match:
+            metadata['coroner_area'] = clean_text(area_match.group(1)).strip()
         
         # Extract categories
         cat_match = re.search(r'Category:?\s*([^\n]+)', content)
@@ -212,13 +182,6 @@ def extract_metadata(content: str) -> dict:
             categories = cat_match.group(1).split('|')
             metadata['categories'] = [clean_text(cat).strip() for cat in categories if clean_text(cat).strip()]
         
-        # Additional cleaning
-        for key in metadata:
-            if isinstance(metadata[key], str):
-                metadata[key] = re.sub(r'\s*\(continued\)$', '', metadata[key])
-                metadata[key] = re.sub(r'\s*\[.*?\]$', '', metadata[key])
-                metadata[key] = metadata[key].strip()
-        
         return metadata
         
     except Exception as e:
@@ -228,6 +191,7 @@ def extract_metadata(content: str) -> dict:
     except Exception as e:
         logging.error(f"Error extracting metadata: {e}")
         return metadata
+    
 
 def get_pfd_categories() -> List[str]:
     return [
@@ -382,12 +346,6 @@ def scrape_page(url: str) -> List[Dict]:
                         'Content': content_data['content']
                     }
                     
-                    # Extract and add metadata from webpage content
-                    metadata = extract_metadata(content_data['content'])
-                    for key, value in metadata.items():
-                        report[key.title()] = value
-                    
-                    # Process PDFs
                     for i, (name, content, path) in enumerate(zip(
                         content_data['pdf_names'],
                         content_data['pdf_contents'],
@@ -396,13 +354,6 @@ def scrape_page(url: str) -> List[Dict]:
                         report[f'PDF_{i}_Name'] = name
                         report[f'PDF_{i}_Content'] = content
                         report[f'PDF_{i}_Path'] = path
-                        
-                        # Extract additional metadata from PDF content
-                        pdf_metadata = extract_metadata(content)
-                        for key, value in pdf_metadata.items():
-                            # Only update if not already set or if current value is None/empty
-                            if key not in report or not report[key.title()]:
-                                report[key.title()] = value
                     
                     reports.append(report)
                     logging.info(f"Successfully processed: {title}")
@@ -416,7 +367,7 @@ def scrape_page(url: str) -> List[Dict]:
     except Exception as e:
         logging.error(f"Error fetching page {url}: {e}")
         return []
-
+        
 def get_total_pages(url: str) -> int:
     try:
         response = make_request(url)
@@ -814,34 +765,23 @@ def render_scraping_tab():
     st.header("Scrape PFD Reports")
     
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
+        # Show existing results if available
         st.success(f"Found {len(st.session_state.scraped_data)} reports")
         
+        # Display results table
         st.subheader("Results")
-        display_columns = [
-            'Title', 'URL', 'Date_Of_Report', 'Ref', 'Deceased_Name', 
-            'Coroner_Name', 'Coroner_Area', 'Categories', 'Hearing_Date',
-            'Investigation_Date', 'Report_Sent_To', 'Response_Due_Date',
-            'Report_Author', 'Report_Recipient', 'Organisation', 'Location'
-        ]
-        
-        # Filter columns that actually exist in the DataFrame
-        display_columns = [col for col in display_columns if col in st.session_state.scraped_data.columns]
-        
         st.dataframe(
-            st.session_state.scraped_data[display_columns],
+            st.session_state.scraped_data,
             column_config={
                 "URL": st.column_config.LinkColumn("Report Link"),
-                "Date_Of_Report": st.column_config.DateColumn("Date of Report", format="%d/%m/%Y"),
-                "Categories": st.column_config.ListColumn("Categories"),
-                "Hearing_Date": st.column_config.DateColumn("Hearing Date", format="%d/%m/%Y"),
-                "Investigation_Date": st.column_config.DateColumn("Investigation Date", format="%d/%m/%Y"),
-                "Response_Due_Date": st.column_config.DateColumn("Response Due", format="%d/%m/%Y")
+                "date_of_report": st.column_config.DateColumn("Date of Report"),
+                "categories": st.column_config.ListColumn("Categories")
             },
             hide_index=True
         )
         
+        # Show export options
         show_export_options(st.session_state.scraped_data, "scraped")
-
     
     with st.form("scraping_form"):
         col1, col2 = st.columns(2)
@@ -883,10 +823,14 @@ def render_scraping_tab():
     if submitted:
         try:
             with st.spinner("Searching for reports..."):
+                # Convert dates to required format
                 date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
                 date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
+                
+                # Set max pages
                 max_pages_val = None if max_pages == 0 else max_pages
                 
+                # Perform scraping
                 reports = scrape_pfd_reports(
                     keyword=search_keyword,
                     category=category if category else None,
@@ -897,19 +841,24 @@ def render_scraping_tab():
                 )
                 
                 if reports:
+                    # Process the data
                     df = pd.DataFrame(reports)
                     df = process_scraped_data(df)
                     
+                    # Ensure we have a valid, non-empty DataFrame
                     if not df.empty:
+                        # Clear any existing data first
                         st.session_state.current_data = None
                         st.session_state.scraped_data = None
                         st.session_state.uploaded_data = None
                         st.session_state.data_source = None
 
+                        # Store in session state
                         st.session_state.scraped_data = df.copy()
                         st.session_state.data_source = 'scraped'
                         st.session_state.current_data = df.copy()
                         
+                        # Rerun to refresh the page
                         st.rerun()
                     else:
                         st.warning("Scraping completed, but no valid data was found.")
@@ -921,7 +870,7 @@ def render_scraping_tab():
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
-
+            
 def show_export_options(df: pd.DataFrame, prefix: str):
     st.subheader("Export Options")
     
