@@ -1705,7 +1705,7 @@ def generate_topic_description(topic_words, topic_docs):
     return description
 
 def render_topic_modeling_tab(data: pd.DataFrame):
-    """Updated topic modeling tab with improved visualization"""
+    """Updated topic modeling tab with fixed layout"""
     st.header("Topic Modeling Analysis")
     
     # Sidebar controls
@@ -1748,7 +1748,7 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                 
                 lda_model, vectorizer, doc_topics = result
                 
-                # Format results for visualization - removed num_words parameter
+                # Format results for visualization
                 topics_data = format_topic_data(
                     lda_model, 
                     vectorizer, 
@@ -1758,68 +1758,94 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                 
                 # Display topics
                 for topic in topics_data:
-                    with st.expander(f"{topic['label']} ({topic['prevalence']}% of reports)", expanded=True):
-                        # Topic description
-                        st.markdown(f"**Description:** {topic['description']}")
+                    st.markdown(f"## Topic: {topic['label']} ({topic['prevalence']}% of reports)")
+                    
+                    # Topic description
+                    st.markdown(f"**Description:** {topic['description']}")
+                    
+                    # Trend information
+                    trend = topic['trend']
+                    st.markdown(
+                        f"**Trend:** {trend['direction'].title()} "
+                        f"({trend['percentage']}% change)"
+                    )
+                    
+                    # Key terms section
+                    st.markdown("### Key Terms")
+                    term_count = st.slider(
+                        "Number of terms to show", 
+                        5, 50, 10, 
+                        key=f"terms_{topic['id']}"
+                    )
+                    
+                    # Create term frequency table
+                    term_data = pd.DataFrame(
+                        topic['words'][:term_count],
+                        columns=['word', 'count', 'documents', 'weight']
+                    )
+                    term_data['relevance'] = term_data['weight'] * 100
+                    st.dataframe(
+                        term_data,
+                        column_config={
+                            'word': 'Term',
+                            'count': 'Occurrences',
+                            'documents': 'Number of Reports',
+                            'relevance': st.column_config.ProgressColumn(
+                                'Relevance',
+                                format='%.1f%%',
+                                min_value=0,
+                                max_value=100
+                            )
+                        }
+                    )
+                    
+                    # Related reports section
+                    st.markdown("### Related Reports")
+                    report_tab1, report_tab2 = st.tabs(["Summary View", "Detailed View"])
+                    
+                    with report_tab1:
+                        # Create a summary table of all related reports
+                        summary_data = [{
+                            'Title': r['title'],
+                            'Date': r['date'],
+                            'Area': r['area'],
+                            'Relevance': f"{r['topicRelevance']*100:.1f}%"
+                        } for r in topic['relatedReports']]
                         
-                        # Trend information
-                        trend = topic['trend']
-                        st.markdown(
-                            f"**Trend:** {trend['direction'].title()} "
-                            f"({trend['percentage']}% change)"
-                        )
-                        
-                        # Key terms section
-                        st.markdown("### Key Terms")
-                        term_count = st.slider(
-                            "Number of terms to show", 
-                            5, 50, 10, 
-                            key=f"terms_{topic['id']}"
-                        )
-                        
-                        # Create term frequency table
-                        term_data = pd.DataFrame(
-                            topic['words'][:term_count],
-                            columns=['word', 'count', 'documents', 'weight']
-                        )
-                        term_data['relevance'] = term_data['weight'] * 100
                         st.dataframe(
-                            term_data,
+                            pd.DataFrame(summary_data),
                             column_config={
-                                'word': 'Term',
-                                'count': 'Occurrences',
-                                'documents': 'Number of Reports',
-                                'relevance': st.column_config.ProgressColumn(
-                                    'Relevance',
-                                    format='%.1f%%',
-                                    min_value=0,
-                                    max_value=100
-                                )
+                                'Title': st.column_config.TextColumn('Title', width='large'),
+                                'Date': st.column_config.TextColumn('Date', width='small'),
+                                'Area': st.column_config.TextColumn('Area', width='medium'),
+                                'Relevance': st.column_config.TextColumn('Topic Relevance', width='small')
                             }
                         )
-                        
-                        # Related reports section
-                        st.markdown("### Related Reports")
+                    
+                    with report_tab2:
                         for report in topic['relatedReports']:
-                            with st.expander(report['title']):
-                                col1, col2, col3 = st.columns([2,2,1])
-                                with col1:
-                                    st.markdown(f"**Date:** {report['date']}")
-                                with col2:
-                                    st.markdown(f"**Coroner:** {report['coroner']}")
-                                with col3:
-                                    st.markdown(f"**Area:** {report['area']}")
-                                
-                                st.markdown("**Summary:**")
-                                st.markdown(report['summary'])
-                                
-                                if report['otherTopics']:
-                                    st.markdown("**Related Topics:**")
-                                    for other_topic in report['otherTopics']:
-                                        st.markdown(
-                                            f"- {other_topic['label']}: "
-                                            f"{other_topic['score']*100:.1f}%"
-                                        )
+                            st.markdown(f"#### {report['title']}")
+                            col1, col2, col3 = st.columns([2,2,1])
+                            with col1:
+                                st.markdown(f"**Date:** {report['date']}")
+                            with col2:
+                                st.markdown(f"**Coroner:** {report['coroner']}")
+                            with col3:
+                                st.markdown(f"**Area:** {report['area']}")
+                            
+                            st.markdown("**Summary:**")
+                            st.markdown(report['summary'])
+                            
+                            if report['otherTopics']:
+                                st.markdown("**Related Topics:**")
+                                for other_topic in report['otherTopics']:
+                                    st.markdown(
+                                        f"- {other_topic['label']}: "
+                                        f"{other_topic['score']*100:.1f}%"
+                                    )
+                            st.markdown("---")
+                    
+                    st.markdown("---")
                 
                 # Add download functionality
                 st.markdown("### Export Results")
