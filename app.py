@@ -463,19 +463,37 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         # Parse the page
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Debug: Print entire HTML structure
-        st.write("Full HTML structure debug:")
-        st.write(soup.prettify()[:5000])  # Print first 5000 characters
+        # Debug: Print page title and structure
+        st.write("Page Title:", soup.title.string if soup.title else "No title")
         
-        # Find the specific div that might contain reports
-        report_container = soup.find('div', class_=['archive__listings', 'search__listing'])
+        # Multiple strategies to find report container
+        container_classes = [
+            ['archive__listings', 'search__listing'],
+            ['search__list'],
+            ['govuk-list'],
+            ['archive__posts']
+        ]
+        
+        report_container = None
+        for classes in container_classes:
+            report_container = soup.find('ul', class_=classes) or soup.find('div', class_=classes)
+            if report_container:
+                break
         
         if not report_container:
             st.warning("No report container found")
+            
+            # Fallback: print out all list and div classes
+            all_lists = soup.find_all(['ul', 'div'])
+            st.write("Available list/div classes:")
+            for lst in all_lists:
+                if lst.get('class'):
+                    st.write(lst.get('class'))
+            
             return []
         
         # Find all report cards
-        report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full'])
+        report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full', 'search__item'])
         
         st.write(f"Found {len(report_cards)} potential report cards")
         
@@ -530,7 +548,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     except Exception as e:
         st.error(f"Comprehensive error in scrape_pfd_reports: {str(e)}")
         return []
-
 
 
 
