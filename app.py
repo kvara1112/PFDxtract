@@ -428,7 +428,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                       max_pages: Optional[int] = None) -> List[Dict]:
     """Scrape PFD reports with comprehensive filtering"""
     all_reports = []
-    current_page = 1
     base_url = "https://www.judiciary.uk/"
     
     # Validate and prepare category
@@ -463,137 +462,89 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         # Parse the page
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Find the search list
-        search_list = soup.find('ul', class_='search__list')
+        # Debug: Print entire HTML structure
+        st.write("Full HTML structure debug:")
+        st.write(soup.prettify()[:5000])  # Print first 5000 characters
         
-        if not search_list:
-            st.warning("No search list found on the page")
-            return []
-        
-        # Find all report cards
-        report_cards = search_list.find_all('div', class_='card')
-        
-        # Process each report card
-        for card in report_cards:
-            try:
-                title_elem = card.find('h3', class_='card__title')
-                if not title_elem:
-                    continue
-                
-                title_link = title_elem.find('a')
-                if not title_link:
-                    continue
-                
-                # Extract report details
-                title = title_link.text.strip()
-                url = title_link['href']
-                
-                # Additional details
-                description_elem = card.find('p', class_='card__description')
-                description = description_elem.text.strip() if description_elem else ""
-                
-                # Date
-                date_elem = card.find('p', class_='date')
-                date = date_elem.text.strip() if date_elem else ""
-                
-                # Metadata
-                meta_elem = card.find('div', class_='card__meta')
-                categories = []
-                if meta_elem:
-                    category_links = meta_elem.find_all('a')
-                    categories = [cat.text.strip() for cat in category_links]
-                
-                # Create report dictionary
-                report = {
-                    'Title': title,
-                    'URL': url,
-                    'Description': description,
-                    'Date': date,
-                    'Categories': categories
-                }
-                
-                all_reports.append(report)
+        # Multiple strategies to find reports
+        report_strategies = [
+            # Strategy 1: Look for specific list classes
+            lambda s: s.find_all('div', class_='card'),
             
-            except Exception as card_error:
-                st.write(f"Error processing card: {card_error}")
+            # Strategy 2: Look for list items in search results
+            lambda s: s.find_all('li', class_=['search__item', 'card']),
+            
+            # Strategy 3: Look for any div or li with report-like content
+            lambda s: s.find_all(['div', 'li'], 
+                class_=lambda x: x and any(keyword in str(x) for keyword in 
+                    ['card', 'report', 'search', 'item', 'result'])
+            ),
+            
+            # Strategy 4: Look for specific patterns in text
+            lambda s: [item for item in s.find_all(['div', 'li']) 
+                if any(pattern in item.get_text() 
+                    for pattern in ['Ref:', 'Date of report:', 'Deceased name:'])]
+        ]
         
-        # Attempt to find pagination
-        pagination = soup.find('nav', class_='navigation pagination')
-        total_pages = 1
+        potential_reports = []
         
-        if pagination:
-            page_numbers = pagination.find_all('a', class_='page-numbers')
-            page_nums = [int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()]
-            if page_nums:
-                total_pages = max(page_nums)
-        
-        # Limit pages if specified
-        if max_pages:
-            total_pages = min(total_pages, max_pages)
-        
-        # Scrape additional pages if needed
-        for current_page in range(2, total_pages + 1):
-            page_url = f"{initial_url}page/{current_page}/"
+        for strategy in report_strategies:
+            found_reports = strategy(soup)
+            st.write(f"Strategy found {len(found_reports)} potential reports")
             
-            # Request page
-            page_response = make_request(page_url)
-            if not page_response:
-                continue
-            
-            page_soup = BeautifulSoup(page_response.text, 'html.parser')
-            page_list = page_soup.find('ul', class_='search__list')
-            
-            if not page_list:
-                break
-            
-            page_cards = page_list.find_all('div', class_='card')
-            
-            for card in page_cards:
+            for report_elem in found_reports:
                 try:
-                    title_elem = card.find('h3', class_='card__title')
+                    # Extract title
+                    title_elem = report_elem.find(['h2', 'h3'], class_=['title', 'card__title'])
+                    if not title_elem:
+                        title_elem = report_elem.find('a')
+                    
                     if not title_elem:
                         continue
                     
-                    title_link = title_elem.find('a')
-                    if not title_link:
-                        continue
+                    title = title_elem.get_text(strip=True)
+                    url = title_elem.get('href', '') if isinstance(title_elem, Tag) else ''
                     
-                    # Extract report details (same as previous processing)
-                    title = title_link.text.strip()
-                    url = title_link['href']
+                    # Extract description
+                    desc_elem = report_elem.find(['p', 'div'], class_=['description', 'card__description'])
+                    description = desc_elem.get_text(strip=True) if desc_elem else ""
                     
-                    description_elem = card.find('p', class_='card__description')
-                    description = description_elem.text.strip() if description_elem else ""
-                    
-                    date_elem = card.find('p', class_='date')
-                    date = date_elem.text.strip() if date_elem else ""
-                    
-                    meta_elem = card.find('div', class_='card__meta')
-                    categories = []
-                    if meta_elem:
-                        category_links = meta_elem.find_all('a')
-                        categories = [cat.text.strip() for cat in category_links]
+                    # Extract date
+                    date_elem = report_elem.find(['p', 'span'], class_=['date', 'card__date'])
+                    date = date_elem.get_text(strip=True) if date_elem else ""
                     
                     report = {
                         'Title': title,
                         'URL': url,
                         'Description': description,
-                        'Date': date,
-                        'Categories': categories
+                        'Date': date
                     }
                     
-                    all_reports.append(report)
+                    # Only add unique reports
+                    if report not in potential_reports:
+                        potential_reports.append(report)
                 
                 except Exception as card_error:
-                    st.write(f"Error processing card on page {current_page}: {card_error}")
+                    st.write(f"Error processing report element: {card_error}")
+            
+            # If we found reports, stop trying strategies
+            if potential_reports:
+                break
         
-        st.write(f"Total reports found: {len(all_reports)}")
+        st.write(f"Total potential reports found: {len(potential_reports)}")
         
-        return all_reports
+        return potential_reports
     
     except Exception as e:
-        st.error(f"Error in scrape_pfd_reports: {str(e)}")
+        st.error(f"Comprehensive error in scrape_pfd_reports: {str(e)}")
         return []
+
+
+
+
+
+
+
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
     try:
