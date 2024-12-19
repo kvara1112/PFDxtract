@@ -312,36 +312,60 @@ def get_report_content(url: str) -> Optional[Dict]:
 
 # Scraping functions
 def scrape_page(url: str) -> List[Dict]:
-    """Scrape a single page of search results"""
+    """Scrape a single page of search results with improved archive handling"""
     try:
         response = make_request(url)
         if not response:
             return []
         
         soup = BeautifulSoup(response.text, 'html.parser')
-        results_list = soup.find('ul', class_='search__list')
         
-        if not results_list:
-            logging.warning(f"No results list found on page: {url}")
+        # Try multiple possible container classes
+        containers = [
+            soup.find('ul', class_='search__list'),
+            soup.find('div', class_='archive__listings'),
+            soup.find('div', class_='archive__posts'),
+            soup.find('main', class_='site-main')
+        ]
+        
+        results_container = next((c for c in containers if c is not None), None)
+        
+        if not results_container:
+            logging.warning(f"No results container found on page: {url}")
+            return []
+        
+        # Try multiple possible card selectors
+        cards = results_container.find_all(['article', 'div', 'li'], 
+            class_=['card', 'card--full', 'search__item', 'post', 'type-post'])
+        
+        if not cards:
+            logging.warning(f"No cards found in container on page: {url}")
             return []
         
         reports = []
-        cards = results_list.find_all('div', class_='card')
-        
         for card in cards:
             try:
-                title_elem = card.find('h3', class_='card__title').find('a')
+                # Try multiple possible title selectors
+                title_elem = (
+                    card.find(['h2', 'h3'], class_=['card__title', 'entry-title']) or
+                    card.find('a', class_=['card__link', 'post-link'])
+                )
+                
                 if not title_elem:
                     continue
                 
-                title = clean_text(title_elem.text)
-                card_url = title_elem['href']
+                # Get title and URL
+                title_link = title_elem.find('a') if title_elem.name != 'a' else title_elem
+                if not title_link:
+                    continue
                 
-                logging.info(f"Processing report: {title}")
+                title = clean_text(title_link.text)
+                card_url = title_link['href']
                 
                 if not card_url.startswith(('http://', 'https://')):
                     card_url = f"https://www.judiciary.uk{card_url}"
                 
+                # Get full content
                 content_data = get_report_content(card_url)
                 
                 if content_data:
@@ -351,6 +375,7 @@ def scrape_page(url: str) -> List[Dict]:
                         'Content': content_data['content']
                     }
                     
+                    # Add PDF data if available
                     for i, (name, content, path) in enumerate(zip(
                         content_data['pdf_names'],
                         content_data['pdf_contents'],
@@ -361,8 +386,7 @@ def scrape_page(url: str) -> List[Dict]:
                         report[f'PDF_{i}_Path'] = path
                     
                     reports.append(report)
-                    logging.info(f"Successfully processed: {title}")
-                
+                    
             except Exception as e:
                 logging.error(f"Error processing card: {e}")
                 continue
@@ -374,7 +398,7 @@ def scrape_page(url: str) -> List[Dict]:
         return []
 
 def get_total_pages(url: str) -> int:
-    """Get total number of pages with minimal debug output"""
+    """Get total number of pages with improved archive handling"""
     try:
         response = make_request(url)
         if not response:
@@ -382,36 +406,53 @@ def get_total_pages(url: str) -> int:
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # First check for cards/results
-        results_list = soup.find('ul', class_='search__list')
-        if not results_list:
-            results_list = soup.find('div', class_='archive__listings')
+        # Check for posts/articles first
+        containers = [
+            soup.find('ul', class_='search__list'),
+            soup.find('div', class_='archive__listings'),
+            soup.find('div', class_='archive__posts'),
+            soup.find('main', class_='site-main')
+        ]
         
-        if results_list:
-            cards = results_list.find_all(['div', 'li'], class_=['card', 'card--full', 'search__item'])
-            if cards:
-                # If we found cards, we have at least one page
-                # Now check for pagination
-                pagination = soup.find('nav', class_='navigation pagination')
+        results_container = next((c for c in containers if c is not None), None)
+        
+        if results_container:
+            # Check for actual posts/articles
+            posts = results_container.find_all(['article', 'div', 'li'], 
+                class_=['card', 'card--full', 'search__item', 'post', 'type-post'])
+            
+            if posts:
+                # Look for pagination
+                pagination = (
+                    soup.find('nav', class_='navigation pagination') or
+                    soup.find('div', class_='nav-links') or
+                    soup.find('div', class_='pagination')
+                )
+                
                 if pagination:
-                    page_numbers = pagination.find_all('a', class_='page-numbers')
-                    numbers = [int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()]
+                    page_numbers = pagination.find_all(['a', 'span'], 
+                        class_=['page-numbers', 'page-link'])
+                    
+                    numbers = []
+                    for p in page_numbers:
+                        text = p.text.strip()
+                        if text.isdigit():
+                            numbers.append(int(text))
+                        elif 'last' in text.lower():
+                            href = p.get('href', '')
+                            page_match = re.search(r'page/(\d+)', href)
+                            if page_match:
+                                numbers.append(int(page_match.group(1)))
+                    
                     if numbers:
                         return max(numbers)
-                return 1  # No pagination but we have results
-            
-        # If we get here, try to find a count in the text
-        count_text = soup.find('h1', class_='archive__title')
-        if count_text:
-            match = re.search(r'(\d+)\s+results?', count_text.text, re.IGNORECASE)
-            if match:
-                total_results = int(match.group(1))
-                return (total_results + 9) // 10  # 10 results per page
+                
+                return 1  # We have results but no pagination
         
         return 0
         
     except Exception as e:
-        logging.error(f"Error getting total pages: {str(e)}")
+        logging.error(f"Error getting total pages: {e}")
         return 0
 
 def scrape_pfd_reports(keyword: Optional[str] = None,
@@ -420,57 +461,53 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                       date_before: Optional[str] = None,
                       order: str = "relevance",
                       max_pages: Optional[int] = None) -> List[Dict]:
-    """Scrape PFD reports with clean progress display"""
+    """Scrape PFD reports with improved archive handling"""
     all_reports = []
     base_url = "https://www.judiciary.uk/"
     
-    # Setup progress placeholder and status message
+    # Setup progress displays
     progress_placeholder = st.empty()
     status_placeholder = st.empty()
     
     try:
-        # Validate and prepare category
+        # Handle category
         if category:
-            matching_categories = [
-                cat for cat in get_pfd_categories() 
-                if cat.lower() == category.lower()
+            category_slug = (category.lower()
+                           .replace(' ', '-')
+                           .replace('(', '')
+                           .replace(')', '')
+                           .replace(',', '')
+                           .replace('&', 'and'))
+            
+            # Try both URL patterns
+            url_patterns = [
+                f"{base_url}pfd-types/{category_slug}/",
+                f"{base_url}subject/{category_slug}/"
             ]
             
-            if not matching_categories:
-                st.error(f"No matching category found for: {category}")
-                return []
+            initial_url = None
+            for url in url_patterns:
+                response = make_request(url)
+                if response and response.status_code == 200:
+                    initial_url = url
+                    break
             
-            category = matching_categories[0]
-            category_slug = category.lower().replace(' ', '-').replace('(', '').replace(')', '')
-            initial_url = f"{base_url}pfd-types/{category_slug}/"
+            if not initial_url:
+                st.error(f"Could not find valid URL for category: {category}")
+                return []
         else:
             initial_url = f"{base_url}prevention-of-future-death-reports/"
         
-        # Build search parameters
-        params = {}
-        if keyword:
-            params['s'] = keyword
-        if date_after:
-            params['date-after'] = date_after
-        if date_before:
-            params['date-before'] = date_before
-        if order and order != "relevance":
-            params['order'] = order
-            
-        # Get first page URL
-        first_page_url = initial_url
-        if params:
-            first_page_url += '?' + '&'.join(f"{k}={v}" for k, v in params.items())
-            
+        status_placeholder.info("Checking available reports...")
+        
         # Get total pages
-        status_placeholder.info("Checking number of available reports...")
-        total_pages = get_total_pages(first_page_url)
+        total_pages = get_total_pages(initial_url)
         
         if total_pages == 0:
             status_placeholder.warning("No reports found")
             return []
         
-        # Update total pages based on max_pages
+        # Apply max_pages limit if specified
         if max_pages is not None and max_pages > 0:
             total_pages = min(total_pages, max_pages)
         
@@ -481,22 +518,15 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         # Scrape each page
         for page in range(1, total_pages + 1):
-            # Update progress
             progress = int((page - 1) / total_pages * 100)
             progress_bar.progress(progress)
-            
-            # Update status with minimal output
             status_placeholder.info(f"Processing page {page}/{total_pages}")
             
-            # Build page URL
-            page_params = params.copy()
+            # Construct page URL
             if page > 1:
-                page_params['page'] = str(page)
-                page_params['paged'] = str(page)
-            
-            page_url = initial_url
-            if page_params:
-                page_url += '?' + '&'.join(f"{k}={v}" for k, v in page_params.items())
+                page_url = f"{initial_url}page/{page}/"
+            else:
+                page_url = initial_url
             
             # Scrape the page
             try:
@@ -504,24 +534,23 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                 if page_reports:
                     all_reports.extend(page_reports)
                     progress_placeholder.text(f"Reports found: {len(all_reports)}")
-            except Exception as page_error:
-                logging.error(f"Error on page {page}: {str(page_error)}")
+            except Exception as e:
+                logging.error(f"Error on page {page}: {e}")
                 continue
         
-        # Complete progress bar
+        # Complete progress
         progress_bar.progress(100)
-        
-        # Final status update
         status_placeholder.success(f"Completed! Total reports found: {len(all_reports)}")
+        
         return all_reports
         
     except Exception as e:
-        status_placeholder.error(f"Error during scraping: {str(e)}")
-        logging.error(f"Scraping error: {str(e)}")
+        status_placeholder.error(f"Error during scraping: {e}")
+        logging.error(f"Scraping error: {e}")
         return []
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data with improved metadata extraction"""
+    """Process and clean scraped data with UK date format"""
     try:
         # Create a copy
         df = df.copy()
@@ -573,25 +602,24 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         else:
             result = df.copy()
         
-        # Convert date_of_report to datetime with improved handling
+        # Convert date_of_report to datetime with UK format handling
         if 'date_of_report' in result.columns:
-            def parse_date(date_str):
+            def parse_uk_date(date_str):
                 if pd.isna(date_str):
                     return pd.NaT
                 
                 date_str = str(date_str).strip()
                 
-                # Try different date formats
-                formats = [
-                    '%d/%m/%Y',
-                    '%Y-%m-%d',
-                    '%d-%m-%Y',
-                    '%d %B %Y',
-                    '%d %b %Y'
-                ]
-                
                 # Remove ordinal indicators
                 date_str = re.sub(r'(\d)(st|nd|rd|th)', r'\1', date_str)
+                
+                # Try different UK format dates
+                formats = [
+                    '%d/%m/%Y',  # 31/12/2023
+                    '%d-%m-%Y',  # 31-12-2023
+                    '%d %B %Y',  # 31 December 2023
+                    '%d %b %Y'   # 31 Dec 2023
+                ]
                 
                 for fmt in formats:
                     try:
@@ -599,13 +627,13 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
                     except:
                         continue
                 
-                # If all formats fail, try pandas default parser
+                # If standard formats fail, try pandas default parser
                 try:
                     return pd.to_datetime(date_str)
                 except:
                     return pd.NaT
             
-            result['date_of_report'] = result['date_of_report'].apply(parse_date)
+            result['date_of_report'] = result['date_of_report'].apply(parse_uk_date)
         
         return result
             
@@ -974,7 +1002,7 @@ def render_scraping_tab():
             return False
 
 def show_export_options(df: pd.DataFrame, prefix: str):
-    """Show export options for the data"""
+    """Show export options with UK date format"""
     st.subheader("Export Options")
     
     # Generate filename
@@ -983,9 +1011,14 @@ def show_export_options(df: pd.DataFrame, prefix: str):
     
     col1, col2 = st.columns(2)
     
+    # Create export copy with formatted dates
+    export_df = df.copy()
+    if 'date_of_report' in export_df.columns:
+        export_df['date_of_report'] = export_df['date_of_report'].dt.strftime('%d/%m/%Y')
+    
     # CSV Export
     with col1:
-        csv = df.to_csv(index=False).encode('utf-8')
+        csv = export_df.to_csv(index=False).encode('utf-8')
         st.download_button(
             "📥 Download Reports (CSV)",
             csv,
@@ -996,7 +1029,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
     
     # Excel Export
     with col2:
-        excel_data = export_to_excel(df)
+        excel_data = export_to_excel(df)  # Uses the modified export_to_excel function
         st.download_button(
             "📥 Download Reports (Excel)",
             excel_data,
@@ -1005,7 +1038,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             key=f"download_excel_{prefix}_{timestamp}"
         )
     
-    # PDF Download
+    # PDF Download (unchanged)
     st.subheader("Download PDFs")
     if st.button(f"Download all PDFs_{timestamp}", key=f"pdf_button_{prefix}_{timestamp}"):
         with st.spinner("Preparing PDF download..."):
@@ -1249,13 +1282,19 @@ def render_analysis_tab(data: pd.DataFrame):
         logging.error(f"Unexpected error in render_analysis_tab: {e}", exc_info=True)
 
 
-
 def export_to_excel(df: pd.DataFrame) -> bytes:
-    """Handle Excel export with proper buffer management"""
+    """Export to Excel with UK date format"""
     excel_buffer = io.BytesIO()
     try:
+        # Create a copy to modify for export
+        export_df = df.copy()
+        
+        # Convert date columns to UK format
+        if 'date_of_report' in export_df.columns:
+            export_df['date_of_report'] = export_df['date_of_report'].dt.strftime('%d/%m/%Y')
+        
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False)
+            export_df.to_excel(writer, index=False)
         return excel_buffer.getvalue()
     finally:
         excel_buffer.close()
