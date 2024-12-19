@@ -494,165 +494,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         st.error(f"An error occurred while scraping reports: {e}")
         return []
 
-def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data with enhanced date handling"""
-    try:
-        # Create a copy to avoid modifying the original
-        df = df.copy()
-        
-        # Extract metadata if Content column exists
-        if 'Content' in df.columns:
-            metadata = df['Content'].fillna("").apply(extract_metadata)
-            metadata_df = pd.DataFrame(metadata.tolist())
-            result = pd.concat([df, metadata_df], axis=1)
-        else:
-            result = df.copy()
-        
-        # Print debug info for date column
-        if 'date_of_report' in result.columns:
-            print("\nDebug Info:")
-            print("Original date values:", result['date_of_report'].head())
-            print("Original date types:", result['date_of_report'].apply(type).value_counts())
-            
-            # Handle case where dates are already datetime
-            if pd.api.types.is_datetime64_any_dtype(result['date_of_report']):
-                return result
-            
-            # Clean date strings first
-            def clean_date_string(date_str):
-                if pd.isna(date_str):
-                    return date_str
-                if isinstance(date_str, (datetime, pd.Timestamp)):
-                    return date_str
-                    
-                date_str = str(date_str).strip()
-                # Remove potential day suffixes
-                date_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_str)
-                # Replace month names if present
-                month_map = {
-                    'January': '01', 'February': '02', 'March': '03', 'April': '04',
-                    'May': '05', 'June': '06', 'July': '07', 'August': '08',
-                    'September': '09', 'October': '10', 'November': '11', 'December': '12',
-                    'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
-                    'Jun': '06', 'Jul': '07', 'Aug': '08', 'Sep': '09',
-                    'Oct': '10', 'Nov': '11', 'Dec': '12'
-                }
-                for month_name, month_num in month_map.items():
-                    date_str = re.sub(rf'\b{month_name}\b', month_num, date_str, flags=re.IGNORECASE)
-                return date_str
-
-            # First pass: clean the date strings
-            result['date_of_report'] = result['date_of_report'].apply(clean_date_string)
-            
-            print("After cleaning:", result['date_of_report'].head())
-            
-            # Define date formats to try
-            date_formats = [
-                '%d/%m/%Y',     # 31/12/2023
-                '%Y-%m-%d',     # 2023-12-31
-                '%d-%m-%Y',     # 31-12-2023
-                '%Y/%m/%d',     # 2023/12/31
-                '%d %m %Y',     # 31 12 2023
-                '%m/%d/%Y',     # 12/31/2023
-                '%Y%m%d'        # 20231231
-            ]
-
-            def parse_date(date_str):
-                if pd.isna(date_str):
-                    return pd.NaT
-                if isinstance(date_str, (datetime, pd.Timestamp)):
-                    return pd.to_datetime(date_str)
-                    
-                # Try each format
-                for fmt in date_formats:
-                    try:
-                        return pd.to_datetime(date_str, format=fmt)
-                    except ValueError:
-                        continue
-                
-                # If all specific formats fail, try pandas' flexible parser
-                try:
-                    return pd.to_datetime(date_str)
-                except Exception as e:
-                    print(f"Failed to parse date: {date_str}, Error: {str(e)}")
-                    return pd.NaT
-
-            # Second pass: convert to datetime
-            result['date_of_report'] = result['date_of_report'].apply(parse_date)
-            
-            print("Final date values:", result['date_of_report'].head())
-            print("Final date types:", result['date_of_report'].apply(type).value_counts())
-            
-            # Verify conversion was successful
-            if result['date_of_report'].isna().all():
-                print("Warning: All dates were converted to NaT")
-                
-        # Handle categories
-        if 'categories' in result.columns:
-            result['categories'] = result['categories'].apply(
-                lambda x: [] if pd.isna(x) else 
-                         [x] if isinstance(x, str) else 
-                         list(x) if isinstance(x, (list, tuple)) else []
-            )
-        
-        return result
-            
-    except Exception as e:
-        print(f"Error in process_scraped_data: {str(e)}")
-        raise e
-
-def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
-    """Validate data with enhanced error reporting"""
-    try:
-        if data is None:
-            return False, "No data available. Please scrape or upload data first."
-        
-        if not isinstance(data, pd.DataFrame):
-            return False, "Invalid data format. Expected pandas DataFrame."
-        
-        if len(data) == 0:
-            return False, "Dataset is empty."
-            
-        if purpose == "analysis":
-            required_columns = ['date_of_report', 'categories', 'coroner_area']
-            missing_columns = [col for col in required_columns if col not in data.columns]
-            if missing_columns:
-                return False, f"Missing required columns: {', '.join(missing_columns)}"
-            
-            # Check date column
-            if 'date_of_report' in data.columns:
-                # Print current state of dates
-                print("\nValidation Debug:")
-                print("Current date values:", data['date_of_report'].head())
-                print("Current date types:", data['date_of_report'].apply(type).value_counts())
-                
-                # Try to process dates if not already datetime
-                if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
-                    try:
-                        processed_data = process_scraped_data(data)
-                        if not pd.api.types.is_datetime64_any_dtype(processed_data['date_of_report']):
-                            return False, "Could not convert dates to datetime format."
-                        if processed_data['date_of_report'].isna().all():
-                            return False, "All dates were invalid or could not be parsed."
-                        data = processed_data
-                    except Exception as e:
-                        return False, f"Error processing dates: {str(e)}"
-        
-        elif purpose == "topic_modeling":
-            if 'Content' not in data.columns:
-                return False, "Missing required column: Content"
-                
-            valid_docs = data['Content'].dropna().str.strip().str.len() > 0
-            if valid_docs.sum() < 2:
-                return False, "Not enough valid documents found."
-        
-        return True, "Data is valid"
-        
-    except Exception as e:
-        print(f"Error in validate_data: {str(e)}")
-        return False, f"Validation error: {str(e)}"
-        
-    
 def plot_timeline(df: pd.DataFrame) -> None:
     """Plot timeline of reports"""
     timeline_data = df.groupby(
@@ -1074,7 +915,189 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             # Cleanup zip file
             os.remove(pdf_zip_path)
 
+def render_file_upload():
+    """Render file upload section with improved error handling"""
+    st.header("Upload Existing Data")
     
+    # Generate unique key for the file uploader
+    upload_key = f"file_uploader_{int(time.time() * 1000)}"
+    
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file", 
+        type=['csv', 'xlsx'],
+        key=upload_key
+    )
+    
+    if uploaded_file is not None:
+        try:
+            # Read the file
+            if uploaded_file.name.lower().endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            
+            # Validate required columns
+            required_columns = ['Title', 'URL', 'Content']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            
+            if missing_columns:
+                st.error(f"Missing required columns: {', '.join(missing_columns)}")
+                return False
+            
+            # Process the data
+            processed_df = process_scraped_data(df)
+            
+            # Clear existing data
+            st.session_state.current_data = None
+            st.session_state.scraped_data = None
+            st.session_state.uploaded_data = None
+            st.session_state.data_source = None
+            
+            # Set new data
+            st.session_state.uploaded_data = processed_df.copy()
+            st.session_state.data_source = 'uploaded'
+            st.session_state.current_data = processed_df.copy()
+            
+            st.success("File uploaded and processed successfully!")
+            
+            # Show preview
+            st.subheader("Uploaded Data Preview")
+            
+            # Configure column display
+            display_config = {
+                "URL": st.column_config.LinkColumn("Report Link"),
+                "date_of_report": st.column_config.DateColumn("Date of Report"),
+                "categories": st.column_config.ListColumn("Categories")
+            }
+            
+            # Show only key columns in preview
+            preview_columns = ['Title', 'URL', 'date_of_report', 'coroner_name', 'coroner_area']
+            preview_df = processed_df[preview_columns].copy()
+            
+            st.dataframe(
+                preview_df,
+                column_config=display_config,
+                hide_index=True
+            )
+            
+            # Show data info
+            st.write(f"Total rows: {len(processed_df)}")
+            if 'date_of_report' in processed_df.columns:
+                date_range = processed_df['date_of_report'].agg(['min', 'max'])
+                st.write(f"Date range: {date_range['min']} to {date_range['max']}")
+            
+            return True
+            
+        except Exception as e:
+            st.error(f"Error reading file: {str(e)}")
+            logging.error(f"File upload error: {e}", exc_info=True)
+            return False
+    
+    return False
+
+def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
+    """Process and clean scraped data with improved error handling"""
+    try:
+        # Create a copy
+        df = df.copy()
+        
+        # Extract metadata if Content column exists
+        if 'Content' in df.columns:
+            metadata = df['Content'].fillna("").apply(extract_metadata)
+            metadata_df = pd.DataFrame(metadata.tolist())
+            
+            # Combine with original data
+            result = pd.concat([df, metadata_df], axis=1)
+        else:
+            result = df.copy()
+        
+        # Handle date conversion
+        if 'date_of_report' in result.columns:
+            # Convert date strings to datetime
+            try:
+                result['date_of_report'] = pd.to_datetime(
+                    result['date_of_report'],
+                    format='%Y-%m-%d',  # Try exact format first
+                    errors='coerce'
+                )
+                
+                # If all dates are NaT, try flexible parsing
+                if result['date_of_report'].isna().all():
+                    result['date_of_report'] = pd.to_datetime(
+                        result['date_of_report'], 
+                        errors='coerce'
+                    )
+            except Exception as e:
+                logging.warning(f"Date conversion error: {e}")
+                result['date_of_report'] = pd.NaT
+        
+        # Handle categories
+        if 'categories' in result.columns:
+            def convert_to_list(x):
+                if pd.isna(x):
+                    return []
+                if isinstance(x, str):
+                    # Handle string representations of lists
+                    if x.startswith('[') and x.endswith(']'):
+                        try:
+                            return eval(x)
+                        except:
+                            return [x]
+                    return [x]
+                if isinstance(x, (list, tuple)):
+                    return list(x)
+                return []
+            
+            result['categories'] = result['categories'].apply(convert_to_list)
+        
+        return result
+            
+    except Exception as e:
+        logging.error(f"Error in process_scraped_data: {e}")
+        return df
+
+def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
+    """Validate data with improved Series handling"""
+    if data is None:
+        return False, "No data available. Please scrape or upload data first."
+    
+    if not isinstance(data, pd.DataFrame):
+        return False, "Invalid data format. Expected pandas DataFrame."
+    
+    if data.empty:
+        return False, "Dataset is empty."
+        
+    if purpose == "analysis":
+        required_columns = ['date_of_report', 'categories', 'coroner_area']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        
+        if missing_columns:
+            return False, f"Missing required columns: {', '.join(missing_columns)}"
+            
+        # Check date column
+        if 'date_of_report' in data.columns:
+            if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
+                valid_dates = pd.to_datetime(data['date_of_report'], errors='coerce')
+                if valid_dates.isna().all():
+                    return False, "No valid dates found in date_of_report column."
+                    
+    elif purpose == "topic_modeling":
+        if 'Content' not in data.columns:
+            return False, "Missing required column: Content"
+            
+        # Check for valid content
+        valid_content = (
+            data['Content']
+            .fillna('')
+            .astype(str)
+            .str.strip()
+            .str.len() > 0
+        )
+        
+        if valid_content.sum() < 2:
+            return False, "Not enough valid documents found."
+    
+    return True, "Data is valid"    
 def render_analysis_tab(data: pd.DataFrame):
     """Render the analysis tab with upload option"""
     st.header("Reports Analysis")
@@ -1451,65 +1474,6 @@ def render_topic_modeling_tab(data: pd.DataFrame):
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
-
-
-
-def render_file_upload():
-    """Render file upload section"""
-    st.header("Upload Existing Data")
-    
-    # Generate unique key for the file uploader
-    upload_key = f"file_uploader_{int(time.time() * 1000)}"
-    
-    uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file", 
-        type=['csv', 'xlsx'],
-        key=upload_key
-    )
-    
-    if uploaded_file is not None:
-        try:
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
-            
-            # Process uploaded data
-            df = process_scraped_data(df)
-            
-            # Clear any existing data first
-            st.session_state.current_data = None
-            st.session_state.scraped_data = None
-            st.session_state.uploaded_data = None
-            st.session_state.data_source = None
-            
-            # Then set new data
-            st.session_state.uploaded_data = df.copy()
-            st.session_state.data_source = 'uploaded'
-            st.session_state.current_data = df.copy()
-            
-            st.success("File uploaded and processed successfully!")
-            
-            # Show the uploaded data
-            st.subheader("Uploaded Data Preview")
-            st.dataframe(
-                df,
-                column_config={
-                    "URL": st.column_config.LinkColumn("Report Link"),
-                    "date_of_report": st.column_config.DateColumn("Date of Report"),
-                    "categories": st.column_config.ListColumn("Categories")
-                },
-                hide_index=True
-            )
-            
-            return True
-            
-        except Exception as e:
-            st.error(f"Error uploading file: {str(e)}")
-            logging.error(f"File upload error: {e}", exc_info=True)
-            return False
-    
-    return False
 
 def initialize_session_state():
     """Initialize all required session state variables"""
