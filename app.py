@@ -519,6 +519,144 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
 
+def scrape_pfd_reports(keyword: Optional[str] = None,
+                      category: Optional[str] = None,
+                      date_after: Optional[str] = None,
+                      date_before: Optional[str] = None,
+                      order: str = "relevance",
+                      max_pages: Optional[int] = None) -> List[Dict]:
+    """Scrape PFD reports with comprehensive filtering"""
+    all_reports = []
+    current_page = 1
+    base_url = "https://www.judiciary.uk/"
+    
+    # Validate and prepare category
+    if category:
+        # Find exact match, case-insensitive
+        matching_categories = [
+            cat for cat in get_pfd_categories() 
+            if cat.lower() == category.lower()
+        ]
+        
+        if not matching_categories:
+            st.error(f"No matching category found for: {category}")
+            return []
+        
+        category = matching_categories[0]
+        
+        # Create URL-friendly slug
+        category_slug = category.lower().replace(' ', '-')
+        base_search_url = f"{base_url}pfd-types/{category_slug}/"
+    else:
+        base_search_url = f"{base_url}prevention-of-future-death-reports/"
+    
+    try:
+        while True:
+            # Construct page URL
+            page_url = f"{base_search_url}page/{current_page}/" if current_page > 1 else base_search_url
+            st.write(f"Scraping page {current_page}: {page_url}")
+            
+            # Get page content
+            response = make_request(page_url)
+            if not response:
+                break
+                
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Find report container
+            container_classes = [
+                ['archive__listings', 'search__listing'],
+                ['search__list'],
+                ['govuk-list'],
+                ['archive__posts']
+            ]
+            
+            report_container = None
+            for classes in container_classes:
+                report_container = soup.find('ul', class_=classes) or soup.find('div', class_=classes)
+                if report_container:
+                    break
+            
+            if not report_container:
+                st.warning(f"No report container found on page {current_page}")
+                break
+            
+            # Find report cards
+            report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full', 'search__item'])
+            
+            if not report_cards:
+                break  # No more reports found
+                
+            st.write(f"Found {len(report_cards)} reports on page {current_page}")
+            
+            # Process reports on current page
+            for card in report_cards:
+                try:
+                    title_elem = card.find(['h3', 'h2'], class_=['card__title'])
+                    if not title_elem:
+                        continue
+                    
+                    title_link = title_elem.find('a')
+                    if not title_link:
+                        continue
+                    
+                    title = clean_text(title_link.text)
+                    card_url = title_link['href']
+                    
+                    if not card_url.startswith(('http://', 'https://')):
+                        card_url = f"https://www.judiciary.uk{card_url}"
+                    
+                    # Get full content details
+                    content_data = get_report_content(card_url)
+                    
+                    if content_data:
+                        report = {
+                            'Title': title,
+                            'URL': card_url,
+                            'Content': content_data['content']
+                        }
+                        
+                        # Add PDF details
+                        for i, (name, content, path) in enumerate(zip(
+                            content_data['pdf_names'],
+                            content_data['pdf_contents'],
+                            content_data['pdf_paths']
+                        ), 1):
+                            report[f'PDF_{i}_Name'] = name
+                            report[f'PDF_{i}_Content'] = content
+                            report[f'PDF_{i}_Path'] = path
+                        
+                        all_reports.append(report)
+                        logging.info(f"Successfully processed: {title}")
+                    
+                except Exception as card_error:
+                    logging.error(f"Error processing card: {card_error}")
+                    continue
+            
+            # Check if we should continue to next page
+            if max_pages and current_page >= max_pages:
+                break
+                
+            # Look for next page link
+            next_page = soup.find('a', class_='next')
+            if not next_page:
+                pagination = soup.find('nav', class_='navigation pagination')
+                if pagination:
+                    next_page = pagination.find('a', class_='next page-numbers')
+            
+            if not next_page:
+                break
+                
+            current_page += 1
+            time.sleep(2)  # Add delay between pages
+        
+        return all_reports
+    
+    except Exception as e:
+        logging.error(f"Error in scrape_pfd_reports: {e}")
+        st.error(f"An error occurred while scraping reports: {e}")
+        return all_reports  # Return any reports collected before error
+        
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
     try:
@@ -803,6 +941,7 @@ def clean_text_for_modeling(text: str) -> str:
     except Exception as e:
         logging.error(f"Error cleaning text for modeling: {e}")
         return ""
+        
 def create_network_diagram(topic_words: List[str], 
                          tfidf_matrix: np.ndarray, 
                          similarity_threshold: float = 0.3) -> go.Figure:
