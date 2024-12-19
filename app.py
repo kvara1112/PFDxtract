@@ -416,7 +416,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         'order': order
     }
     
-    # Only add keyword if it exists
+    # Add keyword if exists
     if keyword and keyword.strip():
         params['s'] = keyword.strip()
     
@@ -428,9 +428,9 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     if date_after:
         try:
             day, month, year = date_after.split('/')
-            params['after-year'] = year
-            params['after-month'] = month
             params['after-day'] = day
+            params['after-month'] = month
+            params['after-year'] = year
         except ValueError as e:
             logging.error(f"Invalid date_after format: {e}")
             return []
@@ -438,9 +438,9 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     if date_before:
         try:
             day, month, year = date_before.split('/')
-            params['before-year'] = year
-            params['before-month'] = month
             params['before-day'] = day
+            params['before-month'] = month
+            params['before-year'] = year
         except ValueError as e:
             logging.error(f"Invalid date_before format: {e}")
             return []
@@ -468,7 +468,10 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         while current_page <= total_pages:
             # Build page URL
-            page_url = initial_url if current_page == 1 else f"{base_url}/page/{current_page}/?{'&'.join(param_strings)}"
+            if current_page == 1:
+                page_url = initial_url
+            else:
+                page_url = f"{base_url}/page/{current_page}/?{'&'.join(param_strings)}"
             
             # Update progress
             status_text.text(f"Scraping page {current_page} of {total_pages}...")
