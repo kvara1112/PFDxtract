@@ -417,27 +417,35 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         'order': order
     }
     
-    # Determine URL based on category
+    # Validate and prepare category
     if category:
-        initial_url = f"{base_url}pfd-types/{category}/"
-        params['pfd_report_type'] = category
-    else:
-        initial_url = f"{base_url}?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+        # Find exact match, case-insensitive
+        matching_categories = [
+            cat for cat in get_pfd_categories() 
+            if cat.lower() == category.lower()
+        ]
+        
+        if not matching_categories:
+            st.error(f"No matching category found for: {category}")
+            return []
+        
+        category = matching_categories[0]
+        
+        # Create URL-friendly slug
+        category_slug = category.lower().replace(' ', '-')
+        params['pfd_report_type'] = category_slug
     
     # Add keyword if exists
     if keyword and keyword.strip():
         params['s'] = keyword.strip()
-        initial_url += f"?s={keyword.strip()}"
     
     # Handle date parameters
     if date_after:
         try:
             day, month, year = date_after.split('/')
-            params.update({
-                'after-day': day,
-                'after-month': month,
-                'after-year': year
-            })
+            params['after-day'] = day
+            params['after-month'] = month
+            params['after-year'] = year
         except ValueError as e:
             logging.error(f"Invalid date_after format: {e}")
             return []
@@ -445,14 +453,16 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     if date_before:
         try:
             day, month, year = date_before.split('/')
-            params.update({
-                'before-day': day,
-                'before-month': month,
-                'before-year': year
-            })
+            params['before-day'] = day
+            params['before-month'] = month
+            params['before-year'] = year
         except ValueError as e:
             logging.error(f"Invalid date_before format: {e}")
             return []
+    
+    # Build initial URL
+    param_strings = [f"{k}={v}" for k, v in params.items()]
+    initial_url = f"{base_url}prevention-of-future-death-reports/?{'&'.join(param_strings)}"
     
     st.write(f"Searching URL: {initial_url}")
     
@@ -476,11 +486,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             if current_page == 1:
                 page_url = initial_url
             else:
-                # Different URL construction for category vs non-category
-                if category:
-                    page_url = f"{base_url}pfd-types/{category}/page/{current_page}/"
-                else:
-                    page_url = f"{base_url}/page/{current_page}/?{'&'.join(f'{k}={v}' for k, v in params.items())}"
+                page_url = f"{base_url}prevention-of-future-death-reports/page/{current_page}/?{'&'.join(param_strings)}"
             
             # Update progress
             status_text.text(f"Scraping page {current_page} of {total_pages}...")
