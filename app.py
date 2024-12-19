@@ -26,8 +26,8 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
-import ast
 
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s: %(message)s',
@@ -37,8 +37,10 @@ logging.basicConfig(
     ]
 )
 
+# Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
+# Initialize NLTK resources
 try:
     nltk.data.find('tokenizers/punkt')
 except LookupError:
@@ -52,6 +54,7 @@ try:
 except LookupError:
     nltk.download('averaged_perceptron_tagger')
 
+# Global headers for all requests
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -60,7 +63,9 @@ HEADERS = {
     'Referer': 'https://judiciary.uk/'
 }
 
+# Core utility functions
 def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[requests.Response]:
+    """Make HTTP request with retries and delay"""
     for attempt in range(retries):
         try:
             time.sleep(delay)
@@ -75,6 +80,7 @@ def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[request
     return None
 
 def clean_text(text: str) -> str:
+    """Clean text while preserving structure and metadata formatting"""
     if not text:
         return ""
     
@@ -112,7 +118,6 @@ def clean_text(text: str) -> str:
     except Exception as e:
         logging.error(f"Error in clean_text: {e}")
         return ""
-
 
 def extract_metadata(content: str) -> dict:
     """Extract structured metadata from report content"""
@@ -187,13 +192,9 @@ def extract_metadata(content: str) -> dict:
     except Exception as e:
         logging.error(f"Error extracting metadata: {e}")
         return metadata
-        
-    except Exception as e:
-        logging.error(f"Error extracting metadata: {e}")
-        return metadata
-    
 
 def get_pfd_categories() -> List[str]:
+    """Get all available PFD report categories"""
     return [
         "accident-at-work-and-health-and-safety-related-deaths",
         "alcohol-drug-and-medication-related-deaths",
@@ -213,8 +214,9 @@ def get_pfd_categories() -> List[str]:
         "suicide-from-2015",
         "wales-prevention-of-future-deaths-reports-2019-onwards"
     ]
-
+# PDF handling functions
 def save_pdf(pdf_url: str, base_dir: str = 'pdfs') -> Tuple[Optional[str], Optional[str]]:
+    """Download and save PDF, return local path and filename"""
     try:
         os.makedirs(base_dir, exist_ok=True)
         
@@ -236,6 +238,7 @@ def save_pdf(pdf_url: str, base_dir: str = 'pdfs') -> Tuple[Optional[str], Optio
         return None, None
 
 def extract_pdf_content(pdf_path: str, chunk_size: int = 10) -> str:
+    """Extract text from PDF file with memory management"""
     try:
         filename = os.path.basename(pdf_path)
         text_chunks = []
@@ -254,6 +257,7 @@ def extract_pdf_content(pdf_path: str, chunk_size: int = 10) -> str:
         return ""
 
 def get_report_content(url: str) -> Optional[Dict]:
+    """Get full content from report page with multiple PDF handling"""
     try:
         logging.info(f"Fetching content from: {url}")
         response = make_request(url)
@@ -267,7 +271,6 @@ def get_report_content(url: str) -> Optional[Dict]:
             logging.warning(f"No content found at {url}")
             return None
         
-        # Extract text content
         paragraphs = content.find_all(['p', 'table'])
         webpage_text = '\n\n'.join(p.get_text(strip=True, separator=' ') for p in paragraphs)
         
@@ -275,7 +278,6 @@ def get_report_content(url: str) -> Optional[Dict]:
         pdf_paths = []
         pdf_names = []
         
-        # Find and process PDFs
         pdf_links = (
             soup.find_all('a', class_='related-content__link', href=re.compile(r'\.pdf$')) or
             soup.find_all('a', href=re.compile(r'\.pdf$'))
@@ -306,7 +308,9 @@ def get_report_content(url: str) -> Optional[Dict]:
         logging.error(f"Error getting report content: {e}")
         return None
 
+# Scraping functions
 def scrape_page(url: str) -> List[Dict]:
+    """Scrape a single page of search results"""
     try:
         response = make_request(url)
         if not response:
@@ -339,23 +343,12 @@ def scrape_page(url: str) -> List[Dict]:
                 content_data = get_report_content(card_url)
                 
                 if content_data:
-                    # Extract metadata first
-                    metadata = extract_metadata(content_data['content'])
-                    
-                    # Create report with all fields
                     report = {
                         'Title': title,
                         'URL': card_url,
-                        'Content': content_data['content'],
-                        'date_of_report': metadata['date_of_report'],
-                        'ref': metadata['ref'],
-                        'deceased_name': metadata['deceased_name'],
-                        'coroner_name': metadata['coroner_name'],
-                        'coroner_area': metadata['coroner_area'],
-                        'categories': metadata['categories']
+                        'Content': content_data['content']
                     }
                     
-                    # Add PDF content
                     for i, (name, content, path) in enumerate(zip(
                         content_data['pdf_names'],
                         content_data['pdf_contents'],
@@ -364,22 +357,6 @@ def scrape_page(url: str) -> List[Dict]:
                         report[f'PDF_{i}_Name'] = name
                         report[f'PDF_{i}_Content'] = content
                         report[f'PDF_{i}_Path'] = path
-                        
-                        # Extract additional metadata from PDF content
-                        pdf_metadata = extract_metadata(content)
-                        # Only update if main metadata is missing
-                        if not report['date_of_report']:
-                            report['date_of_report'] = pdf_metadata['date_of_report']
-                        if not report['ref']:
-                            report['ref'] = pdf_metadata['ref']
-                        if not report['deceased_name']:
-                            report['deceased_name'] = pdf_metadata['deceased_name']
-                        if not report['coroner_name']:
-                            report['coroner_name'] = pdf_metadata['coroner_name']
-                        if not report['coroner_area']:
-                            report['coroner_area'] = pdf_metadata['coroner_area']
-                        if not report['categories'] and pdf_metadata['categories']:
-                            report['categories'] = pdf_metadata['categories']
                     
                     reports.append(report)
                     logging.info(f"Successfully processed: {title}")
@@ -393,8 +370,9 @@ def scrape_page(url: str) -> List[Dict]:
     except Exception as e:
         logging.error(f"Error fetching page {url}: {e}")
         return []
-        
+
 def get_total_pages(url: str) -> int:
+    """Get total number of pages"""
     try:
         response = make_request(url)
         if not response:
@@ -402,6 +380,7 @@ def get_total_pages(url: str) -> int:
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
+        # Check pagination
         pagination = soup.find('nav', class_='navigation pagination')
         if pagination:
             page_numbers = pagination.find_all('a', class_='page-numbers')
@@ -409,6 +388,7 @@ def get_total_pages(url: str) -> int:
             if numbers:
                 return max(numbers)
         
+        # Check if at least one page of results exists
         results = soup.find('ul', class_='search__list')
         if results and results.find_all('div', class_='card'):
             return 1
@@ -425,10 +405,12 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                       date_before: Optional[str] = None,
                       order: str = "relevance",
                       max_pages: Optional[int] = None) -> List[Dict]:
+    """Scrape PFD reports with comprehensive filtering"""
     all_reports = []
     current_page = 1
     base_url = "https://www.judiciary.uk"
     
+    # Build query parameters
     params = {
         'post_type': 'pfd',
         'order': order
@@ -439,6 +421,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     if category:
         params['pfd_report_type'] = category
     
+    # Handle date parameters
     if date_after:
         try:
             day, month, year = date_after.split('/')
@@ -459,6 +442,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             logging.error(f"Invalid date_before format: {e}")
             return []
     
+    # Build initial URL
     param_strings = [f"{k}={v}" for k, v in params.items()]
     initial_url = f"{base_url}/?{'&'.join(param_strings)}"
     
@@ -475,15 +459,19 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         if max_pages:
             total_pages = min(total_pages, max_pages)
         
+        # Setup progress tracking
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         while current_page <= total_pages:
+            # Build page URL
             page_url = initial_url if current_page == 1 else f"{base_url}/page/{current_page}/?{'&'.join(param_strings)}"
             
+            # Update progress
             status_text.text(f"Scraping page {current_page} of {total_pages}...")
             progress_bar.progress(current_page / total_pages)
             
+            # Scrape page
             reports = scrape_page(page_url)
             
             if reports:
@@ -509,7 +497,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data"""
     try:
-        # Create a copy to avoid modifying the original DataFrame
+        # Create a copy to avoid modifying the original
         df = df.copy()
         
         # Extract metadata
@@ -521,55 +509,23 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         
         # Convert dates to datetime
         try:
-            # First try the UK format
             result['date_of_report'] = pd.to_datetime(
                 result['date_of_report'],
                 format='%d/%m/%Y',
                 errors='coerce'
             )
-            
-            # If that fails, try other common formats
-            mask = result['date_of_report'].isna()
-            if mask.any():
-                result.loc[mask, 'date_of_report'] = pd.to_datetime(
-                    result.loc[mask, 'date_of_report'],
-                    errors='coerce'
-                )
         except Exception as e:
             logging.error(f"Error converting dates: {e}")
-            raise
-
-        # Process categories to ensure they are lists
-        def convert_to_list(val):
-            if pd.isna(val):
-                return None
-            if isinstance(val, list):
-                return val
-            if isinstance(val, str):
-                try:
-                    # Try to evaluate if it's a string representation of a list
-                    evaluated = ast.literal_eval(val)
-                    if isinstance(evaluated, list):
-                        return evaluated
-                    return [evaluated]
-                except:
-                    # If it's a simple string, split by comma or return as single item
-                    if ',' in val:
-                        return [item.strip() for item in val.split(',')]
-                    return [val.strip()]
-            return None
-
-        result['categories'] = result['categories'].apply(convert_to_list)
         
         return result
             
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
-
 def plot_timeline(df: pd.DataFrame) -> None:
+    """Plot timeline of reports"""
     timeline_data = df.groupby(
-        pd.Grouper(key='date_of_report', freq='ME')
+        pd.Grouper(key='date_of_report', freq='M')
     ).size().reset_index()
     timeline_data.columns = ['Date', 'Count']
     
@@ -586,6 +542,7 @@ def plot_timeline(df: pd.DataFrame) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 def plot_category_distribution(df: pd.DataFrame) -> None:
+    """Plot category distribution"""
     all_cats = []
     for cats in df['categories'].dropna():
         if isinstance(cats, list):
@@ -609,6 +566,7 @@ def plot_category_distribution(df: pd.DataFrame) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 def plot_coroner_areas(df: pd.DataFrame) -> None:
+    """Plot coroner areas distribution"""
     area_counts = df['coroner_area'].value_counts().head(20)
     
     fig = px.bar(
@@ -627,25 +585,32 @@ def plot_coroner_areas(df: pd.DataFrame) -> None:
     st.plotly_chart(fig, use_container_width=True)
 
 def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int = 1000) -> Tuple[LatentDirichletAllocation, TfidfVectorizer, np.ndarray]:
+    """Extract topics using LDA"""
     try:
+        # Prepare text data by combining relevant fields
         texts = []
         for _, row in df.iterrows():
+            # Start with main content
             content_parts = []
             
+            # Add Content if available
             if pd.notna(row.get('Content')):
                 content_parts.append(str(row['Content']))
             
+            # Add Title if available
             if pd.notna(row.get('Title')):
                 content_parts.append(str(row['Title']))
             
+            # Add PDF contents if available
             pdf_columns = [col for col in df.columns if col.endswith('_Content')]
             for pdf_col in pdf_columns:
                 if pd.notna(row.get(pdf_col)):
                     content_parts.append(str(row[pdf_col]))
             
-            if content_parts:
+            # Clean and combine all text
+            if content_parts:  # Only process if we have content
                 cleaned_text = ' '.join(clean_text_for_modeling(text) for text in content_parts)
-                if cleaned_text.strip():
+                if cleaned_text.strip():  # Only add non-empty texts
                     texts.append(cleaned_text)
         
         if not texts:
@@ -653,22 +618,26 @@ def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int 
             
         logging.info(f"Processing {len(texts)} documents for topic modeling")
         
+        # Configure vectorizer
         vectorizer = TfidfVectorizer(
             max_features=max_features,
-            min_df=2,
-            max_df=0.95,
+            min_df=2,  # Term must appear in at least 2 documents
+            max_df=0.95,  # Term must not appear in more than 95% of documents
             stop_words='english',
-            ngram_range=(1, 2)
+            ngram_range=(1, 2)  # Use both unigrams and bigrams
         )
         
+        # Create document-term matrix
         logging.info("Creating document-term matrix...")
         tfidf_matrix = vectorizer.fit_transform(texts)
         
+        # Check if we have valid terms
         if tfidf_matrix.shape[1] == 0:
             raise ValueError("No valid terms found after vectorization")
         
         logging.info(f"Document-term matrix shape: {tfidf_matrix.shape}")
         
+        # Configure and fit LDA model
         lda_model = LatentDirichletAllocation(
             n_components=num_topics,
             random_state=42,
@@ -679,6 +648,7 @@ def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int 
             topic_word_prior=0.01
         )
         
+        # Fit model and get topic distribution
         logging.info("Fitting LDA model...")
         doc_topic_dist = lda_model.fit_transform(tfidf_matrix)
         
@@ -690,17 +660,30 @@ def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int 
         raise e
 
 def clean_text_for_modeling(text: str) -> str:
+    """Clean text for topic modeling"""
     if not isinstance(text, str) or not text.strip():
         return ""
     
     try:
+        # Convert to lowercase
         text = text.lower()
+        
+        # Remove non-ASCII characters but keep letters and numbers
         text = ''.join(char for char in text if ord(char) < 128)
+        
+        # Remove special characters but keep words
         text = re.sub(r'[^a-z0-9\s]', ' ', text)
+        
+        # Remove extra whitespace
         text = re.sub(r'\s+', ' ', text)
+        
+        # Tokenize
         tokens = word_tokenize(text)
+        
+        # Get stop words
         stop_words = set(stopwords.words('english'))
         
+        # Add custom stop words specific to PFD reports
         custom_stop_words = {
             'report', 'pfd', 'death', 'deaths', 'deceased', 'coroner', 'coroners',
             'date', 'ref', 'name', 'area', 'regulation', 'paragraph', 'section',
@@ -711,14 +694,16 @@ def clean_text_for_modeling(text: str) -> str:
         }
         stop_words.update(custom_stop_words)
         
+        # Filter tokens
         filtered_tokens = []
         for token in tokens:
-            if (len(token) > 2 and
-                not token.isnumeric() and
-                not all(c.isdigit() or c == '/' for c in token) and
-                token not in stop_words):
+            if (len(token) > 2 and  # Keep tokens longer than 2 characters
+                not token.isnumeric() and  # Remove pure numbers
+                not all(c.isdigit() or c == '/' for c in token) and  # Remove dates
+                token not in stop_words):  # Remove stop words
                 filtered_tokens.append(token)
         
+        # Return empty string if no valid tokens
         if not filtered_tokens:
             return ""
             
@@ -727,22 +712,28 @@ def clean_text_for_modeling(text: str) -> str:
     except Exception as e:
         logging.error(f"Error cleaning text for modeling: {e}")
         return ""
-
 def create_network_diagram(topic_words: List[str], 
                          tfidf_matrix: np.ndarray, 
                          similarity_threshold: float = 0.3) -> go.Figure:
+    """Create network diagram for topic visualization"""
     try:
+        # Calculate similarities
         similarities = cosine_similarity(tfidf_matrix)
+        
+        # Create graph
         G = nx.Graph()
         
+        # Add edges based on similarity threshold
         for i, word1 in enumerate(topic_words):
             for j, word2 in enumerate(topic_words[i+1:], i+1):
                 similarity = similarities[i][j]
                 if similarity >= similarity_threshold:
                     G.add_edge(word1, word2, weight=similarity)
         
+        # Get positions for visualization
         pos = nx.spring_layout(G)
         
+        # Create traces for plotly
         edge_trace = go.Scatter(
             x=[], y=[],
             line=dict(width=0.5, color='#888'),
@@ -761,18 +752,21 @@ def create_network_diagram(topic_words: List[str],
                 size=20
             ))
         
+        # Add edges
         for edge in G.edges():
             x0, y0 = pos[edge[0]]
             x1, y1 = pos[edge[1]]
             edge_trace['x'] += (x0, x1, None)
             edge_trace['y'] += (y0, y1, None)
             
+        # Add nodes
         for node in G.nodes():
             x, y = pos[node]
             node_trace['x'] += (x,)
             node_trace['y'] += (y,)
             node_trace['text'] += (node,)
         
+        # Create figure
         fig = go.Figure(data=[edge_trace, node_trace],
                      layout=go.Layout(
                          showlegend=False,
@@ -785,217 +779,6 @@ def create_network_diagram(topic_words: List[str],
     except Exception as e:
         logging.error(f"Error creating network diagram: {e}")
         return None
-
-def render_scraping_tab():
-    """Render the scraping tab"""
-    st.header("Scrape PFD Reports")
-    
-    if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
-        # Show existing results if available
-        st.success(f"Found {len(st.session_state.scraped_data)} reports")
-        
-        # Display results table
-        st.subheader("Results")
-        st.dataframe(
-            st.session_state.scraped_data,
-            column_config={
-                "URL": st.column_config.LinkColumn("Report Link"),
-                "date_of_report": st.column_config.DateColumn("Date of Report"),
-                "categories": st.column_config.ListColumn("Categories")
-            },
-            hide_index=True
-        )
-        
-        # Show export options
-        show_export_options(st.session_state.scraped_data, "scraped")
-    
-    with st.form("scraping_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            search_keyword = st.text_input("Search keywords:", "")
-            category = st.selectbox("PFD Report type:", [""] + get_pfd_categories())
-            order = st.selectbox("Sort by:", [
-                "relevance",
-                "desc",
-                "asc"
-            ], format_func=lambda x: {
-                "relevance": "Relevance",
-                "desc": "Newest first",
-                "asc": "Oldest first"
-            }[x])
-        
-        with col2:
-            date_after = st.date_input(
-                "Published after:",
-                None,
-                format="DD/MM/YYYY"
-            )
-            
-            date_before = st.date_input(
-                "Published before:",
-                None,
-                format="DD/MM/YYYY"
-            )
-            
-            max_pages = st.number_input(
-                "Maximum pages to scrape (0 for all):", 
-                min_value=0, 
-                value=0
-            )
-        
-        submitted = st.form_submit_button("Search Reports")
-    
-    if submitted:
-        try:
-            with st.spinner("Searching for reports..."):
-                # Convert dates to required format
-                date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
-                date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
-                
-                # Set max pages
-                max_pages_val = None if max_pages == 0 else max_pages
-                
-                # Perform scraping
-                reports = scrape_pfd_reports(
-                    keyword=search_keyword,
-                    category=category if category else None,
-                    date_after=date_after_str,
-                    date_before=date_before_str,
-                    order=order,
-                    max_pages=max_pages_val
-                )
-                
-                if reports:
-                    # Process the data
-                    df = pd.DataFrame(reports)
-                    df = process_scraped_data(df)
-                    
-                    # Ensure we have a valid, non-empty DataFrame
-                    if not df.empty:
-                        # Clear any existing data first
-                        st.session_state.current_data = None
-                        st.session_state.scraped_data = None
-                        st.session_state.uploaded_data = None
-                        st.session_state.data_source = None
-
-                        # Store in session state
-                        st.session_state.scraped_data = df.copy()
-                        st.session_state.data_source = 'scraped'
-                        st.session_state.current_data = df.copy()
-                        
-                        # Rerun to refresh the page
-                        st.rerun()
-                    else:
-                        st.warning("Scraping completed, but no valid data was found.")
-                else:
-                    st.warning("No reports found matching your search criteria")
-                    return False
-                    
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-            logging.error(f"Scraping error: {e}")
-            return False
-            
-def show_export_options(df: pd.DataFrame, prefix: str):
-    st.subheader("Export Options")
-    
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"pfd_reports_{prefix}_{timestamp}"
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        csv = df.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            "📥 Download Reports (CSV)",
-            csv,
-            f"{filename}.csv",
-            "text/csv",
-            key=f"download_csv_{prefix}_{timestamp}"
-        )
-    
-    with col2:
-        excel_data = export_to_excel(df)
-        st.download_button(
-            "📥 Download Reports (Excel)",
-            excel_data,
-            f"{filename}.xlsx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_excel_{prefix}_{timestamp}"
-        )
-    
-    st.subheader("Download PDFs")
-    if st.button(f"Download all PDFs_{timestamp}", key=f"pdf_button_{prefix}_{timestamp}"):
-        with st.spinner("Preparing PDF download..."):
-            pdf_zip_path = f"{filename}_pdfs.zip"
-            
-            with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
-                unique_pdfs = set()
-                pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
-                
-                for col in pdf_columns:
-                    paths = df[col].dropna()
-                    unique_pdfs.update(paths)
-                
-                for pdf_path in unique_pdfs:
-                    if pdf_path and os.path.exists(pdf_path):
-                        zipf.write(pdf_path, os.path.basename(pdf_path))
-            
-            with open(pdf_zip_path, 'rb') as f:
-                st.download_button(
-                    "📦 Download All PDFs (ZIP)",
-                    f.read(),
-                    pdf_zip_path,
-                    "application/zip",
-                    key=f"download_pdfs_zip_{prefix}_{timestamp}"
-                )
-            
-            os.remove(pdf_zip_path)
-
-def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
-    """Validate data for different purposes"""
-    if data is None:
-        return False, "No data available. Please scrape or upload data first."
-    
-    if not isinstance(data, pd.DataFrame):
-        return False, "Invalid data format. Expected pandas DataFrame."
-    
-    if len(data) == 0:
-        return False, "Dataset is empty."
-        
-    if purpose == "analysis":
-        required_columns = ['date_of_report', 'categories', 'coroner_area']
-        missing_columns = [col for col in required_columns if col not in data.columns]
-        if missing_columns:
-            return False, f"Missing required columns: {', '.join(missing_columns)}"
-            
-    elif purpose == "topic_modeling":
-        if 'Content' not in data.columns:
-            return False, "Missing required column: Content"
-            
-        valid_docs = data['Content'].dropna().str.strip().str.len() > 0
-        if valid_docs.sum() < 2:
-            return False, "Not enough valid documents found. Please ensure you have documents with text content."
-    
-    # Date validation
-    if 'date_of_report' in data.columns:
-        if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
-            try:
-                # Try converting to datetime using UK format
-                pd.to_datetime(data['date_of_report'], format='%d/%m/%Y')
-            except:
-                try:
-                    # If UK format fails, try flexible parsing
-                    pd.to_datetime(data['date_of_report'])
-                except:
-                    return False, "Invalid date format in date_of_report column. Expected DD/MM/YYYY format."
-    
-    if 'categories' in data.columns:
-        if not data['categories'].apply(lambda x: isinstance(x, (list, type(None)))).all():
-            return False, "Categories must be stored as lists or None values."
-    
-    return True, "Data is valid"
     
 
 def analyze_data_quality(df: pd.DataFrame) -> None:
