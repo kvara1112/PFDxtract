@@ -1018,13 +1018,13 @@ def render_scraping_tab():
         # Show existing results if available
         st.success(f"Found {len(st.session_state.scraped_data)} reports")
         
-        # Display results table
+        # Display results table with UK date format
         st.subheader("Results")
         st.dataframe(
             st.session_state.scraped_data,
             column_config={
                 "URL": st.column_config.LinkColumn("Report Link"),
-                "date_of_report": st.column_config.DateColumn("Date of Report"),
+                "date_of_report": st.column_config.DateColumn("Date of Report", format="dd MMMM YYYY"),
                 "categories": st.column_config.ListColumn("Categories")
             },
             hide_index=True
