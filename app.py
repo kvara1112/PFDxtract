@@ -945,43 +945,87 @@ def show_export_options(df: pd.DataFrame, prefix: str):
 
     
 def render_analysis_tab(data: pd.DataFrame):
-    """Render the analysis tab with working filters"""
+    """Render the analysis tab with upload option"""
+    st.header("Reports Analysis")
+    
+    # Add option to clear current data and upload new file
+    if st.session_state.current_data is not None:
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            total_reports = len(st.session_state.current_data) if isinstance(st.session_state.current_data, pd.DataFrame) else 0
+            data_source = st.session_state.data_source or "unknown source"
+            st.info(f"Currently analyzing {total_reports} reports from {data_source}")
+        with col2:
+            if st.button("Clear Current Data"):
+                st.session_state.current_data = None
+                st.session_state.data_source = None
+                st.session_state.scraped_data = None
+                st.session_state.uploaded_data = None
+                st.rerun()
+    
+    # Show file upload if no data or if data was cleared
+    if st.session_state.current_data is None:
+        upload_col1, upload_col2 = st.columns([3, 1])
+        with upload_col1:
+            uploaded_file = st.file_uploader(
+                "Upload CSV or Excel file", 
+                type=['csv', 'xlsx']
+            )
+        
+        if uploaded_file is not None:
+            try:
+                # Read the file based on extension
+                if uploaded_file.name.lower().endswith('.csv'):
+                    df = pd.read_csv(uploaded_file)
+                elif uploaded_file.name.lower().endswith(('.xls', '.xlsx')):
+                    df = pd.read_excel(uploaded_file)
+                else:
+                    st.error("Unsupported file type")
+                    return
+                
+                # Required columns
+                required_columns = [
+                    'Title', 'URL', 'Content', 
+                    'date_of_report', 'categories', 'coroner_area'
+                ]
+                
+                # Check for missing columns
+                missing_columns = [col for col in required_columns if col not in df.columns]
+                
+                if missing_columns:
+                    st.error(f"Missing required columns: {', '.join(missing_columns)}")
+                    st.write("Available columns:", list(df.columns))
+                    return
+                
+                # Process the data
+                processed_df = process_scraped_data(df)
+                
+                # Update session state
+                st.session_state.uploaded_data = processed_df.copy()
+                st.session_state.current_data = processed_df.copy()
+                st.session_state.data_source = 'uploaded'
+                
+                st.success(f"File uploaded successfully! Total reports: {len(processed_df)}")
+                st.rerun()
+                
+            except Exception as read_error:
+                st.error(f"Error reading file: {read_error}")
+                logging.error(f"File read error: {read_error}", exc_info=True)
+                return
+        return
+    
+    # If we have data, validate it before proceeding
     try:
-        # Generate a unique key prefix for this session
-        unique_id = f"{int(time.time() * 1000)}"
-        
-        # Validate data
-        if data is None or len(data) == 0:
-            st.warning("No data available for analysis. Please scrape or upload data first.")
+        is_valid, message = validate_data(data, "analysis")
+        if not is_valid:
+            st.error(message)
             return
             
-        # Check required columns
-        required_columns = ['date_of_report', 'categories', 'coroner_area']
-        missing_columns = [col for col in required_columns if col not in data.columns]
-        if missing_columns:
-            st.error(f"Missing required columns: {', '.join(missing_columns)}")
-            return
-
-        st.header("Reports Analysis")
-        
-        # Ensure date_of_report is datetime
-        if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
-            data['date_of_report'] = pd.to_datetime(data['date_of_report'], errors='coerce')
-        
-        # Handle missing dates
-        if data['date_of_report'].isna().all():
-            st.error("No valid dates found in the data.")
-            return
-            
-        # Store the original data
-        if 'original_analysis_data' not in st.session_state:
-            st.session_state.original_analysis_data = data.copy()
-        
         # Get date range for the data
         min_date = data['date_of_report'].min().date()
         max_date = data['date_of_report'].max().date()
-            
-        # Filters sidebar
+        
+        # Sidebar for filtering
         with st.sidebar:
             st.header("Analysis Filters")
             
@@ -991,7 +1035,7 @@ def render_analysis_tab(data: pd.DataFrame):
                 value=(min_date, max_date),
                 min_value=min_date,
                 max_value=max_date,
-                key=f"date_range_{unique_id}"
+                key="date_range_filter"
             )
             
             # Category filter
@@ -1003,7 +1047,7 @@ def render_analysis_tab(data: pd.DataFrame):
             selected_categories = st.multiselect(
                 "Categories",
                 options=sorted(all_categories),
-                key=f"categories_{unique_id}"
+                key="categories_filter"
             )
             
             # Coroner area filter
@@ -1011,15 +1055,8 @@ def render_analysis_tab(data: pd.DataFrame):
             selected_areas = st.multiselect(
                 "Coroner Areas",
                 options=coroner_areas,
-                key=f"areas_{unique_id}"
+                key="areas_filter"
             )
-            
-            # Add a clear filters button
-            if st.button("Clear Filters", key=f"clear_filters_{unique_id}"):
-                st.session_state[f"date_range_{unique_id}"] = (min_date, max_date)
-                st.session_state[f"categories_{unique_id}"] = []
-                st.session_state[f"areas_{unique_id}"] = []
-                st.rerun()
         
         # Apply filters
         filtered_df = data.copy()
@@ -1045,7 +1082,7 @@ def render_analysis_tab(data: pd.DataFrame):
         
         # Show filter status
         active_filters = []
-        if len(date_range) == 2:
+        if len(date_range) == 2 and (date_range[0] != min_date or date_range[1] != max_date):
             active_filters.append(f"Date range: {date_range[0]} to {date_range[1]}")
         if selected_categories:
             active_filters.append(f"Categories: {', '.join(selected_categories)}")
@@ -1075,16 +1112,17 @@ def render_analysis_tab(data: pd.DataFrame):
                                  for cats in filtered_df['categories'].dropna())
             st.metric("Total Category Tags", categories_count)
         with col4:
-            date_range = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
-            avg_reports_month = len(filtered_df) / (date_range / 30) if date_range > 0 else len(filtered_df)
+            date_range_days = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
+            avg_reports_month = len(filtered_df) / (date_range_days / 30) if date_range_days > 0 else len(filtered_df)
             st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
         
         # Visualizations
         st.subheader("Visualizations")
-        viz_tab1, viz_tab2, viz_tab3 = st.tabs([
+        viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
             "Timeline",
             "Categories",
-            "Coroner Areas"
+            "Coroner Areas",
+            "Data Quality"
         ])
         
         with viz_tab1:
@@ -1104,14 +1142,20 @@ def render_analysis_tab(data: pd.DataFrame):
                 plot_coroner_areas(filtered_df)
             except Exception as e:
                 st.error(f"Error creating coroner areas plot: {str(e)}")
+                
+        with viz_tab4:
+            try:
+                analyze_data_quality(filtered_df)
+            except Exception as e:
+                st.error(f"Error creating data quality analysis: {str(e)}")
         
         # Export filtered data
         show_export_options(filtered_df, "filtered")
-
-    except Exception as e:
-        st.error(f"An error occurred in the analysis tab: {str(e)}")
-        logging.error(f"Analysis error: {e}", exc_info=True)
         
+    except Exception as e:
+        st.error(f"An unexpected error occurred in the analysis tab: {str(e)}")
+        logging.error(f"Unexpected error in render_analysis_tab: {e}", exc_info=True)
+
 
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
@@ -1439,68 +1483,57 @@ def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, 
     return True, "Data is valid"
     
 def main():
-    try:
-        initialize_session_state()
-        st.title("UK Judiciary PFD Reports Analysis")
-        st.markdown("""
-        This application allows you to analyze Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-        You can either scrape new reports or upload existing data for analysis.
-        """)
-        
-        # Create separate tab selection to avoid key conflicts
-        current_tab = st.radio(
-            "Select section:",
-            ["🔍 Scrape Reports", "📤 Upload Data", "📊 Analysis", "🔬 Topic Modeling"],
-            label_visibility="collapsed",
-            horizontal=True,
-            key="main_tab_selector"
-        )
-        
-        st.markdown("---")  # Add separator
-        
-        # Handle tab content
-        if current_tab == "🔍 Scrape Reports":
-            render_scraping_tab()
-        
-        elif current_tab == "📤 Upload Data":
-            render_file_upload()
-        
-        elif current_tab == "📊 Analysis":
-            if st.session_state.current_data is not None:
-                is_valid, message = validate_data(st.session_state.current_data, "analysis")
-                if is_valid:
-                    render_analysis_tab(st.session_state.current_data)
-                else:
-                    st.error(message)
+    initialize_session_state()
+    st.title("UK Judiciary PFD Reports Analysis")
+    st.markdown("""
+    This application allows you to analyze Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can either scrape new reports or analyze existing data.
+    """)
+    
+    # Create separate tab selection to avoid key conflicts
+    current_tab = st.radio(
+        "Select section:",
+        ["🔍 Scrape Reports", "📊 Analysis", "🔬 Topic Modeling"],
+        label_visibility="collapsed",
+        horizontal=True,
+        key="main_tab_selector"
+    )
+    
+    st.markdown("---")  # Add separator
+    
+    # Handle tab content
+    if current_tab == "🔍 Scrape Reports":
+        render_scraping_tab()
+    
+    elif current_tab == "📊 Analysis":
+        if hasattr(st.session_state, 'current_data'):
+            render_analysis_tab(st.session_state.current_data)
+        else:
+            st.warning("No data available. Please scrape reports or upload a file.")
+    
+    elif current_tab == "🔬 Topic Modeling":
+        if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
+            st.warning("No data available. Please scrape reports or upload a file first.")
+            return
+            
+        try:
+            is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
+            if is_valid:
+                render_topic_modeling_tab(st.session_state.current_data)
             else:
-                st.warning("Please scrape or upload data first")
-        
-        elif current_tab == "🔬 Topic Modeling":
-            if st.session_state.current_data is not None:
-                is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
-                if is_valid:
-                    render_topic_modeling_tab(st.session_state.current_data)
-                else:
-                    st.error(message)
-            else:
-                st.warning("Please scrape or upload data first")
-        
-        # Show data source indicator in sidebar
-        if st.session_state.data_source:
-            st.sidebar.success(f"Currently using {st.session_state.data_source} data")
-        
-        # Add footer
-        st.markdown("---")
-        st.markdown(
-            """<div style='text-align: center'>
-            <p>Built with Streamlit • Data from UK Judiciary</p>
-            </div>""",
-            unsafe_allow_html=True
-        )
-        
-    except Exception as e:
-        st.error(f"An application error occurred: {str(e)}")
-        logging.error(f"Application error: {e}", exc_info=True)
+                st.error(message)
+        except Exception as e:
+            st.error(f"Error in topic modeling: {e}")
+            logging.error(f"Topic modeling error: {e}", exc_info=True)
+    
+    # Add footer
+    st.markdown("---")
+    st.markdown(
+        """<div style='text-align: center'>
+        <p>Built with Streamlit • Data from UK Judiciary</p>
+        </div>""",
+        unsafe_allow_html=True
+    )
 
 if __name__ == "__main__":
     main()
