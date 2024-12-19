@@ -448,96 +448,116 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         # Create URL-friendly slug
         category_slug = category.lower().replace(' ', '-')
-        initial_url = f"{base_url}pfd-types/{category_slug}/"
+        base_search_url = f"{base_url}pfd-types/{category_slug}/"
     else:
-        initial_url = f"{base_url}prevention-of-future-death-reports/"
-    
-    st.write(f"Searching URL: {initial_url}")
+        base_search_url = f"{base_url}prevention-of-future-death-reports/"
     
     try:
-        # Direct request to get the page content
-        response = make_request(initial_url)
-        if not response:
-            st.error("Failed to retrieve page content")
-            return []
-        
-        # Parse the page
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        # Multiple strategies to find report container
-        container_classes = [
-            ['archive__listings', 'search__listing'],
-            ['search__list'],
-            ['govuk-list'],
-            ['archive__posts']
-        ]
-        
-        report_container = None
-        for classes in container_classes:
-            report_container = soup.find('ul', class_=classes) or soup.find('div', class_=classes)
-            if report_container:
+        while True:
+            # Construct page URL
+            page_url = f"{base_search_url}page/{current_page}/" if current_page > 1 else base_search_url
+            st.write(f"Scraping page {current_page}: {page_url}")
+            
+            # Get page content
+            response = make_request(page_url)
+            if not response:
                 break
-        
-        if not report_container:
-            st.warning("No report container found")
-            return []
-        
-        # Find all report cards
-        report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full', 'search__item'])
-        
-        st.write(f"Found {len(report_cards)} potential report cards")
-        
-        for card in report_cards:
-            try:
-                # Extract title
-                title_elem = card.find(['h3', 'h2'], class_=['card__title'])
-                if not title_elem:
-                    continue
                 
-                title_link = title_elem.find('a')
-                if not title_link:
-                    continue
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Find report container
+            container_classes = [
+                ['archive__listings', 'search__listing'],
+                ['search__list'],
+                ['govuk-list'],
+                ['archive__posts']
+            ]
+            
+            report_container = None
+            for classes in container_classes:
+                report_container = soup.find('ul', class_=classes) or soup.find('div', class_=classes)
+                if report_container:
+                    break
+            
+            if not report_container:
+                st.warning(f"No report container found on page {current_page}")
+                break
+            
+            # Find report cards
+            report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full', 'search__item'])
+            
+            if not report_cards:
+                break  # No more reports found
                 
-                title = title_link.text.strip()
-                card_url = title_link['href']
-                
-                # Get full content details
-                content_data = get_report_content(card_url)
-                
-                if content_data:
-                    # Construct report dictionary matching original structure
-                    report = {
-                        'Title': title,
-                        'URL': card_url,
-                        'Content': content_data['content']
-                    }
+            st.write(f"Found {len(report_cards)} reports on page {current_page}")
+            
+            # Process reports on current page
+            for card in report_cards:
+                try:
+                    title_elem = card.find(['h3', 'h2'], class_=['card__title'])
+                    if not title_elem:
+                        continue
                     
-                    # Add PDF details if available
-                    for i, (name, content, path) in enumerate(zip(
-                        content_data['pdf_names'],
-                        content_data['pdf_contents'],
-                        content_data['pdf_paths']
-                    ), 1):
-                        report[f'PDF_{i}_Name'] = name
-                        report[f'PDF_{i}_Content'] = content
-                        report[f'PDF_{i}_Path'] = path
+                    title_link = title_elem.find('a')
+                    if not title_link:
+                        continue
                     
-                    all_reports.append(report)
-                    logging.info(f"Successfully processed: {title}")
+                    title = clean_text(title_link.text)
+                    card_url = title_link['href']
+                    
+                    if not card_url.startswith(('http://', 'https://')):
+                        card_url = f"https://www.judiciary.uk{card_url}"
+                    
+                    # Get full content details
+                    content_data = get_report_content(card_url)
+                    
+                    if content_data:
+                        report = {
+                            'Title': title,
+                            'URL': card_url,
+                            'Content': content_data['content']
+                        }
+                        
+                        # Add PDF details
+                        for i, (name, content, path) in enumerate(zip(
+                            content_data['pdf_names'],
+                            content_data['pdf_contents'],
+                            content_data['pdf_paths']
+                        ), 1):
+                            report[f'PDF_{i}_Name'] = name
+                            report[f'PDF_{i}_Content'] = content
+                            report[f'PDF_{i}_Path'] = path
+                        
+                        all_reports.append(report)
+                        logging.info(f"Successfully processed: {title}")
+                    
+                except Exception as card_error:
+                    logging.error(f"Error processing card: {card_error}")
+                    continue
+            
+            # Check if we should continue to next page
+            if max_pages and current_page >= max_pages:
+                break
                 
-            except Exception as card_error:
-                logging.error(f"Error processing card: {card_error}")
-                continue
+            # Look for next page link
+            next_page = soup.find('a', class_='next')
+            if not next_page:
+                pagination = soup.find('nav', class_='navigation pagination')
+                if pagination:
+                    next_page = pagination.find('a', class_='next page-numbers')
+            
+            if not next_page:
+                break
+                
+            current_page += 1
+            time.sleep(2)  # Add delay between pages
         
         return all_reports
     
     except Exception as e:
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
-        return []
-
-
-
+        return all_reports  # Return any reports collected before error
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
