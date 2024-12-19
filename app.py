@@ -495,7 +495,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         return []
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data"""
+    """Process and clean scraped data with enhanced date handling"""
     try:
         # Create a copy to avoid modifying the original
         df = df.copy()
@@ -504,52 +504,90 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         if 'Content' in df.columns:
             metadata = df['Content'].fillna("").apply(extract_metadata)
             metadata_df = pd.DataFrame(metadata.tolist())
-            
-            # Combine with original data
             result = pd.concat([df, metadata_df], axis=1)
         else:
             result = df.copy()
         
-        # Handle date conversion with multiple formats
+        # Print debug info for date column
         if 'date_of_report' in result.columns:
-            # Convert any string dates to datetime
-            if not pd.api.types.is_datetime64_any_dtype(result['date_of_report']):
-                # Try multiple date formats
-                date_formats = [
-                    '%d/%m/%Y',     # DD/MM/YYYY
-                    '%Y-%m-%d',     # YYYY-MM-DD
-                    '%d-%m-%Y',     # DD-MM-YYYY
-                    '%Y/%m/%d',     # YYYY/MM/DD
-                    '%d %B %Y',     # DD Month YYYY
-                    '%d %b %Y',     # DD Mon YYYY
-                    '%B %d, %Y',    # Month DD, YYYY
-                    '%Y-%m-%d %H:%M:%S'  # YYYY-MM-DD HH:MM:SS
-                ]
-                
-                def safe_date_parse(date_str):
-                    if pd.isna(date_str):
-                        return pd.NaT
+            print("\nDebug Info:")
+            print("Original date values:", result['date_of_report'].head())
+            print("Original date types:", result['date_of_report'].apply(type).value_counts())
+            
+            # Handle case where dates are already datetime
+            if pd.api.types.is_datetime64_any_dtype(result['date_of_report']):
+                return result
+            
+            # Clean date strings first
+            def clean_date_string(date_str):
+                if pd.isna(date_str):
+                    return date_str
+                if isinstance(date_str, (datetime, pd.Timestamp)):
+                    return date_str
                     
-                    if isinstance(date_str, (pd.Timestamp, datetime)):
-                        return date_str
-                        
-                    date_str = str(date_str).strip()
+                date_str = str(date_str).strip()
+                # Remove potential day suffixes
+                date_str = re.sub(r'(\d+)(st|nd|rd|th)', r'\1', date_str)
+                # Replace month names if present
+                month_map = {
+                    'January': '01', 'February': '02', 'March': '03', 'April': '04',
+                    'May': '05', 'June': '06', 'July': '07', 'August': '08',
+                    'September': '09', 'October': '10', 'November': '11', 'December': '12',
+                    'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+                    'Jun': '06', 'Jul': '07', 'Aug': '08', 'Sep': '09',
+                    'Oct': '10', 'Nov': '11', 'Dec': '12'
+                }
+                for month_name, month_num in month_map.items():
+                    date_str = re.sub(rf'\b{month_name}\b', month_num, date_str, flags=re.IGNORECASE)
+                return date_str
+
+            # First pass: clean the date strings
+            result['date_of_report'] = result['date_of_report'].apply(clean_date_string)
+            
+            print("After cleaning:", result['date_of_report'].head())
+            
+            # Define date formats to try
+            date_formats = [
+                '%d/%m/%Y',     # 31/12/2023
+                '%Y-%m-%d',     # 2023-12-31
+                '%d-%m-%Y',     # 31-12-2023
+                '%Y/%m/%d',     # 2023/12/31
+                '%d %m %Y',     # 31 12 2023
+                '%m/%d/%Y',     # 12/31/2023
+                '%Y%m%d'        # 20231231
+            ]
+
+            def parse_date(date_str):
+                if pd.isna(date_str):
+                    return pd.NaT
+                if isinstance(date_str, (datetime, pd.Timestamp)):
+                    return pd.to_datetime(date_str)
                     
-                    for date_format in date_formats:
-                        try:
-                            return pd.to_datetime(date_str, format=date_format)
-                        except ValueError:
-                            continue
-                    
-                    # If none of the specific formats work, try pandas' flexible parser
+                # Try each format
+                for fmt in date_formats:
                     try:
-                        return pd.to_datetime(date_str)
-                    except:
-                        return pd.NaT
+                        return pd.to_datetime(date_str, format=fmt)
+                    except ValueError:
+                        continue
                 
-                result['date_of_report'] = result['date_of_report'].apply(safe_date_parse)
-        
-        # Ensure categories is always a list
+                # If all specific formats fail, try pandas' flexible parser
+                try:
+                    return pd.to_datetime(date_str)
+                except Exception as e:
+                    print(f"Failed to parse date: {date_str}, Error: {str(e)}")
+                    return pd.NaT
+
+            # Second pass: convert to datetime
+            result['date_of_report'] = result['date_of_report'].apply(parse_date)
+            
+            print("Final date values:", result['date_of_report'].head())
+            print("Final date types:", result['date_of_report'].apply(type).value_counts())
+            
+            # Verify conversion was successful
+            if result['date_of_report'].isna().all():
+                print("Warning: All dates were converted to NaT")
+                
+        # Handle categories
         if 'categories' in result.columns:
             result['categories'] = result['categories'].apply(
                 lambda x: [] if pd.isna(x) else 
@@ -560,64 +598,60 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         return result
             
     except Exception as e:
-        logging.error(f"Error in process_scraped_data: {e}")
-        return df
+        print(f"Error in process_scraped_data: {str(e)}")
+        raise e
 
 def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
-    """
-    Validate data for different purposes
-    """
-    if data is None:
-        return False, "No data available. Please scrape or upload data first."
-    
-    if not isinstance(data, pd.DataFrame):
-        return False, "Invalid data format. Expected pandas DataFrame."
-    
-    if len(data) == 0:
-        return False, "Dataset is empty."
+    """Validate data with enhanced error reporting"""
+    try:
+        if data is None:
+            return False, "No data available. Please scrape or upload data first."
         
-    if purpose == "analysis":
-        required_columns = ['date_of_report', 'categories', 'coroner_area']
-        missing_columns = [col for col in required_columns if col not in data.columns]
-        if missing_columns:
-            return False, f"Missing required columns: {', '.join(missing_columns)}"
+        if not isinstance(data, pd.DataFrame):
+            return False, "Invalid data format. Expected pandas DataFrame."
+        
+        if len(data) == 0:
+            return False, "Dataset is empty."
             
-        # Check date column
-        if 'date_of_report' in data.columns:
-            # Convert dates if they haven't been converted yet
-            if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
-                try:
-                    data = process_scraped_data(data)  # This will handle date conversion
-                    if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
-                        return False, "Could not convert dates to proper format."
-                except Exception as e:
-                    return False, f"Error processing dates: {str(e)}"
+        if purpose == "analysis":
+            required_columns = ['date_of_report', 'categories', 'coroner_area']
+            missing_columns = [col for col in required_columns if col not in data.columns]
+            if missing_columns:
+                return False, f"Missing required columns: {', '.join(missing_columns)}"
             
-            # Check for all NaT values
-            if data['date_of_report'].isna().all():
-                return False, "All dates are invalid or missing."
-            
-    elif purpose == "topic_modeling":
-        if 'Content' not in data.columns:
-            return False, "Missing required column: Content"
-            
-        valid_docs = data['Content'].dropna().str.strip().str.len() > 0
-        if valid_docs.sum() < 2:
-            return False, "Not enough valid documents found. Please ensure you have documents with text content."
-            
-    # Check categories format
-    if 'categories' in data.columns:
-        try:
-            # Ensure categories are lists
-            data['categories'] = data['categories'].apply(
-                lambda x: [] if pd.isna(x) else 
-                         [x] if isinstance(x, str) else 
-                         list(x) if isinstance(x, (list, tuple)) else []
-            )
-        except Exception as e:
-            return False, f"Error processing categories: {str(e)}"
-    
-    return True, "Data is valid"
+            # Check date column
+            if 'date_of_report' in data.columns:
+                # Print current state of dates
+                print("\nValidation Debug:")
+                print("Current date values:", data['date_of_report'].head())
+                print("Current date types:", data['date_of_report'].apply(type).value_counts())
+                
+                # Try to process dates if not already datetime
+                if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
+                    try:
+                        processed_data = process_scraped_data(data)
+                        if not pd.api.types.is_datetime64_any_dtype(processed_data['date_of_report']):
+                            return False, "Could not convert dates to datetime format."
+                        if processed_data['date_of_report'].isna().all():
+                            return False, "All dates were invalid or could not be parsed."
+                        data = processed_data
+                    except Exception as e:
+                        return False, f"Error processing dates: {str(e)}"
+        
+        elif purpose == "topic_modeling":
+            if 'Content' not in data.columns:
+                return False, "Missing required column: Content"
+                
+            valid_docs = data['Content'].dropna().str.strip().str.len() > 0
+            if valid_docs.sum() < 2:
+                return False, "Not enough valid documents found."
+        
+        return True, "Data is valid"
+        
+    except Exception as e:
+        print(f"Error in validate_data: {str(e)}")
+        return False, f"Validation error: {str(e)}"
+        
     
 def plot_timeline(df: pd.DataFrame) -> None:
     """Plot timeline of reports"""
