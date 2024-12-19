@@ -429,6 +429,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                       max_pages: Optional[int] = None) -> List[Dict]:
     """Scrape PFD reports with comprehensive filtering"""
     all_reports = []
+    current_page = 1
     base_url = "https://www.judiciary.uk/"
     
     # Validate and prepare category
@@ -463,9 +464,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         # Parse the page
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Debug: Print page title and structure
-        st.write("Page Title:", soup.title.string if soup.title else "No title")
-        
         # Multiple strategies to find report container
         container_classes = [
             ['archive__listings', 'search__listing'],
@@ -482,14 +480,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         if not report_container:
             st.warning("No report container found")
-            
-            # Fallback: print out all list and div classes
-            all_lists = soup.find_all(['ul', 'div'])
-            st.write("Available list/div classes:")
-            for lst in all_lists:
-                if lst.get('class'):
-                    st.write(lst.get('class'))
-            
             return []
         
         # Find all report cards
@@ -497,12 +487,10 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         st.write(f"Found {len(report_cards)} potential report cards")
         
-        potential_reports = []
-        
         for card in report_cards:
             try:
                 # Extract title
-                title_elem = card.find(['h2', 'h3'], class_=['card__title', 'title'])
+                title_elem = card.find(['h3', 'h2'], class_=['card__title'])
                 if not title_elem:
                     continue
                 
@@ -510,46 +498,43 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                 if not title_link:
                     continue
                 
-                title = title_link.get_text(strip=True)
-                url = title_link.get('href', '')
+                title = title_link.text.strip()
+                card_url = title_link['href']
                 
-                # Extract description
-                desc_elem = card.find(['p', 'div'], class_=['description', 'card__description'])
-                description = desc_elem.get_text(strip=True) if desc_elem else ""
+                # Get full content details
+                content_data = get_report_content(card_url)
                 
-                # Extract date
-                date_elem = card.find(['p', 'span'], class_=['date', 'card__date'])
-                date = date_elem.get_text(strip=True) if date_elem else ""
+                if content_data:
+                    # Construct report dictionary matching original structure
+                    report = {
+                        'Title': title,
+                        'URL': card_url,
+                        'Content': content_data['content']
+                    }
+                    
+                    # Add PDF details if available
+                    for i, (name, content, path) in enumerate(zip(
+                        content_data['pdf_names'],
+                        content_data['pdf_contents'],
+                        content_data['pdf_paths']
+                    ), 1):
+                        report[f'PDF_{i}_Name'] = name
+                        report[f'PDF_{i}_Content'] = content
+                        report[f'PDF_{i}_Path'] = path
+                    
+                    all_reports.append(report)
+                    logging.info(f"Successfully processed: {title}")
                 
-                # Extract categories
-                categories_elem = card.find('div', class_='card__meta')
-                categories = []
-                if categories_elem:
-                    cat_links = categories_elem.find_all('a')
-                    categories = [cat.get_text(strip=True) for cat in cat_links]
-                
-                report = {
-                    'Title': title,
-                    'URL': url,
-                    'Description': description,
-                    'Date': date,
-                    'Categories': categories
-                }
-                
-                potential_reports.append(report)
-            
             except Exception as card_error:
-                st.write(f"Error processing report card: {card_error}")
+                logging.error(f"Error processing card: {card_error}")
+                continue
         
-        st.write(f"Total potential reports found: {len(potential_reports)}")
-        
-        return potential_reports
+        return all_reports
     
     except Exception as e:
-        st.error(f"Comprehensive error in scrape_pfd_reports: {str(e)}")
+        logging.error(f"Error in scrape_pfd_reports: {e}")
+        st.error(f"An error occurred while scraping reports: {e}")
         return []
-
-
 
 
 
