@@ -500,28 +500,125 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         # Create a copy to avoid modifying the original
         df = df.copy()
         
-        # Extract metadata
-        metadata = df['Content'].fillna("").apply(extract_metadata)
-        metadata_df = pd.DataFrame(metadata.tolist())
+        # Extract metadata if Content column exists
+        if 'Content' in df.columns:
+            metadata = df['Content'].fillna("").apply(extract_metadata)
+            metadata_df = pd.DataFrame(metadata.tolist())
+            
+            # Combine with original data
+            result = pd.concat([df, metadata_df], axis=1)
+        else:
+            result = df.copy()
         
-        # Combine with original data
-        result = pd.concat([df, metadata_df], axis=1)
+        # Handle date conversion with multiple formats
+        if 'date_of_report' in result.columns:
+            # Convert any string dates to datetime
+            if not pd.api.types.is_datetime64_any_dtype(result['date_of_report']):
+                # Try multiple date formats
+                date_formats = [
+                    '%d/%m/%Y',     # DD/MM/YYYY
+                    '%Y-%m-%d',     # YYYY-MM-DD
+                    '%d-%m-%Y',     # DD-MM-YYYY
+                    '%Y/%m/%d',     # YYYY/MM/DD
+                    '%d %B %Y',     # DD Month YYYY
+                    '%d %b %Y',     # DD Mon YYYY
+                    '%B %d, %Y',    # Month DD, YYYY
+                    '%Y-%m-%d %H:%M:%S'  # YYYY-MM-DD HH:MM:SS
+                ]
+                
+                def safe_date_parse(date_str):
+                    if pd.isna(date_str):
+                        return pd.NaT
+                    
+                    if isinstance(date_str, (pd.Timestamp, datetime)):
+                        return date_str
+                        
+                    date_str = str(date_str).strip()
+                    
+                    for date_format in date_formats:
+                        try:
+                            return pd.to_datetime(date_str, format=date_format)
+                        except ValueError:
+                            continue
+                    
+                    # If none of the specific formats work, try pandas' flexible parser
+                    try:
+                        return pd.to_datetime(date_str)
+                    except:
+                        return pd.NaT
+                
+                result['date_of_report'] = result['date_of_report'].apply(safe_date_parse)
         
-        # Convert dates to datetime
-        try:
-            result['date_of_report'] = pd.to_datetime(
-                result['date_of_report'],
-                format='%d/%m/%Y',
-                errors='coerce'
+        # Ensure categories is always a list
+        if 'categories' in result.columns:
+            result['categories'] = result['categories'].apply(
+                lambda x: [] if pd.isna(x) else 
+                         [x] if isinstance(x, str) else 
+                         list(x) if isinstance(x, (list, tuple)) else []
             )
-        except Exception as e:
-            logging.error(f"Error converting dates: {e}")
         
         return result
             
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
+
+def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
+    """
+    Validate data for different purposes
+    """
+    if data is None:
+        return False, "No data available. Please scrape or upload data first."
+    
+    if not isinstance(data, pd.DataFrame):
+        return False, "Invalid data format. Expected pandas DataFrame."
+    
+    if len(data) == 0:
+        return False, "Dataset is empty."
+        
+    if purpose == "analysis":
+        required_columns = ['date_of_report', 'categories', 'coroner_area']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            return False, f"Missing required columns: {', '.join(missing_columns)}"
+            
+        # Check date column
+        if 'date_of_report' in data.columns:
+            # Convert dates if they haven't been converted yet
+            if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
+                try:
+                    data = process_scraped_data(data)  # This will handle date conversion
+                    if not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
+                        return False, "Could not convert dates to proper format."
+                except Exception as e:
+                    return False, f"Error processing dates: {str(e)}"
+            
+            # Check for all NaT values
+            if data['date_of_report'].isna().all():
+                return False, "All dates are invalid or missing."
+            
+    elif purpose == "topic_modeling":
+        if 'Content' not in data.columns:
+            return False, "Missing required column: Content"
+            
+        valid_docs = data['Content'].dropna().str.strip().str.len() > 0
+        if valid_docs.sum() < 2:
+            return False, "Not enough valid documents found. Please ensure you have documents with text content."
+            
+    # Check categories format
+    if 'categories' in data.columns:
+        try:
+            # Ensure categories are lists
+            data['categories'] = data['categories'].apply(
+                lambda x: [] if pd.isna(x) else 
+                         [x] if isinstance(x, str) else 
+                         list(x) if isinstance(x, (list, tuple)) else []
+            )
+        except Exception as e:
+            return False, f"Error processing categories: {str(e)}"
+    
+    return True, "Data is valid"
+    
 def plot_timeline(df: pd.DataFrame) -> None:
     """Plot timeline of reports"""
     timeline_data = df.groupby(
@@ -1435,52 +1532,6 @@ def initialize_session_state():
             logging.error(f"Error during PDF cleanup: {e}")
         finally:
             st.session_state.cleanup_done = True
-def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
-    """
-    Validate data for different purposes
-    
-    Args:
-        data: DataFrame to validate
-        purpose: Purpose of validation ('analysis' or 'topic_modeling')
-        
-    Returns:
-        tuple: (is_valid, message)
-    """
-    if data is None:
-        return False, "No data available. Please scrape or upload data first."
-    
-    if not isinstance(data, pd.DataFrame):
-        return False, "Invalid data format. Expected pandas DataFrame."
-    
-    if len(data) == 0:
-        return False, "Dataset is empty."
-        
-    if purpose == "analysis":
-        required_columns = ['date_of_report', 'categories', 'coroner_area']
-        missing_columns = [col for col in required_columns if col not in data.columns]
-        if missing_columns:
-            return False, f"Missing required columns: {', '.join(missing_columns)}"
-            
-    elif purpose == "topic_modeling":
-        if 'Content' not in data.columns:
-            return False, "Missing required column: Content"
-            
-        valid_docs = data['Content'].dropna().str.strip().str.len() > 0
-        if valid_docs.sum() < 2:
-            return False, "Not enough valid documents found. Please ensure you have documents with text content."
-            
-    # Add type checking for critical columns
-    if 'date_of_report' in data.columns and not pd.api.types.is_datetime64_any_dtype(data['date_of_report']):
-        try:
-            pd.to_datetime(data['date_of_report'])
-        except Exception:
-            return False, "Invalid date format in date_of_report column."
-            
-    if 'categories' in data.columns:
-        if not data['categories'].apply(lambda x: isinstance(x, (list, type(None)))).all():
-            return False, "Categories must be stored as lists or None values."
-    
-    return True, "Data is valid"
     
 def main():
     initialize_session_state()
