@@ -26,6 +26,7 @@ import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
+from bs4 import BeautifulSoup, Tag
 
 # Configure logging
 logging.basicConfig(
@@ -466,70 +467,61 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         st.write("Full HTML structure debug:")
         st.write(soup.prettify()[:5000])  # Print first 5000 characters
         
-        # Multiple strategies to find reports
-        report_strategies = [
-            # Strategy 1: Look for specific list classes
-            lambda s: s.find_all('div', class_='card'),
-            
-            # Strategy 2: Look for list items in search results
-            lambda s: s.find_all('li', class_=['search__item', 'card']),
-            
-            # Strategy 3: Look for any div or li with report-like content
-            lambda s: s.find_all(['div', 'li'], 
-                class_=lambda x: x and any(keyword in str(x) for keyword in 
-                    ['card', 'report', 'search', 'item', 'result'])
-            ),
-            
-            # Strategy 4: Look for specific patterns in text
-            lambda s: [item for item in s.find_all(['div', 'li']) 
-                if any(pattern in item.get_text() 
-                    for pattern in ['Ref:', 'Date of report:', 'Deceased name:'])]
-        ]
+        # Find the specific div that might contain reports
+        report_container = soup.find('div', class_=['archive__listings', 'search__listing'])
+        
+        if not report_container:
+            st.warning("No report container found")
+            return []
+        
+        # Find all report cards
+        report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full'])
+        
+        st.write(f"Found {len(report_cards)} potential report cards")
         
         potential_reports = []
         
-        for strategy in report_strategies:
-            found_reports = strategy(soup)
-            st.write(f"Strategy found {len(found_reports)} potential reports")
-            
-            for report_elem in found_reports:
-                try:
-                    # Extract title
-                    title_elem = report_elem.find(['h2', 'h3'], class_=['title', 'card__title'])
-                    if not title_elem:
-                        title_elem = report_elem.find('a')
-                    
-                    if not title_elem:
-                        continue
-                    
-                    title = title_elem.get_text(strip=True)
-                    url = title_elem.get('href', '') if isinstance(title_elem, Tag) else ''
-                    
-                    # Extract description
-                    desc_elem = report_elem.find(['p', 'div'], class_=['description', 'card__description'])
-                    description = desc_elem.get_text(strip=True) if desc_elem else ""
-                    
-                    # Extract date
-                    date_elem = report_elem.find(['p', 'span'], class_=['date', 'card__date'])
-                    date = date_elem.get_text(strip=True) if date_elem else ""
-                    
-                    report = {
-                        'Title': title,
-                        'URL': url,
-                        'Description': description,
-                        'Date': date
-                    }
-                    
-                    # Only add unique reports
-                    if report not in potential_reports:
-                        potential_reports.append(report)
+        for card in report_cards:
+            try:
+                # Extract title
+                title_elem = card.find(['h2', 'h3'], class_=['card__title', 'title'])
+                if not title_elem:
+                    continue
                 
-                except Exception as card_error:
-                    st.write(f"Error processing report element: {card_error}")
+                title_link = title_elem.find('a')
+                if not title_link:
+                    continue
+                
+                title = title_link.get_text(strip=True)
+                url = title_link.get('href', '')
+                
+                # Extract description
+                desc_elem = card.find(['p', 'div'], class_=['description', 'card__description'])
+                description = desc_elem.get_text(strip=True) if desc_elem else ""
+                
+                # Extract date
+                date_elem = card.find(['p', 'span'], class_=['date', 'card__date'])
+                date = date_elem.get_text(strip=True) if date_elem else ""
+                
+                # Extract categories
+                categories_elem = card.find('div', class_='card__meta')
+                categories = []
+                if categories_elem:
+                    cat_links = categories_elem.find_all('a')
+                    categories = [cat.get_text(strip=True) for cat in cat_links]
+                
+                report = {
+                    'Title': title,
+                    'URL': url,
+                    'Description': description,
+                    'Date': date,
+                    'Categories': categories
+                }
+                
+                potential_reports.append(report)
             
-            # If we found reports, stop trying strategies
-            if potential_reports:
-                break
+            except Exception as card_error:
+                st.write(f"Error processing report card: {card_error}")
         
         st.write(f"Total potential reports found: {len(potential_reports)}")
         
