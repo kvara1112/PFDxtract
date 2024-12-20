@@ -639,8 +639,6 @@ def construct_search_url(base_url: str, keyword: Optional[str] = None,
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
     category: Optional[str] = None,
-    date_after: Optional[str] = None,
-    date_before: Optional[str] = None,
     order: str = "relevance",
     max_pages: Optional[int] = None
 ) -> List[Dict]:
@@ -1106,16 +1104,13 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
         st.success("No significant quality issues found in the dataset.")
 
 
+
 def render_scraping_tab():
-    """Render the simplified scraping tab without date filters"""
+    """Render the simplified scraping tab"""
     st.header("Scrape PFD Reports")
     
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
-        # Show existing results if available
         st.success(f"Found {len(st.session_state.scraped_data)} reports")
-        
-        # Display results table with UK date format
-        st.subheader("Results")
         st.dataframe(
             st.session_state.scraped_data,
             column_config={
@@ -1125,33 +1120,38 @@ def render_scraping_tab():
             },
             hide_index=True
         )
-        
-        # Show export options
         show_export_options(st.session_state.scraped_data, "scraped")
     
     with st.form("scraping_form"):
         col1, col2 = st.columns(2)
         
         with col1:
-            search_keyword = st.text_input("Search keywords (do not leave empty use reports as a general term or another search term):", value="report")
-            category = st.selectbox("PFD Report type:", 
+            search_keyword = st.text_input(
+                "Search keywords:",
+                value="report",
+                help="Enter search terms. Use 'report' for a general search."
+            )
+            
+            category = st.selectbox(
+                "PFD Report type:", 
                 [""] + get_pfd_categories(), 
-                format_func=lambda x: x if x else "Select a category")
+                format_func=lambda x: x if x else "Select a category"
+            )
         
         with col2:
-            order = st.selectbox("Sort by:", [
-                "relevance",
-                "desc",
-                "asc"
-            ], format_func=lambda x: {
-                "relevance": "Relevance",
-                "desc": "Newest first",
-                "asc": "Oldest first"
-            }[x])
+            order = st.selectbox(
+                "Sort by:",
+                ["relevance", "desc", "asc"],
+                format_func=lambda x: {
+                    "relevance": "Relevance",
+                    "desc": "Newest first",
+                    "asc": "Oldest first"
+                }[x]
+            )
             
             max_pages = st.number_input(
                 "Maximum pages to scrape (0 for all):", 
-                min_value=0, 
+                min_value=0,
                 value=0
             )
         
@@ -1159,35 +1159,25 @@ def render_scraping_tab():
     
     if submitted:
         try:
-            # Store search parameters in session state
             st.session_state.last_search_params = {
                 'keyword': search_keyword,
                 'category': category,
                 'order': order
             }
             
-            # Set max pages
-            max_pages_val = None if max_pages == 0 else max_pages
-            
-            # Perform scraping
             reports = scrape_pfd_reports(
                 keyword=search_keyword,
                 category=category if category else None,
                 order=order,
-                max_pages=max_pages_val
+                max_pages=None if max_pages == 0 else max_pages
             )
             
             if reports:
-                # Process the data
                 df = pd.DataFrame(reports)
                 df = process_scraped_data(df)
-                
-                # Store in session state
                 st.session_state.scraped_data = df
                 st.session_state.data_source = 'scraped'
                 st.session_state.current_data = df
-                
-                # Trigger a rerun to refresh the page
                 st.rerun()
             else:
                 st.warning("No reports found matching your search criteria")
@@ -1284,7 +1274,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             os.remove(pdf_zip_path)
     
 def render_analysis_tab(data: pd.DataFrame):
-    """Render the analysis tab with upload option"""
+    """Render the analysis tab with enhanced filtering"""
     st.header("Reports Analysis")
     
     # Add option to clear current data and upload new file
@@ -1304,56 +1294,10 @@ def render_analysis_tab(data: pd.DataFrame):
     
     # Show file upload if no data or if data was cleared
     if st.session_state.current_data is None:
-        upload_col1, upload_col2 = st.columns([3, 1])
-        with upload_col1:
-            uploaded_file = st.file_uploader(
-                "Upload CSV or Excel file", 
-                type=['csv', 'xlsx']
-            )
-        
-        if uploaded_file is not None:
-            try:
-                # Read the file based on extension
-                if uploaded_file.name.lower().endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                elif uploaded_file.name.lower().endswith(('.xls', '.xlsx')):
-                    df = pd.read_excel(uploaded_file)
-                else:
-                    st.error("Unsupported file type")
-                    return
-                
-                # Required columns
-                required_columns = [
-                    'Title', 'URL', 'Content', 
-                    'date_of_report', 'categories', 'coroner_area'
-                ]
-                
-                # Check for missing columns
-                missing_columns = [col for col in required_columns if col not in df.columns]
-                
-                if missing_columns:
-                    st.error(f"Missing required columns: {', '.join(missing_columns)}")
-                    st.write("Available columns:", list(df.columns))
-                    return
-                
-                # Process the data
-                processed_df = process_scraped_data(df)
-                
-                # Update session state
-                st.session_state.uploaded_data = processed_df.copy()
-                st.session_state.current_data = processed_df.copy()
-                st.session_state.data_source = 'uploaded'
-                
-                st.success(f"File uploaded successfully! Total reports: {len(processed_df)}")
-                st.rerun()
-                
-            except Exception as read_error:
-                st.error(f"Error reading file: {read_error}")
-                logging.error(f"File read error: {read_error}", exc_info=True)
-                return
+        render_file_upload()
         return
     
-    # If we have data, validate it before proceeding
+    # Validate data before proceeding
     try:
         is_valid, message = validate_data(data, "analysis")
         if not is_valid:
@@ -1364,13 +1308,14 @@ def render_analysis_tab(data: pd.DataFrame):
         min_date = data['date_of_report'].min().date()
         max_date = data['date_of_report'].max().date()
         
-        # Sidebar for filtering
+        # Enhanced Filtering in Sidebar
         with st.sidebar:
             st.header("Analysis Filters")
             
             # Date range filter
+            st.subheader("Date Range")
             date_range = st.date_input(
-                "Date Range",
+                "Select dates",
                 value=(min_date, max_date),
                 min_value=min_date,
                 max_value=max_date,
@@ -1378,24 +1323,36 @@ def render_analysis_tab(data: pd.DataFrame):
             )
             
             # Category filter
+            st.subheader("Categories")
             all_categories = set()
             for cats in data['categories'].dropna():
                 if isinstance(cats, list):
                     all_categories.update(cats)
             
             selected_categories = st.multiselect(
-                "Categories",
+                "Select categories",
                 options=sorted(all_categories),
                 key="categories_filter"
             )
             
             # Coroner area filter
+            st.subheader("Coroner Areas")
             coroner_areas = sorted(data['coroner_area'].dropna().unique())
             selected_areas = st.multiselect(
-                "Coroner Areas",
+                "Select areas",
                 options=coroner_areas,
                 key="areas_filter"
             )
+            
+            # Additional metadata filters
+            st.subheader("Additional Filters")
+            has_deceased_name = st.checkbox("Has deceased name")
+            has_coroner_name = st.checkbox("Has coroner name")
+            has_pdf = st.checkbox("Has PDF attachment")
+            
+            # Text search
+            st.subheader("Text Search")
+            search_text = st.text_input("Search in content", key="content_search")
         
         # Apply filters
         filtered_df = data.copy()
@@ -1419,7 +1376,23 @@ def render_analysis_tab(data: pd.DataFrame):
         if selected_areas:
             filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
         
-        # Show filter status
+        # Metadata filters
+        if has_deceased_name:
+            filtered_df = filtered_df[filtered_df['deceased_name'].notna()]
+        if has_coroner_name:
+            filtered_df = filtered_df[filtered_df['coroner_name'].notna()]
+        if has_pdf:
+            pdf_columns = [col for col in filtered_df.columns if col.startswith('PDF_') and col.endswith('_Path')]
+            filtered_df = filtered_df[filtered_df[pdf_columns].notna().any(axis=1)]
+        
+        # Text search
+        if search_text:
+            filtered_df = filtered_df[
+                filtered_df['Content'].str.contains(search_text, case=False, na=False) |
+                filtered_df['Title'].str.contains(search_text, case=False, na=False)
+            ]
+        
+        # Show active filters
         active_filters = []
         if len(date_range) == 2 and (date_range[0] != min_date or date_range[1] != max_date):
             active_filters.append(f"Date range: {date_range[0]} to {date_range[1]}")
@@ -1427,7 +1400,15 @@ def render_analysis_tab(data: pd.DataFrame):
             active_filters.append(f"Categories: {', '.join(selected_categories)}")
         if selected_areas:
             active_filters.append(f"Areas: {', '.join(selected_areas)}")
-            
+        if has_deceased_name:
+            active_filters.append("Has deceased name")
+        if has_coroner_name:
+            active_filters.append("Has coroner name")
+        if has_pdf:
+            active_filters.append("Has PDF attachment")
+        if search_text:
+            active_filters.append(f"Search: '{search_text}'")
+        
         if active_filters:
             st.info(f"Active filters: {' • '.join(active_filters)}")
         
@@ -1435,8 +1416,20 @@ def render_analysis_tab(data: pd.DataFrame):
             st.warning("No data matches the selected filters.")
             return
             
-        # Display filtered results count
+        # Display filtered results count and metadata
+        st.subheader("Filtered Results")
         st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
+        
+        # Display results table
+        st.dataframe(
+            filtered_df,
+            column_config={
+                "URL": st.column_config.LinkColumn("Report Link"),
+                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY"),
+                "categories": st.column_config.ListColumn("Categories")
+            },
+            hide_index=True
+        )
         
         # Overview metrics
         st.subheader("Overview")
@@ -1488,12 +1481,15 @@ def render_analysis_tab(data: pd.DataFrame):
             except Exception as e:
                 st.error(f"Error in data quality analysis: {str(e)}")
                 logging.error(f"Data quality analysis error: {e}", exc_info=True)
+        
+        # Export options
+        st.subheader("Export Options")
+        show_export_options(filtered_df, "analysis")
 
     except Exception as e:
         st.error(f"An error occurred in the analysis tab: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
-
-
+        
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """Handle Excel export with proper buffer management and error handling"""
     excel_buffer = io.BytesIO()
