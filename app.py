@@ -699,21 +699,37 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
 
                 matching_cards = []
                 for card in report_cards:
-                    # Get title and content
-                    title_elem = card.find(['h3', 'h2'], class_='card__title')
-                    content_elem = card.find('p', class_='card__description')
-                    
-                    card_text = ''
-                    if title_elem:
-                        card_text += title_elem.get_text(strip=True).lower() + ' '
-                    if content_elem:
-                        card_text += content_elem.get_text(strip=True).lower()
-                    
-                    # Check if card matches keyword
-                    if not keyword or keyword.lower() in card_text:
-                        matching_cards.append(card)
+                    try:
+                        # Extract all text content
+                        title_elem = card.find(['h3', 'h2'], class_='card__title')
+                        title_text = title_elem.get_text(strip=True).lower() if title_elem else ''
+                        
+                        content_elem = card.find('p', class_='card__description')
+                        content_text = content_elem.get_text(strip=True).lower() if content_elem else ''
+                        
+                        meta_elems = card.find_all(['p', 'span'], class_=['date', 'pill'])
+                        meta_text = ' '.join(elem.get_text(strip=True).lower() for elem in meta_elems)
+                        
+                        # Combine all text content
+                        card_text = f"{title_text} {content_text} {meta_text}"
+                        
+                        # Only add if matches keyword (if provided)
+                        if not keyword or keyword.lower() in card_text:
+                            matching_cards.append(card)
+                    except Exception as e:
+                        logging.error(f"Error processing card: {e}")
+                        continue
                 
                 st.write(f"Found {len(matching_cards)} matching reports on page {current_page}")
+                
+                # Stop if no matches found on first page
+                if current_page == 1 and len(matching_cards) == 0:
+                    st.warning("No matching reports found")
+                    return []
+                    
+                # Stop if no matches found after first page
+                if current_page > 1 and len(matching_cards) == 0:
+                    break
                 
                 # Process matching cards
                 for card in matching_cards:
