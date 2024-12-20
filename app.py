@@ -600,45 +600,59 @@ import time
 from typing import List, Dict, Optional
 import streamlit as st
 
-def construct_search_url(base_url: str, keyword: Optional[str] = None, 
-                        category: Optional[str] = None, 
-                        category_slug: Optional[str] = None, 
-                        page: Optional[int] = None) -> str:
-    """Constructs search URL with proper parameter handling"""
+def construct_search_url(base_url: str, 
+                        keyword: Optional[str] = None,
+                        category: Optional[str] = None) -> str:
+    """
+    Constructs the search URL with proper handling of category-only searches
+    
+    Args:
+        base_url: Base URL of the judiciary website
+        keyword: Optional search keyword
+        category: Optional PFD report category
+    """
     # Clean inputs
     keyword = keyword.strip() if keyword else None
     category = category.strip() if category else None
     
-    # Build query parameters
-    query_params = []
+    # Convert category to slug format
+    category_slug = None
+    if category:
+        category_slug = category.lower().replace(' ', '-').replace('&', 'and')
     
-    # Always add post_type for filtered searches
-    if category or keyword:
-        query_params.append("post_type=pfd")
+    # Base components
+    url_parts = []
     
-    # Add category filter if present
-    if category and category_slug:
-        query_params.append(f"pfd_report_type={category_slug}")
+    # Always start with the base URL
+    url_parts.append(base_url.rstrip('/'))
     
-    # Add keyword filter if present
-    if keyword:
-        query_params.append(f"s={keyword}")
+    # For category-only or no-filter searches, use a different base path
+    if not keyword and not category:
+        return f"{base_url}prevention-of-future-death-reports/"
     
-    # Construct base URL
-    if query_params:
-        query_string = "&".join(query_params)
-        url = f"{base_url}?{query_string}"
-    else:
-        url = f"{base_url}prevention-of-future-death-reports/"
+    # Add query parameters
+    params = []
     
-    # Add pagination if needed
-    if page and page > 1:
-        if query_params:
-            url = f"{url}&page={page}"
-        else:
-            url = f"{url}page/{page}/"
+    # Category-only search needs special handling
+    if category and not keyword:
+        params.append("post_type=pfd")
+        params.append(f"pfd_report_type={category_slug}")
+    # Keyword-only search
+    elif keyword and not category:
+        params.append("post_type=pfd")
+        params.append(f"s={keyword}")
+    # Combined search
+    elif keyword and category:
+        params.append("post_type=pfd")
+        params.append(f"s={keyword}")
+        params.append(f"pfd_report_type={category_slug}")
     
-    return url
+    # Combine everything
+    if params:
+        return f"{base_url}?{'&'.join(params)}"
+    
+    return base_url
+
 
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
