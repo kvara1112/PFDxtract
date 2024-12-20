@@ -1128,8 +1128,18 @@ def render_scraping_tab():
         st.session_state['order_default'] = "relevance"
         st.session_state['max_pages_default'] = 0
     
+    # Add a clear results button
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
-        st.success(f"Found {len(st.session_state.scraped_data)} reports")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.success(f"Found {len(st.session_state.scraped_data)} reports")
+        
+        with col2:
+            if st.button("Clear Results"):
+                st.session_state.scraped_data = None
+                st.session_state.current_data = None
+                st.session_state.data_source = None
+                st.rerun()
         
         st.subheader("Results")
         st.dataframe(
