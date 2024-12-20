@@ -595,10 +595,6 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
 
-import logging
-import time
-from typing import List, Dict, Optional
-import streamlit as st
 
 def construct_search_url(base_url, category=None, keyword=None, category_slug=None):
     """
