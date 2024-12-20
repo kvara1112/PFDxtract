@@ -1316,299 +1316,189 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             # Cleanup zip file
             os.remove(pdf_zip_path)
 
-def render_analysis_tab(data: pd.DataFrame = None):
-    """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
-    st.header("Reports Analysis")
+def render_topic_modeling_tab(data: pd.DataFrame):
+    """Render the topic modeling analysis tab with interactive controls"""
+    st.header("Topic Modeling Analysis")
     
-    # Add file upload section at the top
-    st.subheader("Upload Data")
-    uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file", 
-        type=['csv', 'xlsx'],
-        help="Upload previously exported data"
-    )
+    # Sidebar controls for model parameters
+    with st.sidebar:
+        st.header("Model Parameters")
+        
+        num_topics = st.slider(
+            "Number of Topics",
+            min_value=2,
+            max_value=20,
+            value=5,
+            help="Select number of topics to extract"
+        )
+        
+        max_features = st.slider(
+            "Maximum Features",
+            min_value=100,
+            max_value=5000,
+            value=1000,
+            step=100,
+            help="Maximum number of words to include"
+        )
+        
+        min_df = st.slider(
+            "Minimum Document Frequency",
+            min_value=1,
+            max_value=10,
+            value=2,
+            help="Minimum number of documents a term must appear in"
+        )
+        
+        advanced_options = st.expander("Advanced Options")
+        with advanced_options:
+            n_iterations = st.slider(
+                "Number of Iterations",
+                min_value=10,
+                max_value=100,
+                value=20,
+                step=10
+            )
+            
+            include_bigrams = st.checkbox(
+                "Include Bigrams",
+                value=True,
+                help="Include two-word phrases in analysis"
+            )
     
-    if uploaded_file is not None:
+    # Main content area
+    if st.button("Extract Topics", type="primary"):
         try:
-            if uploaded_file.name.endswith('.csv'):
-                data = pd.read_csv(uploaded_file)
-            else:
-                data = pd.read_excel(uploaded_file)
-            
-            # Process uploaded data
-            data = process_scraped_data(data)
-            st.success("File uploaded and processed successfully!")
-            
-            # Update session state
-            st.session_state.uploaded_data = data.copy()
-            st.session_state.data_source = 'uploaded'
-            st.session_state.current_data = data.copy()
+            with st.spinner("Analyzing topics..."):
+                # Extract topics
+                lda_model, vectorizer, doc_topics = extract_advanced_topics(
+                    data,
+                    num_topics=num_topics,
+                    max_features=max_features,
+                    min_df=min_df,
+                    n_iterations=n_iterations
+                )
+                
+                # Get insights
+                topic_insights = extract_topic_insights(
+                    lda_model,
+                    vectorizer,
+                    doc_topics,
+                    data
+                )
+                
+                # Store results in session state
+                st.session_state.topic_results = {
+                    'model': lda_model,
+                    'vectorizer': vectorizer,
+                    'doc_topics': doc_topics,
+                    'insights': topic_insights
+                }
+                
+                # Display results using the React component
+                st.markdown("### Topic Analysis Results")
+                
+                # Convert insights to format expected by React component
+                topics_data = format_topics_for_display(topic_insights)
+                
+                # Render React component
+                from streamlit.components.v1 import react
+                react.TopicModelingDashboard(topics=topics_data)
+                
+                # Add export functionality
+                st.markdown("### Export Results")
+                if st.button("Download Analysis"):
+                    excel_data = export_topic_analysis(topic_insights, data)
+                    st.download_button(
+                        "📥 Download Full Analysis (Excel)",
+                        excel_data,
+                        "topic_analysis.xlsx",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
         
         except Exception as e:
-            st.error(f"Error uploading file: {str(e)}")
-            logging.error(f"File upload error: {e}", exc_info=True)
-            return
+            st.error(f"Error during topic modeling: {str(e)}")
+            logging.error(f"Topic modeling error: {e}", exc_info=True)
     
-    # Use either uploaded data or passed data
-    if data is None:
-        data = st.session_state.get('current_data')
+    # Show previous results if they exist
+    elif hasattr(st.session_state, 'topic_results'):
+        st.markdown("### Previous Analysis Results")
+        topics_data = format_topics_for_display(
+            st.session_state.topic_results['insights']
+        )
+        from streamlit.components.v1 import react
+        react.TopicModelingDashboard(topics=topics_data)
+
+def format_topics_for_display(topic_insights):
+    """Format topic insights for the React component"""
+    return [{
+        'id': topic['id'],
+        'label': topic['label'],
+        'prevalence': topic['prevalence'],
+        'description': topic['description'],
+        'words': [{
+            'word': word['word'],
+            'weight': word['weight'],
+            'count': word.get('docs', 0)
+        } for word in topic['words']],
+        'relatedDocs': [{
+            'title': doc['title'],
+            'date': doc['date'].strftime('%Y-%m-%d') if isinstance(doc['date'], pd.Timestamp) else str(doc['date']),
+            'relevance': doc['relevance'],
+            'summary': doc['summary']
+        } for doc in topic['representativeDocs']]
+    } for topic in topic_insights]
+
+def export_topic_analysis(topic_insights, data):
+    """Export topic analysis to Excel"""
+    output = io.BytesIO()
     
-    if data is None or len(data) == 0:
-        st.warning("No data available. Please upload a file or scrape reports first.")
-        return
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Overview sheet
+        overview_data = []
+        for topic in topic_insights:
+            overview_data.append({
+                'Topic': topic['label'],
+                'Prevalence': topic['prevalence'],
+                'Description': topic['description'],
+                'Top Words': ', '.join([w['word'] for w in topic['words'][:10]])
+            })
         
-    try:
-        # Get date range for the data
-        min_date = data['date_of_report'].min().date()
-        max_date = data['date_of_report'].max().date()
+        pd.DataFrame(overview_data).to_excel(
+            writer,
+            sheet_name='Topics Overview',
+            index=False
+        )
         
-        # Filters sidebar
-        with st.sidebar:
-            st.header("Filters")
+        # Detailed sheets for each topic
+        for topic in topic_insights:
+            # Words sheet
+            words_df = pd.DataFrame([{
+                'Word': w['word'],
+                'Weight': w['weight'],
+                'Document Frequency': w.get('docs', 0)
+            } for w in topic['words']])
             
-            # Date Range
-            with st.expander("📅 Date Range", expanded=True):
-                col1, col2 = st.columns(2)
-                with col1:
-                    start_date = st.date_input(
-                        "From",
-                        value=min_date,
-                        min_value=min_date,
-                        max_value=max_date,
-                        key="start_date_filter",
-                        format="DD/MM/YYYY"
-                    )
-                with col2:
-                    end_date = st.date_input(
-                        "To",
-                        value=max_date,
-                        min_value=min_date,
-                        max_value=max_date,
-                        key="end_date_filter",
-                        format="DD/MM/YYYY"
-                    )
-            
-            # Document Type Filter
-            doc_type = st.multiselect(
-                "Document Type",
-                ["Report", "Response"],
-                default=["Report", "Response"],
-                key="doc_type_filter",
-                help="Filter by document type"
+            words_df.to_excel(
+                writer,
+                sheet_name=f'Topic_{topic["id"]}_Words',
+                index=False
             )
             
-            # Reference Number
-            ref_numbers = sorted(data['ref'].dropna().unique())
-            selected_refs = st.multiselect(
-                "Reference Numbers",
-                options=ref_numbers,
-                key="ref_filter"
+            # Documents sheet
+            docs_df = pd.DataFrame([{
+                'Title': doc['title'],
+                'Date': doc['date'],
+                'Relevance': doc['relevance'],
+                'Summary': doc['summary']
+            } for doc in topic['representativeDocs']])
+            
+            docs_df.to_excel(
+                writer,
+                sheet_name=f'Topic_{topic["id"]}_Docs',
+                index=False
             )
-            
-            # Deceased Name
-            deceased_search = st.text_input(
-                "Deceased Name",
-                key="deceased_filter",
-                help="Enter partial or full name"
-            )
-            
-            # Coroner Name
-            coroner_names = sorted(data['coroner_name'].dropna().unique())
-            selected_coroners = st.multiselect(
-                "Coroner Names",
-                options=coroner_names,
-                key="coroner_filter"
-            )
-            
-            # Coroner Area
-            coroner_areas = sorted(data['coroner_area'].dropna().unique())
-            selected_areas = st.multiselect(
-                "Coroner Areas",
-                options=coroner_areas,
-                key="areas_filter"
-            )
-            
-            # Categories
-            all_categories = set()
-            for cats in data['categories'].dropna():
-                if isinstance(cats, list):
-                    all_categories.update(cats)
-            selected_categories = st.multiselect(
-                "Categories",
-                options=sorted(all_categories),
-                key="categories_filter"
-            )
-            
-            # Reset Filters Button
-            if st.button("🔄 Reset Filters"):
-                for key in st.session_state:
-                    if key.endswith('_filter'):
-                        del st.session_state[key]
-                st.rerun()
-
-        # Apply filters
-        filtered_df = data.copy()
-
-        # Date filter
-        if start_date and end_date:
-            filtered_df = filtered_df[
-                (filtered_df['date_of_report'].dt.date >= start_date) &
-                (filtered_df['date_of_report'].dt.date <= end_date)
-            ]
-
-        # Document type filter
-        if doc_type:
-            filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
-
-        # Reference number filter
-        if selected_refs:
-            filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
-
-        if deceased_search:
-            filtered_df = filtered_df[
-                filtered_df['deceased_name'].fillna('').str.contains(
-                    deceased_search, 
-                    case=False, 
-                    na=False
-                )
-            ]
-
-        if selected_coroners:
-            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
-
-        if selected_areas:
-            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
-
-        if selected_categories:
-            filtered_df = filtered_df[
-                filtered_df['categories'].apply(
-                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
-                )
-            ]
-
-        # Show active filters
-        active_filters = []
-        if start_date != min_date or end_date != max_date:
-            active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
-        if doc_type and doc_type != ["Report", "Response"]:
-            active_filters.append(f"Document Types: {', '.join(doc_type)}")
-        if selected_refs:
-            active_filters.append(f"References: {', '.join(selected_refs)}")
-        if deceased_search:
-            active_filters.append(f"Deceased name contains: {deceased_search}")
-        if selected_coroners:
-            active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
-        if selected_areas:
-            active_filters.append(f"Areas: {', '.join(selected_areas)}")
-        if selected_categories:
-            active_filters.append(f"Categories: {', '.join(selected_categories)}")
-
-        if active_filters:
-            st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
-
-        # Display results
-        st.subheader("Results")
-        st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
-
-        if len(filtered_df) > 0:
-            # Display the dataframe
-            st.dataframe(
-                filtered_df,
-                column_config={
-                    "URL": st.column_config.LinkColumn("Report Link"),
-                    "date_of_report": st.column_config.DateColumn(
-                        "Date of Report",
-                        format="DD/MM/YYYY"
-                    ),
-                    "categories": st.column_config.ListColumn("Categories"),
-                    "Document Type": st.column_config.TextColumn(
-                        "Document Type",
-                        help="Type of document based on PDF filename"
-                    )
-                },
-                hide_index=True
-            )
-
-            # Create tabs for different analyses
-            st.markdown("---")
-            quality_tab, temporal_tab, distribution_tab = st.tabs([
-                "📊 Data Quality Analysis",
-                "📅 Temporal Analysis",
-                "📍 Distribution Analysis"
-            ])
-
-            # Data Quality Analysis Tab
-            with quality_tab:
-                analyze_data_quality(filtered_df)
-
-            # Temporal Analysis Tab
-            with temporal_tab:
-                # Timeline of reports
-                st.subheader("Reports Timeline")
-                plot_timeline(filtered_df)
-                
-                # Monthly distribution
-                st.subheader("Monthly Distribution")
-                plot_monthly_distribution(filtered_df)
-                
-                # Year-over-year comparison
-                st.subheader("Year-over-Year Comparison")
-                plot_yearly_comparison(filtered_df)
-                
-                # Seasonal patterns
-                st.subheader("Seasonal Patterns")
-                seasonal_counts = filtered_df['date_of_report'].dt.month.value_counts().sort_index()
-                month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                fig = px.line(
-                    x=month_names,
-                    y=[seasonal_counts.get(i, 0) for i in range(1, 13)],
-                    markers=True,
-                    labels={'x': 'Month', 'y': 'Number of Reports'},
-                    title='Seasonal Distribution of Reports'
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-            # Distribution Analysis Tab
-            with distribution_tab:
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.subheader("Reports by Category")
-                    plot_category_distribution(filtered_df)
-                with col2:
-                    st.subheader("Reports by Coroner Area")
-                    plot_coroner_areas(filtered_df)
-
-            # Export options
-            st.markdown("---")
-            st.subheader("Export Options")
-            col1, col2 = st.columns(2)
-            
-            # CSV Export
-            with col1:
-                csv = filtered_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "📥 Download Results (CSV)",
-                    csv,
-                    "filtered_reports.csv",
-                    "text/csv"
-                )
-            
-            # Excel Export
-            with col2:
-                excel_data = export_to_excel(filtered_df)
-                st.download_button(
-                    "📥 Download Results (Excel)",
-                    excel_data,
-                    "filtered_reports.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-        else:
-            st.warning("No data matches the selected filters.")
-
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        logging.error(f"Analysis error: {e}", exc_info=True)
+    
+    return output.getvalue()
 
 def render_file_upload():
     """Render file upload section"""
