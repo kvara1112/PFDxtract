@@ -2147,7 +2147,6 @@ def render_analysis_tab(data: pd.DataFrame = None):
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
 
-
 def extract_topics_lda(data: pd.DataFrame, num_topics: int = 5, max_features: int = 1000):
     """Extract topics using LDA"""
     try:
@@ -2186,7 +2185,22 @@ def extract_topics_lda(data: pd.DataFrame, num_topics: int = 5, max_features: in
         # Fit model and get document-topic distributions
         doc_topic_dist = lda_model.fit_transform(dtm)
         
-        return lda_model, vectorizer, doc_topic_dist
+        # Prepare visualization data
+        feature_names = vectorizer.get_feature_names_out()
+        doc_lengths = np.array(dtm.sum(axis=1)).ravel()
+        term_frequency = np.array(dtm.sum(axis=0)).ravel()
+        
+        prepared_data = pyLDAvis.prepare(
+            lda_model.components_,
+            doc_topic_dist,
+            doc_lengths,
+            feature_names,
+            term_frequency,
+            sort_topics=False,
+            mds='mmds'
+        )
+        
+        return lda_model, vectorizer, doc_topic_dist, prepared_data
         
     except Exception as e:
         st.error(f"Error in topic extraction: {str(e)}")
