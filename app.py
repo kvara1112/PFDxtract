@@ -1147,16 +1147,23 @@ def render_scraping_tab():
     if 'is_scraping' not in st.session_state:
         st.session_state.is_scraping = False
     
+    # Initialize form values in session state if they don't exist
+    if 'form_defaults' not in st.session_state:
+        st.session_state.form_defaults = {
+            'search_keyword': "report",
+            'category_index': 0,
+            'order_index': 0,
+            'max_pages': 0
+        }
+
     # Add reset filters function
     def reset_filters():
-        if 'search_keyword' in st.session_state:
-            del st.session_state.search_keyword
-        if 'category' in st.session_state:
-            del st.session_state.category
-        if 'order' in st.session_state:
-            del st.session_state.order
-        if 'max_pages' in st.session_state:
-            del st.session_state.max_pages
+        st.session_state.form_defaults = {
+            'search_keyword': "report",
+            'category_index': 0,
+            'order_index': 0,
+            'max_pages': 0
+        }
         st.session_state.is_scraping = False
     
     # Show existing results if available
@@ -1201,16 +1208,16 @@ def render_scraping_tab():
         with col1:
             search_keyword = st.text_input(
                 "Search keywords:",
-                value=st.session_state.get('search_keyword', "report"),
-                key="search_keyword",
+                value=st.session_state.form_defaults['search_keyword'],
+                key="search_keyword_input",
                 help="Enter search terms. Use 'report' for a general search."
             )
             
             category = st.selectbox(
                 "PFD Report type:", 
                 [""] + get_pfd_categories(),
-                index=st.session_state.get('category_index', 0),
-                key="category",
+                index=st.session_state.form_defaults['category_index'],
+                key="category_input",
                 format_func=lambda x: x if x else "Select a category"
             )
         
@@ -1218,8 +1225,8 @@ def render_scraping_tab():
             order = st.selectbox(
                 "Sort by:",
                 ["relevance", "desc", "asc"],
-                index=st.session_state.get('order_index', 0),
-                key="order",
+                index=st.session_state.form_defaults['order_index'],
+                key="order_input",
                 format_func=lambda x: {
                     "relevance": "Relevance",
                     "desc": "Newest first",
@@ -1230,8 +1237,8 @@ def render_scraping_tab():
             max_pages = st.number_input(
                 "Maximum pages to scrape (0 for all):", 
                 min_value=0,
-                value=st.session_state.get('max_pages', 0),
-                key="max_pages"
+                value=st.session_state.form_defaults['max_pages'],
+                key="max_pages_input"
             )
         
         submitted = st.form_submit_button("Search Reports")
@@ -1248,11 +1255,13 @@ def render_scraping_tab():
                 'order': order
             }
             
-            # Store form values
-            st.session_state.search_keyword = search_keyword
-            st.session_state.category_index = get_pfd_categories().index(category) + 1 if category else 0
-            st.session_state.order_index = ["relevance", "desc", "asc"].index(order)
-            st.session_state.max_pages = max_pages
+            # Update form defaults
+            st.session_state.form_defaults.update({
+                'search_keyword': search_keyword,
+                'category_index': get_pfd_categories().index(category) + 1 if category else 0,
+                'order_index': ["relevance", "desc", "asc"].index(order),
+                'max_pages': max_pages
+            })
             
             progress_placeholder = st.empty()
             status_placeholder = st.empty()
