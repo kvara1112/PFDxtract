@@ -1104,6 +1104,14 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
 def render_scraping_tab():
     """Render the scraping tab with a clean 2x2 filter layout"""
     st.header("Scrape PFD Reports")
+
+    # Initialize default values if not in session state
+    if 'init_done' not in st.session_state:
+        st.session_state.init_done = True
+        st.session_state['search_keyword_default'] = "report"
+        st.session_state['category_default'] = ""
+        st.session_state['order_default'] = "relevance"
+        st.session_state['max_pages_default'] = 0
     
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
         st.success(f"Found {len(st.session_state.scraped_data)} reports")
@@ -1131,7 +1139,7 @@ def render_scraping_tab():
         with row1_col1:
             search_keyword = st.text_input(
                 "Search keywords:",
-                value="report",
+                value=st.session_state.get('search_keyword_default', "report"),
                 key='search_keyword',
                 help="Do not leave empty, use 'report' or another search term"
             )
@@ -1163,7 +1171,7 @@ def render_scraping_tab():
             max_pages = st.number_input(
                 "Maximum pages to scrape:",
                 min_value=0,
-                value=0,
+                value=st.session_state.get('max_pages_default', 0),
                 key='max_pages',
                 help="Enter 0 for all pages"
             )
@@ -1180,15 +1188,15 @@ def render_scraping_tab():
     # Handle reset filters
     if reset_filters:
         # Clear session state data
-        st.session_state.scraped_data = None
-        st.session_state.current_data = None
-        st.session_state.data_source = None
+        for key in ['scraped_data', 'current_data', 'data_source']:
+            if key in st.session_state:
+                del st.session_state[key]
         
-        # Reset form values to defaults
-        st.session_state.search_keyword = "report"
-        st.session_state.category = ""
-        st.session_state.order = "relevance"
-        st.session_state.max_pages = 0
+        # Reset to default values
+        st.session_state['search_keyword_default'] = "report"
+        st.session_state['category_default'] = ""
+        st.session_state['order_default'] = "relevance"
+        st.session_state['max_pages_default'] = 0
         
         st.rerun()
     
