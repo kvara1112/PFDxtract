@@ -618,20 +618,21 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             return []
         
         category = matching_categories[0]
+        # Convert category to URL-friendly slug
         category_slug = category.lower().replace(' ', '-').replace('&', 'and')
     
     # Construct base search URL
     if category and keyword:
-        # If both category and keyword are provided
+        # Combined keyword and category search
         base_search_url = f"{base_url}?s={keyword}&post_type=pfd&pfd_report_type={category_slug}"
     elif category:
-        # If only category is provided, use the category's page
-        base_search_url = f"{base_url}pfd-types/{category_slug}/"
+        # Category-only search
+        base_search_url = f"{base_url}?post_type=pfd&pfd_report_type={category_slug}"
     elif keyword:
-        # If only keyword is provided
+        # Keyword-only search
         base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
     else:
-        # If no filters are applied
+        # No filters
         base_search_url = f"{base_url}prevention-of-future-death-reports/"
     
     try:
