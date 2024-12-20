@@ -2147,10 +2147,80 @@ def render_analysis_tab(data: pd.DataFrame = None):
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
 
+def extract_topic_insights(lda_model, vectorizer, doc_topics, df):
+    """Extract insights from topic modeling results"""
+    try:
+        feature_names = vectorizer.get_feature_names_out()
+        topics_data = []
 
+        # Calculate document frequencies
+        doc_freq = {}
+        for doc in df['Content'].fillna(''):
+            words = set(clean_text_for_modeling(doc).split())
+            for word in words:
+                doc_freq[word] = doc_freq.get(word, 0) + 1
+
+        for idx, topic in enumerate(lda_model.components_):
+            # Get top words with normalized weights
+            top_word_indices = topic.argsort()[:-50-1:-1]
+            topic_words = []
+            
+            for i in top_word_indices:
+                word = feature_names[i]
+                if len(word) > 1:
+                    weight = float(topic[i])
+                    count = doc_freq.get(word, 0)
+                    topic_words.append({
+                        'word': word,
+                        'weight': weight,
+                        'count': count,
+                        'documents': doc_freq.get(word, 0)
+                    })
+
+            # Get documents most associated with this topic
+            doc_scores = doc_topics[:, idx]
+            top_doc_indices = doc_scores.argsort()[:-11:-1]
+            
+            related_docs = []
+            for doc_idx in top_doc_indices:
+                if doc_scores[doc_idx] > 0.01:  # At least 1% relevance
+                    doc_row = df.iloc[doc_idx]
+                    doc_content = str(doc_row.get('Content', ''))
+                    
+                    related_docs.append({
+                        'title': doc_row.get('Title', ''),
+                        'date': doc_row.get('date_of_report', ''),
+                        'relevance': float(doc_scores[doc_idx]),
+                        'summary': doc_content[:300] + '...' if len(doc_content) > 300 else doc_content
+                    })
+
+            # Create topic description
+            meaningful_words = [
+                feature_names[i] for i in top_word_indices[:5]
+                if len(feature_names[i]) > 1
+            ][:3]
+            
+            label = ' & '.join(meaningful_words).title()
+            topic_data = {
+                'id': idx,
+                'label': label,
+                'description': f"Topic frequently mentions: {', '.join(meaningful_words[:5])}",
+                'words': topic_words,
+                'representativeDocs': related_docs,
+                'prevalence': round((doc_scores > 0.05).mean() * 100, 1)
+            }
+            
+            topics_data.append(topic_data)
+            
+        return topics_data
+        
+    except Exception as e:
+        st.error(f"Error extracting topic insights: {str(e)}")
+        logging.error(f"Topic insights error: {e}", exc_info=True)
+        return []
 
 def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int = 1000):
-    """Extract topics using LDA and prepare visualization data."""
+    """Extract topics using LDA and prepare visualization data"""
     try:
         # Prepare document texts
         texts = []
@@ -2205,6 +2275,41 @@ def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int 
         st.error(f"Error in topic extraction: {str(e)}")
         logging.error(f"Topic extraction error: {e}", exc_info=True)
         raise e
+
+def display_topic_analysis(topics_data):
+    """Display topic analysis results"""
+    for topic in topics_data:
+        st.markdown(f"## Topic {topic['id'] + 1}: {topic['label']}")
+        st.markdown(f"**Prevalence:** {topic['prevalence']}% of documents")
+        st.markdown(f"**Description:** {topic['description']}")
+        
+        # Display key terms
+        st.markdown("### Key Terms")
+        terms_data = pd.DataFrame(topic['words'])
+        if not terms_data.empty:
+            st.dataframe(
+                terms_data,
+                column_config={
+                    'word': st.column_config.TextColumn('Term'),
+                    'weight': st.column_config.NumberColumn(
+                        'Weight',
+                        format="%.4f"
+                    ),
+                    'count': st.column_config.NumberColumn('Document Count'),
+                },
+                hide_index=True
+            )
+        
+        # Display representative documents
+        st.markdown("### Representative Documents")
+        for doc in topic['representativeDocs']:
+            with st.expander(f"{doc['title']} (Relevance: {doc['relevance']:.2%})"):
+                st.markdown(f"**Date:** {doc['date']}")
+                st.markdown(doc['summary'])
+        
+        st.markdown("---")
+
+
 
 def format_topic_data(lda_model, vectorizer, doc_topics, df):
     """Format topic modeling results for display"""
@@ -2396,7 +2501,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 st.session_state.topic_results['doc_topics'],
                 data
             )
-            display_topic_analysis(topics_data)
+            (topics_data)
 
 def main():
     initialize_session_state()
