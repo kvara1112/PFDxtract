@@ -1177,28 +1177,11 @@ def render_scraping_tab():
             )
 
         # Action buttons in a row
-        button_col1, button_col2, button_col3 = st.columns(3)
+        button_col1, button_col2 = st.columns(2)
         with button_col1:
             submitted = st.form_submit_button("Search Reports")
         with button_col2:
             stop_scraping = st.form_submit_button("Stop Scraping")
-        with button_col3:
-            reset_filters = st.form_submit_button("Reset Filters")
-
-    # Handle reset filters
-    if reset_filters:
-        # Clear session state data
-        for key in ['scraped_data', 'current_data', 'data_source']:
-            if key in st.session_state:
-                del st.session_state[key]
-        
-        # Reset to default values
-        st.session_state['search_keyword_default'] = "report"
-        st.session_state['category_default'] = ""
-        st.session_state['order_default'] = "relevance"
-        st.session_state['max_pages_default'] = 0
-        
-        st.rerun()
     
     # Handle stop scraping
     if stop_scraping:
