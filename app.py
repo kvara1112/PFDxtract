@@ -933,60 +933,7 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
 
-def plot_timeline(df: pd.DataFrame) -> None:
-    """Plot timeline of reports with improved formatting"""
-    timeline_data = df.groupby(
-        pd.Grouper(key='date_of_report', freq='M')
-    ).size().reset_index()
-    timeline_data.columns = ['Date', 'Count']
-    
-    fig = px.line(timeline_data, x='Date', y='Count',
-                  title='Reports Timeline',
-                  labels={'Count': 'Number of Reports'})
-    
-    fig.update_layout(
-        xaxis_title="Date",
-        yaxis_title="Number of Reports",
-        hovermode='x unified',
-        yaxis=dict(
-            tickmode='linear',
-            tick0=0,
-            dtick=1,  # Integer steps
-            rangemode='nonnegative'  # Ensure y-axis starts at 0 or above
-        ),
-        xaxis=dict(
-            tickformat='%d/%m/%Y',  # DD/MM/YYYY format
-            tickangle=45
-        )
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
 
-def plot_monthly_distribution(df: pd.DataFrame) -> None:
-    """Plot monthly distribution with improved formatting"""
-    monthly_counts = df['date_of_report'].dt.to_period('M').value_counts().sort_index()
-    
-    fig = px.bar(
-        x=monthly_counts.index.astype(str),
-        y=monthly_counts.values,
-        labels={'x': 'Month', 'y': 'Number of Reports'},
-        title='Monthly Distribution of Reports'
-    )
-    
-    fig.update_layout(
-        xaxis_title="Month",
-        yaxis_title="Number of Reports",
-        xaxis_tickangle=45,
-        yaxis=dict(
-            tickmode='linear',
-            tick0=0,
-            dtick=1,  # Integer steps
-            rangemode='nonnegative'
-        ),
-        bargap=0.2
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
 
 def plot_category_distribution(df: pd.DataFrame) -> None:
     """Plot category distribution"""
@@ -1606,15 +1553,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
                 
                 # Year-over-year comparison
                 st.subheader("Year-over-Year Comparison")
-                yearly_counts = filtered_df['date_of_report'].dt.year.value_counts().sort_index()
-                fig = px.line(
-                    x=yearly_counts.index,
-                    y=yearly_counts.values,
-                    markers=True,
-                    labels={'x': 'Year', 'y': 'Number of Reports'},
-                    title='Year-over-Year Report Volumes'
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                plot_yearly_comparison(filtered_df)
                 
                 # Seasonal patterns
                 st.subheader("Seasonal Patterns")
@@ -1783,6 +1722,7 @@ def initialize_session_state():
             logging.error(f"Error during PDF cleanup: {e}")
         finally:
             st.session_state.cleanup_done = True
+            
 def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
     """
     Validate data for different purposes
@@ -1869,6 +1809,97 @@ def is_response(row: pd.Series) -> bool:
         logging.error(f"Error checking response type: {e}")
         return False
 
+def plot_timeline(df: pd.DataFrame) -> None:
+    """Plot timeline of reports with improved formatting"""
+    timeline_data = df.groupby(
+        pd.Grouper(key='date_of_report', freq='M')
+    ).size().reset_index()
+    timeline_data.columns = ['Date', 'Count']
+    
+    fig = px.line(timeline_data, x='Date', y='Count',
+                  title='Reports Timeline',
+                  labels={'Count': 'Number of Reports'})
+    
+    fig.update_layout(
+        xaxis_title="Date",
+        yaxis_title="Number of Reports",
+        hovermode='x unified',
+        yaxis=dict(
+            tickmode='linear',
+            tick0=0,
+            dtick=1,  # Integer steps
+            rangemode='nonnegative'  # Ensure y-axis starts at 0 or above
+        ),
+        xaxis=dict(
+            tickformat='%B %Y',  # Month Year format
+            tickangle=45
+        )
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_monthly_distribution(df: pd.DataFrame) -> None:
+    """Plot monthly distribution with improved formatting"""
+    # Format dates as Month Year
+    df['month_year'] = df['date_of_report'].dt.strftime('%B %Y')
+    monthly_counts = df['month_year'].value_counts().sort_index()
+    
+    fig = px.bar(
+        x=monthly_counts.index,
+        y=monthly_counts.values,
+        labels={'x': 'Month', 'y': 'Number of Reports'},
+        title='Monthly Distribution of Reports'
+    )
+    
+    fig.update_layout(
+        xaxis_title="Month",
+        yaxis_title="Number of Reports",
+        xaxis_tickangle=45,
+        yaxis=dict(
+            tickmode='linear',
+            tick0=0,
+            dtick=1,  # Integer steps
+            rangemode='nonnegative'
+        ),
+        bargap=0.2
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_yearly_comparison(df: pd.DataFrame) -> None:
+    """Plot year-over-year comparison with improved formatting"""
+    yearly_counts = df['date_of_report'].dt.year.value_counts().sort_index()
+    
+    fig = px.line(
+        x=yearly_counts.index.astype(int),  # Convert to integer years
+        y=yearly_counts.values,
+        markers=True,
+        labels={'x': 'Year', 'y': 'Number of Reports'},
+        title='Year-over-Year Report Volumes'
+    )
+    
+    # Calculate appropriate y-axis maximum
+    max_count = yearly_counts.max()
+    y_max = max_count + (1 if max_count < 10 else 2)  # Add some padding
+    
+    fig.update_layout(
+        xaxis_title="Year",
+        yaxis_title="Number of Reports",
+        xaxis=dict(
+            tickmode='linear',
+            tick0=yearly_counts.index.min(),
+            dtick=1,  # Show every year
+            tickformat='d'  # Format as integer
+        ),
+        yaxis=dict(
+            tickmode='linear',
+            tick0=0,
+            dtick=1,  # Integer steps
+            range=[0, y_max]
+        )
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
 
 
 def generate_topic_label(topic_words):
