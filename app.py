@@ -639,13 +639,11 @@ def construct_search_url(base_url: str, keyword: Optional[str] = None,
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
     category: Optional[str] = None,
-    date_after: Optional[str] = None,
-    date_before: Optional[str] = None,
     order: str = "relevance",
     max_pages: Optional[int] = None
 ) -> List[Dict]:
     """
-    Scrape PFD reports with improved date filtering
+    Scrape PFD reports
     """
     all_reports = []
     base_url = "https://www.judiciary.uk/"
@@ -694,6 +692,11 @@ def scrape_pfd_reports(
         
         for current_page in range(1, total_pages + 1):
             try:
+                # Check if scraping should be stopped
+                if hasattr(st.session_state, 'stop_scraping') and st.session_state.stop_scraping:
+                    st.warning("Scraping stopped by user")
+                    break
+                
                 # Construct page URL
                 page_url = construct_search_url(
                     base_url=base_url,
@@ -726,15 +729,7 @@ def scrape_pfd_reports(
                 st.warning(f"Error on page {current_page}. Continuing with next page...")
                 continue
         
-        # Apply date filtering after collecting all reports
-        if date_after or date_before:
-            filtered_reports = filter_reports_by_date(page_reports, date_after, date_before)
-            if not filtered_reports:
-                st.warning("No reports found within the specified date range")
-                return []
-            all_reports.extend(filtered_reports)
-        else:
-            all_reports.extend(page_reports)
+        all_reports.extend(page_reports)
         
         progress_bar.progress(100)
         st.success(f"Successfully scraped {len(all_reports)} reports")
@@ -1149,46 +1144,46 @@ def render_scraping_tab():
             }[x])
         
         with col2:
-            date_after = st.date_input(
-                "Published after:",
-                None,
-                format="DD/MM/YYYY"
-            )
-            
-            date_before = st.date_input(
-                "Published before:",
-                None,
-                format="DD/MM/YYYY"
-            )
-            
             max_pages = st.number_input(
                 "Maximum pages to scrape (0 for all):", 
                 min_value=0, 
                 value=0
             )
-        
-        submitted = st.form_submit_button("Search Reports")
+            
+        # Add buttons in a row
+        button_col1, button_col2, button_col3 = st.columns(3)
+        with button_col1:
+            submitted = st.form_submit_button("Search Reports")
+        with button_col2:
+            stop_scraping = st.form_submit_button("Stop Scraping")
+        with button_col3:
+            reset_filters = st.form_submit_button("Reset Filters")
+    
+    # Handle reset filters
+    if reset_filters:
+        st.session_state.scraped_data = None
+        st.session_state.current_data = None
+        st.session_state.data_source = None
+        st.rerun()
+    
+    # Handle stop scraping
+    if stop_scraping:
+        st.session_state.stop_scraping = True
+        st.warning("Scraping will be stopped after the current page completes...")
+        return
     
     if submitted:
         try:
-            # Validate date range if both dates are provided
-            if date_after and date_before and date_after > date_before:
-                st.error("Start date must be before or equal to end date.")
-                return
-
             # Store search parameters in session state
             st.session_state.last_search_params = {
                 'keyword': search_keyword,
                 'category': category,
-                'date_after': date_after.strftime('%d/%m/%Y') if date_after else None,
-                'date_before': date_before.strftime('%d/%m/%Y') if date_before else None,
                 'order': order
             }
-
-            # Convert dates to required format
-            date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
-            date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
             
+            # Initialize stop_scraping flag
+            st.session_state.stop_scraping = False
+
             # Set max pages
             max_pages_val = None if max_pages == 0 else max_pages
             
@@ -1196,8 +1191,6 @@ def render_scraping_tab():
             reports = scrape_pfd_reports(
                 keyword=search_keyword,
                 category=category if category else None,
-                date_after=date_after_str,
-                date_before=date_before_str,
                 order=order,
                 max_pages=max_pages_val
             )
