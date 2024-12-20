@@ -1332,95 +1332,22 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             
             # Cleanup zip file
             os.remove(pdf_zip_path)
-    
+
 def render_analysis_tab(data: pd.DataFrame):
-    """Render the analysis tab with upload option"""
+    """Render the analysis tab with specific filters and downloadable results"""
     st.header("Reports Analysis")
     
-    # Add option to clear current data and upload new file
-    if st.session_state.current_data is not None:
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            total_reports = len(st.session_state.current_data) if isinstance(st.session_state.current_data, pd.DataFrame) else 0
-            data_source = st.session_state.data_source or "unknown source"
-            st.info(f"Currently analyzing {total_reports} reports from {data_source}")
-        with col2:
-            if st.button("Clear Current Data"):
-                st.session_state.current_data = None
-                st.session_state.data_source = None
-                st.session_state.scraped_data = None
-                st.session_state.uploaded_data = None
-                st.rerun()
-    
-    # Show file upload if no data or if data was cleared
-    if st.session_state.current_data is None:
-        upload_col1, upload_col2 = st.columns([3, 1])
-        with upload_col1:
-            uploaded_file = st.file_uploader(
-                "Upload CSV or Excel file", 
-                type=['csv', 'xlsx']
-            )
-        
-        if uploaded_file is not None:
-            try:
-                # Read the file based on extension
-                if uploaded_file.name.lower().endswith('.csv'):
-                    df = pd.read_csv(uploaded_file)
-                elif uploaded_file.name.lower().endswith(('.xls', '.xlsx')):
-                    df = pd.read_excel(uploaded_file)
-                else:
-                    st.error("Unsupported file type")
-                    return
-                
-                # Required columns
-                required_columns = [
-                    'Title', 'URL', 'Content', 
-                    'date_of_report', 'categories', 'coroner_area'
-                ]
-                
-                # Check for missing columns
-                missing_columns = [col for col in required_columns if col not in df.columns]
-                
-                if missing_columns:
-                    st.error(f"Missing required columns: {', '.join(missing_columns)}")
-                    st.write("Available columns:", list(df.columns))
-                    return
-                
-                # Process the data
-                processed_df = process_scraped_data(df)
-                
-                # Update session state
-                st.session_state.uploaded_data = processed_df.copy()
-                st.session_state.current_data = processed_df.copy()
-                st.session_state.data_source = 'uploaded'
-                
-                st.success(f"File uploaded successfully! Total reports: {len(processed_df)}")
-                st.rerun()
-                
-            except Exception as read_error:
-                st.error(f"Error reading file: {read_error}")
-                logging.error(f"File read error: {read_error}", exc_info=True)
-                return
-        return
-    
-    # If we have data, validate it before proceeding
     try:
-        is_valid, message = validate_data(data, "analysis")
-        if not is_valid:
-            st.error(message)
-            return
-            
         # Get date range for the data
         min_date = data['date_of_report'].min().date()
         max_date = data['date_of_report'].max().date()
         
-        # Sidebar for filtering
+        # Filters sidebar
         with st.sidebar:
-            st.header("Analysis Filters")
+            st.header("Filters")
             
-            # Create expandable sections for different filter types
-            with st.expander("⏱️ Date Range", expanded=True):
-                # Date range filter
+            # Date Range
+            with st.expander("📅 Date Range", expanded=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     start_date = st.date_input(
@@ -1428,7 +1355,8 @@ def render_analysis_tab(data: pd.DataFrame):
                         value=min_date,
                         min_value=min_date,
                         max_value=max_date,
-                        key="start_date_filter"
+                        key="start_date_filter",
+                        format="DD/MM/YYYY"
                     )
                 with col2:
                     end_date = st.date_input(
@@ -1436,57 +1364,54 @@ def render_analysis_tab(data: pd.DataFrame):
                         value=max_date,
                         min_value=min_date,
                         max_value=max_date,
-                        key="end_date_filter"
+                        key="end_date_filter",
+                        format="DD/MM/YYYY"
                     )
             
-            with st.expander("📂 Categories", expanded=True):
-                # Category filter
-                all_categories = set()
-                for cats in data['categories'].dropna():
-                    if isinstance(cats, list):
-                        all_categories.update(cats)
-                
-                selected_categories = st.multiselect(
-                    "Categories",
-                    options=sorted(all_categories),
-                    key="categories_filter"
-                )
+            # Reference Number
+            ref_numbers = sorted(data['ref'].dropna().unique())
+            selected_refs = st.multiselect(
+                "Reference Numbers",
+                options=ref_numbers,
+                key="ref_filter"
+            )
             
-            with st.expander("📍 Location", expanded=True):
-                # Coroner area filter
-                coroner_areas = sorted(data['coroner_area'].dropna().unique())
-                selected_areas = st.multiselect(
-                    "Coroner Areas",
-                    options=coroner_areas,
-                    key="areas_filter"
-                )
+            # Deceased Name
+            deceased_search = st.text_input(
+                "Deceased Name",
+                key="deceased_filter",
+                help="Enter partial or full name"
+            )
             
-            with st.expander("ℹ️ Metadata", expanded=True):
-                # Coroner name filter
-                coroner_names = sorted(data['coroner_name'].dropna().unique())
-                selected_coroners = st.multiselect(
-                    "Coroner Names",
-                    options=coroner_names,
-                    key="coroner_filter"
-                )
-                
-                # Reference number filter
-                ref_numbers = sorted(data['ref'].dropna().unique())
-                selected_refs = st.multiselect(
-                    "Reference Numbers",
-                    options=ref_numbers,
-                    key="ref_filter"
-                )
-                
-                # Deceased name search
-                deceased_search = st.text_input(
-                    "Search Deceased Names",
-                    key="deceased_filter",
-                    help="Enter partial or full name"
-                )
+            # Coroner Name
+            coroner_names = sorted(data['coroner_name'].dropna().unique())
+            selected_coroners = st.multiselect(
+                "Coroner Names",
+                options=coroner_names,
+                key="coroner_filter"
+            )
             
-            # Add a clear filters button
-            if st.button("🔄 Reset All Filters"):
+            # Coroner Area
+            coroner_areas = sorted(data['coroner_area'].dropna().unique())
+            selected_areas = st.multiselect(
+                "Coroner Areas",
+                options=coroner_areas,
+                key="areas_filter"
+            )
+            
+            # Categories
+            all_categories = set()
+            for cats in data['categories'].dropna():
+                if isinstance(cats, list):
+                    all_categories.update(cats)
+            selected_categories = st.multiselect(
+                "Categories",
+                options=sorted(all_categories),
+                key="categories_filter"
+            )
+            
+            # Reset Filters Button
+            if st.button("🔄 Reset Filters"):
                 for key in st.session_state:
                     if key.endswith('_filter'):
                         del st.session_state[key]
@@ -1502,22 +1427,6 @@ def render_analysis_tab(data: pd.DataFrame):
                 (filtered_df['date_of_report'].dt.date <= end_date)
             ]
 
-        # Category filter
-        if selected_categories:
-            filtered_df = filtered_df[
-                filtered_df['categories'].apply(
-                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
-                )
-            ]
-
-        # Area filter
-        if selected_areas:
-            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
-
-        # Coroner name filter
-        if selected_coroners:
-            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
-
         # Reference number filter
         if selected_refs:
             filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
@@ -1532,85 +1441,88 @@ def render_analysis_tab(data: pd.DataFrame):
                 )
             ]
 
+        # Coroner name filter
+        if selected_coroners:
+            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
+
+        # Area filter
+        if selected_areas:
+            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
+
+        # Category filter
+        if selected_categories:
+            filtered_df = filtered_df[
+                filtered_df['categories'].apply(
+                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
+                )
+            ]
+
         # Show active filters
         active_filters = []
         if start_date != min_date or end_date != max_date:
-            active_filters.append(f"Date: {start_date} to {end_date}")
-        if selected_categories:
-            active_filters.append(f"Categories: {', '.join(selected_categories)}")
-        if selected_areas:
-            active_filters.append(f"Areas: {', '.join(selected_areas)}")
-        if selected_coroners:
-            active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+            active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
         if selected_refs:
             active_filters.append(f"References: {', '.join(selected_refs)}")
         if deceased_search:
             active_filters.append(f"Deceased name contains: {deceased_search}")
+        if selected_coroners:
+            active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+        if selected_areas:
+            active_filters.append(f"Areas: {', '.join(selected_areas)}")
+        if selected_categories:
+            active_filters.append(f"Categories: {', '.join(selected_categories)}")
 
-        # Display active filters
         if active_filters:
             st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
 
-        if len(filtered_df) == 0:
-            st.warning("No data matches the selected filters.")
-            return
-
-        # Display filtered results count
+        # Display results count
         st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
-        
-        # Overview metrics
-        st.subheader("Overview")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Total Reports", len(filtered_df))
-        with col2:
-            st.metric("Unique Coroner Areas", filtered_df['coroner_area'].nunique())
-        with col3:
-            categories_count = sum(len(cats) if isinstance(cats, list) else 0 
-                                 for cats in filtered_df['categories'].dropna())
-            st.metric("Total Category Tags", categories_count)
-        with col4:
-            date_range_days = (filtered_df['date_of_report'].max() - filtered_df['date_of_report'].min()).days
-            avg_reports_month = len(filtered_df) / (date_range_days / 30) if date_range_days > 0 else len(filtered_df)
-            st.metric("Avg Reports/Month", f"{avg_reports_month:.1f}")
-        
-        # Visualizations
-        st.subheader("Visualizations")
-        viz_tab1, viz_tab2, viz_tab3, viz_tab4 = st.tabs([
-            "Timeline",
-            "Categories",
-            "Coroner Areas",
-            "Data Quality"
-        ])
-        
-        with viz_tab1:
-            try:
-                plot_timeline(filtered_df)
-            except Exception as e:
-                st.error(f"Error creating timeline plot: {str(e)}")
-        
-        with viz_tab2:
-            try:
-                plot_category_distribution(filtered_df)
-            except Exception as e:
-                st.error(f"Error creating category distribution plot: {str(e)}")
-        
-        with viz_tab3:
-            try:
-                plot_coroner_areas(filtered_df)
-            except Exception as e:
-                st.error(f"Error creating coroner areas plot: {str(e)}")
-                
-        with viz_tab4:
-            try:
-                analyze_data_quality(filtered_df)
-            except Exception as e:
-                st.error(f"Error in data quality analysis: {str(e)}")
-                logging.error(f"Data quality analysis error: {e}", exc_info=True)
+
+        # Display results table
+        if len(filtered_df) > 0:
+            st.subheader("Results")
+            st.dataframe(
+                filtered_df,
+                column_config={
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "date_of_report": st.column_config.DateColumn(
+                        "Date of Report",
+                        format="DD/MM/YYYY"
+                    ),
+                    "categories": st.column_config.ListColumn("Categories")
+                },
+                hide_index=True
+            )
+
+            # Download buttons
+            col1, col2 = st.columns(2)
+            
+            # CSV Export
+            with col1:
+                csv = filtered_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Download Results (CSV)",
+                    csv,
+                    "filtered_reports.csv",
+                    "text/csv"
+                )
+            
+            # Excel Export
+            with col2:
+                buffer = io.BytesIO()
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    filtered_df.to_excel(writer, index=False)
+                st.download_button(
+                    "📥 Download Results (Excel)",
+                    buffer.getvalue(),
+                    "filtered_reports.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        else:
+            st.warning("No data matches the selected filters.")
 
     except Exception as e:
-        st.error(f"An error occurred in the analysis tab: {str(e)}")
+        st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
 
 
