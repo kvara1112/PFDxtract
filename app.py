@@ -934,7 +934,7 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def plot_timeline(df: pd.DataFrame) -> None:
-    """Plot timeline of reports"""
+    """Plot timeline of reports with improved formatting"""
     timeline_data = df.groupby(
         pd.Grouper(key='date_of_report', freq='M')
     ).size().reset_index()
@@ -947,7 +947,43 @@ def plot_timeline(df: pd.DataFrame) -> None:
     fig.update_layout(
         xaxis_title="Date",
         yaxis_title="Number of Reports",
-        hovermode='x unified'
+        hovermode='x unified',
+        yaxis=dict(
+            tickmode='linear',
+            tick0=0,
+            dtick=1,  # Integer steps
+            rangemode='nonnegative'  # Ensure y-axis starts at 0 or above
+        ),
+        xaxis=dict(
+            tickformat='%d/%m/%Y',  # DD/MM/YYYY format
+            tickangle=45
+        )
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+
+def plot_monthly_distribution(df: pd.DataFrame) -> None:
+    """Plot monthly distribution with improved formatting"""
+    monthly_counts = df['date_of_report'].dt.to_period('M').value_counts().sort_index()
+    
+    fig = px.bar(
+        x=monthly_counts.index.astype(str),
+        y=monthly_counts.values,
+        labels={'x': 'Month', 'y': 'Number of Reports'},
+        title='Monthly Distribution of Reports'
+    )
+    
+    fig.update_layout(
+        xaxis_title="Month",
+        yaxis_title="Number of Reports",
+        xaxis_tickangle=45,
+        yaxis=dict(
+            tickmode='linear',
+            tick0=0,
+            dtick=1,  # Integer steps
+            rangemode='nonnegative'
+        ),
+        bargap=0.2
     )
     
     st.plotly_chart(fig, use_container_width=True)
@@ -1566,15 +1602,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
                 
                 # Monthly distribution
                 st.subheader("Monthly Distribution")
-                monthly_counts = filtered_df['date_of_report'].dt.to_period('M').value_counts().sort_index()
-                fig = px.bar(
-                    x=monthly_counts.index.astype(str),
-                    y=monthly_counts.values,
-                    labels={'x': 'Month', 'y': 'Number of Reports'},
-                    title='Monthly Distribution of Reports'
-                )
-                fig.update_layout(xaxis_tickangle=45)
-                st.plotly_chart(fig, use_container_width=True)
+                plot_monthly_distribution(filtered_df)
                 
                 # Year-over-year comparison
                 st.subheader("Year-over-Year Comparison")
