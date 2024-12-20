@@ -2502,7 +2502,72 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 data
             )
             (topics_data)
-
+def extract_advanced_topics(data: pd.DataFrame, num_topics: int = 5, max_features: int = 1000, min_df: int = 2, n_iterations: int = 20):
+    """Extract topics with improved preprocessing"""
+    try:
+        # Combine and clean texts
+        texts = []
+        # Only process rows that have content
+        valid_data = data[data['Content'].notna()]
+        
+        for _, row in valid_data.iterrows():
+            combined_text = combine_document_text(row)
+            cleaned_text = clean_text_for_modeling(combined_text)
+            if cleaned_text and len(cleaned_text.split()) > 3:
+                texts.append(cleaned_text)
+        
+        # Configure vectorizer
+        vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=0.95,
+            stop_words='english',
+            token_pattern=r'(?u)\b[a-z]{2,}\b'
+        )
+        
+        # Create document-term matrix
+        dtm = vectorizer.fit_transform(texts)
+        
+        # Configure and fit LDA model
+        lda_model = LatentDirichletAllocation(
+            n_components=num_topics,
+            random_state=42,
+            n_jobs=-1,
+            max_iter=n_iterations,
+            learning_method='batch',
+            doc_topic_prior=0.1,
+            topic_word_prior=0.01
+        )
+        
+        # Fit model and get document-topic distributions
+        doc_topic_dist = lda_model.fit_transform(dtm)
+        
+        # Normalize components
+        for idx in range(len(lda_model.components_)):
+            lda_model.components_[idx] = lda_model.components_[idx] / lda_model.components_[idx].sum()
+        
+        # Prepare visualization data
+        feature_names = vectorizer.get_feature_names_out()
+        doc_lengths = np.array(dtm.sum(axis=1)).ravel()
+        term_frequency = np.array(dtm.sum(axis=0)).ravel()
+        
+        # Format data for pyLDAvis
+        prepared_data = pyLDAvis.prepare(
+            lda_model.components_,
+            doc_topic_dist,
+            doc_lengths,
+            feature_names,
+            term_frequency,
+            sort_topics=False,
+            mds='mmds'
+        )
+        
+        return lda_model, vectorizer, doc_topic_dist, prepared_data
+        
+    except Exception as e:
+        st.error(f"Error in topic extraction: {str(e)}")
+        logging.error(f"Topic extraction error: {e}", exc_info=True)
+        raise e
 def main():
     initialize_session_state()
     st.title("UK Judiciary PFD Reports Analysis")
