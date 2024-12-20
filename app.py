@@ -1315,7 +1315,177 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             
             # Cleanup zip file
             os.remove(pdf_zip_path)
-
+def render_analysis_tab(data: pd.DataFrame):
+    """Render the analysis tab with data visualization and insights"""
+    st.header("Data Analysis")
+    
+    if data is None or len(data) == 0:
+        st.warning("No data available for analysis. Please scrape or upload data first.")
+        return
+        
+    # Data validation
+    is_valid, message = validate_data(data, "analysis")
+    if not is_valid:
+        st.error(message)
+        return
+    
+    # Add filters in sidebar
+    with st.sidebar:
+        st.header("Analysis Filters")
+        
+        # Date range filter
+        st.subheader("Date Range")
+        min_date = data['date_of_report'].min()
+        max_date = data['date_of_report'].max()
+        
+        date_range = st.date_input(
+            "Select date range",
+            value=(min_date, max_date),
+            min_value=min_date,
+            max_value=max_date,
+            key="date_range"
+        )
+        
+        # Category filter if categories exist
+        if 'categories' in data.columns:
+            st.subheader("Categories")
+            all_categories = set()
+            for cats in data['categories'].dropna():
+                if isinstance(cats, list):
+                    all_categories.update(cats)
+            
+            selected_categories = st.multiselect(
+                "Select categories",
+                sorted(list(all_categories)),
+                key="categories"
+            )
+        
+        # Area filter if coroner_area exists
+        if 'coroner_area' in data.columns:
+            st.subheader("Coroner Areas")
+            all_areas = sorted(data['coroner_area'].dropna().unique())
+            selected_areas = st.multiselect(
+                "Select areas",
+                all_areas,
+                key="areas"
+            )
+    
+    # Filter data based on selections
+    filtered_data = data.copy()
+    
+    # Apply date filter
+    if len(date_range) == 2:
+        start_date, end_date = date_range
+        filtered_data = filtered_data[
+            (filtered_data['date_of_report'].dt.date >= start_date) &
+            (filtered_data['date_of_report'].dt.date <= end_date)
+        ]
+    
+    # Apply category filter
+    if 'categories' in data.columns and selected_categories:
+        filtered_data = filtered_data[
+            filtered_data['categories'].apply(
+                lambda x: bool(set(x or []) & set(selected_categories))
+            )
+        ]
+    
+    # Apply area filter
+    if 'coroner_area' in data.columns and selected_areas:
+        filtered_data = filtered_data[
+            filtered_data['coroner_area'].isin(selected_areas)
+        ]
+    
+    # Display summary metrics
+    st.subheader("Summary Metrics")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric(
+            "Total Reports",
+            len(filtered_data)
+        )
+    
+    with col2:
+        if 'categories' in filtered_data.columns:
+            unique_cats = set()
+            for cats in filtered_data['categories'].dropna():
+                if isinstance(cats, list):
+                    unique_cats.update(cats)
+            st.metric(
+                "Categories",
+                len(unique_cats)
+            )
+    
+    with col3:
+        if 'coroner_area' in filtered_data.columns:
+            st.metric(
+                "Coroner Areas",
+                filtered_data['coroner_area'].nunique()
+            )
+    
+    with col4:
+        date_range = (
+            filtered_data['date_of_report'].max() -
+            filtered_data['date_of_report'].min()
+        ).days
+        st.metric(
+            "Date Range",
+            f"{date_range} days"
+        )
+    
+    # Show visualizations
+    st.subheader("Time Series Analysis")
+    tabs = st.tabs(["Timeline", "Monthly Distribution", "Yearly Comparison"])
+    
+    with tabs[0]:
+        plot_timeline(filtered_data)
+    
+    with tabs[1]:
+        plot_monthly_distribution(filtered_data)
+    
+    with tabs[2]:
+        plot_yearly_comparison(filtered_data)
+    
+    # Category analysis if available
+    if 'categories' in filtered_data.columns:
+        st.subheader("Category Analysis")
+        plot_category_distribution(filtered_data)
+    
+    # Coroner area analysis if available
+    if 'coroner_area' in filtered_data.columns:
+        st.subheader("Coroner Area Analysis")
+        plot_coroner_areas(filtered_data)
+    
+    # Data quality analysis
+    st.subheader("Data Quality Analysis")
+    analyze_data_quality(filtered_data)
+    
+    # Export options
+    st.subheader("Export Analysis")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("Export Data (CSV)"):
+            csv = filtered_data.to_csv(index=False).encode('utf-8')
+            filename = f"pfd_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+            st.download_button(
+                "Download CSV",
+                csv,
+                filename,
+                "text/csv"
+            )
+    
+    with col2:
+        if st.button("Export Data (Excel)"):
+            excel_data = export_to_excel(filtered_data)
+            filename = f"pfd_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+            st.download_button(
+                "Download Excel",
+                excel_data,
+                filename,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            
 def render_topic_modeling_tab(data: pd.DataFrame):
     """Render the topic modeling analysis tab with LDA visualization"""
     st.header("Topic Modeling Analysis")
