@@ -1749,102 +1749,11 @@ def generate_topic_label(topic_words):
     """Generate a meaningful label for a topic based on its top words"""
     return " & ".join([word for word, _ in topic_words[:3]]).title()
 
-def format_topic_data(lda_model, vectorizer, doc_topics, df):
-    """Format topic modeling results with clean display"""
-    feature_names = vectorizer.get_feature_names_out()
-    topics_data = []
-    
-    # Calculate document frequencies
-    doc_freq = {}
-    for doc in df['Content'].fillna(''):
-        words = set(clean_text_for_modeling(doc).split())
-        for word in words:
-            doc_freq[word] = doc_freq.get(word, 0) + 1
-
-    for idx, topic in enumerate(lda_model.components_):
-        # Get top words with normalized weights
-        top_word_indices = topic.argsort()[:-50-1:-1]
-        topic_words = []
-        
-        for i in top_word_indices:
-            word = feature_names[i]
-            if len(word) > 1:  # Only include words longer than 1 character
-                weight = float(topic[i])  # Keep as decimal for later processing
-                count = sum(1 for doc in df['Content'].fillna('') 
-                           if word in clean_text_for_modeling(doc).split())
-                topic_words.append({
-                    'word': word,
-                    'weight': weight,
-                    'count': count,
-                    'documents': doc_freq.get(word, 0)
-                })
-
-        # Get related documents
-        doc_scores = doc_topics[:, idx]
-        doc_scores = doc_scores / doc_scores.sum() if doc_scores.sum() > 0 else doc_scores
-        related_docs = []
-        
-        for doc_idx in doc_scores.argsort()[:-11:-1]:
-            if doc_scores[doc_idx] > 0.01:  # At least 1% relevance
-                doc = df.iloc[doc_idx]
-                
-                # Get other topics
-                other_topics = []
-                doc_topic_dist = doc_topics[doc_idx]
-                doc_topic_dist = doc_topic_dist / doc_topic_dist.sum() if doc_topic_dist.sum() > 0 else doc_topic_dist
-                
-                for other_idx, score in enumerate(doc_topic_dist):
-                    if other_idx != idx and score > 0.01:
-                        other_label = ' & '.join([
-                            feature_names[i] for i in 
-                            lda_model.components_[other_idx].argsort()[:-4:-1]
-                        ]).title()
-                        other_topics.append({
-                            'label': other_label,
-                            'score': float(score)
-                        })
-                
-                content = str(doc.get('Content', ''))
-                related_docs.append({
-                    'title': doc.get('Title', ''),
-                    'date': doc.get('date_of_report', '').strftime('%Y-%m-%d') if pd.notna(doc.get('date_of_report')) else '',
-                    'summary': content[:300] + '...' if len(content) > 300 else content,
-                    'topicRelevance': float(doc_scores[doc_idx]),
-                    'coroner': doc.get('coroner_name', ''),
-                    'area': doc.get('coroner_area', ''),
-                    'otherTopics': other_topics
-                })
-
-        # Calculate topic prevalence
-        topic_prevalence = (doc_scores > 0.05).mean() * 100
-        
-        # Create topic label from top meaningful words
-        meaningful_words = [
-            feature_names[i] for i in top_word_indices[:5]
-            if len(feature_names[i]) > 1
-        ][:3]
-        label = ' & '.join(meaningful_words).title()
-        
-        topics_data.append({
-            'id': idx,
-            'label': label,
-            'description': f"Topic frequently mentions: {', '.join(meaningful_words[:5])}",
-            'words': topic_words,
-            'relatedReports': related_docs,
-            'prevalence': round(topic_prevalence, 1),
-            'trend': {
-                'direction': 'stable',
-                'percentage': 0,
-                'previousMonths': [topic_prevalence] * 4
-            }
-        })
-    
-    return topics_data
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """
     Export DataFrame to Excel bytes with proper formatting
-    
+    extract_topics_lda
     Args:
         df: DataFrame to export
         
@@ -2238,37 +2147,10 @@ def render_analysis_tab(data: pd.DataFrame = None):
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
 
-# Add to imports section at top of file
-import streamlit as st
-import streamlit.components.v1 as components
-import pyLDAvis
-import pyLDAvis.sklearn
-from typing import Tuple, Dict
-import numpy as np
-import pandas as pd
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.decomposition import LatentDirichletAllocation
 
-def extract_topics_lda(
-    df: pd.DataFrame, 
-    num_topics: int = 5, 
-    max_features: int = 1000
-) -> Tuple[LatentDirichletAllocation, TfidfVectorizer, np.ndarray, pyLDAvis._prepare.PreparedData]:
-    """
-    Extract topics using LDA and prepare visualization data.
-    
-    Args:
-        df: Input DataFrame containing document texts
-        num_topics: Number of topics to extract
-        max_features: Maximum number of features for vectorization
-    
-    Returns:
-        Tuple containing:
-        - LDA model
-        - TF-IDF vectorizer
-        - Document-topic distribution matrix
-        - pyLDAvis prepared data
-    """
+
+def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int = 1000):
+    """Extract topics using LDA and prepare visualization data."""
     try:
         # Prepare document texts
         texts = []
@@ -2301,20 +2183,81 @@ def extract_topics_lda(
         doc_topic_dist = lda_model.fit_transform(dtm)
         
         # Prepare visualization data
-        vis_data = pyLDAvis.sklearn.prepare(
-            lda_model, 
-            dtm, 
-            vectorizer,
-            mds='mmds',  # Use metric MDS for better topic distance representation
-            sort_topics=False  # Preserve original topic ordering
+        feature_names = vectorizer.get_feature_names_out()
+        topic_term_dists = lda_model.components_ / lda_model.components_.sum(axis=1)[:, np.newaxis]
+        doc_lengths = dtm.sum(axis=1).A1
+        term_frequency = dtm.sum(axis=0).A1
+        
+        # Format data for pyLDAvis
+        prepared_data = pyLDAvis.prepare(
+            topic_term_dists,
+            doc_topic_dist,
+            doc_lengths,
+            feature_names,
+            term_frequency,
+            sort_topics=False,
+            mds='mmds'
         )
         
-        return lda_model, vectorizer, doc_topic_dist, vis_data
+        return lda_model, vectorizer, doc_topic_dist, prepared_data
         
     except Exception as e:
         st.error(f"Error in topic extraction: {str(e)}")
         logging.error(f"Topic extraction error: {e}", exc_info=True)
         raise e
+
+def format_topic_data(lda_model, vectorizer, doc_topics, df):
+    """Format topic modeling results for display"""
+    try:
+        feature_names = vectorizer.get_feature_names_out()
+        topics_data = []
+        
+        # Calculate document frequencies
+        doc_freq = {}
+        for doc in df['Content'].fillna(''):
+            words = set(clean_text_for_modeling(doc).split())
+            for word in words:
+                doc_freq[word] = doc_freq.get(word, 0) + 1
+
+        for idx, topic in enumerate(lda_model.components_):
+            # Get top words with normalized weights
+            top_word_indices = topic.argsort()[:-50-1:-1]
+            topic_words = []
+            
+            for i in top_word_indices:
+                word = feature_names[i]
+                if len(word) > 1:
+                    weight = float(topic[i])
+                    count = doc_freq.get(word, 0)
+                    topic_words.append({
+                        'word': word,
+                        'weight': weight,
+                        'count': count,
+                        'documents': doc_freq.get(word, 0)
+                    })
+            
+            # Format topics data
+            meaningful_words = [
+                feature_names[i] for i in top_word_indices[:5]
+                if len(feature_names[i]) > 1
+            ][:3]
+            
+            label = ' & '.join(meaningful_words).title()
+            topics_data.append({
+                'id': idx,
+                'label': label,
+                'description': f"Topic frequently mentions: {', '.join(meaningful_words[:5])}",
+                'words': topic_words,
+                'prevalence': round((doc_topics[:, idx] > 0.05).mean() * 100, 1)
+            })
+        
+        return topics_data
+        
+    except Exception as e:
+        st.error(f"Error formatting topic data: {str(e)}")
+        logging.error(f"Topic formatting error: {e}", exc_info=True)
+        return []
+
 
 def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None:
     """
