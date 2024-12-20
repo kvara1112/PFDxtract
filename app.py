@@ -1102,11 +1102,10 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
 
 
 def render_scraping_tab():
-    """Render the scraping tab"""
+    """Render the scraping tab with a clean 2x2 filter layout"""
     st.header("Scrape PFD Reports")
     
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
-        # Show existing results if available
         st.success(f"Found {len(st.session_state.scraped_data)} reports")
         
         # Display results table with UK date format
@@ -1123,34 +1122,49 @@ def render_scraping_tab():
         
         # Show export options
         show_export_options(st.session_state.scraped_data, "scraped")
-    
+
+    # Create the search form with 2x2 layout
     with st.form("scraping_form"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            search_keyword = st.text_input("Search keywords (do not leave empty use reports as a general term or another search term):", value="report")
-            category = st.selectbox("PFD Report type:", 
-                [""] + get_pfd_categories(), 
-                format_func=lambda x: x if x else "Select a category")
-            
-            order = st.selectbox("Sort by:", [
-                "relevance",
-                "desc",
-                "asc"
-            ], format_func=lambda x: {
-                "relevance": "Relevance",
-                "desc": "Newest first",
-                "asc": "Oldest first"
-            }[x])
-        
-        with col2:
-            max_pages = st.number_input(
-                "Maximum pages to scrape (0 for all):", 
-                min_value=0, 
-                value=0
+        # Create two rows with two columns each
+        row1_col1, row1_col2 = st.columns(2)
+        row2_col1, row2_col2 = st.columns(2)
+
+        # First row
+        with row1_col1:
+            search_keyword = st.text_input(
+                "Search keywords:",
+                value="report",
+                help="Do not leave empty, use 'report' or another search term"
             )
-            
-        # Add buttons in a row
+
+        with row1_col2:
+            category = st.selectbox(
+                "PFD Report type:", 
+                [""] + get_pfd_categories(), 
+                format_func=lambda x: x if x else "Select a category"
+            )
+
+        # Second row
+        with row2_col1:
+            order = st.selectbox(
+                "Sort by:", 
+                ["relevance", "desc", "asc"],
+                format_func=lambda x: {
+                    "relevance": "Relevance",
+                    "desc": "Newest first",
+                    "asc": "Oldest first"
+                }[x]
+            )
+
+        with row2_col2:
+            max_pages = st.number_input(
+                "Maximum pages to scrape:",
+                min_value=0,
+                value=0,
+                help="Enter 0 for all pages"
+            )
+
+        # Action buttons in a row
         button_col1, button_col2, button_col3 = st.columns(3)
         with button_col1:
             submitted = st.form_submit_button("Search Reports")
@@ -1158,7 +1172,7 @@ def render_scraping_tab():
             stop_scraping = st.form_submit_button("Stop Scraping")
         with button_col3:
             reset_filters = st.form_submit_button("Reset Filters")
-    
+
     # Handle reset filters
     if reset_filters:
         st.session_state.scraped_data = None
