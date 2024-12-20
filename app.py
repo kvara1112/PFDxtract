@@ -756,27 +756,25 @@ def scrape_pfd_reports(
         st.error(f"An error occurred while scraping reports: {e}")
         return all_reports
 
-def filter_reports_by_date(reports: List[Dict], 
-                         date_after: Optional[str], 
-                         date_before: Optional[str]) -> List[Dict]:
+def filter_reports_by_date(df: pd.DataFrame, 
+                         date_after: Optional[str] = None, 
+                         date_before: Optional[str] = None) -> pd.DataFrame:
     """Filter reports by date range"""
-    filtered_reports = reports.copy()
+    # If no dates specified, return original dataframe
+    if not date_after and not date_before:
+        return df
+        
+    filtered_df = df.copy()
     
     if date_after:
-        after_date = datetime.strptime(date_after, "%Y-%m-%d")
-        filtered_reports = [
-            report for report in filtered_reports 
-            if datetime.strptime(report['date'], "%Y-%m-%d") >= after_date
-        ]
+        after_date = pd.to_datetime(date_after)
+        filtered_df = filtered_df[filtered_df['date_of_report'] >= after_date]
     
     if date_before:
-        before_date = datetime.strptime(date_before, "%Y-%m-%d")
-        filtered_reports = [
-            report for report in filtered_reports 
-            if datetime.strptime(report['date'], "%Y-%m-%d") <= before_date
-        ]
+        before_date = pd.to_datetime(date_before)
+        filtered_df = filtered_df[filtered_df['date_of_report'] <= before_date]
     
-    return filtered_reports
+    return filtered_df
 
 def sort_reports(reports: List[Dict], order: str) -> List[Dict]:
     """Sort reports based on specified order"""
