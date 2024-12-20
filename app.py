@@ -1107,7 +1107,7 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
 
 
 def render_scraping_tab():
-    """Render the scraping tab"""
+    """Render the simplified scraping tab without date filters"""
     st.header("Scrape PFD Reports")
     
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
@@ -1137,7 +1137,8 @@ def render_scraping_tab():
             category = st.selectbox("PFD Report type:", 
                 [""] + get_pfd_categories(), 
                 format_func=lambda x: x if x else "Select a category")
-            
+        
+        with col2:
             order = st.selectbox("Sort by:", [
                 "relevance",
                 "desc",
@@ -1147,19 +1148,6 @@ def render_scraping_tab():
                 "desc": "Newest first",
                 "asc": "Oldest first"
             }[x])
-        
-        with col2:
-            date_after = st.date_input(
-                "Published after:",
-                None,
-                format="DD/MM/YYYY"
-            )
-            
-            date_before = st.date_input(
-                "Published before:",
-                None,
-                format="DD/MM/YYYY"
-            )
             
             max_pages = st.number_input(
                 "Maximum pages to scrape (0 for all):", 
@@ -1171,23 +1159,12 @@ def render_scraping_tab():
     
     if submitted:
         try:
-            # Validate date range if both dates are provided
-            if date_after and date_before and date_after > date_before:
-                st.error("Start date must be before or equal to end date.")
-                return
-
             # Store search parameters in session state
             st.session_state.last_search_params = {
                 'keyword': search_keyword,
                 'category': category,
-                'date_after': date_after.strftime('%d/%m/%Y') if date_after else None,
-                'date_before': date_before.strftime('%d/%m/%Y') if date_before else None,
                 'order': order
             }
-
-            # Convert dates to required format
-            date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
-            date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
             
             # Set max pages
             max_pages_val = None if max_pages == 0 else max_pages
@@ -1196,8 +1173,6 @@ def render_scraping_tab():
             reports = scrape_pfd_reports(
                 keyword=search_keyword,
                 category=category if category else None,
-                date_after=date_after_str,
-                date_before=date_before_str,
                 order=order,
                 max_pages=max_pages_val
             )
@@ -1536,6 +1511,102 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
     finally:
         excel_buffer.close()
 
+def render_analysis_filters(data: pd.DataFrame):
+    """Render enhanced analysis filters in sidebar"""
+    st.sidebar.header("Analysis Filters")
+    
+    # Get data ranges
+    min_date = data['date_of_report'].min().date()
+    max_date = data['date_of_report'].max().date()
+    
+    # Date range filter
+    st.sidebar.subheader("Date Range")
+    date_range = st.sidebar.date_input(
+        "Select dates",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date,
+        key="date_range_filter"
+    )
+    
+    # Category filter
+    st.sidebar.subheader("Categories")
+    all_categories = set()
+    for cats in data['categories'].dropna():
+        if isinstance(cats, list):
+            all_categories.update(cats)
+    
+    selected_categories = st.sidebar.multiselect(
+        "Select categories",
+        options=sorted(all_categories),
+        key="categories_filter"
+    )
+    
+    # Coroner area filter
+    st.sidebar.subheader("Coroner Areas")
+    coroner_areas = sorted(data['coroner_area'].dropna().unique())
+    selected_areas = st.sidebar.multiselect(
+        "Select areas",
+        options=coroner_areas,
+        key="areas_filter"
+    )
+    
+    # Metadata filters
+    st.sidebar.subheader("Additional Filters")
+    has_deceased_name = st.sidebar.checkbox("Has deceased name")
+    has_coroner_name = st.sidebar.checkbox("Has coroner name")
+    has_pdf = st.sidebar.checkbox("Has PDF attachment")
+    
+    # Apply filters
+    filtered_df = data.copy()
+    
+    # Date filter
+    if len(date_range) == 2:
+        filtered_df = filtered_df[
+            (filtered_df['date_of_report'].dt.date >= date_range[0]) &
+            (filtered_df['date_of_report'].dt.date <= date_range[1])
+        ]
+    
+    # Category filter
+    if selected_categories:
+        filtered_df = filtered_df[
+            filtered_df['categories'].apply(
+                lambda x: bool(x) and any(cat in x for cat in selected_categories)
+            )
+        ]
+    
+    # Area filter
+    if selected_areas:
+        filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
+    
+    # Metadata filters
+    if has_deceased_name:
+        filtered_df = filtered_df[filtered_df['deceased_name'].notna()]
+    if has_coroner_name:
+        filtered_df = filtered_df[filtered_df['coroner_name'].notna()]
+    if has_pdf:
+        pdf_columns = [col for col in filtered_df.columns if col.startswith('PDF_') and col.endswith('_Path')]
+        filtered_df = filtered_df[filtered_df[pdf_columns].notna().any(axis=1)]
+    
+    # Show active filters
+    active_filters = []
+    if len(date_range) == 2 and (date_range[0] != min_date or date_range[1] != max_date):
+        active_filters.append(f"Date range: {date_range[0]} to {date_range[1]}")
+    if selected_categories:
+        active_filters.append(f"Categories: {', '.join(selected_categories)}")
+    if selected_areas:
+        active_filters.append(f"Areas: {', '.join(selected_areas)}")
+    if has_deceased_name:
+        active_filters.append("Has deceased name")
+    if has_coroner_name:
+        active_filters.append("Has coroner name")
+    if has_pdf:
+        active_filters.append("Has PDF attachment")
+    
+    if active_filters:
+        st.info(f"Active filters: {' • '.join(active_filters)}")
+    
+    return filtered_df
 
 def render_file_upload():
     """Render file upload section"""
