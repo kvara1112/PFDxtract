@@ -645,18 +645,7 @@ def scrape_pfd_reports(
     max_pages: Optional[int] = None
 ) -> List[Dict]:
     """
-    Scrape PFD reports with comprehensive filtering and improved error handling
-    
-    Args:
-        keyword: Search term
-        category: Report category
-        date_after: Start date filter
-        date_before: End date filter
-        order: Sort order
-        max_pages: Maximum number of pages to scrape
-        
-    Returns:
-        List of dictionaries containing report data
+    Scrape PFD reports with improved date filtering
     """
     all_reports = []
     base_url = "https://www.judiciary.uk/"
@@ -701,9 +690,11 @@ def scrape_pfd_reports(
         
         # Process each page
         progress_bar = st.progress(0)
+        page_reports = []
+        
         for current_page in range(1, total_pages + 1):
             try:
-                # Construct page URL using the same URL constructor
+                # Construct page URL
                 page_url = construct_search_url(
                     base_url=base_url,
                     keyword=keyword,
@@ -715,20 +706,13 @@ def scrape_pfd_reports(
                 st.write(f"Processing page {current_page} of {total_pages}")
                 
                 # Scrape current page
-                page_reports = scrape_page(page_url)
+                current_page_reports = scrape_page(page_url)
                 
-                # Check if page has results
-                if not page_reports:
-                    st.warning(f"No results found on page {current_page}. Stopping search.")
-                    break
-                
-                # Apply date filters if specified
-                if date_after or date_before:
-                    page_reports = filter_reports_by_date(
-                        page_reports, date_after, date_before
-                    )
-                
-                all_reports.extend(page_reports)
+                if current_page_reports:
+                    page_reports.extend(current_page_reports)
+                else:
+                    st.warning(f"No results found on page {current_page}")
+                    continue
                 
                 # Update progress
                 progress = int((current_page / total_pages) * 100)
@@ -741,6 +725,16 @@ def scrape_pfd_reports(
                 logging.error(f"Error processing page {current_page}: {page_error}")
                 st.warning(f"Error on page {current_page}. Continuing with next page...")
                 continue
+        
+        # Apply date filtering after collecting all reports
+        if date_after or date_before:
+            filtered_reports = filter_reports_by_date(page_reports, date_after, date_before)
+            if not filtered_reports:
+                st.warning("No reports found within the specified date range")
+                return []
+            all_reports.extend(filtered_reports)
+        else:
+            all_reports.extend(page_reports)
         
         progress_bar.progress(100)
         st.success(f"Successfully scraped {len(all_reports)} reports")
@@ -756,25 +750,72 @@ def scrape_pfd_reports(
         st.error(f"An error occurred while scraping reports: {e}")
         return all_reports
 
-def filter_reports_by_date(df: pd.DataFrame, 
-                         date_after: Optional[str] = None, 
-                         date_before: Optional[str] = None) -> pd.DataFrame:
-    """Filter reports by date range"""
-    # If no dates specified, return original dataframe
-    if not date_after and not date_before:
-        return df
+def filter_reports_by_date(reports: List[Dict], date_after: Optional[str] = None, date_before: Optional[str] = None) -> List[Dict]:
+    """
+    Filter reports by date range with improved date parsing
+    
+    Args:
+        reports: List of report dictionaries
+        date_after: Start date in DD/MM/YYYY format
+        date_before: End date in DD/MM/YYYY format
         
-    filtered_df = df.copy()
+    Returns:
+        List of filtered reports
+    """
+    if not reports or (not date_after and not date_before):
+        return reports
+        
+    filtered_reports = []
     
-    if date_after:
-        after_date = pd.to_datetime(date_after)
-        filtered_df = filtered_df[filtered_df['date_of_report'] >= after_date]
-    
-    if date_before:
-        before_date = pd.to_datetime(date_before)
-        filtered_df = filtered_df[filtered_df['date_of_report'] <= before_date]
-    
-    return filtered_df
+    try:
+        # Convert filter dates to datetime objects
+        after_date = None
+        before_date = None
+        
+        if date_after:
+            after_date = datetime.strptime(date_after, '%d/%m/%Y')
+        if date_before:
+            before_date = datetime.strptime(date_before, '%d/%m/%Y')
+        
+        for report in reports:
+            # Extract report date
+            content = str(report.get('Content', ''))
+            date_match = re.search(r'Date of report:\s*(\d{1,2}(?:/|-)\d{1,2}(?:/|-)\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', content)
+            
+            if not date_match:
+                continue
+                
+            date_str = date_match.group(1)
+            
+            try:
+                # Handle different date formats
+                if '/' in date_str:
+                    report_date = datetime.strptime(date_str, '%d/%m/%Y')
+                else:
+                    # Remove ordinal indicators
+                    date_str = re.sub(r'(?<=\d)(st|nd|rd|th)', '', date_str)
+                    try:
+                        report_date = datetime.strptime(date_str, '%d %B %Y')
+                    except ValueError:
+                        report_date = datetime.strptime(date_str, '%d %b %Y')
+                
+                # Apply date filters
+                if after_date and report_date < after_date:
+                    continue
+                if before_date and report_date > before_date:
+                    continue
+                    
+                filtered_reports.append(report)
+                
+            except ValueError as e:
+                logging.warning(f"Could not parse date '{date_str}': {e}")
+                continue
+                
+        return filtered_reports
+        
+    except Exception as e:
+        logging.error(f"Error in date filtering: {e}")
+        return reports
 
 def sort_reports(reports: List[Dict], order: str) -> List[Dict]:
     """Sort reports based on specified order"""
