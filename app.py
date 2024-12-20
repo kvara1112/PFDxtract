@@ -1108,7 +1108,6 @@ def render_scraping_tab():
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
         st.success(f"Found {len(st.session_state.scraped_data)} reports")
         
-        # Display results table with UK date format
         st.subheader("Results")
         st.dataframe(
             st.session_state.scraped_data,
@@ -1120,7 +1119,6 @@ def render_scraping_tab():
             hide_index=True
         )
         
-        # Show export options
         show_export_options(st.session_state.scraped_data, "scraped")
 
     # Create the search form with 2x2 layout
@@ -1134,6 +1132,7 @@ def render_scraping_tab():
             search_keyword = st.text_input(
                 "Search keywords:",
                 value="report",
+                key='search_keyword',
                 help="Do not leave empty, use 'report' or another search term"
             )
 
@@ -1141,6 +1140,8 @@ def render_scraping_tab():
             category = st.selectbox(
                 "PFD Report type:", 
                 [""] + get_pfd_categories(), 
+                index=0,
+                key='category',
                 format_func=lambda x: x if x else "Select a category"
             )
 
@@ -1149,6 +1150,8 @@ def render_scraping_tab():
             order = st.selectbox(
                 "Sort by:", 
                 ["relevance", "desc", "asc"],
+                index=0,
+                key='order',
                 format_func=lambda x: {
                     "relevance": "Relevance",
                     "desc": "Newest first",
@@ -1161,6 +1164,7 @@ def render_scraping_tab():
                 "Maximum pages to scrape:",
                 min_value=0,
                 value=0,
+                key='max_pages',
                 help="Enter 0 for all pages"
             )
 
@@ -1175,9 +1179,17 @@ def render_scraping_tab():
 
     # Handle reset filters
     if reset_filters:
+        # Clear session state data
         st.session_state.scraped_data = None
         st.session_state.current_data = None
         st.session_state.data_source = None
+        
+        # Reset form values to defaults
+        st.session_state.search_keyword = "report"
+        st.session_state.category = ""
+        st.session_state.order = "relevance"
+        st.session_state.max_pages = 0
+        
         st.rerun()
     
     # Handle stop scraping
