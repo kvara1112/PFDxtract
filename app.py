@@ -429,18 +429,21 @@ def scrape_page(url: str) -> List[Dict]:
         
         for card in cards:
             try:
-                title_elem = card.find('h3', class_='card__title').find('a')
+                title_elem = card.find('h3', class_='card__title')
                 if not title_elem:
                     continue
+                    
+                title_link = title_elem.find('a')
+                if not title_link:
+                    continue
                 
-                title = clean_text(title_elem.text)
-                card_url = title_elem['href']
-                
-                logging.info(f"Processing report: {title}")
+                title = clean_text(title_link.text)
+                card_url = title_link['href']
                 
                 if not card_url.startswith(('http://', 'https://')):
                     card_url = f"https://www.judiciary.uk{card_url}"
                 
+                logging.info(f"Processing report: {title}")
                 content_data = get_report_content(card_url)
                 
                 if content_data:
@@ -450,6 +453,7 @@ def scrape_page(url: str) -> List[Dict]:
                         'Content': content_data['content']
                     }
                     
+                    # Add PDF details
                     for i, (name, content, path) in enumerate(zip(
                         content_data['pdf_names'],
                         content_data['pdf_contents'],
@@ -472,53 +476,52 @@ def scrape_page(url: str) -> List[Dict]:
         logging.error(f"Error fetching page {url}: {e}")
         return []
 
-def get_total_pages(url: str) -> int:
-    """Get total number of pages"""
+
+def get_total_pages(url: str) -> Tuple[int, int]:
+    """
+    Get total number of pages and total results count
+    
+    Returns:
+        Tuple[int, int]: (total_pages, total_results)
+    """
     try:
         response = make_request(url)
         if not response:
-            st.write(f"No response from URL: {url}")
-            return 0
+            logging.error(f"No response from URL: {url}")
+            return 0, 0
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Debug: Print the entire page content
-        st.write("Page Content Debug:")
-        page_text = soup.get_text()
-        st.write(page_text[:2000])  # Print first 2000 characters
-        
-        # Check results count
+        # First check for total results count
+        total_results = 0
         results_header = soup.find('div', class_='search__header')
         if results_header:
-            results_text = results_header.find('p')
-            if results_text:
-                st.write(f"Results text: {results_text.get_text()}")
-                # Try to extract number of results
-                match = re.search(r'found (\d+) results?', results_text.get_text(), re.IGNORECASE)
-                if match:
-                    total_results = int(match.group(1))
-                    st.write(f"Found {total_results} results")
-                    return (total_results + 9) // 10  # Assuming 10 results per page
+            results_text = results_header.get_text()
+            match = re.search(r'found (\d+) results?', results_text, re.IGNORECASE)
+            if match:
+                total_results = int(match.group(1))
+                total_pages = (total_results + 9) // 10  # 10 results per page
+                return total_pages, total_results
         
-        # Check pagination
+        # If no results header, check pagination
         pagination = soup.find('nav', class_='navigation pagination')
         if pagination:
             page_numbers = pagination.find_all('a', class_='page-numbers')
             numbers = [int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()]
             if numbers:
-                return max(numbers)
+                return max(numbers), len(numbers) * 10  # Approximate result count
         
-        # Check if at least one page of results exists
+        # If no pagination but results exist
         results = soup.find('ul', class_='search__list')
         if results and results.find_all('div', class_='card'):
-            return 1
+            cards = results.find_all('div', class_='card')
+            return 1, len(cards)
             
-        return 0
+        return 0, 0
         
     except Exception as e:
-        st.write(f"Error in get_total_pages: {str(e)}")
-        logging.error(f"Error getting total pages: {str(e)}")
-        return 0
+        logging.error(f"Error in get_total_pages: {str(e)}")
+        return 0, 0
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
@@ -601,12 +604,10 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                       max_pages: Optional[int] = None) -> List[Dict]:
     """Scrape PFD reports with comprehensive filtering"""
     all_reports = []
-    current_page = 1
     base_url = "https://www.judiciary.uk/"
     
     # Validate and prepare category
     if category:
-        # Find exact match, case-insensitive
         matching_categories = [
             cat for cat in get_pfd_categories() 
             if cat.lower() == category.lower()
@@ -617,161 +618,68 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             return []
         
         category = matching_categories[0]
-        
-        # Create URL-friendly slug
         category_slug = category.lower().replace(' ', '-')
         base_search_url = f"{base_url}pfd-types/{category_slug}/"
     else:
-        # If keyword is provided, use the search URL
         if keyword:
             base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
         else:
             base_search_url = f"{base_url}prevention-of-future-death-reports/"
     
     try:
-        criteria = []
-        if keyword:
-            criteria.append(f"Keyword: {keyword}")
-        if category:
-            criteria.append(f"Category: {category}")
-        search_msg = " | ".join(criteria) if criteria else "all reports"
+        # Get total pages and results count
+        total_pages, total_results = get_total_pages(base_search_url)
         
-        with st.spinner(f"Searching for reports... ({search_msg})"):
-            while True:
-                # Construct page URL
-                if current_page > 1:
-                    if '?' in base_search_url:
-                        page_url = f"{base_search_url}&page={current_page}"
-                    else:
-                        page_url = f"{base_search_url}page/{current_page}/"
-                else:
-                    page_url = base_search_url
-                    
-                st.write(f"Searching URL: {page_url}")
-                
-                # Get page content
-                response = make_request(page_url)
-                if not response:
-                    break
-                    
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # Check total results on first page
-                if current_page == 1:
-                    results_header = soup.find('div', class_='search__header')
-                    if results_header:
-                        results_text = results_header.get_text()
-                        if 'found 0 results' in results_text.lower():
-                            st.warning("No results found")
-                            return []
-                
-                # Find report container - check both search and archive layouts
-                report_container = (
-                    soup.find('ul', class_='search__list') or 
-                    soup.find('div', class_='archive__listings') or
-                    soup.find('ul', class_='govuk-list')
-                )
-                
-                if not report_container:
-                    if current_page == 1:
-                        st.warning("No report container found")
-                    break
-                
-                # Find report cards
-                report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full'])
-                
-                if not report_cards:
-                    if current_page == 1:
-                        st.warning("No reports found")
-                    break
-
-                matching_cards = []
-                for card in report_cards:
-                    # Get title and content
-                    title_elem = card.find(['h3', 'h2'], class_='card__title')
-                    content_elem = card.find('p', class_='card__description')
-                    
-                    card_text = ''
-                    if title_elem:
-                        card_text += title_elem.get_text(strip=True).lower() + ' '
-                    if content_elem:
-                        card_text += content_elem.get_text(strip=True).lower()
-                    
-                    # Check if card matches keyword
-                    if not keyword or keyword.lower() in card_text:
-                        matching_cards.append(card)
-                
-                st.write(f"Found {len(matching_cards)} matching reports on page {current_page}")
-                
-                # Process matching cards
-                for card in matching_cards:
-                    try:
-                        title_elem = card.find(['h3', 'h2'], class_='card__title')
-                        if not title_elem:
-                            continue
-                            
-                        title_link = title_elem.find('a')
-                        if not title_link:
-                            continue
-                        
-                        title = clean_text(title_link.text)
-                        card_url = title_link['href']
-                        
-                        # Get full content details
-                        content_data = get_report_content(card_url)
-                        
-                        if content_data:
-                            report = {
-                                'Title': title,
-                                'URL': card_url,
-                                'Content': content_data['content']
-                            }
-                            
-                            # Add PDF details
-                            for i, (name, content, path) in enumerate(zip(
-                                content_data['pdf_names'],
-                                content_data['pdf_contents'],
-                                content_data['pdf_paths']
-                            ), 1):
-                                report[f'PDF_{i}_Name'] = name
-                                report[f'PDF_{i}_Content'] = content
-                                report[f'PDF_{i}_Path'] = path
-                            
-                            all_reports.append(report)
-                            logging.info(f"Successfully processed: {title}")
-                        
-                    except Exception as card_error:
-                        logging.error(f"Error processing card: {card_error}")
-                        continue
-                
-                # Stop if max pages reached
-                if max_pages and current_page >= max_pages:
-                    break
-                    
-                # Check for next page
-                next_page = None
-                pagination = soup.find('nav', class_='navigation pagination')
-                if pagination:
-                    next_page = pagination.find('a', class_='next page-numbers')
-                
-                if not next_page:
-                    break
-                    
-                current_page += 1
-                time.sleep(2)
-        
-        if len(all_reports) == 0:
-            st.warning("No reports were found matching your search criteria.")
-        else:
-            st.success(f"Found {len(all_reports)} matching reports")
+        if total_results == 0:
+            st.warning("No results found matching your search criteria")
+            return []
             
+        st.info(f"Found {total_results} matching reports across {total_pages} pages")
+        
+        # Apply max pages limit if specified
+        if max_pages:
+            total_pages = min(total_pages, max_pages)
+            st.info(f"Limiting search to first {total_pages} pages")
+        
+        # Process each page
+        progress_bar = st.progress(0)
+        for current_page in range(1, total_pages + 1):
+            # Construct page URL
+            if current_page > 1:
+                if '?' in base_search_url:
+                    page_url = f"{base_search_url}&page={current_page}"
+                else:
+                    page_url = f"{base_search_url}page/{current_page}/"
+            else:
+                page_url = base_search_url
+            
+            st.write(f"Processing page {current_page} of {total_pages}")
+            
+            # Scrape current page
+            page_reports = scrape_page(page_url)
+            
+            # Check if page has results
+            if not page_reports:
+                st.warning(f"No results found on page {current_page}. Stopping search.")
+                break
+            
+            all_reports.extend(page_reports)
+            
+            # Update progress
+            progress = int((current_page / total_pages) * 100)
+            progress_bar.progress(progress)
+            
+            # Add delay between pages
+            time.sleep(2)
+        
+        progress_bar.progress(100)
+        st.success(f"Successfully scraped {len(all_reports)} reports")
         return all_reports
-    
+        
     except Exception as e:
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
         return all_reports
-        
         
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
