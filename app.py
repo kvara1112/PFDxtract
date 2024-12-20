@@ -606,8 +606,9 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     all_reports = []
     base_url = "https://www.judiciary.uk/"
     
-    # Validate and prepare category
+    # Construct base search URL with both keyword and category considerations
     if category:
+        # Validate and prepare category
         matching_categories = [
             cat for cat in get_pfd_categories() 
             if cat.lower() == category.lower()
@@ -618,9 +619,15 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
             return []
         
         category = matching_categories[0]
-        category_slug = category.lower().replace(' ', '-')
-        base_search_url = f"{base_url}pfd-types/{category_slug}/"
+        category_slug = category.lower().replace(' ', '-').replace('&', 'and')
+        
+        # Construct URL for category with optional keyword
+        if keyword:
+            base_search_url = f"{base_url}?s={keyword}&post_type=pfd&pfd-types={category_slug}"
+        else:
+            base_search_url = f"{base_url}pfd-types/{category_slug}/"
     else:
+        # If no category, use keyword or default PFD reports page
         if keyword:
             base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
         else:
@@ -646,6 +653,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         for current_page in range(1, total_pages + 1):
             # Construct page URL
             if current_page > 1:
+                # Adjust URL construction based on existing parameters
                 if '?' in base_search_url:
                     page_url = f"{base_search_url}&page={current_page}"
                 else:
