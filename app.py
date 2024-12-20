@@ -2149,7 +2149,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
 
 
 def extract_topics_lda(data: pd.DataFrame, num_topics: int = 5, max_features: int = 1000):
-    """Extract topics using LDA and prepare visualization data"""
+    """Extract topics using LDA"""
     try:
         # Filter out rows with no content
         valid_data = data[data['Content'].notna()].copy()
@@ -2186,23 +2186,7 @@ def extract_topics_lda(data: pd.DataFrame, num_topics: int = 5, max_features: in
         # Fit model and get document-topic distributions
         doc_topic_dist = lda_model.fit_transform(dtm)
         
-        # Prepare visualization data
-        feature_names = vectorizer.get_feature_names_out()
-        doc_lengths = np.array(dtm.sum(axis=1)).ravel()
-        term_frequency = np.array(dtm.sum(axis=0)).ravel()
-        
-        # Format data for pyLDAvis
-        prepared_data = pyLDAvis.prepare(
-        topic_term_dists=lda_model.components_ / lda_model.components_.sum(axis=1)[:, np.newaxis],
-        doc_topic_dists=doc_topic_dist,
-        doc_lengths=doc_lengths,
-        vocab=feature_names,
-        term_frequency=term_frequency,
-        sort_topics=False,
-        mds='mmds'
-        )
-            
-        return lda_model, vectorizer, doc_topic_dist, prepared_data
+        return lda_model, vectorizer, doc_topic_dist
         
     except Exception as e:
         st.error(f"Error in topic extraction: {str(e)}")
