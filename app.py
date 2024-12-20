@@ -1852,7 +1852,53 @@ def format_topic_data(lda_model, vectorizer, doc_topics, df):
     
     return topics_data
 
-
+def export_to_excel(df: pd.DataFrame) -> bytes:
+    """
+    Export DataFrame to Excel bytes with proper formatting
+    
+    Args:
+        df: DataFrame to export
+        
+    Returns:
+        bytes: Excel file content as bytes
+    """
+    try:
+        # Create output buffer
+        output = io.BytesIO()
+        
+        # Create Excel writer
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Convert main data to Excel
+            df.to_excel(writer, sheet_name='Reports', index=False)
+            
+            # Get the worksheet
+            worksheet = writer.sheets['Reports']
+            
+            # Auto-adjust column widths based on content
+            for idx, col in enumerate(df.columns, 1):
+                max_length = max(
+                    df[col].astype(str).apply(len).max(),
+                    len(str(col))
+                )
+                # Add a little extra space and limit maximum width
+                adjusted_width = min(max_length + 2, 50)
+                worksheet.column_dimensions[chr(64 + idx)].width = adjusted_width
+            
+            # Add filters to header row
+            worksheet.auto_filter.ref = worksheet.dimensions
+            
+            # Freeze the header row
+            worksheet.freeze_panes = 'A2'
+        
+        # Get the bytes value
+        excel_data = output.getvalue()
+        
+        return excel_data
+        
+    except Exception as e:
+        logging.error(f"Error exporting to Excel: {e}")
+        raise Exception(f"Failed to export data to Excel: {str(e)}")
+        
 def extract_key_points(text, point_type='findings'):
     """Extract key findings or recommendations from text"""
     text = text.lower()
