@@ -1334,7 +1334,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             os.remove(pdf_zip_path)
 
 def render_analysis_tab(data: pd.DataFrame = None):
-    """Render the analysis tab with improved filters and file upload functionality"""
+    """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
     st.header("Reports Analysis")
     
     # Add file upload section at the top
@@ -1475,34 +1475,12 @@ def render_analysis_tab(data: pd.DataFrame = None):
 
         # Document type filter
         if doc_type:
-            # Assuming we can identify responses by certain keywords in the title or content
-            def get_document_type(row):
-                # Check PDF names for all PDFs
-                for i in range(1, 4):  # Check PDF_1 to PDF_3
-                    pdf_name = str(row.get(f'PDF_{i}_Name', '')).lower()
-                    
-                    # If this PDF is a PFD report
-                    if 'prevention-of-future-deaths-report' in pdf_name:
-                        return 'Report'
-                        
-                    # If this PDF is a response
-                    if 'response-from-' in pdf_name:
-                        return 'Response'
-                
-                # If no definitive PDF name was found, default to Report
-                return 'Report'
-
-            def matches_doc_type_filter(row):
-                detected_type = get_document_type(row)
-                return detected_type in doc_type
-            
             filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
 
         # Reference number filter
         if selected_refs:
             filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
 
-        # Other filters remain the same...
         if deceased_search:
             filtered_df = filtered_df[
                 filtered_df['deceased_name'].fillna('').str.contains(
@@ -1550,6 +1528,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
         st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
 
         if len(filtered_df) > 0:
+            # Display the dataframe
             st.dataframe(
                 filtered_df,
                 column_config={
@@ -1567,7 +1546,74 @@ def render_analysis_tab(data: pd.DataFrame = None):
                 hide_index=True
             )
 
+            # Create tabs for different analyses
+            st.markdown("---")
+            quality_tab, temporal_tab, distribution_tab = st.tabs([
+                "📊 Data Quality Analysis",
+                "📅 Temporal Analysis",
+                "📍 Distribution Analysis"
+            ])
+
+            # Data Quality Analysis Tab
+            with quality_tab:
+                analyze_data_quality(filtered_df)
+
+            # Temporal Analysis Tab
+            with temporal_tab:
+                # Timeline of reports
+                st.subheader("Reports Timeline")
+                plot_timeline(filtered_df)
+                
+                # Monthly distribution
+                st.subheader("Monthly Distribution")
+                monthly_counts = filtered_df['date_of_report'].dt.to_period('M').value_counts().sort_index()
+                fig = px.bar(
+                    x=monthly_counts.index.astype(str),
+                    y=monthly_counts.values,
+                    labels={'x': 'Month', 'y': 'Number of Reports'},
+                    title='Monthly Distribution of Reports'
+                )
+                fig.update_layout(xaxis_tickangle=45)
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Year-over-year comparison
+                st.subheader("Year-over-Year Comparison")
+                yearly_counts = filtered_df['date_of_report'].dt.year.value_counts().sort_index()
+                fig = px.line(
+                    x=yearly_counts.index,
+                    y=yearly_counts.values,
+                    markers=True,
+                    labels={'x': 'Year', 'y': 'Number of Reports'},
+                    title='Year-over-Year Report Volumes'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Seasonal patterns
+                st.subheader("Seasonal Patterns")
+                seasonal_counts = filtered_df['date_of_report'].dt.month.value_counts().sort_index()
+                month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                fig = px.line(
+                    x=month_names,
+                    y=[seasonal_counts.get(i, 0) for i in range(1, 13)],
+                    markers=True,
+                    labels={'x': 'Month', 'y': 'Number of Reports'},
+                    title='Seasonal Distribution of Reports'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Distribution Analysis Tab
+            with distribution_tab:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("Reports by Category")
+                    plot_category_distribution(filtered_df)
+                with col2:
+                    st.subheader("Reports by Coroner Area")
+                    plot_coroner_areas(filtered_df)
+
             # Export options
+            st.markdown("---")
             st.subheader("Export Options")
             col1, col2 = st.columns(2)
             
@@ -1755,6 +1801,7 @@ def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, 
             return False, "Categories must be stored as lists or None values."
     
     return True, "Data is valid"
+    
 def is_response(row: pd.Series) -> bool:
     """
     Check if a report is a response document based on its metadata and content
@@ -1793,6 +1840,9 @@ def is_response(row: pd.Series) -> bool:
     except Exception as e:
         logging.error(f"Error checking response type: {e}")
         return False
+
+
+
 def generate_topic_label(topic_words):
     """Generate a meaningful label for a topic based on its top words"""
     return " & ".join([word for word, _ in topic_words[:3]]).title()
