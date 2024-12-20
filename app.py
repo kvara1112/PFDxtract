@@ -595,47 +595,100 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
 
+import logging
+import time
+from typing import List, Dict, Optional
+import streamlit as st
 
-def scrape_pfd_reports(keyword: Optional[str] = None,
-                      category: Optional[str] = None,
-                      date_after: Optional[str] = None,
-                      date_before: Optional[str] = None,
-                      order: str = "relevance",
-                      max_pages: Optional[int] = None) -> List[Dict]:
-    """Scrape PFD reports with comprehensive filtering"""
+def construct_search_url(base_url: str, keyword: Optional[str] = None, 
+                        category: Optional[str] = None, 
+                        category_slug: Optional[str] = None, 
+                        page: Optional[int] = None) -> str:
+    """Constructs search URL with proper parameter handling"""
+    # Clean inputs
+    keyword = keyword.strip() if keyword else None
+    category = category.strip() if category else None
+    
+    # Build query parameters
+    query_params = []
+    
+    # Always add post_type for filtered searches
+    if category or keyword:
+        query_params.append("post_type=pfd")
+    
+    # Add category filter if present
+    if category and category_slug:
+        query_params.append(f"pfd_report_type={category_slug}")
+    
+    # Add keyword filter if present
+    if keyword:
+        query_params.append(f"s={keyword}")
+    
+    # Construct base URL
+    if query_params:
+        query_string = "&".join(query_params)
+        url = f"{base_url}?{query_string}"
+    else:
+        url = f"{base_url}prevention-of-future-death-reports/"
+    
+    # Add pagination if needed
+    if page and page > 1:
+        if query_params:
+            url = f"{url}&page={page}"
+        else:
+            url = f"{url}page/{page}/"
+    
+    return url
+
+def scrape_pfd_reports(
+    keyword: Optional[str] = None,
+    category: Optional[str] = None,
+    date_after: Optional[str] = None,
+    date_before: Optional[str] = None,
+    order: str = "relevance",
+    max_pages: Optional[int] = None
+) -> List[Dict]:
+    """
+    Scrape PFD reports with comprehensive filtering and improved error handling
+    
+    Args:
+        keyword: Search term
+        category: Report category
+        date_after: Start date filter
+        date_before: End date filter
+        order: Sort order
+        max_pages: Maximum number of pages to scrape
+        
+    Returns:
+        List of dictionaries containing report data
+    """
     all_reports = []
     base_url = "https://www.judiciary.uk/"
     
-    # Validate and prepare category
-    if category:
-        matching_categories = [
-            cat for cat in get_pfd_categories() 
-            if cat.lower() == category.lower()
-        ]
-        
-        if not matching_categories:
-            st.error(f"No matching category found for: {category}")
-            return []
-        
-        category = matching_categories[0]
-        # Convert category to URL-friendly slug
-        category_slug = category.lower().replace(' ', '-').replace('&', 'and')
-    
-    # Construct base search URL
-    if category and keyword:
-        # Combined keyword and category search
-        base_search_url = f"{base_url}?s={keyword}&post_type=pfd&pfd_report_type={category_slug}"
-    elif category:
-        # Category-only search
-        base_search_url = f"{base_url}?post_type=pfd&pfd_report_type={category_slug}"
-    elif keyword:
-        # Keyword-only search
-        base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
-    else:
-        # No filters
-        base_search_url = f"{base_url}prevention-of-future-death-reports/"
-    
     try:
+        # Validate and prepare category
+        category_slug = None
+        if category:
+            matching_categories = [
+                cat for cat in get_pfd_categories() 
+                if cat.lower() == category.lower()
+            ]
+            
+            if not matching_categories:
+                st.error(f"No matching category found for: {category}")
+                return []
+            
+            category = matching_categories[0]
+            category_slug = category.lower().replace(' ', '-').replace('&', 'and')
+        
+        # Construct initial search URL
+        base_search_url = construct_search_url(
+            base_url=base_url,
+            keyword=keyword,
+            category=category,
+            category_slug=category_slug
+        )
+        
         # Get total pages and results count
         total_pages, total_results = get_total_pages(base_search_url)
         
@@ -653,43 +706,93 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         # Process each page
         progress_bar = st.progress(0)
         for current_page in range(1, total_pages + 1):
-            # Construct page URL
-            if current_page > 1:
-                # Adjust URL construction based on existing parameters
-                if '?' in base_search_url:
-                    page_url = f"{base_search_url}&page={current_page}"
-                else:
-                    page_url = f"{base_search_url}page/{current_page}/"
-            else:
-                page_url = base_search_url
-            
-            st.write(f"Processing page {current_page} of {total_pages}")
-            
-            # Scrape current page
-            page_reports = scrape_page(page_url)
-            
-            # Check if page has results
-            if not page_reports:
-                st.warning(f"No results found on page {current_page}. Stopping search.")
-                break
-            
-            all_reports.extend(page_reports)
-            
-            # Update progress
-            progress = int((current_page / total_pages) * 100)
-            progress_bar.progress(progress)
-            
-            # Add delay between pages
-            time.sleep(2)
+            try:
+                # Construct page URL using the same URL constructor
+                page_url = construct_search_url(
+                    base_url=base_url,
+                    keyword=keyword,
+                    category=category,
+                    category_slug=category_slug,
+                    page=current_page
+                )
+                
+                st.write(f"Processing page {current_page} of {total_pages}")
+                
+                # Scrape current page
+                page_reports = scrape_page(page_url)
+                
+                # Check if page has results
+                if not page_reports:
+                    st.warning(f"No results found on page {current_page}. Stopping search.")
+                    break
+                
+                # Apply date filters if specified
+                if date_after or date_before:
+                    page_reports = filter_reports_by_date(
+                        page_reports, date_after, date_before
+                    )
+                
+                all_reports.extend(page_reports)
+                
+                # Update progress
+                progress = int((current_page / total_pages) * 100)
+                progress_bar.progress(progress)
+                
+                # Add delay between pages
+                time.sleep(2)
+                
+            except Exception as page_error:
+                logging.error(f"Error processing page {current_page}: {page_error}")
+                st.warning(f"Error on page {current_page}. Continuing with next page...")
+                continue
         
         progress_bar.progress(100)
         st.success(f"Successfully scraped {len(all_reports)} reports")
+        
+        # Sort results if specified
+        if order != "relevance":
+            all_reports = sort_reports(all_reports, order)
+        
         return all_reports
         
     except Exception as e:
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
         return all_reports
+
+def filter_reports_by_date(reports: List[Dict], 
+                         date_after: Optional[str], 
+                         date_before: Optional[str]) -> List[Dict]:
+    """Filter reports by date range"""
+    filtered_reports = reports.copy()
+    
+    if date_after:
+        after_date = datetime.strptime(date_after, "%Y-%m-%d")
+        filtered_reports = [
+            report for report in filtered_reports 
+            if datetime.strptime(report['date'], "%Y-%m-%d") >= after_date
+        ]
+    
+    if date_before:
+        before_date = datetime.strptime(date_before, "%Y-%m-%d")
+        filtered_reports = [
+            report for report in filtered_reports 
+            if datetime.strptime(report['date'], "%Y-%m-%d") <= before_date
+        ]
+    
+    return filtered_reports
+
+def sort_reports(reports: List[Dict], order: str) -> List[Dict]:
+    """Sort reports based on specified order"""
+    if order == "date_desc":
+        return sorted(reports, 
+                     key=lambda x: datetime.strptime(x['date'], "%Y-%m-%d"), 
+                     reverse=True)
+    elif order == "date_asc":
+        return sorted(reports, 
+                     key=lambda x: datetime.strptime(x['date'], "%Y-%m-%d"))
+    return reports
+
         
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
