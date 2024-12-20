@@ -1755,7 +1755,44 @@ def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, 
             return False, "Categories must be stored as lists or None values."
     
     return True, "Data is valid"
-
+def is_response(row: pd.Series) -> bool:
+    """
+    Check if a report is a response document based on its metadata and content
+    
+    Args:
+        row: DataFrame row containing report data
+        
+    Returns:
+        bool: True if document is a response, False otherwise
+    """
+    try:
+        # Check PDF names for response indicators
+        pdf_response = False
+        for i in range(1, 10):  # Check PDF_1 to PDF_9
+            pdf_name = str(row.get(f'PDF_{i}_Name', '')).lower()
+            if 'response' in pdf_name or 'reply' in pdf_name:
+                pdf_response = True
+                break
+        
+        # Check title for response indicators
+        title = str(row.get('Title', '')).lower()
+        title_response = any(word in title for word in ['response', 'reply', 'answered'])
+        
+        # Check content for response indicators
+        content = str(row.get('Content', '')).lower()
+        content_response = any(phrase in content for phrase in [
+            'in response to',
+            'responding to',
+            'reply to',
+            'response to',
+            'following the regulation 28'
+        ])
+        
+        return pdf_response or title_response or content_response
+        
+    except Exception as e:
+        logging.error(f"Error checking response type: {e}")
+        return False
 def generate_topic_label(topic_words):
     """Generate a meaningful label for a topic based on its top words"""
     return " & ".join([word for word, _ in topic_words[:3]]).title()
