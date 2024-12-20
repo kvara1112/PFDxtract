@@ -622,7 +622,11 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         category_slug = category.lower().replace(' ', '-')
         base_search_url = f"{base_url}pfd-types/{category_slug}/"
     else:
-        base_search_url = f"{base_url}prevention-of-future-death-reports/"
+        # If keyword is provided, use the search URL
+        if keyword:
+            base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
+        else:
+            base_search_url = f"{base_url}prevention-of-future-death-reports/"
     
     try:
         criteria = []
@@ -635,7 +639,14 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         with st.spinner(f"Searching for reports... ({search_msg})"):
             while True:
                 # Construct page URL
-                page_url = f"{base_search_url}page/{current_page}/" if current_page > 1 else base_search_url
+                if current_page > 1:
+                    if '?' in base_search_url:
+                        page_url = f"{base_search_url}&page={current_page}"
+                    else:
+                        page_url = f"{base_search_url}page/{current_page}/"
+                else:
+                    page_url = base_search_url
+                    
                 st.write(f"Searching URL: {page_url}")
                 
                 # Get page content
@@ -645,100 +656,66 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                     
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # Check if no results found on page
-                no_results = soup.find('p', class_='search__no-results')
-                if no_results and current_page == 1:
-                    st.warning("No results found matching your criteria.")
-                    break
+                # Check total results on first page
+                if current_page == 1:
+                    results_header = soup.find('div', class_='search__header')
+                    if results_header:
+                        results_text = results_header.get_text()
+                        if 'found 0 results' in results_text.lower():
+                            st.warning("No results found")
+                            return []
                 
-                # Find report container
-                container_classes = [
-                    ['archive__listings', 'search__listing'],
-                    ['search__list'],
-                    ['govuk-list'],
-                    ['archive__posts']
-                ]
-                
-                report_container = None
-                for classes in container_classes:
-                    report_container = soup.find('ul', class_=classes) or soup.find('div', class_=classes)
-                    if report_container:
-                        break
+                # Find report container - check both search and archive layouts
+                report_container = (
+                    soup.find('ul', class_='search__list') or 
+                    soup.find('div', class_='archive__listings') or
+                    soup.find('ul', class_='govuk-list')
+                )
                 
                 if not report_container:
                     if current_page == 1:
-                        st.warning(f"No report container found")
+                        st.warning("No report container found")
                     break
                 
-                # Find all report cards with various possible class names
-                report_cards = []
-                for class_name in ['card', 'card--full', 'search__item', 'post-preview']:
-                    cards = report_container.find_all(['div', 'li', 'article'], class_=class_name)
-                    report_cards.extend(cards)
+                # Find report cards
+                report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full'])
                 
-                if not report_cards and current_page == 1:
-                    st.warning("No reports found")
+                if not report_cards:
+                    if current_page == 1:
+                        st.warning("No reports found")
                     break
 
                 matching_cards = []
                 for card in report_cards:
-                    try:
-                        # Extract all text elements
-                        title_elem = card.find(['h3', 'h2', 'h4'], class_=['card__title', 'entry-title'])
-                        title_text = title_elem.get_text(strip=True) if title_elem else ''
-                        
-                        # Get preview/excerpt text if available
-                        preview_elem = card.find(['div', 'p'], class_=['card__content', 'entry-content', 'excerpt'])
-                        preview_text = preview_elem.get_text(strip=True) if preview_elem else ''
-                        
-                        # Get any additional content
-                        other_content = ' '.join([
-                            elem.get_text(strip=True) 
-                            for elem in card.find_all(['p', 'div', 'span']) 
-                            if elem not in [title_elem, preview_elem]
-                        ])
-                        
-                        # Combine all text content
-                        full_text = f"{title_text} {preview_text} {other_content}".lower()
-                        
-                        # Check if keyword matches
-                        if not keyword or keyword.lower() in full_text:
-                            matching_cards.append(card)
-                            
-                    except Exception as e:
-                        logging.error(f"Error processing card content: {e}")
-                        continue
-                
-                report_cards = matching_cards
-                st.write(f"Found {len(report_cards)} matching reports on page {current_page}")
-                
-                if len(report_cards) == 0 and current_page == 1:
-                    st.warning("No matching reports found on the first page.")
-                    break
+                    # Get title and content
+                    title_elem = card.find(['h3', 'h2'], class_='card__title')
+                    content_elem = card.find('p', class_='card__description')
                     
-                if len(report_cards) == 0 and current_page > 1:
-                    break
+                    card_text = ''
+                    if title_elem:
+                        card_text += title_elem.get_text(strip=True).lower() + ' '
+                    if content_elem:
+                        card_text += content_elem.get_text(strip=True).lower()
+                    
+                    # Check if card matches keyword
+                    if not keyword or keyword.lower() in card_text:
+                        matching_cards.append(card)
                 
-                # Process reports on current page
-                for card in report_cards:
+                st.write(f"Found {len(matching_cards)} matching reports on page {current_page}")
+                
+                # Process matching cards
+                for card in matching_cards:
                     try:
-                        # Find title link - check multiple possible structures
-                        title_elem = card.find(['h3', 'h2', 'h4'], class_=['card__title', 'entry-title'])
-                        title_link = None
-                        if title_elem:
-                            title_link = title_elem.find('a')
-                        if not title_link:
-                            # Try finding link directly
-                            title_link = card.find('a', href=True)
-                        
+                        title_elem = card.find(['h3', 'h2'], class_='card__title')
+                        if not title_elem:
+                            continue
+                            
+                        title_link = title_elem.find('a')
                         if not title_link:
                             continue
                         
                         title = clean_text(title_link.text)
                         card_url = title_link['href']
-                        
-                        if not card_url.startswith(('http://', 'https://')):
-                            card_url = f"https://www.judiciary.uk{card_url}"
                         
                         # Get full content details
                         content_data = get_report_content(card_url)
@@ -767,39 +744,33 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                         logging.error(f"Error processing card: {card_error}")
                         continue
                 
-                # Check if we should continue to next page
+                # Stop if max pages reached
                 if max_pages and current_page >= max_pages:
                     break
                     
-                # Look for next page link with multiple possible structures
+                # Check for next page
                 next_page = None
-                for next_class in ['next', 'next page-numbers', 'pagination__next']:
-                    next_page = soup.find('a', class_=next_class)
-                    if next_page:
-                        break
-                
-                if not next_page:
-                    pagination = soup.find(['nav', 'div'], class_=['navigation pagination', 'pagination'])
-                    if pagination:
-                        next_page = pagination.find('a', class_=['next', 'next page-numbers'])
+                pagination = soup.find('nav', class_='navigation pagination')
+                if pagination:
+                    next_page = pagination.find('a', class_='next page-numbers')
                 
                 if not next_page:
                     break
                     
                 current_page += 1
-                time.sleep(2)  # Add delay between pages
+                time.sleep(2)
         
         if len(all_reports) == 0:
             st.warning("No reports were found matching your search criteria.")
         else:
-            st.success(f"Found {len(all_reports)} matching reports.")
+            st.success(f"Found {len(all_reports)} matching reports")
             
         return all_reports
     
     except Exception as e:
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
-        return all_reports  # Return any reports collected before error
+        return all_reports
         
         
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
