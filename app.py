@@ -2193,15 +2193,15 @@ def extract_topics_lda(data: pd.DataFrame, num_topics: int = 5, max_features: in
         
         # Format data for pyLDAvis
         prepared_data = pyLDAvis.prepare(
-            lda_model.components_,
-            doc_topic_dist,
-            doc_lengths,
-            feature_names,
-            term_frequency,
-            sort_topics=False,
-            mds='mmds'
+        topic_term_dists=lda_model.components_ / lda_model.components_.sum(axis=1)[:, np.newaxis],
+        doc_topic_dists=doc_topic_dist,
+        doc_lengths=doc_lengths,
+        vocab=feature_names,
+        term_frequency=term_frequency,
+        sort_topics=False,
+        mds='mmds'
         )
-        
+            
         return lda_model, vectorizer, doc_topic_dist, prepared_data
         
     except Exception as e:
