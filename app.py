@@ -591,6 +591,9 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
+
+
+
 def scrape_pfd_reports(keyword: Optional[str] = None,
                       category: Optional[str] = None,
                       date_after: Optional[str] = None,
@@ -666,34 +669,27 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                         st.warning("No results found")
                     return []
                 
-                # Find report container - check multiple layouts
+                # Find report container - check both search and archive layouts
                 report_container = None
+                container_classes = [
+                    'search__list',
+                    'archive__listings',
+                    'govuk-list',
+                    'search__listing',
+                    'archive__posts'  # Added for category pages
+                ]
                 
-                # Check for archive layout first (category pages)
-                if category and not keyword:
+                for class_name in container_classes:
                     report_container = (
-                        soup.find('div', class_='archive__listings') or
-                        soup.find('ul', class_='archive__posts') or
-                        soup.find('div', class_='search__listing')
+                        soup.find('ul', class_=class_name) or 
+                        soup.find('div', class_=class_name)
                     )
-                
-                # If no archive container found, try search layout
-                if not report_container:
-                    report_container = (
-                        soup.find('ul', class_='search__list') or
-                        soup.find('ul', class_='govuk-list')
-                    )
+                    if report_container:
+                        break
                 
                 if not report_container:
                     if current_page == 1:
                         st.warning("No report container found")
-                        if category and not keyword:
-                            # Try direct card finding for category pages
-                            direct_cards = soup.find_all('div', class_=['card', 'card--full'])
-                            if direct_cards:
-                                report_container = direct_cards[0].parent
-                
-                if not report_container:
                     break
                 
                 # Find report cards
