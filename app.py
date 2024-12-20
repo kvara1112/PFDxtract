@@ -995,7 +995,10 @@ def render_scraping_tab():
         
         with col1:
             search_keyword = st.text_input("Search keywords:", "")
-            category = st.selectbox("PFD Report type:", [""] + get_pfd_categories())
+            category = st.selectbox("PFD Report type:", 
+                [""] + get_pfd_categories(), 
+                format_func=lambda x: x if x else "Select a category")
+            
             order = st.selectbox("Sort by:", [
                 "relevance",
                 "desc",
@@ -1029,6 +1032,20 @@ def render_scraping_tab():
     
     if submitted:
         try:
+            # Validate date range if both dates are provided
+            if date_after and date_before and date_after > date_before:
+                st.error("Start date must be before or equal to end date.")
+                return
+
+            # Store search parameters in session state
+            st.session_state.last_search_params = {
+                'keyword': search_keyword,
+                'category': category,
+                'date_after': date_after.strftime('%d/%m/%Y') if date_after else None,
+                'date_before': date_before.strftime('%d/%m/%Y') if date_before else None,
+                'order': order
+            }
+
             # Convert dates to required format
             date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
             date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
@@ -1056,24 +1073,46 @@ def render_scraping_tab():
                 st.session_state.data_source = 'scraped'
                 st.session_state.current_data = df
                 
-                # Instead of experimental_rerun, use regular rerun
+                # Trigger a rerun to refresh the page
                 st.rerun()
             else:
                 st.warning("No reports found matching your search criteria")
-                return False
                 
         except Exception as e:
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
-
 def show_export_options(df: pd.DataFrame, prefix: str):
-    """Show export options for the data"""
+    """Show export options for the data with descriptive filename"""
     st.subheader("Export Options")
     
-    # Generate filename
+    # Generate descriptive filename components
+    filename_parts = []
+    
+    # Add search parameters from session state if available
+    if hasattr(st.session_state, 'last_search_params'):
+        params = st.session_state.last_search_params
+        
+        # Add keyword if present
+        if params.get('keyword'):
+            filename_parts.append(f"kw_{params['keyword'].replace(' ', '_')}")
+        
+        # Add category if present
+        if params.get('category'):
+            filename_parts.append(f"cat_{params['category'].replace(' ', '_').lower()}")
+        
+        # Add date range if present
+        if params.get('date_after'):
+            filename_parts.append(f"after_{params['date_after']}")
+        if params.get('date_before'):
+            filename_parts.append(f"before_{params['date_before']}")
+    
+    # Generate timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"pfd_reports_{prefix}_{timestamp}"
+    
+    # Combine filename parts
+    filename_base = "_".join(filename_parts) if filename_parts else "pfd_reports"
+    filename = f"{filename_base}_{prefix}_{timestamp}"
     
     col1, col2 = st.columns(2)
     
@@ -1128,7 +1167,6 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             
             # Cleanup zip file
             os.remove(pdf_zip_path)
-
     
 def render_analysis_tab(data: pd.DataFrame):
     """Render the analysis tab with upload option"""
