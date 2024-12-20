@@ -2209,82 +2209,184 @@ def extract_topics_lda(data: pd.DataFrame, num_topics: int = 5, max_features: in
         logging.error(f"Topic extraction error: {e}", exc_info=True)
         raise e
 
-def extract_topic_insights(lda_model, vectorizer, doc_topics, df):
-    """Extract insights from topic modeling results"""
+def extract_advanced_topics(data: pd.DataFrame, num_topics: int = 5, max_features: int = 1000, min_df: int = 2, n_iterations: int = 20):
+    """Extract topics with improved preprocessing and error handling"""
+    try:
+        # Create a copy of the data to avoid modifying the original
+        working_data = data.copy()
+        
+        # Ensure 'Content' column exists
+        if 'Content' not in working_data.columns:
+            raise ValueError("DataFrame must contain a 'Content' column")
+        
+        # Filter valid data first
+        valid_data = working_data[working_data['Content'].notna()].copy()
+        if len(valid_data) == 0:
+            raise ValueError("No valid content found in the dataset")
+        
+        # Combine and clean texts
+        texts = []
+        doc_mapping = []  # Keep track of original document indices
+        
+        for idx, row in valid_data.iterrows():
+            combined_text = combine_document_text(row)
+            cleaned_text = clean_text_for_modeling(combined_text)
+            if cleaned_text and len(cleaned_text.split()) > 3:
+                texts.append(cleaned_text)
+                doc_mapping.append(idx)
+        
+        if not texts:
+            raise ValueError("No valid documents found after cleaning")
+        
+        # Configure vectorizer with error checking
+        vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            min_df=min(min_df, len(texts)),  # Ensure min_df doesn't exceed document count
+            max_df=0.95,
+            stop_words='english',
+            token_pattern=r'(?u)\b[a-z]{2,}\b'
+        )
+        
+        # Create document-term matrix
+        try:
+            dtm = vectorizer.fit_transform(texts)
+        except ValueError as e:
+            raise ValueError(f"Error in document vectorization: {str(e)}")
+        
+        # Verify we have enough features
+        if dtm.shape[1] < num_topics:
+            num_topics = max(2, dtm.shape[1] - 1)  # Adjust number of topics if necessary
+            st.warning(f"Adjusted number of topics to {num_topics} due to limited vocabulary")
+        
+        # Configure and fit LDA model
+        lda_model = LatentDirichletAllocation(
+            n_components=num_topics,
+            random_state=42,
+            n_jobs=-1,
+            max_iter=n_iterations,
+            learning_method='batch',
+            doc_topic_prior=0.1,
+            topic_word_prior=0.01
+        )
+        
+        # Fit model and get document-topic distributions
+        doc_topic_dist = lda_model.fit_transform(dtm)
+        
+        # Normalize components
+        for idx in range(len(lda_model.components_)):
+            lda_model.components_[idx] = lda_model.components_[idx] / lda_model.components_[idx].sum()
+        
+        # Prepare visualization data
+        feature_names = vectorizer.get_feature_names_out()
+        doc_lengths = np.array(dtm.sum(axis=1)).ravel()
+        term_frequency = np.array(dtm.sum(axis=0)).ravel()
+        
+        # Format data for pyLDAvis
+        prepared_data = pyLDAvis.prepare(
+            lda_model.components_,
+            doc_topic_dist,
+            doc_lengths,
+            feature_names,
+            term_frequency,
+            sort_topics=False,
+            mds='mmds'
+        )
+        
+        return lda_model, vectorizer, doc_topic_dist, prepared_data
+        
+    except Exception as e:
+        logging.error(f"Error in topic extraction: {str(e)}", exc_info=True)
+        raise Exception(f"Topic modeling failed: {str(e)}")
+
+def extract_topic_insights(lda_model, vectorizer, doc_topics, data: pd.DataFrame):
+    """Extract insights from topic modeling results with improved error handling"""
     try:
         # Get feature names and initialize results
         feature_names = vectorizer.get_feature_names_out()
         topics_data = []
-        valid_data = df[df['Content'].notna()].copy()
+        
+        # Ensure we have valid data
+        valid_data = data[data['Content'].notna()].copy()
+        if len(valid_data) == 0:
+            raise ValueError("No valid documents found in dataset")
 
-        # Calculate document frequencies
+        # Calculate document frequencies with error handling
         doc_freq = {}
         for doc in valid_data['Content']:
-            words = set(clean_text_for_modeling(doc).split())
-            for word in words:
-                doc_freq[word] = doc_freq.get(word, 0) + 1
+            try:
+                words = set(clean_text_for_modeling(str(doc)).split())
+                for word in words:
+                    doc_freq[word] = doc_freq.get(word, 0) + 1
+            except Exception as e:
+                logging.warning(f"Error processing document: {str(e)}")
+                continue
 
         # Process each topic
         for idx, topic in enumerate(lda_model.components_):
-            # Get top words
-            top_word_indices = topic.argsort()[:-50-1:-1]
-            topic_words = []
-            
-            for i in top_word_indices:
-                word = feature_names[i]
-                if len(word) > 1:
-                    weight = float(topic[i])
-                    count = doc_freq.get(word, 0)
-                    topic_words.append({
-                        'word': word,
-                        'weight': weight,
-                        'count': count,
-                        'documents': doc_freq.get(word, 0)
-                    })
-
-            # Get representative documents
-            doc_scores = doc_topics[:, idx]
-            top_doc_indices = doc_scores.argsort()[:-11:-1]
-            
-            related_docs = []
-            for doc_idx in top_doc_indices:
-                if doc_scores[doc_idx] > 0.01:  # At least 1% relevance
-                    if doc_idx < len(valid_data):
-                        doc_row = valid_data.iloc[doc_idx]
-                        doc_content = str(doc_row.get('Content', ''))
-                        
-                        related_docs.append({
-                            'title': doc_row.get('Title', ''),
-                            'date': doc_row.get('date_of_report', ''),
-                            'relevance': float(doc_scores[doc_idx]),
-                            'summary': doc_content[:300] + '...' if len(doc_content) > 300 else doc_content
+            try:
+                # Get top words
+                top_word_indices = topic.argsort()[:-50-1:-1]
+                topic_words = []
+                
+                for i in top_word_indices:
+                    word = feature_names[i]
+                    if len(word) > 1:
+                        weight = float(topic[i])
+                        topic_words.append({
+                            'word': word,
+                            'weight': weight,
+                            'count': doc_freq.get(word, 0),
+                            'documents': doc_freq.get(word, 0)
                         })
 
-            # Create topic description
-            meaningful_words = [
-                feature_names[i] for i in top_word_indices[:5]
-                if len(feature_names[i]) > 1
-            ][:3]
-            
-            label = ' & '.join(meaningful_words).title()
-            topic_data = {
-                'id': idx,
-                'label': label,
-                'description': f"Topic frequently mentions: {', '.join(meaningful_words[:5])}",
-                'words': topic_words,
-                'representativeDocs': related_docs,
-                'prevalence': round((doc_scores > 0.05).mean() * 100, 1)
-            }
-            
-            topics_data.append(topic_data)
+                # Get representative documents
+                doc_scores = doc_topics[:, idx]
+                top_doc_indices = doc_scores.argsort()[:-11:-1]
+                
+                related_docs = []
+                for doc_idx in top_doc_indices:
+                    if doc_scores[doc_idx] > 0.01:  # At least 1% relevance
+                        if doc_idx < len(valid_data):
+                            doc_row = valid_data.iloc[doc_idx]
+                            doc_content = str(doc_row.get('Content', ''))
+                            
+                            related_docs.append({
+                                'title': doc_row.get('Title', ''),
+                                'date': doc_row.get('date_of_report', ''),
+                                'relevance': float(doc_scores[doc_idx]),
+                                'summary': doc_content[:300] + '...' if len(doc_content) > 300 else doc_content
+                            })
+
+                # Generate topic description
+                meaningful_words = [word['word'] for word in topic_words[:5]]
+                label = ' & '.join(meaningful_words[:3]).title()
+                
+                topic_data = {
+                    'id': idx,
+                    'label': label,
+                    'description': f"Topic frequently mentions: {', '.join(meaningful_words)}",
+                    'words': topic_words,
+                    'representativeDocs': related_docs,
+                    'prevalence': round((doc_scores > 0.05).mean() * 100, 1)
+                }
+                
+                topics_data.append(topic_data)
+                
+            except Exception as e:
+                logging.error(f"Error processing topic {idx}: {str(e)}")
+                continue
+        
+        if not topics_data:
+            raise ValueError("No valid topics could be extracted")
             
         return topics_data
         
     except Exception as e:
-        st.error(f"Error extracting topic insights: {str(e)}")
-        logging.error(f"Topic insights error: {e}", exc_info=True)
-        return []
+        logging.error(f"Error extracting topic insights: {str(e)}", exc_info=True)
+        raise Exception(f"Failed to extract topic insights: {str(e)}")
         
+
+
 def display_topic_analysis(topics_data):
     """Display topic analysis results"""
     for topic in topics_data:
@@ -2511,72 +2613,11 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 data
             )
             (topics_data)
-def extract_advanced_topics(data: pd.DataFrame, num_topics: int = 5, max_features: int = 1000, min_df: int = 2, n_iterations: int = 20):
-    """Extract topics with improved preprocessing"""
-    try:
-        # Combine and clean texts
-        texts = []
-        # Only process rows that have content
-        valid_data = data[data['Content'].notna()]
-        
-        for _, row in valid_data.iterrows():
-            combined_text = combine_document_text(row)
-            cleaned_text = clean_text_for_modeling(combined_text)
-            if cleaned_text and len(cleaned_text.split()) > 3:
-                texts.append(cleaned_text)
-        
-        # Configure vectorizer
-        vectorizer = TfidfVectorizer(
-            max_features=max_features,
-            min_df=min_df,
-            max_df=0.95,
-            stop_words='english',
-            token_pattern=r'(?u)\b[a-z]{2,}\b'
-        )
-        
-        # Create document-term matrix
-        dtm = vectorizer.fit_transform(texts)
-        
-        # Configure and fit LDA model
-        lda_model = LatentDirichletAllocation(
-            n_components=num_topics,
-            random_state=42,
-            n_jobs=-1,
-            max_iter=n_iterations,
-            learning_method='batch',
-            doc_topic_prior=0.1,
-            topic_word_prior=0.01
-        )
-        
-        # Fit model and get document-topic distributions
-        doc_topic_dist = lda_model.fit_transform(dtm)
-        
-        # Normalize components
-        for idx in range(len(lda_model.components_)):
-            lda_model.components_[idx] = lda_model.components_[idx] / lda_model.components_[idx].sum()
-        
-        # Prepare visualization data
-        feature_names = vectorizer.get_feature_names_out()
-        doc_lengths = np.array(dtm.sum(axis=1)).ravel()
-        term_frequency = np.array(dtm.sum(axis=0)).ravel()
-        
-        # Format data for pyLDAvis
-        prepared_data = pyLDAvis.prepare(
-            lda_model.components_,
-            doc_topic_dist,
-            doc_lengths,
-            feature_names,
-            term_frequency,
-            sort_topics=False,
-            mds='mmds'
-        )
-        
-        return lda_model, vectorizer, doc_topic_dist, prepared_data
-        
-    except Exception as e:
-        st.error(f"Error in topic extraction: {str(e)}")
-        logging.error(f"Topic extraction error: {e}", exc_info=True)
-        raise e
+
+
+
+
+
 def main():
     initialize_session_state()
     st.title("UK Judiciary PFD Reports Analysis")
