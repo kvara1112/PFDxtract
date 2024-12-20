@@ -1317,13 +1317,12 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             os.remove(pdf_zip_path)
 
 def render_topic_modeling_tab(data: pd.DataFrame):
-    """Render the topic modeling analysis tab with interactive controls"""
+    """Render the topic modeling analysis tab with LDA visualization"""
     st.header("Topic Modeling Analysis")
     
-    # Sidebar controls for model parameters
+    # Model parameters
     with st.sidebar:
         st.header("Model Parameters")
-        
         num_topics = st.slider(
             "Number of Topics",
             min_value=2,
@@ -1340,93 +1339,123 @@ def render_topic_modeling_tab(data: pd.DataFrame):
             step=100,
             help="Maximum number of words to include"
         )
-        
-        min_df = st.slider(
-            "Minimum Document Frequency",
-            min_value=1,
-            max_value=10,
-            value=2,
-            help="Minimum number of documents a term must appear in"
-        )
-        
-        advanced_options = st.expander("Advanced Options")
-        with advanced_options:
-            n_iterations = st.slider(
-                "Number of Iterations",
-                min_value=10,
-                max_value=100,
-                value=20,
-                step=10
-            )
-            
-            include_bigrams = st.checkbox(
-                "Include Bigrams",
-                value=True,
-                help="Include two-word phrases in analysis"
-            )
     
-    # Main content area
-    if st.button("Extract Topics", type="primary"):
+    if st.button("Extract Topics"):
         try:
             with st.spinner("Analyzing topics..."):
                 # Extract topics
-                lda_model, vectorizer, doc_topics = extract_advanced_topics(
+                lda_model, vectorizer, doc_topics = extract_topics_lda(
                     data,
                     num_topics=num_topics,
-                    max_features=max_features,
-                    min_df=min_df,
-                    n_iterations=n_iterations
+                    max_features=max_features
                 )
                 
-                # Get insights
-                topic_insights = extract_topic_insights(
-                    lda_model,
-                    vectorizer,
-                    doc_topics,
-                    data
+                # Prepare visualization data
+                vis_data = prepare_lda_vis_data(lda_model, vectorizer, doc_topics)
+                
+                # Display interactive visualization
+                st.markdown("### Topic Model Visualization")
+                st.markdown("""
+                This visualization shows the relationships between topics and their key terms.
+                Topics are represented as circles, with connecting lines indicating similarity between topics.
+                Click on a topic to see its most relevant terms.
+                """)
+                
+                # Create React component for visualization
+                from streamlit.components.v1 import declare_component
+                
+                lda_vis = declare_component(
+                    "lda_vis",
+                    path="components/lda_vis"
                 )
                 
-                # Store results in session state
-                st.session_state.topic_results = {
-                    'model': lda_model,
-                    'vectorizer': vectorizer,
-                    'doc_topics': doc_topics,
-                    'insights': topic_insights
-                }
+                lda_vis(
+                    topics=vis_data['topics'],
+                    terms=vis_data['terms'],
+                    termFrequencies=vis_data['termFrequencies'],
+                    topicTermScores=vis_data['topicTermScores']
+                )
                 
-                # Display results using the React component
-                st.markdown("### Topic Analysis Results")
-                
-                # Convert insights to format expected by React component
-                topics_data = format_topics_for_display(topic_insights)
-                
-                # Render React component
-                from streamlit.components.v1 import react
-                react.TopicModelingDashboard(topics=topics_data)
-                
-                # Add export functionality
-                st.markdown("### Export Results")
+                # Add download functionality
                 if st.button("Download Analysis"):
-                    excel_data = export_topic_analysis(topic_insights, data)
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        # Topics overview
+                        topics_df = pd.DataFrame(vis_data['topics'])
+                        topics_df.to_excel(writer, sheet_name='Topics Overview', index=False)
+                        
+                        # Terms by topic
+                        for i, terms in enumerate(vis_data['terms']):
+                            terms_df = pd.DataFrame({
+                                'Term': terms,
+                                'Score': [vis_data['topicTermScores'][i][term] for term in terms]
+                            })
+                            terms_df.to_excel(
+                                writer,
+                                sheet_name=f'Topic_{i+1}_Terms',
+                                index=False
+                            )
+                    
                     st.download_button(
-                        "📥 Download Full Analysis (Excel)",
-                        excel_data,
+                        "📥 Download Analysis (Excel)",
+                        output.getvalue(),
                         "topic_analysis.xlsx",
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
-        
+                
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
+
+def prepare_lda_vis_data(lda_model, vectorizer, doc_topics):
+    """Prepare data for LDA visualization"""
+    feature_names = vectorizer.get_feature_names_out()
+    topics_data = []
+    terms_by_topic = []
+    term_frequencies = {}
+    topic_term_scores = {}
     
-    # Show previous results if they exist
-    elif hasattr(st.session_state, 'topic_results'):
-        st.markdown("### Previous Analysis Results")
-        topics_data = format_topics_for_display(
-            st.session_state.topic_results['insights']
-        )
-        from streamlit.components.v1 import react
-        react.TopicModelingDashboard(topics=topics_data)
+    # Calculate overall term frequencies
+    for doc_topic in doc_topics:
+        topic_idx = doc_topic.argmax()
+        terms = feature_names[doc_topic > 0]
+        for term in terms:
+            term_frequencies[term] = term_frequencies.get(term, 0) + 1
+    
+    # Process each topic
+    for idx, topic in enumerate(lda_model.components_):
+        # Get topic-term scores
+        topic_terms = {}
+        top_term_indices = topic.argsort()[:-30-1:-1]  # Get top 30 terms
+        
+        terms = []
+        for i in top_term_indices:
+            term = feature_names[i]
+            score = float(topic[i])
+            terms.append(term)
+            topic_terms[term] = score
+            
+        terms_by_topic.append(terms)
+        topic_term_scores[idx] = topic_terms
+        
+        # Calculate topic prevalence
+        topic_prevalence = (doc_topics[:, idx] > 0.05).mean()
+        
+        # Add topic data
+        topics_data.append({
+            'id': idx,
+            'prevalence': topic_prevalence,
+            'label': f"Topic {idx + 1}"
+        })
+    
+    return {
+        'topics': topics_data,
+        'terms': terms_by_topic,
+        'termFrequencies': term_frequencies,
+        'topicTermScores': topic_term_scores
+    }
+
+
 
 def format_topics_for_display(topic_insights):
     """Format topic insights for the React component"""
@@ -1993,13 +2022,12 @@ def generate_topic_description(topic_words, topic_docs):
     return description
 
 def render_topic_modeling_tab(data: pd.DataFrame):
-    """Render the topic modeling analysis tab"""
+    """Render the topic modeling analysis tab with LDA visualization"""
     st.header("Topic Modeling Analysis")
     
-    # Sidebar controls
+    # Model parameters
     with st.sidebar:
-        st.header("Topic Modeling Options")
-        
+        st.header("Model Parameters")
         num_topics = st.slider(
             "Number of Topics",
             min_value=2,
@@ -2014,174 +2042,62 @@ def render_topic_modeling_tab(data: pd.DataFrame):
             max_value=5000,
             value=1000,
             step=100,
-            help="Maximum number of words to include in analysis"
-        )
-        
-        min_term_freq = st.number_input(
-            "Minimum Term Frequency",
-            min_value=1,
-            value=2,
-            help="Minimum number of occurrences required for a term"
+            help="Maximum number of words to include"
         )
     
-    # Run topic modeling
     if st.button("Extract Topics"):
         try:
-            with st.spinner("Extracting topics from documents..."):
+            with st.spinner("Analyzing topics..."):
                 # Extract topics
-                result = extract_topics_lda(data, num_topics=num_topics, max_features=max_features)
-                if not result:
-                    st.error("Topic extraction failed. Please check your data.")
-                    return
-                
-                lda_model, vectorizer, doc_topics = result
-                
-                # Format results for visualization
-                topics_data = format_topic_data(
-                    lda_model, 
-                    vectorizer, 
-                    doc_topics, 
-                    data
+                lda_model, vectorizer, doc_topics = extract_topics_lda(
+                    data,
+                    num_topics=num_topics,
+                    max_features=max_features
                 )
                 
-                # Display topics
-                for topic in topics_data:
-                    st.markdown(f"## Topic: {topic['label']} ({topic['prevalence']}% of reports)")
-                    st.markdown(f"**Description:** {topic['description']}")
-                    
-                    # Key terms section
-                    st.markdown("### Key Terms")
-                    term_count = st.slider(
-                        "Number of terms to show", 
-                        5, 50, 10, 
-                        key=f"terms_{topic['id']}"
-                    )
-                    
-                    # Create term frequency table
-                    term_data = pd.DataFrame(topic['words'][:term_count])
-                    term_data['relevance'] = term_data['weight'].apply(lambda x: round(x * 100, 2))
-                    
-                    st.dataframe(
-                        term_data,
-                        column_config={
-                            'word': st.column_config.TextColumn(
-                                'Term',
-                                width='medium'
-                            ),
-                            'count': st.column_config.NumberColumn(
-                                'Occurrences',
-                                width='small'
-                            ),
-                            'documents': st.column_config.NumberColumn(
-                                'Documents',
-                                help='Number of documents containing this term',
-                                width='small'
-                            ),
-                            'relevance': st.column_config.ProgressColumn(
-                                'Relevance',
-                                help='Percentage relevance to the topic',
-                                format="%.2f%%",
-                                min_value=0,
-                                max_value=100,
-                                width='medium'
-                            )
-                        },
-                        hide_index=True
-                    )
-                    
-                    # Related reports section
-                    st.markdown("### Related Reports")
-                    report_tab1, report_tab2 = st.tabs(["Summary View", "Detailed View"])
-                    
-                    with report_tab1:
-                        # Create a summary table
-                        summary_data = [{
-                            'Title': r['title'],
-                            'Date': r['date'],
-                            'Area': r['area'],
-                            'Relevance': round(r['topicRelevance'] * 100, 2)
-                        } for r in topic['relatedReports']]
-                        
-                        st.dataframe(
-                            pd.DataFrame(summary_data),
-                            column_config={
-                                'Title': st.column_config.TextColumn('Title', width='large'),
-                                'Date': st.column_config.TextColumn('Date', width='small'),
-                                'Area': st.column_config.TextColumn('Area', width='medium'),
-                                'Relevance': st.column_config.ProgressColumn(
-                                    'Topic Relevance',
-                                    format="%.2f%%",
-                                    min_value=0,
-                                    max_value=100,
-                                    width='medium'
-                                )
-                            },
-                            hide_index=True
-                        )
-                    
-                    with report_tab2:
-                        for report in topic['relatedReports']:
-                            st.markdown(f"#### {report['title']}")
-                            col1, col2, col3 = st.columns([2,2,1])
-                            with col1:
-                                st.markdown(f"**Date:** {report['date']}")
-                            with col2:
-                                st.markdown(f"**Coroner:** {report['coroner']}")
-                            with col3:
-                                st.markdown(f"**Area:** {report['area']}")
-                            
-                            st.markdown("**Summary:**")
-                            st.markdown(report['summary'])
-                            
-                            if report['otherTopics']:
-                                st.markdown("**Related Topics:**")
-                                for other_topic in report['otherTopics']:
-                                    st.markdown(
-                                        f"- {other_topic['label']}: "
-                                        f"{other_topic['score']*100:.2f}%"
-                                    )
-                            st.markdown("---")
-                    
-                    st.markdown("---")
+                # Prepare visualization data
+                vis_data = prepare_lda_vis_data(lda_model, vectorizer, doc_topics)
+                
+                # Display interactive visualization
+                st.markdown("### Topic Model Visualization")
+                st.markdown("""
+                This visualization shows the relationships between topics and their key terms.
+                Topics are represented as circles, with connecting lines indicating similarity between topics.
+                Click on a topic to see its most relevant terms.
+                """)
+                
+                # Create React component for visualization
+                from streamlit.components.v1 import declare_component
+                
+                lda_vis = declare_component(
+                    "lda_vis",
+                    path="components/lda_vis"
+                )
+                
+                lda_vis(
+                    topics=vis_data['topics'],
+                    terms=vis_data['terms'],
+                    termFrequencies=vis_data['termFrequencies'],
+                    topicTermScores=vis_data['topicTermScores']
+                )
                 
                 # Add download functionality
-                st.markdown("### Export Analysis")
                 if st.button("Download Analysis"):
                     output = io.BytesIO()
                     with pd.ExcelWriter(output, engine='openpyxl') as writer:
                         # Topics overview
-                        topics_overview = pd.DataFrame([{
-                            'Topic': t['label'],
-                            'Description': t['description'],
-                            'Prevalence': t['prevalence'],
-                            'Top Terms': ', '.join([w['word'] for w in t['words'][:10]])
-                        } for t in topics_data])
-                        topics_overview.to_excel(writer, sheet_name='Topics Overview', index=False)
+                        topics_df = pd.DataFrame(vis_data['topics'])
+                        topics_df.to_excel(writer, sheet_name='Topics Overview', index=False)
                         
                         # Terms by topic
-                        for topic in topics_data:
-                            terms_df = pd.DataFrame([{
-                                'Term': w['word'],
-                                'Relevance': f"{w['weight']*100:.2f}%",
-                                'Occurrences': w['count'],
-                                'Documents': w['documents']
-                            } for w in topic['words']])
+                        for i, terms in enumerate(vis_data['terms']):
+                            terms_df = pd.DataFrame({
+                                'Term': terms,
+                                'Score': [vis_data['topicTermScores'][i][term] for term in terms]
+                            })
                             terms_df.to_excel(
-                                writer, 
-                                sheet_name=f"Terms_Topic_{topic['id']}",
-                                index=False
-                            )
-                            
-                            # Related reports
-                            reports_df = pd.DataFrame([{
-                                'Title': r['title'],
-                                'Date': r['date'],
-                                'Area': r['area'],
-                                'Relevance': f"{r['topicRelevance']*100:.2f}%"
-                            } for r in topic['relatedReports']])
-                            reports_df.to_excel(
                                 writer,
-                                sheet_name=f"Reports_Topic_{topic['id']}",
+                                sheet_name=f'Topic_{i+1}_Terms',
                                 index=False
                             )
                     
@@ -2195,8 +2111,6 @@ def render_topic_modeling_tab(data: pd.DataFrame):
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
-
-
 
 def main():
     initialize_session_state()
