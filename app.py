@@ -595,27 +595,14 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
 
-
-def construct_search_url(base_url, category=None, keyword=None, category_slug=None):
-    """
-    Constructs a search URL based on category and keyword parameters.
-    
-    Args:
-        base_url (str): The base URL for the search
-        category (str): Category filter (optional)
-        keyword (str): Search keyword (optional)
-        category_slug (str): The slug version of the category for the URL (optional)
-        
-    Returns:
-        str: Constructed search URL
-    """
-    # First, clean and validate inputs
+def construct_search_url(base_url: str, keyword: Optional[str] = None, 
+                        category: Optional[str] = None, 
+                        category_slug: Optional[str] = None, 
+                        page: Optional[int] = None) -> str:
+    """Constructs search URL with proper parameter handling"""
+    # Clean inputs
     keyword = keyword.strip() if keyword else None
     category = category.strip() if category else None
-    category_slug = category_slug.strip() if category_slug else None
-    
-    # Base path for when no filters are applied
-    default_path = "prevention-of-future-death-reports/"
     
     # Build query parameters
     query_params = []
@@ -632,12 +619,21 @@ def construct_search_url(base_url, category=None, keyword=None, category_slug=No
     if keyword:
         query_params.append(f"s={keyword}")
     
-    # Construct final URL
+    # Construct base URL
     if query_params:
         query_string = "&".join(query_params)
-        return f"{base_url}?{query_string}"
+        url = f"{base_url}?{query_string}"
     else:
-        return f"{base_url}{default_path}"
+        url = f"{base_url}prevention-of-future-death-reports/"
+    
+    # Add pagination if needed
+    if page and page > 1:
+        if query_params:
+            url = f"{url}&page={page}"
+        else:
+            url = f"{url}page/{page}/"
+    
+    return url
 
 
 def scrape_pfd_reports(
