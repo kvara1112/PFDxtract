@@ -591,7 +591,6 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
-
 def scrape_pfd_reports(keyword: Optional[str] = None,
                       category: Optional[str] = None,
                       date_after: Optional[str] = None,
@@ -675,19 +674,33 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                             return []
                 
                 # Find report container - check both search and archive layouts
-                report_container = (
-                    soup.find('ul', class_='search__list') or 
-                    soup.find('div', class_='archive__listings') or
-                    soup.find('ul', class_='govuk-list')
-                )
+                report_container = None
+                container_classes = [
+                    'search__list',
+                    'archive__listings',
+                    'govuk-list',
+                    'search__listing'  # Added for category pages
+                ]
+                
+                for class_name in container_classes:
+                    report_container = (
+                        soup.find('ul', class_=class_name) or 
+                        soup.find('div', class_=class_name)
+                    )
+                    if report_container:
+                        break
                 
                 if not report_container:
                     if current_page == 1:
                         st.warning("No report container found")
                     break
                 
-                # Find report cards
-                report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full'])
+                # Find report cards with all possible class combinations
+                report_cards = []
+                card_classes = ['card', 'card--full', 'search__item', 'post-preview']
+                for class_name in card_classes:
+                    cards = report_container.find_all(['div', 'li', 'article'], class_=class_name)
+                    report_cards.extend(cards)
                 
                 if not report_cards:
                     if current_page == 1:
@@ -698,23 +711,29 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                 for card in report_cards:
                     try:
                         # Extract all text content
-                        title_elem = card.find(['h3', 'h2'], class_='card__title')
+                        title_elem = card.find(['h3', 'h2'], class_=['card__title', 'entry-title'])
                         title_text = title_elem.get_text(strip=True).lower() if title_elem else ''
                         
-                        content_elem = card.find('p', class_='card__description')
+                        # Get description/content
+                        content_elem = card.find(['p', 'div'], class_=['card__description', 'entry-content'])
                         content_text = content_elem.get_text(strip=True).lower() if content_elem else ''
                         
-                        meta_elems = card.find_all(['p', 'span'], class_=['date', 'pill'])
+                        # Get meta information
+                        meta_elems = card.find_all(['p', 'span', 'div'], class_=['date', 'pill', 'meta'])
                         meta_text = ' '.join(elem.get_text(strip=True).lower() for elem in meta_elems)
                         
-                        # Combine all text content
-                        card_text = f"{title_text} {content_text} {meta_text}"
+                        # Get any additional text
+                        other_text = ' '.join(p.get_text(strip=True).lower() for p in card.find_all('p')
+                                            if not any(cls in p.get('class', []) for cls in ['card__title', 'date', 'pill']))
                         
-                        # Only add if matches keyword (if provided)
+                        # Combine all text content
+                        card_text = f"{title_text} {content_text} {meta_text} {other_text}"
+                        
+                        # Add card if it matches keyword (or no keyword provided)
                         if not keyword or keyword.lower() in card_text:
                             matching_cards.append(card)
                     except Exception as e:
-                        logging.error(f"Error processing card: {e}")
+                        logging.error(f"Error processing card content: {e}")
                         continue
                 
                 st.write(f"Found {len(matching_cards)} matching reports on page {current_page}")
