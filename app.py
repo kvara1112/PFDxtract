@@ -627,7 +627,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         base_search_url = f"{base_url}?s={keyword}&post_type=pfd&pfd_report_type={category_slug}"
     elif category:
         # Category-only search
-        base_search_url = f"{base_url}pfd-types/{category_slug}/"
+        base_search_url = f"{base_url}?post_type=pfd&pfd_report_type={category_slug}"
     elif keyword:
         # Keyword-only search
         base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
@@ -635,27 +635,13 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         # No filters
         base_search_url = f"{base_url}prevention-of-future-death-reports/"
     
-    # Debugging information
-    st.write(f"Search URL: {base_search_url}")
-    
     try:
         # Get total pages and results count
         total_pages, total_results = get_total_pages(base_search_url)
         
         if total_results == 0:
-            # Additional debugging for category search
-            if category:
-                alt_search_url = f"{base_url}?post_type=pfd&pfd_types={category_slug}"
-                st.write(f"Trying alternative URL: {alt_search_url}")
-                total_pages, total_results = get_total_pages(alt_search_url)
-                if total_results > 0:
-                    base_search_url = alt_search_url
-                else:
-                    st.warning("No results found matching your search criteria")
-                    return []
-            else:
-                st.warning("No results found matching your search criteria")
-                return []
+            st.warning("No results found matching your search criteria")
+            return []
             
         st.info(f"Found {total_results} matching reports across {total_pages} pages")
         
