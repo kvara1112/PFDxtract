@@ -631,6 +631,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         if category:
             criteria.append(f"Category: {category}")
         search_msg = " | ".join(criteria) if criteria else "all reports"
+        
         with st.spinner(f"Searching for reports... ({search_msg})"):
             while True:
                 # Construct page URL
@@ -643,6 +644,13 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                     break
                     
                 soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Check if no results found
+                no_results = soup.find('p', class_='search__no-results')
+                if no_results or ('No results found' in soup.get_text()):
+                    if current_page == 1:
+                        st.warning("No results found matching your criteria.")
+                    break
                 
                 # Find report container
                 container_classes = [
@@ -659,23 +667,41 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                         break
                 
                 if not report_container:
-                    st.warning(f"No report container found on page {current_page}")
+                    if current_page == 1:
+                        st.warning(f"No report container found")
                     break
                 
-                # Find report cards and filter by keyword if provided
+                # Find report cards
                 report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full', 'search__item'])
                 
                 if not report_cards:
+                    if current_page == 1:
+                        st.warning("No reports found")
                     break  # No more reports found
 
                 matching_cards = []
                 for card in report_cards:
-                    card_text = card.get_text().lower()
-                    if not keyword or keyword.lower() in card_text:
+                    # Get full text content including title and any preview text
+                    card_text = card.get_text(separator=' ', strip=True).lower()
+                    title_elem = card.find(['h3', 'h2'], class_=['card__title'])
+                    title_text = title_elem.get_text(strip=True).lower() if title_elem else ''
+                    preview_elem = card.find('div', class_='card__content')
+                    preview_text = preview_elem.get_text(strip=True).lower() if preview_elem else ''
+                    
+                    # Check keyword in title, preview, and full card text
+                    if not keyword or any(keyword.lower() in text for text in [title_text, preview_text, card_text]):
                         matching_cards.append(card)
+                
+                # If no matching cards found on first page, stop scraping
+                if current_page == 1 and not matching_cards:
+                    st.warning(f"No reports found matching keyword: {keyword}")
+                    break
                 
                 report_cards = matching_cards
                 st.write(f"Found {len(report_cards)} matching reports on page {current_page}")
+                
+                if len(report_cards) == 0 and current_page > 1:
+                    break
                 
                 # Process reports on current page
                 for card in report_cards:
@@ -738,12 +764,16 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                 current_page += 1
                 time.sleep(2)  # Add delay between pages
         
+        if not all_reports:
+            st.warning("No reports were found matching your search criteria.")
+            
         return all_reports
     
     except Exception as e:
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
         return all_reports  # Return any reports collected before error
+        
         
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
