@@ -1082,6 +1082,7 @@ def render_scraping_tab():
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
+            
 def show_export_options(df: pd.DataFrame, prefix: str):
     """Show export options for the data with descriptive filename"""
     st.subheader("Export Options")
