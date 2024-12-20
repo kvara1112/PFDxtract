@@ -1418,45 +1418,90 @@ def render_analysis_tab(data: pd.DataFrame):
         with st.sidebar:
             st.header("Analysis Filters")
             
-            # Date range filter
-            date_range = st.date_input(
-                "Date Range",
-                value=(min_date, max_date),
-                min_value=min_date,
-                max_value=max_date,
-                key="date_range_filter"
-            )
+            # Create expandable sections for different filter types
+            with st.expander("⏱️ Date Range", expanded=True):
+                # Date range filter
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_date = st.date_input(
+                        "From",
+                        value=min_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="start_date_filter"
+                    )
+                with col2:
+                    end_date = st.date_input(
+                        "To",
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="end_date_filter"
+                    )
             
-            # Category filter
-            all_categories = set()
-            for cats in data['categories'].dropna():
-                if isinstance(cats, list):
-                    all_categories.update(cats)
+            with st.expander("📂 Categories", expanded=True):
+                # Category filter
+                all_categories = set()
+                for cats in data['categories'].dropna():
+                    if isinstance(cats, list):
+                        all_categories.update(cats)
+                
+                selected_categories = st.multiselect(
+                    "Categories",
+                    options=sorted(all_categories),
+                    key="categories_filter"
+                )
             
-            selected_categories = st.multiselect(
-                "Categories",
-                options=sorted(all_categories),
-                key="categories_filter"
-            )
+            with st.expander("📍 Location", expanded=True):
+                # Coroner area filter
+                coroner_areas = sorted(data['coroner_area'].dropna().unique())
+                selected_areas = st.multiselect(
+                    "Coroner Areas",
+                    options=coroner_areas,
+                    key="areas_filter"
+                )
             
-            # Coroner area filter
-            coroner_areas = sorted(data['coroner_area'].dropna().unique())
-            selected_areas = st.multiselect(
-                "Coroner Areas",
-                options=coroner_areas,
-                key="areas_filter"
-            )
-        
+            with st.expander("ℹ️ Metadata", expanded=True):
+                # Coroner name filter
+                coroner_names = sorted(data['coroner_name'].dropna().unique())
+                selected_coroners = st.multiselect(
+                    "Coroner Names",
+                    options=coroner_names,
+                    key="coroner_filter"
+                )
+                
+                # Reference number filter
+                ref_numbers = sorted(data['ref'].dropna().unique())
+                selected_refs = st.multiselect(
+                    "Reference Numbers",
+                    options=ref_numbers,
+                    key="ref_filter"
+                )
+                
+                # Deceased name search
+                deceased_search = st.text_input(
+                    "Search Deceased Names",
+                    key="deceased_filter",
+                    help="Enter partial or full name"
+                )
+            
+            # Add a clear filters button
+            if st.button("🔄 Reset All Filters"):
+                for key in st.session_state:
+                    if key.endswith('_filter'):
+                        del st.session_state[key]
+                st.rerun()
+
         # Apply filters
         filtered_df = data.copy()
-        
+
         # Date filter
-        if len(date_range) == 2:
+        if start_date and end_date:
             filtered_df = filtered_df[
-                (filtered_df['date_of_report'].dt.date >= date_range[0]) &
-                (filtered_df['date_of_report'].dt.date <= date_range[1])
+                (filtered_df['date_of_report'].dt.date >= start_date) &
+                (filtered_df['date_of_report'].dt.date <= end_date)
             ]
-        
+
         # Category filter
         if selected_categories:
             filtered_df = filtered_df[
@@ -1464,27 +1509,52 @@ def render_analysis_tab(data: pd.DataFrame):
                     lambda x: bool(x) and any(cat in x for cat in selected_categories)
                 )
             ]
-        
+
         # Area filter
         if selected_areas:
             filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
-        
-        # Show filter status
+
+        # Coroner name filter
+        if selected_coroners:
+            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
+
+        # Reference number filter
+        if selected_refs:
+            filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
+
+        # Deceased name filter
+        if deceased_search:
+            filtered_df = filtered_df[
+                filtered_df['deceased_name'].fillna('').str.contains(
+                    deceased_search, 
+                    case=False, 
+                    na=False
+                )
+            ]
+
+        # Show active filters
         active_filters = []
-        if len(date_range) == 2 and (date_range[0] != min_date or date_range[1] != max_date):
-            active_filters.append(f"Date range: {date_range[0]} to {date_range[1]}")
+        if start_date != min_date or end_date != max_date:
+            active_filters.append(f"Date: {start_date} to {end_date}")
         if selected_categories:
             active_filters.append(f"Categories: {', '.join(selected_categories)}")
         if selected_areas:
             active_filters.append(f"Areas: {', '.join(selected_areas)}")
-            
+        if selected_coroners:
+            active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+        if selected_refs:
+            active_filters.append(f"References: {', '.join(selected_refs)}")
+        if deceased_search:
+            active_filters.append(f"Deceased name contains: {deceased_search}")
+
+        # Display active filters
         if active_filters:
-            st.info(f"Active filters: {' • '.join(active_filters)}")
-        
+            st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
+
         if len(filtered_df) == 0:
             st.warning("No data matches the selected filters.")
             return
-            
+
         # Display filtered results count
         st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
         
