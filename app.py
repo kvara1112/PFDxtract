@@ -625,7 +625,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         # If both category and keyword are provided
         base_search_url = f"{base_url}?s={keyword}&post_type=pfd&pfd_report_type={category_slug}"
     elif category:
-        # If only category is provided
+        # If only category is provided, use the category's page
         base_search_url = f"{base_url}pfd-types/{category_slug}/"
     elif keyword:
         # If only keyword is provided
