@@ -643,7 +643,7 @@ def scrape_pfd_reports(
     max_pages: Optional[int] = None
 ) -> List[Dict]:
     """
-    Scrape PFD reports
+    Scrape PFD reports with enhanced progress tracking
     """
     all_reports = []
     base_url = "https://www.judiciary.uk/"
@@ -686,16 +686,24 @@ def scrape_pfd_reports(
             total_pages = min(total_pages, max_pages)
             st.info(f"Limiting search to first {total_pages} pages")
         
-        # Process each page
-        progress_bar = st.progress(0)
+        # Create containers for progress tracking
+        progress_container = st.empty()
+        status_container = st.empty()
+        report_container = st.empty()
         page_reports = []
+        total_reports_processed = 0
         
         for current_page in range(1, total_pages + 1):
             try:
                 # Check if scraping should be stopped
                 if hasattr(st.session_state, 'stop_scraping') and st.session_state.stop_scraping:
-                    st.warning("Scraping stopped by user")
+                    status_container.warning("Scraping stopped by user")
                     break
+                
+                # Update page progress
+                page_progress = (current_page - 1) / total_pages
+                progress_container.progress(page_progress)
+                status_container.write(f"📄 Processing page {current_page} of {total_pages}")
                 
                 # Construct page URL
                 page_url = construct_search_url(
@@ -706,32 +714,39 @@ def scrape_pfd_reports(
                     page=current_page
                 )
                 
-                st.write(f"Processing page {current_page} of {total_pages}")
-                
                 # Scrape current page
                 current_page_reports = scrape_page(page_url)
                 
                 if current_page_reports:
-                    page_reports.extend(current_page_reports)
+                    for report in current_page_reports:
+                        total_reports_processed += 1
+                        page_reports.append(report)
+                        
+                        # Update report progress
+                        report_container.write(f"📑 Retrieved: {report.get('Title', 'Untitled Report')} ({total_reports_processed} reports processed)")
+                        
+                        # Update overall progress
+                        overall_progress = (current_page - 1 + total_reports_processed/len(current_page_reports)) / total_pages
+                        progress_container.progress(min(overall_progress, 1.0))
                 else:
-                    st.warning(f"No results found on page {current_page}")
+                    status_container.warning(f"No results found on page {current_page}")
                     continue
-                
-                # Update progress
-                progress = int((current_page / total_pages) * 100)
-                progress_bar.progress(progress)
                 
                 # Add delay between pages
                 time.sleep(2)
                 
             except Exception as page_error:
                 logging.error(f"Error processing page {current_page}: {page_error}")
-                st.warning(f"Error on page {current_page}. Continuing with next page...")
+                status_container.warning(f"Error on page {current_page}. Continuing with next page...")
                 continue
         
         all_reports.extend(page_reports)
         
-        progress_bar.progress(100)
+        # Clear progress indicators and show final status
+        progress_container.empty()
+        status_container.empty()
+        report_container.empty()
+        
         st.success(f"Successfully scraped {len(all_reports)} reports")
         
         # Sort results if specified
