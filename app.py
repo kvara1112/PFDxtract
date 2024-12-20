@@ -534,37 +534,12 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
                 # Start with the original row data
                 processed_row = row.to_dict()
                 
-                # Extract metadata from Content
+                # Extract metadata using the existing function
                 content = str(row.get('Content', ''))
+                metadata = extract_metadata(content)
                 
-                # Extract date
-                date_match = re.search(r'Date of report:\s*(\d{1,2}(?:/|-)\d{1,2}(?:/|-)\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', content)
-                if date_match:
-                    processed_row['date_of_report'] = date_match.group(1)
-                
-                # Rest of metadata extraction remains the same
-                ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', content)
-                if ref_match:
-                    processed_row['ref'] = ref_match.group(1)
-                
-                name_match = re.search(r'Deceased name:?\s*([^\n]+)', content)
-                if name_match:
-                    processed_row['deceased_name'] = name_match.group(1).strip()
-                
-                coroner_match = re.search(r'Coroner(?:\'?s)? name:?\s*([^\n]+)', content)
-                if coroner_match:
-                    processed_row['coroner_name'] = coroner_match.group(1).strip()
-                
-                area_match = re.search(r'Coroner(?:\'?s)? Area:?\s*([^\n]+)', content)
-                if area_match:
-                    processed_row['coroner_area'] = area_match.group(1).strip()
-                
-                cat_match = re.search(r'Category:?\s*([^\n]+)', content)
-                if cat_match:
-                    categories = cat_match.group(1).split('|')
-                    processed_row['categories'] = [cat.strip() for cat in categories if cat.strip()]
-                else:
-                    processed_row['categories'] = []
+                # Update row with metadata
+                processed_row.update(metadata)
                 
                 processed_rows.append(processed_row)
             
@@ -581,36 +556,35 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
                 
                 date_str = str(date_str).strip()
                 
+                # If already in DD/MM/YYYY format
+                if re.match(r'\d{1,2}/\d{1,2}/\d{4}', date_str):
+                    return pd.to_datetime(date_str, format='%d/%m/%Y')
+                
                 # Remove ordinal indicators
                 date_str = re.sub(r'(\d)(st|nd|rd|th)', r'\1', date_str)
                 
-                # Try different date formats
+                # Try different formats but always convert to datetime
                 formats = [
-                    ('%d/%m/%Y', '%d %B %Y'),
-                    ('%Y-%m-%d', '%d %B %Y'),
-                    ('%d-%m-%Y', '%d %B %Y'),
-                    ('%d %B %Y', '%d %B %Y'),
-                    ('%d %b %Y', '%d %B %Y')
+                    '%Y-%m-%d',
+                    '%d-%m-%Y',
+                    '%d %B %Y',
+                    '%d %b %Y'
                 ]
                 
-                for input_fmt, output_fmt in formats:
+                for fmt in formats:
                     try:
-                        date_obj = datetime.strptime(date_str, input_fmt)
-                        return date_obj.strftime(output_fmt)  # Return as UK format string
+                        return pd.to_datetime(date_str, format=fmt)
                     except:
                         continue
                 
-                # If all formats fail, try pandas default parser
                 try:
-                    date_obj = pd.to_datetime(date_str)
-                    return date_obj.strftime('%d %B %Y')  # Return as UK format string
+                    # Last resort - try pandas default parser
+                    return pd.to_datetime(date_str)
                 except:
                     return pd.NaT
             
-            # Convert dates to UK format strings first
+            # Convert dates to datetime objects
             result['date_of_report'] = result['date_of_report'].apply(parse_date)
-            # Then convert to datetime for proper handling
-            result['date_of_report'] = pd.to_datetime(result['date_of_report'], format='%d %B %Y')
         
         return result
             
@@ -629,86 +603,147 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     current_page = 1
     base_url = "https://www.judiciary.uk/"
     
-    # Validate and prepare category
-    if category:
-        # Find exact match, case-insensitive
-        matching_categories = [
-            cat for cat in get_pfd_categories() 
-            if cat.lower() == category.lower()
-        ]
-        
-        if not matching_categories:
-            st.error(f"No matching category found for: {category}")
-            return []
-        
-        category = matching_categories[0]
-        
-        # Create URL-friendly slug
-        category_slug = category.lower().replace(' ', '-')
-        base_search_url = f"{base_url}pfd-types/{category_slug}/"
-    else:
-        base_search_url = f"{base_url}prevention-of-future-death-reports/"
-    
     try:
+        # Initialize parameters for the API request
+        params = {
+            'post_type': 'pfd',
+            'orderby': order,
+            'page': 1
+        }
+        
+        # Add keyword if provided
+        if keyword:
+            params['s'] = keyword
+            base_search_url = f"{base_url}wp-json/judiciary/v1/search"
+        else:
+            # Use category-based URL if no keyword but category is provided
+            if category:
+                matching_categories = [
+                    cat for cat in get_pfd_categories() 
+                    if cat.lower() == category.lower()
+                ]
+                if matching_categories:
+                    category = matching_categories[0]
+                    category_slug = category.lower().replace(' ', '-')
+                    base_search_url = f"{base_url}pfd-types/{category_slug}/"
+                else:
+                    st.error(f"No matching category found for: {category}")
+                    return []
+            else:
+                base_search_url = f"{base_url}prevention-of-future-death-reports/"
+        
+        # Add date parameters if provided
+        if date_after:
+            params['after'] = date_after
+        if date_before:
+            params['before'] = date_before
+            
         while True:
-            # Construct page URL
-            page_url = f"{base_search_url}page/{current_page}/" if current_page > 1 else base_search_url
-            st.write(f"Scraping page {current_page}: {page_url}")
-            
-            # Get page content
-            response = make_request(page_url)
-            if not response:
-                break
+            try:
+                # Construct page URL based on whether we're using the API or regular URL
+                if keyword:
+                    params['page'] = current_page
+                    query_string = '&'.join([f"{k}={requests.utils.quote(str(v))}" 
+                                           for k, v in params.items()])
+                    page_url = f"{base_search_url}?{query_string}"
+                else:
+                    page_url = (f"{base_search_url}page/{current_page}/" 
+                              if current_page > 1 else base_search_url)
                 
-            soup = BeautifulSoup(response.text, 'html.parser')
-            
-            # Find report container
-            container_classes = [
-                ['archive__listings', 'search__listing'],
-                ['search__list'],
-                ['govuk-list'],
-                ['archive__posts']
-            ]
-            
-            report_container = None
-            for classes in container_classes:
-                report_container = soup.find('ul', class_=classes) or soup.find('div', class_=classes)
-                if report_container:
+                st.write(f"Scraping page {current_page}: {page_url}")
+                
+                # Make request with retry logic
+                response = make_request(page_url)
+                if not response:
                     break
-            
-            if not report_container:
-                st.warning(f"No report container found on page {current_page}")
-                break
-            
-            # Find report cards
-            report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full', 'search__item'])
-            
-            if not report_cards:
-                break  # No more reports found
                 
-            st.write(f"Found {len(report_cards)} reports on page {current_page}")
-            
-            # Process reports on current page
-            for card in report_cards:
-                try:
-                    title_elem = card.find(['h3', 'h2'], class_=['card__title'])
-                    if not title_elem:
-                        continue
-                    
-                    title_link = title_elem.find('a')
-                    if not title_link:
-                        continue
-                    
-                    title = clean_text(title_link.text)
-                    card_url = title_link['href']
-                    
-                    if not card_url.startswith(('http://', 'https://')):
-                        card_url = f"https://www.judiciary.uk{card_url}"
-                    
-                    # Get full content details
-                    content_data = get_report_content(card_url)
-                    
-                    if content_data:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Find report container with multiple possible classes
+                container_classes = [
+                    ['archive__listings', 'search__listing'],
+                    ['search__list'],
+                    ['govuk-list'],
+                    ['archive__posts']
+                ]
+                
+                report_container = None
+                for classes in container_classes:
+                    report_container = (soup.find('ul', class_=classes) or 
+                                      soup.find('div', class_=classes))
+                    if report_container:
+                        break
+                
+                if not report_container:
+                    st.warning(f"No report container found on page {current_page}")
+                    break
+                
+                # Find report cards
+                report_cards = report_container.find_all(
+                    ['div', 'li'], 
+                    class_=['card', 'card--full', 'search__item']
+                )
+                
+                if not report_cards:
+                    break
+                
+                st.write(f"Found {len(report_cards)} reports on page {current_page}")
+                
+                # Process each report card
+                for card in report_cards:
+                    try:
+                        # Extract title and URL
+                        title_elem = card.find(['h3', 'h2'], class_=['card__title'])
+                        if not title_elem:
+                            continue
+                        
+                        title_link = title_elem.find('a')
+                        if not title_link:
+                            continue
+                        
+                        title = clean_text(title_link.text)
+                        card_url = title_link['href']
+                        
+                        if not card_url.startswith(('http://', 'https://')):
+                            card_url = f"https://www.judiciary.uk{card_url}"
+                        
+                        # Get full content
+                        content_data = get_report_content(card_url)
+                        if not content_data:
+                            continue
+                        
+                        # Apply keyword filter if provided
+                        if keyword:
+                            if (keyword.lower() not in title.lower() and 
+                                keyword.lower() not in content_data['content'].lower()):
+                                continue
+                        
+                        # Apply date filters if provided
+                        report_date = None
+                        date_match = re.search(
+                            r'Date of report:\s*(\d{1,2}(?:/|-)\d{1,2}(?:/|-)\d{4})',
+                            content_data['content']
+                        )
+                        if date_match:
+                            try:
+                                report_date = datetime.strptime(
+                                    date_match.group(1).replace('-', '/'),
+                                    '%d/%m/%Y'
+                                )
+                                
+                                if date_after:
+                                    after_date = datetime.strptime(date_after, '%d/%m/%Y')
+                                    if report_date < after_date:
+                                        continue
+                                        
+                                if date_before:
+                                    before_date = datetime.strptime(date_before, '%d/%m/%Y')
+                                    if report_date > before_date:
+                                        continue
+                            except ValueError:
+                                pass
+                        
+                        # Create report dictionary
                         report = {
                             'Title': title,
                             'URL': card_url,
@@ -727,34 +762,38 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                         
                         all_reports.append(report)
                         logging.info(f"Successfully processed: {title}")
-                    
-                except Exception as card_error:
-                    logging.error(f"Error processing card: {card_error}")
-                    continue
-            
-            # Check if we should continue to next page
-            if max_pages and current_page >= max_pages:
-                break
+                        
+                    except Exception as card_error:
+                        logging.error(f"Error processing card: {card_error}")
+                        continue
                 
-            # Look for next page link
-            next_page = soup.find('a', class_='next')
-            if not next_page:
-                pagination = soup.find('nav', class_='navigation pagination')
-                if pagination:
-                    next_page = pagination.find('a', class_='next page-numbers')
-            
-            if not next_page:
-                break
+                # Check if we should continue to next page
+                if max_pages and current_page >= max_pages:
+                    break
                 
-            current_page += 1
-            time.sleep(2)  # Add delay between pages
+                # Look for next page link
+                next_page = soup.find('a', class_='next')
+                if not next_page:
+                    pagination = soup.find('nav', class_='navigation pagination')
+                    if pagination:
+                        next_page = pagination.find('a', class_='next page-numbers')
+                
+                if not next_page:
+                    break
+                
+                current_page += 1
+                time.sleep(2)  # Add delay between pages
+                
+            except Exception as page_error:
+                logging.error(f"Error processing page {current_page}: {page_error}")
+                break
         
         return all_reports
-    
+        
     except Exception as e:
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
-        return all_reports  # Return any reports collected before error
+        return all_reports
         
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
@@ -1034,7 +1073,7 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
 
 
 def render_scraping_tab():
-    """Render the scraping tab"""
+    """Render the scraping tab with improved controls"""
     st.header("Scrape PFD Reports")
     
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
@@ -1057,56 +1096,107 @@ def render_scraping_tab():
         show_export_options(st.session_state.scraped_data, "scraped")
     
     with st.form("scraping_form"):
+        # Create two columns for controls
         col1, col2 = st.columns(2)
         
         with col1:
-            search_keyword = st.text_input("Search keywords:", "")
-            category = st.selectbox("PFD Report type:", [""] + get_pfd_categories())
-            order = st.selectbox("Sort by:", [
-                "relevance",
-                "desc",
-                "asc"
-            ], format_func=lambda x: {
-                "relevance": "Relevance",
-                "desc": "Newest first",
-                "asc": "Oldest first"
-            }[x])
+            # Search keywords with empty option
+            search_keyword = st.text_input(
+                "Search keywords:",
+                "",
+                help="Leave empty to search all reports"
+            )
+            
+            # Category with empty option
+            category = st.selectbox(
+                "PFD Report type:",
+                ["All Categories"] + get_pfd_categories(),
+                help="Select 'All Categories' to search across all types"
+            )
+            
+            # Sort order
+            order = st.selectbox(
+                "Sort by:",
+                [
+                    "relevance",
+                    "desc",
+                    "asc"
+                ],
+                format_func=lambda x: {
+                    "relevance": "Relevance",
+                    "desc": "Newest first",
+                    "asc": "Oldest first"
+                }[x],
+                help="Choose how to sort the results"
+            )
         
         with col2:
+            # Date inputs with clear functionality
             date_after = st.date_input(
                 "Published after:",
                 None,
-                format="DD/MM/YYYY"
+                format="DD/MM/YYYY",
+                help="Leave empty for no start date filter"
             )
             
             date_before = st.date_input(
                 "Published before:",
                 None,
-                format="DD/MM/YYYY"
+                format="DD/MM/YYYY",
+                help="Leave empty for no end date filter"
             )
             
+            # Maximum pages with clear description
             max_pages = st.number_input(
-                "Maximum pages to scrape (0 for all):", 
-                min_value=0, 
-                value=0
+                "Maximum pages to scrape:",
+                min_value=0,
+                value=0,
+                help="Enter 0 to scrape all available pages"
             )
+        
+        # Add a clear filters button
+        if st.form_submit_button("Clear Filters"):
+            st.session_state.scraped_data = None
+            st.rerun()
         
         submitted = st.form_submit_button("Search Reports")
     
     if submitted:
         try:
             with st.spinner("Searching for reports..."):
-                # Convert dates to required format
+                # Process the filters
+                processed_keyword = search_keyword.strip() if search_keyword else None
+                processed_category = None if category == "All Categories" else category
+                
+                # Convert dates to required format if provided
                 date_after_str = date_after.strftime('%d/%m/%Y') if date_after else None
                 date_before_str = date_before.strftime('%d/%m/%Y') if date_before else None
                 
                 # Set max pages
                 max_pages_val = None if max_pages == 0 else max_pages
                 
+                # Show active filters
+                active_filters = []
+                if processed_keyword:
+                    active_filters.append(f"Keyword: {processed_keyword}")
+                if processed_category:
+                    active_filters.append(f"Category: {processed_category}")
+                if date_after_str:
+                    active_filters.append(f"After: {date_after_str}")
+                if date_before_str:
+                    active_filters.append(f"Before: {date_before_str}")
+                if max_pages_val:
+                    active_filters.append(f"Max Pages: {max_pages_val}")
+                
+                if active_filters:
+                    st.info("Active filters: " + " | ".join(active_filters))
+                else:
+                    st.info("No filters applied - searching all reports")
+                
                 # Perform scraping
                 reports = scrape_pfd_reports(
-                    keyword=search_keyword,
-                    category=category if category else None,
+                    keyword=processed_keyword,
+                    category=processed_category,
                     date_after=date_after_str,
                     date_before=date_before_str,
                     order=order,
@@ -1118,20 +1208,27 @@ def render_scraping_tab():
                     df = pd.DataFrame(reports)
                     df = process_scraped_data(df)
                     
+                    # Apply date filters if provided
+                    if date_after_str or date_before_str:
+                        df['date_of_report'] = pd.to_datetime(df['date_of_report'])
+                        if date_after_str:
+                            df = df[df['date_of_report'] >= pd.to_datetime(date_after_str, format='%d/%m/%Y')]
+                        if date_before_str:
+                            df = df[df['date_of_report'] <= pd.to_datetime(date_before_str, format='%d/%m/%Y')]
+                    
                     # Store in session state
                     st.session_state.scraped_data = df
                     st.session_state.data_source = 'scraped'
                     st.session_state.current_data = df
                     
-                    # Instead of experimental_rerun, use regular rerun
                     st.rerun()
                 else:
                     st.warning("No reports found matching your search criteria")
                     return False
                     
         except Exception as e:
-            st.error(f"An error occurred: {e}")
-            logging.error(f"Scraping error: {e}")
+            st.error(f"An error occurred: {str(e)}")
+            logging.error(f"Scraping error: {str(e)}")
             return False
 
 def show_export_options(df: pd.DataFrame, prefix: str):
