@@ -591,6 +591,7 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
+        
 def scrape_pfd_reports(keyword: Optional[str] = None,
                       category: Optional[str] = None,
                       date_after: Optional[str] = None,
@@ -659,19 +660,11 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
                 # Check if the page has any content
-                content_check = soup.find(['ul', 'div'], class_=['search__list', 'archive__listings'])
-                if not content_check and current_page == 1:
-                    st.warning("No results found")
+                content_check = soup.find(['ul', 'div'], class_=['search__list', 'archive__listings', 'search__listing'])
+                if not content_check and not any(class_name in str(soup) for class_name in ['card', 'card--full', 'search__item']):
+                    if current_page == 1:
+                        st.warning("No results found")
                     return []
-                
-                # Check total results on first page
-                if current_page == 1:
-                    results_header = soup.find('div', class_='search__header')
-                    if results_header:
-                        results_text = results_header.get_text()
-                        if 'found 0 results' in results_text.lower():
-                            st.warning("No results found")
-                            return []
                 
                 # Find report container - check both search and archive layouts
                 report_container = None
@@ -679,7 +672,8 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                     'search__list',
                     'archive__listings',
                     'govuk-list',
-                    'search__listing'  # Added for category pages
+                    'search__listing',
+                    'archive__posts'  # Added for category pages
                 ]
                 
                 for class_name in container_classes:
@@ -695,16 +689,28 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                         st.warning("No report container found")
                     break
                 
-                # Find report cards with all possible class combinations
+                # Find report cards
                 report_cards = []
-                card_classes = ['card', 'card--full', 'search__item', 'post-preview']
-                for class_name in card_classes:
-                    cards = report_container.find_all(['div', 'li', 'article'], class_=class_name)
-                    report_cards.extend(cards)
+                card_selectors = [
+                    ('div', ['card', 'card--full']),
+                    ('li', ['search__item']),
+                    ('article', ['post-preview']),
+                    ('div', ['card', 'card--full card--default-bg']),  # Added for category pages
+                    ('div', ['card card--full']),  # Added for category pages
+                ]
                 
+                for tag, classes in card_selectors:
+                    for class_name in classes:
+                        cards = report_container.find_all(tag, class_=class_name)
+                        report_cards.extend(cards)
+
                 if not report_cards:
                     if current_page == 1:
-                        st.warning("No reports found")
+                        st.warning("No reports found on page")
+                        if category:
+                            # Double check the HTML for category pages
+                            st.write("Page content debug:")
+                            st.write(soup.prettify()[:1000])
                     break
 
                 matching_cards = []
