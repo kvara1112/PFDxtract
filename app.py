@@ -622,7 +622,13 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         category_slug = category.lower().replace(' ', '-')
         base_search_url = f"{base_url}pfd-types/{category_slug}/"
     else:
-        # If keyword is provided, use the search URL
+        # Construct search URL based on parameters
+    if category:
+        base_search_url = f"{base_url}pfd-types/{category_slug}/"
+        if keyword:
+            # Add keyword as query parameter to category URL
+            base_search_url = f"{base_search_url}?s={keyword}"
+    else:
         if keyword:
             base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
         else:
@@ -655,6 +661,12 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                     break
                     
                 soup = BeautifulSoup(response.text, 'html.parser')
+                
+                # Check if the page has any content
+                content_check = soup.find(['ul', 'div'], class_=['search__list', 'archive__listings'])
+                if not content_check and current_page == 1:
+                    st.warning("No results found")
+                    return []
                 
                 # Check total results on first page
                 if current_page == 1:
@@ -771,7 +783,6 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
         return all_reports
-        
         
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
