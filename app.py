@@ -593,7 +593,6 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
 
-
 def scrape_pfd_reports(keyword: Optional[str] = None,
                       category: Optional[str] = None,
                       date_after: Optional[str] = None,
@@ -621,18 +620,13 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         # Create URL-friendly slug
         category_slug = category.lower().replace(' ', '-')
-        # Create base URL for category
         base_search_url = f"{base_url}pfd-types/{category_slug}/"
     else:
-        # No category selected, use main search or default URL
+        # If keyword is provided, use the search URL
         if keyword:
             base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
         else:
             base_search_url = f"{base_url}prevention-of-future-death-reports/"
-            
-    # Add keyword to category URL only if provided
-    if category and keyword:
-        base_search_url = f"{base_search_url}?s={keyword}"
     
     try:
         criteria = []
@@ -662,30 +656,21 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                     
                 soup = BeautifulSoup(response.text, 'html.parser')
                 
-                # Check if the page has any content
-                content_check = soup.find(['ul', 'div'], class_=['search__list', 'archive__listings', 'search__listing'])
-                if not content_check and not any(class_name in str(soup) for class_name in ['card', 'card--full', 'search__item']):
-                    if current_page == 1:
-                        st.warning("No results found")
-                    return []
+                # Check total results on first page
+                if current_page == 1:
+                    results_header = soup.find('div', class_='search__header')
+                    if results_header:
+                        results_text = results_header.get_text()
+                        if 'found 0 results' in results_text.lower():
+                            st.warning("No results found")
+                            return []
                 
                 # Find report container - check both search and archive layouts
-                report_container = None
-                container_classes = [
-                    'search__list',
-                    'archive__listings',
-                    'govuk-list',
-                    'search__listing',
-                    'archive__posts'  # Added for category pages
-                ]
-                
-                for class_name in container_classes:
-                    report_container = (
-                        soup.find('ul', class_=class_name) or 
-                        soup.find('div', class_=class_name)
-                    )
-                    if report_container:
-                        break
+                report_container = (
+                    soup.find('ul', class_='search__list') or 
+                    soup.find('div', class_='archive__listings') or
+                    soup.find('ul', class_='govuk-list')
+                )
                 
                 if not report_container:
                     if current_page == 1:
@@ -693,68 +678,30 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                     break
                 
                 # Find report cards
-                report_cards = []
-                card_selectors = [
-                    ('div', ['card', 'card--full']),
-                    ('li', ['search__item']),
-                    ('article', ['post-preview']),
-                    ('div', ['card', 'card--full card--default-bg']),  # Added for category pages
-                    ('div', ['card card--full']),  # Added for category pages
-                ]
+                report_cards = report_container.find_all(['div', 'li'], class_=['card', 'card--full'])
                 
-                for tag, classes in card_selectors:
-                    for class_name in classes:
-                        cards = report_container.find_all(tag, class_=class_name)
-                        report_cards.extend(cards)
-
                 if not report_cards:
                     if current_page == 1:
-                        st.warning("No reports found on page")
-                        if category:
-                            # Double check the HTML for category pages
-                            st.write("Page content debug:")
-                            st.write(soup.prettify()[:1000])
+                        st.warning("No reports found")
                     break
 
                 matching_cards = []
                 for card in report_cards:
-                    try:
-                        # Extract all text content
-                        title_elem = card.find(['h3', 'h2'], class_=['card__title', 'entry-title'])
-                        title_text = title_elem.get_text(strip=True).lower() if title_elem else ''
-                        
-                        # Get description/content
-                        content_elem = card.find(['p', 'div'], class_=['card__description', 'entry-content'])
-                        content_text = content_elem.get_text(strip=True).lower() if content_elem else ''
-                        
-                        # Get meta information
-                        meta_elems = card.find_all(['p', 'span', 'div'], class_=['date', 'pill', 'meta'])
-                        meta_text = ' '.join(elem.get_text(strip=True).lower() for elem in meta_elems)
-                        
-                        # Get any additional text
-                        other_text = ' '.join(p.get_text(strip=True).lower() for p in card.find_all('p')
-                                            if not any(cls in p.get('class', []) for cls in ['card__title', 'date', 'pill']))
-                        
-                        # Combine all text content
-                        card_text = f"{title_text} {content_text} {meta_text} {other_text}"
-                        
-                        # Add card if it matches keyword (or no keyword provided)
-                        if not keyword or keyword.lower() in card_text:
-                            matching_cards.append(card)
-                    except Exception as e:
-                        logging.error(f"Error processing card content: {e}")
-                        continue
+                    # Get title and content
+                    title_elem = card.find(['h3', 'h2'], class_='card__title')
+                    content_elem = card.find('p', class_='card__description')
+                    
+                    card_text = ''
+                    if title_elem:
+                        card_text += title_elem.get_text(strip=True).lower() + ' '
+                    if content_elem:
+                        card_text += content_elem.get_text(strip=True).lower()
+                    
+                    # Check if card matches keyword
+                    if not keyword or keyword.lower() in card_text:
+                        matching_cards.append(card)
                 
                 st.write(f"Found {len(matching_cards)} matching reports on page {current_page}")
-                
-                # Stop if no matches found on first page
-                if current_page == 1 and len(matching_cards) == 0:
-                    st.warning("No matching reports found")
-                    return []
-                    
-                # Stop if no matches found after first page
-                if current_page > 1 and len(matching_cards) == 0:
-                    break
                 
                 # Process matching cards
                 for card in matching_cards:
@@ -824,10 +771,8 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
         return all_reports
-
-
-
-
+        
+        
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
     try:
