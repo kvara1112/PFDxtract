@@ -1094,7 +1094,7 @@ def render_scraping_tab():
         col1, col2 = st.columns(2)
         
         with col1:
-            search_keyword = st.text_input("Search keywords:", value="reports")
+            search_keyword = st.text_input("Search keywords (do not leave empty use reports as a general term):", value="reports")
             category = st.selectbox("PFD Report type:", 
                 [""] + get_pfd_categories(), 
                 format_func=lambda x: x if x else "Select a category")
