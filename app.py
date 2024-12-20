@@ -1333,10 +1333,47 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             # Cleanup zip file
             os.remove(pdf_zip_path)
 
-def render_analysis_tab(data: pd.DataFrame):
-    """Render the analysis tab with specific filters and downloadable results"""
+def render_analysis_tab(data: pd.DataFrame = None):
+    """Render the analysis tab with improved filters and file upload functionality"""
     st.header("Reports Analysis")
     
+    # Add file upload section at the top
+    st.subheader("Upload Data")
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file", 
+        type=['csv', 'xlsx'],
+        help="Upload previously exported data"
+    )
+    
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                data = pd.read_csv(uploaded_file)
+            else:
+                data = pd.read_excel(uploaded_file)
+            
+            # Process uploaded data
+            data = process_scraped_data(data)
+            st.success("File uploaded and processed successfully!")
+            
+            # Update session state
+            st.session_state.uploaded_data = data.copy()
+            st.session_state.data_source = 'uploaded'
+            st.session_state.current_data = data.copy()
+        
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            logging.error(f"File upload error: {e}", exc_info=True)
+            return
+    
+    # Use either uploaded data or passed data
+    if data is None:
+        data = st.session_state.get('current_data')
+    
+    if data is None or len(data) == 0:
+        st.warning("No data available. Please upload a file or scrape reports first.")
+        return
+        
     try:
         # Get date range for the data
         min_date = data['date_of_report'].min().date()
@@ -1367,6 +1404,15 @@ def render_analysis_tab(data: pd.DataFrame):
                         key="end_date_filter",
                         format="DD/MM/YYYY"
                     )
+            
+            # Document Type Filter
+            doc_type = st.multiselect(
+                "Document Type",
+                ["Report", "Response"],
+                default=["Report", "Response"],
+                key="doc_type_filter",
+                help="Filter by document type"
+            )
             
             # Reference Number
             ref_numbers = sorted(data['ref'].dropna().unique())
@@ -1427,11 +1473,36 @@ def render_analysis_tab(data: pd.DataFrame):
                 (filtered_df['date_of_report'].dt.date <= end_date)
             ]
 
+        # Document type filter
+        if doc_type:
+            # Assuming we can identify responses by certain keywords in the title or content
+            def get_document_type(row):
+                # Check PDF names for all PDFs
+                for i in range(1, 4):  # Check PDF_1 to PDF_3
+                    pdf_name = str(row.get(f'PDF_{i}_Name', '')).lower()
+                    
+                    # If this PDF is a PFD report
+                    if 'prevention-of-future-deaths-report' in pdf_name:
+                        return 'Report'
+                        
+                    # If this PDF is a response
+                    if 'response-from-' in pdf_name:
+                        return 'Response'
+                
+                # If no definitive PDF name was found, default to Report
+                return 'Report'
+
+            def matches_doc_type_filter(row):
+                detected_type = get_document_type(row)
+                return detected_type in doc_type
+            
+            filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
+
         # Reference number filter
         if selected_refs:
             filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
 
-        # Deceased name filter
+        # Other filters remain the same...
         if deceased_search:
             filtered_df = filtered_df[
                 filtered_df['deceased_name'].fillna('').str.contains(
@@ -1441,15 +1512,12 @@ def render_analysis_tab(data: pd.DataFrame):
                 )
             ]
 
-        # Coroner name filter
         if selected_coroners:
             filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
 
-        # Area filter
         if selected_areas:
             filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
 
-        # Category filter
         if selected_categories:
             filtered_df = filtered_df[
                 filtered_df['categories'].apply(
@@ -1461,6 +1529,8 @@ def render_analysis_tab(data: pd.DataFrame):
         active_filters = []
         if start_date != min_date or end_date != max_date:
             active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
+        if doc_type and doc_type != ["Report", "Response"]:
+            active_filters.append(f"Document Types: {', '.join(doc_type)}")
         if selected_refs:
             active_filters.append(f"References: {', '.join(selected_refs)}")
         if deceased_search:
@@ -1475,12 +1545,11 @@ def render_analysis_tab(data: pd.DataFrame):
         if active_filters:
             st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
 
-        # Display results count
+        # Display results
+        st.subheader("Results")
         st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
 
-        # Display results table
         if len(filtered_df) > 0:
-            st.subheader("Results")
             st.dataframe(
                 filtered_df,
                 column_config={
@@ -1489,12 +1558,17 @@ def render_analysis_tab(data: pd.DataFrame):
                         "Date of Report",
                         format="DD/MM/YYYY"
                     ),
-                    "categories": st.column_config.ListColumn("Categories")
+                    "categories": st.column_config.ListColumn("Categories"),
+                    "Document Type": st.column_config.TextColumn(
+                        "Document Type",
+                        help="Type of document based on PDF filename"
+                    )
                 },
                 hide_index=True
             )
 
-            # Download buttons
+            # Export options
+            st.subheader("Export Options")
             col1, col2 = st.columns(2)
             
             # CSV Export
@@ -1509,12 +1583,10 @@ def render_analysis_tab(data: pd.DataFrame):
             
             # Excel Export
             with col2:
-                buffer = io.BytesIO()
-                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                    filtered_df.to_excel(writer, index=False)
+                excel_data = export_to_excel(filtered_df)
                 st.download_button(
                     "📥 Download Results (Excel)",
-                    buffer.getvalue(),
+                    excel_data,
                     "filtered_reports.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
@@ -1524,25 +1596,6 @@ def render_analysis_tab(data: pd.DataFrame):
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
-
-
-def export_to_excel(df: pd.DataFrame) -> bytes:
-    """Handle Excel export with proper buffer management and error handling"""
-    excel_buffer = io.BytesIO()
-    
-    try:
-        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False)
-        excel_data = excel_buffer.getvalue()
-        return excel_data
-        
-    except Exception as e:
-        logging.error(f"Error exporting to Excel: {e}")
-        raise e
-        
-    finally:
-        excel_buffer.close()
-
 
 def render_file_upload():
     """Render file upload section"""
