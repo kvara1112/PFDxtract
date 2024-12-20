@@ -1,4 +1,4 @@
-import streamlit.components.v1 as components
+import streamlit as st
 import pyLDAvis
 import pyLDAvis.sklearn
 import pandas as pd
