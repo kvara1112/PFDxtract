@@ -1416,11 +1416,12 @@ def prepare_lda_vis_data(lda_model, vectorizer, doc_topics):
     topic_term_scores = {}
     
     # Calculate overall term frequencies
-    for doc_topic in doc_topics:
-        topic_idx = doc_topic.argmax()
-        terms = feature_names[doc_topic > 0]
-        for term in terms:
-            term_frequencies[term] = term_frequencies.get(term, 0) + 1
+    # Transform documents to get term frequencies
+    transformed_docs = vectorizer.transform(doc_topics)
+    term_freq = transformed_docs.sum(axis=0).A1
+    for idx, freq in enumerate(term_freq):
+        if freq > 0:
+            term_frequencies[feature_names[idx]] = int(freq)
     
     # Process each topic
     for idx, topic in enumerate(lda_model.components_):
@@ -1441,10 +1442,13 @@ def prepare_lda_vis_data(lda_model, vectorizer, doc_topics):
         # Calculate topic prevalence
         topic_prevalence = (doc_topics[:, idx] > 0.05).mean()
         
+        # Calculate proper topic prevalence
+        topic_prevalence = float((doc_topics[:, idx] > 0.05).sum()) / doc_topics.shape[0] * 100
+        
         # Add topic data
         topics_data.append({
             'id': idx,
-            'prevalence': topic_prevalence,
+            'prevalence': round(topic_prevalence, 1),
             'label': f"Topic {idx + 1}"
         })
     
@@ -1454,7 +1458,6 @@ def prepare_lda_vis_data(lda_model, vectorizer, doc_topics):
         'termFrequencies': term_frequencies,
         'topicTermScores': topic_term_scores
     }
-
 
 
 def format_topics_for_display(topic_insights):
@@ -2048,9 +2051,17 @@ def render_topic_modeling_tab(data: pd.DataFrame):
     if st.button("Extract Topics"):
         try:
             with st.spinner("Analyzing topics..."):
+                # Prepare text data
+                texts = []
+                for _, row in data.iterrows():
+                    combined_text = combine_document_text(row)
+                    cleaned_text = clean_text_for_modeling(combined_text)
+                    if cleaned_text and len(cleaned_text.split()) > 3:
+                        texts.append(cleaned_text)
+                
                 # Extract topics
                 lda_model, vectorizer, doc_topics = extract_topics_lda(
-                    data,
+                    pd.DataFrame({'text': texts}),
                     num_topics=num_topics,
                     max_features=max_features
                 )
@@ -2111,7 +2122,6 @@ def render_topic_modeling_tab(data: pd.DataFrame):
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
-
 def main():
     initialize_session_state()
     st.title("UK Judiciary PFD Reports Analysis")
