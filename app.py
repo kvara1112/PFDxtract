@@ -130,55 +130,6 @@ def clean_text_for_modeling(text: str) -> str:
         logging.error(f"Error in text cleaning: {e}")
         return ""
 
-def extract_topics_lda(df: pd.DataFrame, num_topics: int = 5, max_features: int = 1000) -> Tuple[LatentDirichletAllocation, TfidfVectorizer, np.ndarray]:
-    """Extract topics with improved preprocessing"""
-    try:
-        # Combine and clean texts
-        texts = []
-        for _, row in df.iterrows():
-            combined_text = combine_document_text(row)
-            cleaned_text = clean_text_for_modeling(combined_text)
-            if cleaned_text and len(cleaned_text.split()) > 3:  # Ensure meaningful content
-                texts.append(cleaned_text)
-        
-        # Configure vectorizer with stricter parameters
-        vectorizer = TfidfVectorizer(
-            max_features=max_features,
-            min_df=2,  # Only keep terms appearing in at least 2 documents
-            max_df=0.95,  # Remove terms appearing in >95% of documents
-            stop_words='english',
-            token_pattern=r'(?u)\b[a-z]{2,}\b'  # Only words with 2+ letters
-        )
-        
-        # Create document-term matrix
-        tfidf_matrix = vectorizer.fit_transform(texts)
-        
-        # Configure LDA
-        lda_model = LatentDirichletAllocation(
-            n_components=num_topics,
-            random_state=42,
-            n_jobs=-1,
-            max_iter=20,
-            learning_method='batch',
-            doc_topic_prior=0.1,
-            topic_word_prior=0.01
-        )
-        
-        # Fit model
-        doc_topic_dist = lda_model.fit_transform(tfidf_matrix)
-        
-        # Normalize the components
-        for idx in range(len(lda_model.components_)):
-            lda_model.components_[idx] = lda_model.components_[idx] / lda_model.components_[idx].sum()
-        
-        return lda_model, vectorizer, doc_topic_dist
-        
-    except Exception as e:
-        st.error(f"Error in topic extraction: {str(e)}")
-        raise e
-
-
-
 def clean_text(text: str) -> str:
     """Clean text while preserving structure and metadata formatting"""
     if not text:
@@ -2284,13 +2235,136 @@ def render_analysis_tab(data: pd.DataFrame = None):
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
-def render_topic_modeling_tab(data: pd.DataFrame):
-    """Render the topic modeling analysis tab"""
+
+# Add to imports section at top of file
+import streamlit as st
+import streamlit.components.v1 as components
+import pyLDAvis
+import pyLDAvis.sklearn
+from typing import Tuple, Dict
+import numpy as np
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import LatentDirichletAllocation
+
+def extract_topics_lda(
+    df: pd.DataFrame, 
+    num_topics: int = 5, 
+    max_features: int = 1000
+) -> Tuple[LatentDirichletAllocation, TfidfVectorizer, np.ndarray, pyLDAvis._prepare.PreparedData]:
+    """
+    Extract topics using LDA and prepare visualization data.
+    
+    Args:
+        df: Input DataFrame containing document texts
+        num_topics: Number of topics to extract
+        max_features: Maximum number of features for vectorization
+    
+    Returns:
+        Tuple containing:
+        - LDA model
+        - TF-IDF vectorizer
+        - Document-topic distribution matrix
+        - pyLDAvis prepared data
+    """
+    try:
+        # Prepare document texts
+        texts = []
+        for _, row in df.iterrows():
+            combined_text = combine_document_text(row)
+            cleaned_text = clean_text_for_modeling(combined_text)
+            if cleaned_text and len(cleaned_text.split()) > 3:
+                texts.append(cleaned_text)
+        
+        # Configure and fit vectorizer
+        vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            min_df=2,
+            max_df=0.95,
+            stop_words='english',
+            token_pattern=r'(?u)\b[a-z]{2,}\b'
+        )
+        dtm = vectorizer.fit_transform(texts)
+        
+        # Configure and fit LDA model
+        lda_model = LatentDirichletAllocation(
+            n_components=num_topics,
+            random_state=42,
+            n_jobs=-1,
+            max_iter=20,
+            learning_method='batch',
+            doc_topic_prior=0.1,
+            topic_word_prior=0.01
+        )
+        doc_topic_dist = lda_model.fit_transform(dtm)
+        
+        # Prepare visualization data
+        vis_data = pyLDAvis.sklearn.prepare(
+            lda_model, 
+            dtm, 
+            vectorizer,
+            mds='mmds',  # Use metric MDS for better topic distance representation
+            sort_topics=False  # Preserve original topic ordering
+        )
+        
+        return lda_model, vectorizer, doc_topic_dist, vis_data
+        
+    except Exception as e:
+        st.error(f"Error in topic extraction: {str(e)}")
+        logging.error(f"Topic extraction error: {e}", exc_info=True)
+        raise e
+
+def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None:
+    """
+    Render the pyLDAvis visualization in Streamlit.
+    
+    Args:
+        vis_data: Prepared visualization data from pyLDAvis
+    """
+    st.markdown("""
+        ### Interactive Topic Visualization
+        
+        This visualization shows the relationships between topics and terms:
+        - **Left panel**: Topic bubbles sized by prevalence
+        - **Right panel**: Term frequencies and relevance
+        - **Interactions**:
+            - Click topics to see associated terms
+            - Adjust λ slider to change term relevance weighting
+            - Hover over terms for detailed statistics
+    """)
+    
+    # Add custom CSS for better visualization display
+    st.markdown("""
+        <style>
+            #ldavis_container {
+                width: 100% !important;
+                height: 800px !important;
+                overflow: hidden;
+                margin: 20px 0;
+            }
+            .ldavis_container svg {
+                max-width: 100%;
+                height: auto;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Convert visualization to HTML and render
+    html_string = pyLDAvis.prepared_data_to_html(vis_data)
+    components.html(html_string, width=1300, height=800)
+
+def render_topic_modeling_tab(data: pd.DataFrame) -> None:
+    """
+    Render the complete topic modeling analysis tab with visualization.
+    
+    Args:
+        data: Input DataFrame containing documents to analyze
+    """
     st.header("Topic Modeling Analysis")
     
     # Sidebar controls
     with st.sidebar:
-        st.header("Topic Modeling Options")
+        st.header("Model Parameters")
         
         num_topics = st.slider(
             "Number of Topics",
@@ -2309,186 +2383,75 @@ def render_topic_modeling_tab(data: pd.DataFrame):
             help="Maximum number of words to include in analysis"
         )
         
-        min_term_freq = st.number_input(
-            "Minimum Term Frequency",
-            min_value=1,
-            value=2,
-            help="Minimum number of occurrences required for a term"
-        )
+        advanced_options = st.expander("Advanced Options")
+        with advanced_options:
+            mds_method = st.selectbox(
+                "MDS Method",
+                options=["mmds", "pcoa", "tsne"],
+                help="Method for computing topic distances"
+            )
     
     # Run topic modeling
-    if st.button("Extract Topics"):
+    if st.button("Extract Topics", type="primary"):
         try:
-            with st.spinner("Extracting topics from documents..."):
-                # Extract topics
-                result = extract_topics_lda(data, num_topics=num_topics, max_features=max_features)
-                if not result:
-                    st.error("Topic extraction failed. Please check your data.")
-                    return
-                
-                lda_model, vectorizer, doc_topics = result
-                
-                # Format results for visualization
-                topics_data = format_topic_data(
-                    lda_model, 
-                    vectorizer, 
-                    doc_topics, 
-                    data
+            with st.spinner("Extracting topics and preparing visualization..."):
+                # Extract topics and prepare visualization
+                lda_model, vectorizer, doc_topics, vis_data = extract_topics_lda(
+                    data,
+                    num_topics=num_topics,
+                    max_features=max_features
                 )
                 
-                # Display topics
-                for topic in topics_data:
-                    st.markdown(f"## Topic: {topic['label']} ({topic['prevalence']}% of reports)")
-                    st.markdown(f"**Description:** {topic['description']}")
-                    
-                    # Key terms section
-                    st.markdown("### Key Terms")
-                    term_count = st.slider(
-                        "Number of terms to show", 
-                        5, 50, 10, 
-                        key=f"terms_{topic['id']}"
-                    )
-                    
-                    # Create term frequency table
-                    term_data = pd.DataFrame(topic['words'][:term_count])
-                    term_data['relevance'] = term_data['weight'].apply(lambda x: round(x * 100, 2))
-                    
-                    st.dataframe(
-                        term_data,
-                        column_config={
-                            'word': st.column_config.TextColumn(
-                                'Term',
-                                width='medium'
-                            ),
-                            'count': st.column_config.NumberColumn(
-                                'Occurrences',
-                                width='small'
-                            ),
-                            'documents': st.column_config.NumberColumn(
-                                'Documents',
-                                help='Number of documents containing this term',
-                                width='small'
-                            ),
-                            'relevance': st.column_config.ProgressColumn(
-                                'Relevance',
-                                help='Percentage relevance to the topic',
-                                format="%.2f%%",
-                                min_value=0,
-                                max_value=100,
-                                width='medium'
-                            )
-                        },
-                        hide_index=True
-                    )
-                    
-                    # Related reports section
-                    st.markdown("### Related Reports")
-                    report_tab1, report_tab2 = st.tabs(["Summary View", "Detailed View"])
-                    
-                    with report_tab1:
-                        # Create a summary table
-                        summary_data = [{
-                            'Title': r['title'],
-                            'Date': r['date'],
-                            'Area': r['area'],
-                            'Relevance': round(r['topicRelevance'] * 100, 2)
-                        } for r in topic['relatedReports']]
-                        
-                        st.dataframe(
-                            pd.DataFrame(summary_data),
-                            column_config={
-                                'Title': st.column_config.TextColumn('Title', width='large'),
-                                'Date': st.column_config.TextColumn('Date', width='small'),
-                                'Area': st.column_config.TextColumn('Area', width='medium'),
-                                'Relevance': st.column_config.ProgressColumn(
-                                    'Topic Relevance',
-                                    format="%.2f%%",
-                                    min_value=0,
-                                    max_value=100,
-                                    width='medium'
-                                )
-                            },
-                            hide_index=True
-                        )
-                    
-                    with report_tab2:
-                        for report in topic['relatedReports']:
-                            st.markdown(f"#### {report['title']}")
-                            col1, col2, col3 = st.columns([2,2,1])
-                            with col1:
-                                st.markdown(f"**Date:** {report['date']}")
-                            with col2:
-                                st.markdown(f"**Coroner:** {report['coroner']}")
-                            with col3:
-                                st.markdown(f"**Area:** {report['area']}")
-                            
-                            st.markdown("**Summary:**")
-                            st.markdown(report['summary'])
-                            
-                            if report['otherTopics']:
-                                st.markdown("**Related Topics:**")
-                                for other_topic in report['otherTopics']:
-                                    st.markdown(
-                                        f"- {other_topic['label']}: "
-                                        f"{other_topic['score']*100:.2f}%"
-                                    )
-                            st.markdown("---")
-                    
-                    st.markdown("---")
+                # Store results in session state
+                st.session_state.topic_results = {
+                    'model': lda_model,
+                    'vectorizer': vectorizer,
+                    'doc_topics': doc_topics,
+                    'vis_data': vis_data
+                }
                 
-                # Add download functionality
-                st.markdown("### Export Analysis")
-                if st.button("Download Analysis"):
-                    output = io.BytesIO()
-                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                        # Topics overview
-                        topics_overview = pd.DataFrame([{
-                            'Topic': t['label'],
-                            'Description': t['description'],
-                            'Prevalence': t['prevalence'],
-                            'Top Terms': ', '.join([w['word'] for w in t['words'][:10]])
-                        } for t in topics_data])
-                        topics_overview.to_excel(writer, sheet_name='Topics Overview', index=False)
-                        
-                        # Terms by topic
-                        for topic in topics_data:
-                            terms_df = pd.DataFrame([{
-                                'Term': w['word'],
-                                'Relevance': f"{w['weight']*100:.2f}%",
-                                'Occurrences': w['count'],
-                                'Documents': w['documents']
-                            } for w in topic['words']])
-                            terms_df.to_excel(
-                                writer, 
-                                sheet_name=f"Terms_Topic_{topic['id']}",
-                                index=False
-                            )
-                            
-                            # Related reports
-                            reports_df = pd.DataFrame([{
-                                'Title': r['title'],
-                                'Date': r['date'],
-                                'Area': r['area'],
-                                'Relevance': f"{r['topicRelevance']*100:.2f}%"
-                            } for r in topic['relatedReports']])
-                            reports_df.to_excel(
-                                writer,
-                                sheet_name=f"Reports_Topic_{topic['id']}",
-                                index=False
-                            )
-                    
-                    st.download_button(
-                        "📥 Download Analysis (Excel)",
-                        output.getvalue(),
-                        "topic_analysis.xlsx",
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                # Create tabs for visualization and analysis
+                viz_tab, analysis_tab = st.tabs([
+                    "Interactive Visualization",
+                    "Topic Analysis"
+                ])
+                
+                # Render visualization tab
+                with viz_tab:
+                    render_topic_visualization(vis_data)
+                
+                # Render analysis tab
+                with analysis_tab:
+                    topics_data = format_topic_data(
+                        lda_model,
+                        vectorizer,
+                        doc_topics,
+                        data
                     )
+                    display_topic_analysis(topics_data)
                 
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
-
-
+    
+    # Show previous results if they exist
+    elif hasattr(st.session_state, 'topic_results'):
+        viz_tab, analysis_tab = st.tabs([
+            "Interactive Visualization",
+            "Topic Analysis"
+        ])
+        
+        with viz_tab:
+            render_topic_visualization(st.session_state.topic_results['vis_data'])
+        
+        with analysis_tab:
+            topics_data = format_topic_data(
+                st.session_state.topic_results['model'],
+                st.session_state.topic_results['vectorizer'],
+                st.session_state.topic_results['doc_topics'],
+                data
+            )
+            display_topic_analysis(topics_data)
 
 def main():
     initialize_session_state()
