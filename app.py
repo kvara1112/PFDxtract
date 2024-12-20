@@ -635,6 +635,40 @@ def construct_search_url(base_url: str, keyword: Optional[str] = None,
     
     return url
 
+def scrape_page_with_progress(
+    keyword: str,
+    category: Optional[str] = None,
+    page: int = 1,
+    progress_placeholder: Optional[st.empty] = None
+) -> List[Dict]:
+    """Scrape a single page with progress updates"""
+    try:
+        # Prepare category slug
+        category_slug = None
+        if category:
+            category_slug = category.lower().replace(' ', '-').replace('&', 'and')
+        
+        # Construct URL
+        url = construct_search_url(
+            base_url="https://www.judiciary.uk/",
+            keyword=keyword,
+            category=category,
+            category_slug=category_slug,
+            page=page
+        )
+        
+        # Scrape the page
+        reports = scrape_page(url)
+        
+        # Update progress if placeholder provided
+        if progress_placeholder and reports:
+            progress_placeholder.progress((page % 10) / 10)
+        
+        return reports
+        
+    except Exception as e:
+        logging.error(f"Error scraping page {page}: {e}")
+        return []
 
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
@@ -1106,11 +1140,37 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
 
 
 def render_scraping_tab():
-    """Render the simplified scraping tab"""
+    """Render the scraping tab with stop and reset controls"""
     st.header("Scrape PFD Reports")
     
+    # Initialize scraping control in session state if not exists
+    if 'is_scraping' not in st.session_state:
+        st.session_state.is_scraping = False
+    
+    # Add reset filters function
+    def reset_filters():
+        if 'search_keyword' in st.session_state:
+            del st.session_state.search_keyword
+        if 'category' in st.session_state:
+            del st.session_state.category
+        if 'order' in st.session_state:
+            del st.session_state.order
+        if 'max_pages' in st.session_state:
+            del st.session_state.max_pages
+        st.session_state.is_scraping = False
+    
+    # Show existing results if available
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
-        st.success(f"Found {len(st.session_state.scraped_data)} reports")
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.success(f"Found {len(st.session_state.scraped_data)} reports")
+        with col2:
+            if st.button("Clear Results", key="clear_results"):
+                st.session_state.scraped_data = None
+                st.session_state.current_data = None
+                st.session_state.data_source = None
+                st.rerun()
+        
         st.dataframe(
             st.session_state.scraped_data,
             column_config={
@@ -1122,19 +1182,35 @@ def render_scraping_tab():
         )
         show_export_options(st.session_state.scraped_data, "scraped")
     
-    with st.form("scraping_form"):
+    # Control buttons above the form
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col2:
+        if st.button("Reset Filters", key="reset_filters"):
+            reset_filters()
+            st.rerun()
+    with col3:
+        if st.session_state.is_scraping:
+            if st.button("Stop Scraping", key="stop_scraping"):
+                st.session_state.is_scraping = False
+                st.rerun()
+    
+    # Scraping form
+    with st.form("scraping_form", clear_on_submit=False):
         col1, col2 = st.columns(2)
         
         with col1:
             search_keyword = st.text_input(
                 "Search keywords:",
-                value="report",
+                value=st.session_state.get('search_keyword', "report"),
+                key="search_keyword",
                 help="Enter search terms. Use 'report' for a general search."
             )
             
             category = st.selectbox(
                 "PFD Report type:", 
-                [""] + get_pfd_categories(), 
+                [""] + get_pfd_categories(),
+                index=st.session_state.get('category_index', 0),
+                key="category",
                 format_func=lambda x: x if x else "Select a category"
             )
         
@@ -1142,6 +1218,8 @@ def render_scraping_tab():
             order = st.selectbox(
                 "Sort by:",
                 ["relevance", "desc", "asc"],
+                index=st.session_state.get('order_index', 0),
+                key="order",
                 format_func=lambda x: {
                     "relevance": "Relevance",
                     "desc": "Newest first",
@@ -1152,40 +1230,90 @@ def render_scraping_tab():
             max_pages = st.number_input(
                 "Maximum pages to scrape (0 for all):", 
                 min_value=0,
-                value=0
+                value=st.session_state.get('max_pages', 0),
+                key="max_pages"
             )
         
         submitted = st.form_submit_button("Search Reports")
     
     if submitted:
         try:
+            # Set scraping flag
+            st.session_state.is_scraping = True
+            
+            # Store search parameters
             st.session_state.last_search_params = {
                 'keyword': search_keyword,
                 'category': category,
                 'order': order
             }
             
-            reports = scrape_pfd_reports(
-                keyword=search_keyword,
-                category=category if category else None,
-                order=order,
-                max_pages=None if max_pages == 0 else max_pages
-            )
+            # Store form values
+            st.session_state.search_keyword = search_keyword
+            st.session_state.category_index = get_pfd_categories().index(category) + 1 if category else 0
+            st.session_state.order_index = ["relevance", "desc", "asc"].index(order)
+            st.session_state.max_pages = max_pages
             
-            if reports:
-                df = pd.DataFrame(reports)
-                df = process_scraped_data(df)
-                st.session_state.scraped_data = df
-                st.session_state.data_source = 'scraped'
-                st.session_state.current_data = df
-                st.rerun()
-            else:
-                st.warning("No reports found matching your search criteria")
+            progress_placeholder = st.empty()
+            status_placeholder = st.empty()
+            
+            reports = []
+            current_page = 1
+            max_pages_val = None if max_pages == 0 else max_pages
+            
+            try:
+                while st.session_state.is_scraping:
+                    status_placeholder.write(f"Processing page {current_page}")
+                    
+                    # Get reports for current page
+                    page_reports = scrape_page_with_progress(
+                        keyword=search_keyword,
+                        category=category if category else None,
+                        page=current_page,
+                        progress_placeholder=progress_placeholder
+                    )
+                    
+                    if not page_reports:
+                        break
+                    
+                    reports.extend(page_reports)
+                    
+                    if max_pages_val and current_page >= max_pages_val:
+                        break
+                    
+                    current_page += 1
+                    
+                    # Check if scraping was stopped
+                    if not st.session_state.is_scraping:
+                        status_placeholder.warning("Scraping stopped by user")
+                        break
+                
+                if reports:
+                    df = pd.DataFrame(reports)
+                    df = process_scraped_data(df)
+                    st.session_state.scraped_data = df
+                    st.session_state.data_source = 'scraped'
+                    st.session_state.current_data = df
+                    
+                    # Clear status and progress
+                    progress_placeholder.empty()
+                    status_placeholder.empty()
+                    
+                    st.success(f"Successfully scraped {len(reports)} reports")
+                    st.rerun()
+                else:
+                    st.warning("No reports found matching your search criteria")
+            
+            finally:
+                # Reset scraping flag
+                st.session_state.is_scraping = False
                 
         except Exception as e:
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
+            st.session_state.is_scraping = False
             return False
+            
             
 def show_export_options(df: pd.DataFrame, prefix: str):
     """Show export options for the data with descriptive filename"""
@@ -1670,6 +1798,8 @@ def initialize_session_state():
             del st.session_state[key]
         
         # Set new session state variables
+        st.session_state.is_scraping = False
+        st.session_state.initialized = True
         st.session_state.data_source = None
         st.session_state.current_data = None
         st.session_state.scraped_data = None
