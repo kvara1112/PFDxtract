@@ -606,9 +606,8 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     all_reports = []
     base_url = "https://www.judiciary.uk/"
     
-    # Construct base search URL with both keyword and category considerations
+    # Validate and prepare category
     if category:
-        # Validate and prepare category
         matching_categories = [
             cat for cat in get_pfd_categories() 
             if cat.lower() == category.lower()
@@ -620,18 +619,20 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         category = matching_categories[0]
         category_slug = category.lower().replace(' ', '-').replace('&', 'and')
-        
-        # Construct URL for category with optional keyword
-        if keyword:
-            base_search_url = f"{base_url}?s={keyword}&post_type=pfd&pfd-types={category_slug}"
-        else:
-            base_search_url = f"{base_url}pfd-types/{category_slug}/"
+    
+    # Construct base search URL
+    if category and keyword:
+        # If both category and keyword are provided
+        base_search_url = f"{base_url}?s={keyword}&post_type=pfd&pfd_report_type={category_slug}"
+    elif category:
+        # If only category is provided
+        base_search_url = f"{base_url}pfd-types/{category_slug}/"
+    elif keyword:
+        # If only keyword is provided
+        base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
     else:
-        # If no category, use keyword or default PFD reports page
-        if keyword:
-            base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
-        else:
-            base_search_url = f"{base_url}prevention-of-future-death-reports/"
+        # If no filters are applied
+        base_search_url = f"{base_url}prevention-of-future-death-reports/"
     
     try:
         # Get total pages and results count
