@@ -604,20 +604,13 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
     base_url = "https://www.judiciary.uk/"
     
     try:
-        # Initialize parameters for the API request
-        params = {
-            'post_type': 'pfd',
-            'orderby': order,
-            'page': 1
-        }
-        
-        # Add keyword if provided
+        # Construct the search URL
         if keyword:
-            params['s'] = keyword
-            base_search_url = f"{base_url}wp-json/judiciary/v1/search"
+            # Use the search endpoint for keywords
+            base_search_url = f"{base_url}?s={requests.utils.quote(keyword)}&post_type=prevention-of-future-deaths-reports"
         else:
             # Use category-based URL if no keyword but category is provided
-            if category:
+            if category and category != "All Categories":
                 matching_categories = [
                     cat for cat in get_pfd_categories() 
                     if cat.lower() == category.lower()
@@ -631,163 +624,128 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
                     return []
             else:
                 base_search_url = f"{base_url}prevention-of-future-death-reports/"
-        
-        # Add date parameters if provided
-        if date_after:
-            params['after'] = date_after
-        if date_before:
-            params['before'] = date_before
-            
+
         while True:
-            try:
-                # Construct page URL based on whether we're using the API or regular URL
-                if keyword:
-                    params['page'] = current_page
-                    query_string = '&'.join([f"{k}={requests.utils.quote(str(v))}" 
-                                           for k, v in params.items()])
-                    page_url = f"{base_search_url}?{query_string}"
-                else:
-                    page_url = (f"{base_search_url}page/{current_page}/" 
-                              if current_page > 1 else base_search_url)
-                
-                st.write(f"Scraping page {current_page}: {page_url}")
-                
-                # Make request with retry logic
-                response = make_request(page_url)
-                if not response:
-                    break
-                
-                soup = BeautifulSoup(response.text, 'html.parser')
-                
-                # Find report container with multiple possible classes
-                container_classes = [
-                    ['archive__listings', 'search__listing'],
-                    ['search__list'],
-                    ['govuk-list'],
-                    ['archive__posts']
-                ]
-                
-                report_container = None
-                for classes in container_classes:
-                    report_container = (soup.find('ul', class_=classes) or 
-                                      soup.find('div', class_=classes))
-                    if report_container:
-                        break
-                
-                if not report_container:
-                    st.warning(f"No report container found on page {current_page}")
-                    break
-                
-                # Find report cards
-                report_cards = report_container.find_all(
-                    ['div', 'li'], 
-                    class_=['card', 'card--full', 'search__item']
-                )
-                
-                if not report_cards:
-                    break
-                
-                st.write(f"Found {len(report_cards)} reports on page {current_page}")
-                
-                # Process each report card
-                for card in report_cards:
-                    try:
-                        # Extract title and URL
-                        title_elem = card.find(['h3', 'h2'], class_=['card__title'])
-                        if not title_elem:
-                            continue
-                        
-                        title_link = title_elem.find('a')
-                        if not title_link:
-                            continue
-                        
-                        title = clean_text(title_link.text)
-                        card_url = title_link['href']
-                        
-                        if not card_url.startswith(('http://', 'https://')):
-                            card_url = f"https://www.judiciary.uk{card_url}"
-                        
-                        # Get full content
-                        content_data = get_report_content(card_url)
-                        if not content_data:
-                            continue
-                        
-                        # Apply keyword filter if provided
-                        if keyword:
-                            if (keyword.lower() not in title.lower() and 
-                                keyword.lower() not in content_data['content'].lower()):
-                                continue
-                        
-                        # Apply date filters if provided
-                        report_date = None
-                        date_match = re.search(
-                            r'Date of report:\s*(\d{1,2}(?:/|-)\d{1,2}(?:/|-)\d{4})',
-                            content_data['content']
-                        )
-                        if date_match:
-                            try:
-                                report_date = datetime.strptime(
-                                    date_match.group(1).replace('-', '/'),
-                                    '%d/%m/%Y'
-                                )
-                                
-                                if date_after:
-                                    after_date = datetime.strptime(date_after, '%d/%m/%Y')
-                                    if report_date < after_date:
-                                        continue
-                                        
-                                if date_before:
-                                    before_date = datetime.strptime(date_before, '%d/%m/%Y')
-                                    if report_date > before_date:
-                                        continue
-                            except ValueError:
-                                pass
-                        
-                        # Create report dictionary
-                        report = {
-                            'Title': title,
-                            'URL': card_url,
-                            'Content': content_data['content']
-                        }
-                        
-                        # Add PDF details
-                        for i, (name, content, path) in enumerate(zip(
-                            content_data['pdf_names'],
-                            content_data['pdf_contents'],
-                            content_data['pdf_paths']
-                        ), 1):
-                            report[f'PDF_{i}_Name'] = name
-                            report[f'PDF_{i}_Content'] = content
-                            report[f'PDF_{i}_Path'] = path
-                        
-                        all_reports.append(report)
-                        logging.info(f"Successfully processed: {title}")
-                        
-                    except Exception as card_error:
-                        logging.error(f"Error processing card: {card_error}")
-                        continue
-                
-                # Check if we should continue to next page
-                if max_pages and current_page >= max_pages:
-                    break
-                
-                # Look for next page link
-                next_page = soup.find('a', class_='next')
-                if not next_page:
-                    pagination = soup.find('nav', class_='navigation pagination')
-                    if pagination:
-                        next_page = pagination.find('a', class_='next page-numbers')
-                
-                if not next_page:
-                    break
-                
-                current_page += 1
-                time.sleep(2)  # Add delay between pages
-                
-            except Exception as page_error:
-                logging.error(f"Error processing page {current_page}: {page_error}")
+            # Construct page URL
+            if keyword:
+                page_url = f"{base_search_url}&paged={current_page}" if current_page > 1 else base_search_url
+            else:
+                page_url = f"{base_search_url}page/{current_page}/" if current_page > 1 else base_search_url
+            
+            st.write(f"Scraping page {current_page}: {page_url}")
+            
+            # Get page content
+            response = make_request(page_url)
+            if not response:
                 break
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Find report container
+            container_classes = [
+                ['archive__listings', 'search__listing'],
+                ['search__list'],
+                ['govuk-list'],
+                ['archive__posts']
+            ]
+            
+            report_container = None
+            for classes in container_classes:
+                report_container = (soup.find('ul', class_=classes) or 
+                                  soup.find('div', class_=classes))
+                if report_container:
+                    break
+            
+            if not report_container:
+                st.warning(f"No report container found on page {current_page}")
+                break
+            
+            # Find report cards
+            report_cards = report_container.find_all(['div', 'li'], 
+                class_=['card', 'card--full', 'search__item'])
+            
+            if not report_cards:
+                break
+            
+            st.write(f"Found {len(report_cards)} reports on page {current_page}")
+            
+            # Process each report card
+            for card in report_cards:
+                try:
+                    title_elem = card.find(['h3', 'h2'], class_=['card__title'])
+                    if not title_elem:
+                        continue
+                    
+                    title_link = title_elem.find('a')
+                    if not title_link:
+                        continue
+                    
+                    title = clean_text(title_link.text)
+                    card_url = title_link['href']
+                    
+                    if not card_url.startswith(('http://', 'https://')):
+                        card_url = f"https://www.judiciary.uk{card_url}"
+                    
+                    # Get full content first
+                    content_data = get_report_content(card_url)
+                    if not content_data:
+                        continue
+                    
+                    # Check if content matches keyword if provided
+                    if keyword:
+                        keyword_lower = keyword.lower()
+                        content_lower = content_data['content'].lower()
+                        title_lower = title.lower()
+                        
+                        if keyword_lower not in content_lower and keyword_lower not in title_lower:
+                            continue
+                    
+                    # Create report dictionary
+                    report = {
+                        'Title': title,
+                        'URL': card_url,
+                        'Content': content_data['content']
+                    }
+                    
+                    # Add PDF details
+                    for i, (name, content, path) in enumerate(zip(
+                        content_data['pdf_names'],
+                        content_data['pdf_contents'],
+                        content_data['pdf_paths']
+                    ), 1):
+                        report[f'PDF_{i}_Name'] = name
+                        report[f'PDF_{i}_Content'] = content
+                        report[f'PDF_{i}_Path'] = path
+                    
+                    all_reports.append(report)
+                    logging.info(f"Successfully processed: {title}")
+                    
+                except Exception as card_error:
+                    logging.error(f"Error processing card: {card_error}")
+                    continue
+            
+            # Check if we should continue to next page
+            if max_pages and current_page >= max_pages:
+                break
+            
+            # Look for next page link
+            next_page = soup.find('a', class_='next')
+            if not next_page:
+                pagination = soup.find('nav', class_='navigation pagination')
+                if pagination:
+                    next_page = pagination.find('a', class_='next page-numbers')
+            
+            if not next_page:
+                break
+            
+            current_page += 1
+            time.sleep(2)  # Add delay between pages
         
+        return all_reports
+        
+    except Exception as e:
+        logging.error(f"Error in scrape_pfd_reports: {e}")
+        st.error(f"An error occurred while scraping reports: {e}")
         return all_reports
         
     except Exception as e:
