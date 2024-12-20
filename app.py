@@ -600,58 +600,48 @@ import time
 from typing import List, Dict, Optional
 import streamlit as st
 
-def construct_search_url(base_url: str, 
-                        keyword: Optional[str] = None,
-                        category: Optional[str] = None) -> str:
+def construct_search_url(base_url, category=None, keyword=None, category_slug=None):
     """
-    Constructs the search URL with proper handling of category-only searches
+    Constructs a search URL based on category and keyword parameters.
     
     Args:
-        base_url: Base URL of the judiciary website
-        keyword: Optional search keyword
-        category: Optional PFD report category
+        base_url (str): The base URL for the search
+        category (str): Category filter (optional)
+        keyword (str): Search keyword (optional)
+        category_slug (str): The slug version of the category for the URL (optional)
+        
+    Returns:
+        str: Constructed search URL
     """
-    # Clean inputs
+    # First, clean and validate inputs
     keyword = keyword.strip() if keyword else None
     category = category.strip() if category else None
+    category_slug = category_slug.strip() if category_slug else None
     
-    # Convert category to slug format
-    category_slug = None
-    if category:
-        category_slug = category.lower().replace(' ', '-').replace('&', 'and')
+    # Base path for when no filters are applied
+    default_path = "prevention-of-future-death-reports/"
     
-    # Base components
-    url_parts = []
+    # Build query parameters
+    query_params = []
     
-    # Always start with the base URL
-    url_parts.append(base_url.rstrip('/'))
+    # Always add post_type for filtered searches
+    if category or keyword:
+        query_params.append("post_type=pfd")
     
-    # For category-only or no-filter searches, use a different base path
-    if not keyword and not category:
-        return f"{base_url}prevention-of-future-death-reports/"
+    # Add category filter if present
+    if category and category_slug:
+        query_params.append(f"pfd_report_type={category_slug}")
     
-    # Add query parameters
-    params = []
+    # Add keyword filter if present
+    if keyword:
+        query_params.append(f"s={keyword}")
     
-    # Category-only search needs special handling
-    if category and not keyword:
-        params.append("post_type=pfd")
-        params.append(f"pfd_report_type={category_slug}")
-    # Keyword-only search
-    elif keyword and not category:
-        params.append("post_type=pfd")
-        params.append(f"s={keyword}")
-    # Combined search
-    elif keyword and category:
-        params.append("post_type=pfd")
-        params.append(f"s={keyword}")
-        params.append(f"pfd_report_type={category_slug}")
-    
-    # Combine everything
-    if params:
-        return f"{base_url}?{'&'.join(params)}"
-    
-    return base_url
+    # Construct final URL
+    if query_params:
+        query_string = "&".join(query_params)
+        return f"{base_url}?{query_string}"
+    else:
+        return f"{base_url}{default_path}"
 
 
 def scrape_pfd_reports(
