@@ -592,7 +592,6 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
 
-
 def scrape_pfd_reports(keyword: Optional[str] = None,
                       category: Optional[str] = None,
                       date_after: Optional[str] = None,
@@ -620,15 +619,13 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         
         # Create URL-friendly slug
         category_slug = category.lower().replace(' ', '-')
-        base_search_url = f"{base_url}pfd-types/{category_slug}/"
-    else:
-        # Construct search URL based on parameters
-    if category:
+        # Create category URL with optional keyword
         base_search_url = f"{base_url}pfd-types/{category_slug}/"
         if keyword:
             # Add keyword as query parameter to category URL
             base_search_url = f"{base_search_url}?s={keyword}"
     else:
+        # No category selected, use main search or default URL
         if keyword:
             base_search_url = f"{base_url}?s={keyword}&post_type=pfd"
         else:
@@ -799,7 +796,7 @@ def scrape_pfd_reports(keyword: Optional[str] = None,
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
         return all_reports
-        
+
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with improved metadata extraction"""
     try:
