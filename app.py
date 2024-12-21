@@ -910,7 +910,7 @@ def plot_category_distribution(df: pd.DataFrame) -> None:
         xaxis={'tickangle': 45}
     )
     
-    st.plotly_chart(fig, use_container_width=True, key=f"word_dist_topic_{topic_idx}" )
+    st.plotly_chart(fig, use_container_width=True)
 
 def plot_coroner_areas(df: pd.DataFrame) -> None:
     """Plot coroner areas distribution"""
