@@ -1,7 +1,5 @@
 python3-dev
 build-essential
-curl
-software-properties-common
 python3-pip
 python3-venv
 libxml2-dev
@@ -11,11 +9,4 @@ libssl-dev
 python3-lxml
 libjpeg-dev
 libpng-dev
-tesseract-ocr
-libtesseract-dev
 poppler-utils
-pkg-config          # Added for some Python package builds
-libpq-dev          # Added for database connectors
-python3-tk         # Added for plotting capabilities
-libffi-dev         # Added for cryptographic operations
-libcairo2-dev      # Added for PDF processing
