@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import plotly.express as px
 import plotly.graph_objects as go
-from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_similarity
@@ -29,7 +29,6 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
 from bs4 import BeautifulSoup, Tag
-import plotly.graph_objects as go
 
 # Configure logging
 logging.basicConfig(
