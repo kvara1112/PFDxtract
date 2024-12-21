@@ -14,3 +14,8 @@ libpng-dev
 tesseract-ocr
 libtesseract-dev
 poppler-utils
+pkg-config          # Added for some Python package builds
+libpq-dev          # Added for database connectors
+python3-tk         # Added for plotting capabilities
+libffi-dev         # Added for cryptographic operations
+libcairo2-dev      # Added for PDF processing
