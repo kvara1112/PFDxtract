@@ -1379,7 +1379,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                                     orientation='h',
                                     title='Top Terms'
                                 )
-                                st.plotly_chart(fig, use_container_width=True)
+                                st.plotly_chart(fig, use_container_width=True, key=f"word_dist_topic_{topic_idx}")
                             
                             with col2:
                                 st.metric(
@@ -1411,8 +1411,11 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                         aspect="auto"
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
-                    
+                    st.plotly_chart(fig,
+                    use_container_width=True,
+                    key="doc_topic_heatmap"  # Unique key for heatmap
+                    )
+                                    
                     # Show document assignments
                     st.markdown("### Primary Topic Assignments")
                     assignments = pd.DataFrame({
@@ -1462,7 +1465,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                         )
                     )
                     
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, key="topic_network_graph")
                 
                 # Add export options
                 st.markdown("### Export Results")
