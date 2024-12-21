@@ -2970,7 +2970,7 @@ def main():
     You can either scrape new reports or analyze existing data.
     """)
     
-    # Create separate tab selection to avoid key conflicts
+    # Create tab selection
     current_tab = st.radio(
         "Select section:",
         ["🔍 Scrape Reports", "📊 Analysis", "🔬 Topic Modeling"],
@@ -2999,7 +2999,153 @@ def main():
         try:
             is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
             if is_valid:
-                render_topic_modeling_tab(st.session_state.current_data)
+                # Create two columns layout - one for filters and one for results
+                filter_col, content_col = st.columns([1, 2])
+
+                with filter_col:
+                    st.markdown("### Filters")
+                    
+                    # Date Range Filter
+                    st.markdown("#### 📅 Date Range")
+                    min_date = st.session_state.current_data['date_of_report'].min().date()
+                    max_date = st.session_state.current_data['date_of_report'].max().date()
+                    
+                    start_date = st.date_input(
+                        "From",
+                        value=min_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="tm_start_date",
+                        format="DD/MM/YYYY"
+                    )
+                    
+                    end_date = st.date_input(
+                        "To",
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="tm_end_date",
+                        format="DD/MM/YYYY"
+                    )
+
+                    # Document Type Filter
+                    st.markdown("#### 📑 Document Type")
+                    doc_type = st.multiselect(
+                        "Select document types",
+                        ["Report", "Response"],
+                        default=["Report", "Response"],
+                        key="tm_doc_type"
+                    )
+
+                    # Coroner Area Filter
+                    st.markdown("#### 🏛️ Coroner Areas")
+                    coroner_areas = sorted(st.session_state.current_data['coroner_area'].dropna().unique())
+                    selected_areas = st.multiselect(
+                        "Select coroner areas",
+                        options=coroner_areas,
+                        key="tm_areas"
+                    )
+
+                    # Categories Filter
+                    st.markdown("#### 🏷️ Categories")
+                    all_categories = set()
+                    for cats in st.session_state.current_data['categories'].dropna():
+                        if isinstance(cats, list):
+                            all_categories.update(cats)
+                    selected_categories = st.multiselect(
+                        "Select categories",
+                        options=sorted(all_categories),
+                        key="tm_categories"
+                    )
+
+                    # Model Parameters
+                    st.markdown("### ⚙️ Model Parameters")
+                    num_topics = st.slider(
+                        "Number of Topics",
+                        min_value=2,
+                        max_value=20,
+                        value=8,
+                        help="Select number of topics to extract"
+                    )
+                    
+                    max_features = st.slider(
+                        "Maximum Features",
+                        min_value=500,
+                        max_value=5000,
+                        value=2000,
+                        step=500,
+                        help="Maximum number of terms to include"
+                    )
+
+                    with st.expander("Advanced Settings"):
+                        min_df = st.slider(
+                            "Minimum Document Frequency",
+                            min_value=1,
+                            max_value=10,
+                            value=2,
+                            help="Minimum number of documents a term must appear in"
+                        )
+
+                    # Reset Filters Button
+                    if st.button("🔄 Reset Filters"):
+                        for key in st.session_state:
+                            if key.startswith('tm_'):
+                                del st.session_state[key]
+                        st.rerun()
+
+                with content_col:
+                    # Apply filters to create filtered dataset
+                    filtered_df = st.session_state.current_data.copy()
+
+                    # Date filter
+                    if start_date and end_date:
+                        filtered_df = filtered_df[
+                            (filtered_df['date_of_report'].dt.date >= start_date) &
+                            (filtered_df['date_of_report'].dt.date <= end_date)
+                        ]
+
+                    # Document type filter
+                    if doc_type:
+                        if "Report" in doc_type and "Response" in doc_type:
+                            pass  # Keep all documents
+                        elif "Report" in doc_type:
+                            filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
+                        elif "Response" in doc_type:
+                            filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
+
+                    # Coroner area filter
+                    if selected_areas:
+                        filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
+
+                    # Categories filter
+                    if selected_categories:
+                        filtered_df = filtered_df[
+                            filtered_df['categories'].apply(
+                                lambda x: bool(x) and any(cat in x for cat in selected_categories)
+                            )
+                        ]
+
+                    # Show active filters
+                    active_filters = []
+                    if start_date != min_date or end_date != max_date:
+                        active_filters.append(f"📅 Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
+                    if doc_type and doc_type != ["Report", "Response"]:
+                        active_filters.append(f"📑 Document Types: {', '.join(doc_type)}")
+                    if selected_areas:
+                        active_filters.append(f"🏛️ Areas: {len(selected_areas)} selected")
+                    if selected_categories:
+                        active_filters.append(f"🏷️ Categories: {len(selected_categories)} selected")
+
+                    if active_filters:
+                        st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
+
+                    # Show number of documents after filtering
+                    st.markdown(f"### 📊 Analysis Set: {len(filtered_df)} documents")
+
+                    # Run topic modeling button and results
+                    if st.button("🔍 Extract Topics", type="primary"):
+                        render_topic_modeling_results(filtered_df, num_topics, max_features, min_df)
+
             else:
                 st.error(message)
         except Exception as e:
@@ -3014,6 +3160,73 @@ def main():
         </div>""",
         unsafe_allow_html=True
     )
+
+def render_topic_modeling_results(filtered_df, num_topics, max_features, min_df):
+    """Render topic modeling results."""
+    if len(filtered_df) < 2:
+        st.error("Not enough documents after filtering. Please adjust your filters.")
+        return
+
+    try:
+        with st.spinner("Analyzing document topics..."):
+            # Extract topics
+            lda_model, vectorizer, doc_topics, vis_data = extract_topics_lda(
+                filtered_df,
+                num_topics=num_topics,
+                max_features=max_features
+            )
+
+            # Create visualization tabs
+            overview_tab, docs_tab, vis_tab = st.tabs([
+                "Topic Overview",
+                "Document Analysis",
+                "Interactive Visualization"
+            ])
+
+            with overview_tab:
+                topics_data = format_topic_data(
+                    lda_model, vectorizer, doc_topics, filtered_df
+                )
+                display_topic_analysis(topics_data)
+
+            with docs_tab:
+                st.markdown("### Document-Topic Distribution")
+                
+                # Create document-topic heatmap
+                doc_labels = [f"Doc {i+1}" for i in range(len(filtered_df))]
+                topic_labels = [f"Topic {i+1}" for i in range(num_topics)]
+                
+                fig = px.imshow(
+                    doc_topics,
+                    labels=dict(x="Topics", y="Documents", color="Weight"),
+                    x=topic_labels,
+                    y=doc_labels,
+                    aspect="auto"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Show document assignments
+                assignments = pd.DataFrame({
+                    'Document': filtered_df['Title'].values,
+                    'Primary Topic': [f"Topic {i+1}" for i in doc_topics.argmax(axis=1)],
+                    'Confidence': doc_topics.max(axis=1)
+                })
+                st.dataframe(
+                    assignments.sort_values('Confidence', ascending=False),
+                    hide_index=True
+                )
+
+            with vis_tab:
+                render_topic_visualization(vis_data)
+
+            # Add export options
+            st.markdown("### Export Results")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            export_topic_analysis(topics_data, filtered_df, timestamp)
+
+    except Exception as e:
+        st.error(f"Error in topic modeling: {str(e)}")
+        logging.error(f"Topic modeling error: {e}", exc_info=True)
 
 if __name__ == "__main__":
     main()
