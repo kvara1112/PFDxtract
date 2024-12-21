@@ -1273,69 +1273,67 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis with filtering options."""
     st.header("Topic Modeling Analysis")
 
-    # Get date range for the data
-    min_date = data['date_of_report'].min().date()
-    max_date = data['date_of_report'].max().date()
-    
-    # Create two columns for the layout
-    filter_col, param_col = st.columns([1, 1])
-    
-    with filter_col:
-        st.subheader("Filtering Options")
+    # Create two columns layout - one for filters and one for results
+    col1, col2 = st.columns([2, 5])
+
+    with col1:
+        st.markdown("### Filters")
         
         # Date Range Filter
-        st.markdown("##### 📅 Date Range")
-        date_col1, date_col2 = st.columns(2)
-        with date_col1:
-            start_date = st.date_input(
-                "From",
-                value=min_date,
-                min_value=min_date,
-                max_value=max_date,
-                key="tm_start_date",
-                format="DD/MM/YYYY"
-            )
-        with date_col2:
-            end_date = st.date_input(
-                "To",
-                value=max_date,
-                min_value=min_date,
-                max_value=max_date,
-                key="tm_end_date",
-                format="DD/MM/YYYY"
-            )
+        st.markdown("#### 📅 Date Range")
+        min_date = data['date_of_report'].min().date()
+        max_date = data['date_of_report'].max().date()
+        
+        start_date = st.date_input(
+            "From",
+            value=min_date,
+            min_value=min_date,
+            max_value=max_date,
+            key="tm_start_date",
+            format="DD/MM/YYYY"
+        )
+        
+        end_date = st.date_input(
+            "To",
+            value=max_date,
+            min_value=min_date,
+            max_value=max_date,
+            key="tm_end_date",
+            format="DD/MM/YYYY"
+        )
 
         # Document Type Filter
+        st.markdown("#### 📑 Document Type")
         doc_type = st.multiselect(
-            "Document Type",
+            "Select document types",
             ["Report", "Response"],
             default=["Report", "Response"],
-            key="tm_doc_type",
-            help="Filter by document type"
+            key="tm_doc_type"
         )
 
         # Coroner Area Filter
+        st.markdown("#### 🏛️ Coroner Areas")
         coroner_areas = sorted(data['coroner_area'].dropna().unique())
         selected_areas = st.multiselect(
-            "Coroner Areas",
+            "Select coroner areas",
             options=coroner_areas,
             key="tm_areas"
         )
 
         # Categories Filter
+        st.markdown("#### 🏷️ Categories")
         all_categories = set()
         for cats in data['categories'].dropna():
             if isinstance(cats, list):
                 all_categories.update(cats)
         selected_categories = st.multiselect(
-            "Categories",
+            "Select categories",
             options=sorted(all_categories),
             key="tm_categories"
         )
 
-    with param_col:
-        st.subheader("Model Parameters")
-        
+        # Model Parameters
+        st.markdown("### ⚙️ Model Parameters")
         num_topics = st.slider(
             "Number of Topics",
             min_value=2,
@@ -1353,146 +1351,186 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             help="Maximum number of terms to include"
         )
         
-        with st.expander("Advanced Settings"):
-            min_df = st.slider(
-                "Minimum Document Frequency",
-                min_value=1,
-                max_value=10,
-                value=2,
-                help="Minimum number of documents a term must appear in"
-            )
+        min_df = st.slider(
+            "Minimum Document Frequency",
+            min_value=1,
+            max_value=10,
+            value=2,
+            help="Minimum number of documents a term must appear in"
+        )
 
-    # Apply filters to create filtered dataset
-    filtered_df = data.copy()
+        # Reset Filters Button
+        if st.button("🔄 Reset Filters"):
+            for key in st.session_state:
+                if key.startswith('tm_'):
+                    del st.session_state[key]
+            st.rerun()
 
-    # Date filter
-    if start_date and end_date:
-        filtered_df = filtered_df[
-            (filtered_df['date_of_report'].dt.date >= start_date) &
-            (filtered_df['date_of_report'].dt.date <= end_date)
-        ]
+    # Main content area
+    with col2:
+        # Apply filters to create filtered dataset
+        filtered_df = data.copy()
 
-    # Document type filter
-    if doc_type:
-        if "Report" in doc_type and "Response" in doc_type:
-            pass  # Keep all documents
-        elif "Report" in doc_type:
-            filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
-        elif "Response" in doc_type:
-            filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
+        # Date filter
+        if start_date and end_date:
+            filtered_df = filtered_df[
+                (filtered_df['date_of_report'].dt.date >= start_date) &
+                (filtered_df['date_of_report'].dt.date <= end_date)
+            ]
 
-    # Coroner area filter
-    if selected_areas:
-        filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
+        # Document type filter
+        if doc_type:
+            if "Report" in doc_type and "Response" in doc_type:
+                pass  # Keep all documents
+            elif "Report" in doc_type:
+                filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
+            elif "Response" in doc_type:
+                filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
 
-    # Categories filter
-    if selected_categories:
-        filtered_df = filtered_df[
-            filtered_df['categories'].apply(
-                lambda x: bool(x) and any(cat in x for cat in selected_categories)
-            )
-        ]
+        # Coroner area filter
+        if selected_areas:
+            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
 
-    # Show number of documents after filtering
-    st.info(f"Analysis will be performed on {len(filtered_df)} documents after filtering")
-
-    # Run topic modeling
-    if st.button("Extract Topics", type="primary"):
-        if len(filtered_df) < 2:
-            st.error("Not enough documents after filtering. Please adjust your filters.")
-            return
-
-        try:
-            with st.spinner("Analyzing document topics..."):
-                # Extract topics using existing function
-                lda_model, vectorizer, doc_topics, vis_data = extract_topics_lda(
-                    filtered_df,
-                    num_topics=num_topics,
-                    max_features=max_features
+        # Categories filter
+        if selected_categories:
+            filtered_df = filtered_df[
+                filtered_df['categories'].apply(
+                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
                 )
+            ]
 
-                # Create visualization tabs
-                overview_tab, docs_tab, vis_tab = st.tabs([
-                    "Topic Overview",
-                    "Document Analysis",
-                    "Interactive Visualization"
-                ])
+        # Show active filters
+        active_filters = []
+        if start_date != min_date or end_date != max_date:
+            active_filters.append(f"📅 Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
+        if doc_type and doc_type != ["Report", "Response"]:
+            active_filters.append(f"📑 Document Types: {', '.join(doc_type)}")
+        if selected_areas:
+            active_filters.append(f"🏛️ Areas: {len(selected_areas)} selected")
+        if selected_categories:
+            active_filters.append(f"🏷️ Categories: {len(selected_categories)} selected")
 
-                with overview_tab:
-                    topics_data = format_topic_data(
-                        lda_model, vectorizer, doc_topics, filtered_df
-                    )
-                    display_topic_analysis(topics_data)
+        if active_filters:
+            st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
 
-                with docs_tab:
-                    st.markdown("### Document-Topic Distribution")
-                    
-                    # Create document-topic heatmap
-                    doc_labels = [f"Doc {i+1}" for i in range(len(filtered_df))]
-                    topic_labels = [f"Topic {i+1}" for i in range(num_topics)]
-                    
-                    fig = px.imshow(
-                        doc_topics,
-                        labels=dict(x="Topics", y="Documents", color="Weight"),
-                        x=topic_labels,
-                        y=doc_labels,
-                        aspect="auto"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                    
-                    # Show document assignments
-                    assignments = pd.DataFrame({
-                        'Document': filtered_df['Title'].values,
-                        'Primary Topic': [f"Topic {i+1}" for i in doc_topics.argmax(axis=1)],
-                        'Confidence': doc_topics.max(axis=1)
-                    })
-                    st.dataframe(
-                        assignments.sort_values('Confidence', ascending=False),
-                        hide_index=True
+        # Show number of documents after filtering
+        st.markdown(f"### 📊 Analysis Set: {len(filtered_df)} documents")
+
+        # Run topic modeling
+        if st.button("🔍 Extract Topics", type="primary"):
+            if len(filtered_df) < 2:
+                st.error("Not enough documents after filtering. Please adjust your filters.")
+                return
+
+            try:
+                with st.spinner("Analyzing document topics..."):
+                    # Extract topics
+                    lda_model, vectorizer, doc_topics, vis_data = extract_topics_lda(
+                        filtered_df,
+                        num_topics=num_topics,
+                        max_features=max_features
                     )
 
-                with vis_tab:
-                    render_topic_visualization(vis_data)
-
-                # Add export options
-                st.markdown("### Export Results")
-                
-                # Prepare export data
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    # Topics overview
-                    topics_df = pd.DataFrame([
-                        {
-                            'Topic': f"Topic {i+1}",
-                            'Top Words': ', '.join(get_top_words(lda_model, vectorizer.get_feature_names_out(), i)),
-                            'Prevalence': (doc_topics[:, i] > 0.2).mean() * 100
-                        }
-                        for i in range(num_topics)
+                    # Create visualization tabs
+                    overview_tab, docs_tab, vis_tab = st.tabs([
+                        "Topic Overview",
+                        "Document Analysis",
+                        "Interactive Visualization"
                     ])
-                    topics_df.to_excel(writer, sheet_name='Topics Overview', index=False)
+
+                    with overview_tab:
+                        topics_data = format_topic_data(
+                            lda_model, vectorizer, doc_topics, filtered_df
+                        )
+                        display_topic_analysis(topics_data)
+
+                    with docs_tab:
+                        st.markdown("### Document-Topic Distribution")
+                        
+                        # Create document-topic heatmap
+                        doc_labels = [f"Doc {i+1}" for i in range(len(filtered_df))]
+                        topic_labels = [f"Topic {i+1}" for i in range(num_topics)]
+                        
+                        fig = px.imshow(
+                            doc_topics,
+                            labels=dict(x="Topics", y="Documents", color="Weight"),
+                            x=topic_labels,
+                            y=doc_labels,
+                            aspect="auto"
+                        )
+                        st.plotly_chart(fig, use_container_width=True)
+                        
+                        # Show document assignments
+                        assignments = pd.DataFrame({
+                            'Document': filtered_df['Title'].values,
+                            'Primary Topic': [f"Topic {i+1}" for i in doc_topics.argmax(axis=1)],
+                            'Confidence': doc_topics.max(axis=1)
+                        })
+                        st.dataframe(
+                            assignments.sort_values('Confidence', ascending=False),
+                            hide_index=True
+                        )
+
+                    with vis_tab:
+                        render_topic_visualization(vis_data)
+
+                    # Add export options
+                    st.markdown("### Export Results")
                     
-                    # Document-topic distributions
-                    doc_topics_df = pd.DataFrame(
-                        doc_topics,
-                        columns=[f"Topic {i+1}" for i in range(num_topics)]
-                    )
-                    doc_topics_df['Document'] = filtered_df['Title'].values
-                    doc_topics_df.set_index('Document').to_excel(
-                        writer,
-                        sheet_name='Document-Topic Distribution'
+                    # Prepare export data with filter information
+                    output = io.BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        # Filter information
+                        filter_df = pd.DataFrame({
+                            'Filter': ['Date Range', 'Document Types', 'Coroner Areas', 'Categories'],
+                            'Value': [
+                                f"{start_date} to {end_date}",
+                                ', '.join(doc_type),
+                                ', '.join(selected_areas) if selected_areas else 'All',
+                                ', '.join(selected_categories) if selected_categories else 'All'
+                            ]
+                        })
+                        filter_df.to_excel(writer, sheet_name='Filters', index=False)
+                        
+                        # Topics overview
+                        topics_df = pd.DataFrame([
+                            {
+                                'Topic': f"Topic {i+1}",
+                                'Top Words': ', '.join(get_top_words(lda_model, vectorizer.get_feature_names_out(), i)),
+                                'Prevalence': (doc_topics[:, i] > 0.2).mean() * 100
+                            }
+                            for i in range(num_topics)
+                        ])
+                        topics_df.to_excel(writer, sheet_name='Topics Overview', index=False)
+                        
+                        # Document-topic distributions
+                        doc_topics_df = pd.DataFrame(
+                            doc_topics,
+                            columns=[f"Topic {i+1}" for i in range(num_topics)]
+                        )
+                        doc_topics_df['Document'] = filtered_df['Title'].values
+                        doc_topics_df.set_index('Document').to_excel(
+                            writer,
+                            sheet_name='Document-Topic Distribution'
+                        )
+
+                    # Generate timestamp for filename
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    
+                    # Download button
+                    st.download_button(
+                        "📥 Download Analysis (Excel)",
+                        output.getvalue(),
+                        f"topic_analysis_filtered_{timestamp}.xlsx",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
 
-                # Download button
-                st.download_button(
-                    "📥 Download Analysis (Excel)",
-                    output.getvalue(),
-                    "topic_analysis_filtered.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+            except Exception as e:
+                st.error(f"Error in topic modeling: {str(e)}")
+                logging.error(f"Topic modeling error: {e}", exc_info=True)
 
-        except Exception as e:
-            st.error(f"Error in topic modeling: {str(e)}")
-            logging.error(f"Topic modeling error: {e}", exc_info=True)
+
+
 
 def get_top_words(model, feature_names, topic_idx, n_words=10):
     """Get top words for a topic."""
