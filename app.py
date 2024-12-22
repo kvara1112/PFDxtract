@@ -2463,7 +2463,8 @@ def extract_advanced_topics(
     num_topics: int = 5, 
     max_features: int = 1000, 
     min_df: int = 2, 
-    n_iterations: int = 20
+    n_iterations: int = 20,
+    min_similarity: float = 0.9
 ) -> Tuple[LatentDirichletAllocation, CountVectorizer, np.ndarray]:
     """
     Advanced topic modeling with comprehensive preprocessing and error handling
@@ -2474,6 +2475,7 @@ def extract_advanced_topics(
         max_features (int): Maximum number of features to use
         min_df (int): Minimum document frequency for terms
         n_iterations (int): Maximum number of iterations for LDA
+        min_similarity (float): Minimum similarity threshold for the word similarity network
     
     Returns:
         Tuple containing LDA model, vectorizer, and document-topic distribution
@@ -2481,7 +2483,7 @@ def extract_advanced_topics(
     try:
         # Extensive logging
         logging.info(f"Starting topic modeling with {len(data)} documents")
-        logging.info(f"Parameters: topics={num_topics}, max_features={max_features}, min_df={min_df}")
+        logging.info(f"Parameters: topics={num_topics}, max_features={max_features}, min_df={min_df}, min_similarity={min_similarity}")
 
         # Validate input data
         if data is None or len(data) == 0:
