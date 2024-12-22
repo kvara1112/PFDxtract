@@ -1601,8 +1601,6 @@ def format_topics_for_display(topic_insights):
         } for doc in topic['representativeDocs']]
     } for topic in topic_insights]
 
-
-
 def export_topic_analysis(topic_insights, data):
     """Export topic analysis to Excel"""
     output = io.BytesIO()
@@ -1714,51 +1712,60 @@ def render_file_upload():
 
 def initialize_session_state():
     """Initialize all required session state variables"""
+    # Initialize basic state variables if they don't exist
     if not hasattr(st.session_state, 'initialized'):
-        # Initialize basic state variables if they don't exist
-        if not hasattr(st.session_state, 'init_done'):
-            st.session_state.init_done = True
-            st.session_state['search_keyword_default'] = "report"
-            st.session_state['category_default'] = ""
-            st.session_state['order_default'] = "relevance"
-            st.session_state['max_pages_default'] = 0
+        # Clear all existing session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
         
-        # Set basic session state variables if not present
-        if not hasattr(st.session_state, 'data_source'):
-            st.session_state.data_source = None
-        if not hasattr(st.session_state, 'current_data'):
-            st.session_state.current_data = None
-        if not hasattr(st.session_state, 'scraped_data'):
-            st.session_state.scraped_data = None
-        if not hasattr(st.session_state, 'uploaded_data'):
-            st.session_state.uploaded_data = None
-        if not hasattr(st.session_state, 'cleanup_done'):
-            st.session_state.cleanup_done = False
-        if not hasattr(st.session_state, 'last_scrape_time'):
-            st.session_state.last_scrape_time = None
-        if not hasattr(st.session_state, 'last_upload_time'):
-            st.session_state.last_upload_time = None
-        if not hasattr(st.session_state, 'analysis_filters'):
-            st.session_state.analysis_filters = {
-                'date_range': None,
-                'selected_categories': None,
-                'selected_areas': None
-            }
-            
-        # Add topic modeling specific states if not present
-        if not hasattr(st.session_state, 'topic_results'):
-            st.session_state.topic_results = None
-        if not hasattr(st.session_state, 'filtered_data'):
-            st.session_state.filtered_data = None
-        if not hasattr(st.session_state, 'topic_filters'):
-            st.session_state.topic_filters = {
-                'coroner_names': [],
-                'coroner_areas': [],
-                'categories': [],
-                'date_range': None
-            }
-        
+        # Set new session state variables
+        st.session_state.data_source = None
+        st.session_state.current_data = None
+        st.session_state.scraped_data = None
+        st.session_state.uploaded_data = None
+        st.session_state.topic_model = None
+        st.session_state.cleanup_done = False
+        st.session_state.last_scrape_time = None
+        st.session_state.last_upload_time = None
+        st.session_state.analysis_filters = {
+            'date_range': None,
+            'selected_categories': None,
+            'selected_areas': None
+        }
+        st.session_state.topic_model_settings = {
+            'num_topics': 5,
+            'max_features': 1000,
+            'similarity_threshold': 0.3
+        }
         st.session_state.initialized = True
+    
+    # Perform PDF cleanup if not done
+    if not st.session_state.cleanup_done:
+        try:
+            pdf_dir = 'pdfs'
+            os.makedirs(pdf_dir, exist_ok=True)
+            
+            current_time = time.time()
+            cleanup_count = 0
+            
+            for file in os.listdir(pdf_dir):
+                file_path = os.path.join(pdf_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        if os.stat(file_path).st_mtime < current_time - 86400:
+                            os.remove(file_path)
+                            cleanup_count += 1
+                except Exception as e:
+                    logging.warning(f"Error cleaning up file {file_path}: {e}")
+                    continue
+            
+            if cleanup_count > 0:
+                logging.info(f"Cleaned up {cleanup_count} old PDF files")
+        except Exception as e:
+            logging.error(f"Error during PDF cleanup: {e}")
+        finally:
+            st.session_state.cleanup_done = True
+            
 def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
     """
     Validate data for different purposes
@@ -2447,7 +2454,7 @@ def extract_advanced_topics(data: pd.DataFrame, num_topics: int = 5, max_feature
         # Verify we have enough features
         if dtm.shape[1] < num_topics:
             num_topics = max(2, dtm.shape[1] - 1)  # Adjust number of topics if necessary
-            logging.warning(f"Adjusted number of topics to {num_topics} due to limited vocabulary")
+            st.warning(f"Adjusted number of topics to {num_topics} due to limited vocabulary")
         
         # Configure and fit LDA model
         lda_model = LatentDirichletAllocation(
@@ -2612,29 +2619,7 @@ def display_topic_analysis(topics_data):
         st.markdown("---")
 
 
-def display_topic_modeling_results(lda_model, vectorizer, doc_topics, filtered_df, vis_data):
-    """Display topic modeling results with tabs"""
-    topic_tab, docs_tab, network_tab = st.tabs([
-        "Topic Overview",
-        "Document Analysis",
-        "Topic Network"
-    ])
-    
-    with topic_tab:
-        st.markdown("### Topics Overview")
-        display_topic_overview(lda_model, vectorizer.get_feature_names_out(), doc_topics, filtered_df)
-    
-    with docs_tab:
-        st.markdown("### Document-Topic Distribution")
-        display_document_analysis(doc_topics, filtered_df)
-    
-    with network_tab:
-        st.markdown("### Topic Similarity Network")
-        display_topic_network(lda_model, vectorizer.get_feature_names_out())
 
-    # Add export options
-    export_topic_modeling_results(lda_model, vectorizer, doc_topics, filtered_df)
-    
 def format_topic_data(lda_model, vectorizer, doc_topics, df):
     """Format topic modeling results for display"""
     try:
@@ -2728,102 +2713,13 @@ def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None
     components.html(html_string, width=1300, height=800)
 
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
-    """Enhanced topic modeling analysis with filters and state persistence"""
+    """Enhanced topic modeling analysis for PFD reports."""
     st.header("Topic Modeling Analysis")
     
-    # Initialize filters in session state if not present
-    if 'topic_filters' not in st.session_state:
-        st.session_state.topic_filters = {
-            'coroner_names': [],
-            'coroner_areas': [],
-            'categories': [],
-            'date_range': None
-        }
-    
-    # Create two columns: filters and main content
-    filter_col, main_col = st.columns([1, 3])
-    
-    # Filters column
-    with filter_col:
-        st.subheader("Filters")
+    # Sidebar controls
+    with st.sidebar:
+        st.header("Model Parameters")
         
-        # Date Range Filter
-        st.markdown("##### Date Range")
-        if 'date_of_report' in data.columns and len(data) > 0:
-            min_date = data['date_of_report'].min().date()
-            max_date = data['date_of_report'].max().date()
-        else:
-            min_date = max_date = datetime.now().date()
-            
-        # Get default dates
-        default_start = min_date
-        default_end = max_date
-        if st.session_state.topic_filters.get('date_range'):
-            default_start = st.session_state.topic_filters['date_range'].get('start', min_date)
-            default_end = st.session_state.topic_filters['date_range'].get('end', max_date)
-        
-        start_date = st.date_input(
-            "From",
-            value=default_start,
-            min_value=min_date,
-            max_value=max_date,
-            key="tm_start_date"
-        )
-        
-        end_date = st.date_input(
-            "To",
-            value=default_end,
-            min_value=min_date,
-            max_value=max_date,
-            key="tm_end_date"
-        )
-        
-        # Coroner Names Filter
-        st.markdown("##### Coroner Names")
-        coroner_names = sorted(data['coroner_name'].dropna().unique())
-        selected_coroners = st.multiselect(
-            "Select coroners",
-            options=coroner_names,
-            default=st.session_state.topic_filters.get('coroner_names', []),
-            key="tm_coroner_names"
-        )
-        
-        # Coroner Areas Filter
-        st.markdown("##### Coroner Areas")
-        coroner_areas = sorted(data['coroner_area'].dropna().unique())
-        selected_areas = st.multiselect(
-            "Select areas",
-            options=coroner_areas,
-            default=st.session_state.topic_filters.get('coroner_areas', []),
-            key="tm_areas"
-        )
-        
-        # Categories Filter
-        st.markdown("##### Categories")
-        all_categories = set()
-        for cats in data['categories'].dropna():
-            if isinstance(cats, list):
-                all_categories.update(cats)
-        selected_categories = st.multiselect(
-            "Select categories",
-            options=sorted(all_categories),
-            default=st.session_state.topic_filters.get('categories', []),
-            key="tm_categories"
-        )
-        
-        # Reset Filters button
-        if st.button("Reset Filters"):
-            st.session_state.topic_filters = {
-                'coroner_names': [],
-                'coroner_areas': [],
-                'categories': [],
-                'date_range': None
-            }
-            st.rerun()
-        
-        # Model Parameters
-        st.markdown("---")
-        st.markdown("##### Model Parameters")
         num_topics = st.slider(
             "Number of Topics",
             min_value=2,
@@ -2841,118 +2737,231 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             help="Maximum number of terms to include"
         )
         
-        min_df = st.slider(
-            "Minimum Document Frequency",
-            min_value=1,
-            max_value=10,
-            value=2,
-            help="Minimum number of documents a term must appear in"
-        )
-        
-        # Update filters in session state
-        st.session_state.topic_filters = {
-            'coroner_names': selected_coroners,
-            'coroner_areas': selected_areas,
-            'categories': selected_categories,
-            'date_range': {'start': start_date, 'end': end_date}
-        }
+        with st.expander("Advanced Settings"):
+            min_df = st.slider(
+                "Minimum Document Frequency",
+                min_value=1,
+                max_value=10,
+                value=2,
+                help="Minimum number of documents a term must appear in"
+            )
     
-    # Main content column
-    with main_col:
-        # Apply filters to create filtered dataset
-        filtered_df = data.copy()
-        
-        # Apply date filter
-        if start_date and end_date and 'date_of_report' in filtered_df.columns:
-            filtered_df = filtered_df[
-                (filtered_df['date_of_report'].dt.date >= start_date) &
-                (filtered_df['date_of_report'].dt.date <= end_date)
-            ]
-        
-        # Apply coroner name filter
-        if selected_coroners:
-            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
-        
-        # Apply coroner area filter
-        if selected_areas:
-            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
-        
-        # Apply categories filter
-        if selected_categories:
-            filtered_df = filtered_df[
-                filtered_df['categories'].apply(
-                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
+    # Run topic modeling
+    if st.button("Extract Topics", type="primary"):
+        try:
+            with st.spinner("Analyzing document topics..."):
+                # Prepare documents
+                valid_data = data[data['Content'].notna()].copy()
+                
+                # Combine text from content and PDFs
+                documents = []
+                for _, row in valid_data.iterrows():
+                    doc_text = combine_document_text(row)
+                    if doc_text.strip():
+                        cleaned_text = clean_text_for_modeling(doc_text)
+                        if cleaned_text.strip():
+                            documents.append(cleaned_text)
+                
+                if not documents:
+                    st.error("No valid documents found for analysis")
+                    return
+                
+                # Create document-term matrix
+                vectorizer = CountVectorizer(
+                    max_features=max_features,
+                    min_df=min_df,
+                    stop_words='english'
                 )
-            ]
-        
-        # Store filtered data in session state
-        st.session_state.filtered_data = filtered_df
-        
-        # Show number of documents after filtering
-        st.write(f"Analysis will be performed on {len(filtered_df)} documents")
-        
-        # Show active filters
-        active_filters = []
-        if start_date != min_date or end_date != max_date:
-            active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
-        if selected_coroners:
-            active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
-        if selected_areas:
-            active_filters.append(f"Areas: {', '.join(selected_areas)}")
-        if selected_categories:
-            active_filters.append(f"Categories: {', '.join(selected_categories)}")
-
-        if active_filters:
-            st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
-        
-        # Run topic modeling
-        if st.button("Extract Topics", type="primary"):
-            try:
-                with st.spinner("Analyzing document topics..."):
-                    # Use filtered data for topic modeling
-                    model_results = extract_advanced_topics(
-                        filtered_df,
-                        num_topics=num_topics,
-                        max_features=max_features,
-                        min_df=min_df
+                
+                try:
+                    dtm = vectorizer.fit_transform(documents)
+                except ValueError as e:
+                    st.error(f"Error creating document-term matrix: {str(e)}")
+                    return
+                
+                feature_names = vectorizer.get_feature_names_out()
+                
+                # Train LDA model
+                lda = LatentDirichletAllocation(
+                    n_components=num_topics,
+                    random_state=42,
+                    n_jobs=-1
+                )
+                
+                doc_topics = lda.fit_transform(dtm)
+                
+                # Store results
+                st.session_state.topic_results = {
+                    'model': lda,
+                    'vectorizer': vectorizer,
+                    'doc_topics': doc_topics,
+                    'feature_names': feature_names,
+                    'documents': documents,
+                    'valid_indices': valid_data.index.tolist()
+                }
+                
+                # Create visualization tabs
+                topic_tab, docs_tab, network_tab = st.tabs([
+                    "Topic Overview",
+                    "Document Analysis",
+                    "Topic Network"
+                ])
+                
+                with topic_tab:
+                    st.markdown("### Topics Overview")
+                    
+                    # Display topics
+                    for topic_idx in range(num_topics):
+                        # Get top words for topic
+                        top_words = get_top_words(lda, feature_names, topic_idx)
+                        
+                        # Calculate topic prevalence
+                        topic_prev = (doc_topics[:, topic_idx] > 0.2).mean() * 100
+                        
+                        with st.expander(f"Topic {topic_idx + 1}: {' - '.join(top_words[:3])}"):
+                            col1, col2 = st.columns([2, 1])
+                            
+                            with col1:
+                                # Show word distribution
+                                word_weights = lda.components_[topic_idx]
+                                top_word_indices = word_weights.argsort()[:-10-1:-1]
+                                
+                                words_df = pd.DataFrame({
+                                    'Word': [feature_names[i] for i in top_word_indices],
+                                    'Weight': word_weights[top_word_indices]
+                                })
+                                
+                                fig = px.bar(
+                                    words_df,
+                                    x='Weight',
+                                    y='Word',
+                                    orientation='h',
+                                    title='Top Terms'
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+                            
+                            with col2:
+                                st.metric(
+                                    "Topic Prevalence",
+                                    f"{topic_prev:.1f}%"
+                                )
+                                
+                                # Get representative docs
+                                top_doc_indices = doc_topics[:, topic_idx].argsort()[-3:][::-1]
+                                st.markdown("#### Representative Documents")
+                                
+                                for doc_idx in top_doc_indices:
+                                    actual_idx = valid_data.index[doc_idx]
+                                    doc_title = valid_data.loc[actual_idx, 'Title']
+                                    doc_score = doc_topics[doc_idx, topic_idx]
+                                    st.markdown(f"- {doc_title} ({doc_score:.1%})")
+                
+                with docs_tab:
+                    st.markdown("### Document-Topic Distribution")
+                    
+                    # Create heatmap
+                    doc_labels = [f"Doc {i+1}" for i in range(len(documents))]
+                    topic_labels = [f"Topic {i+1}" for i in range(num_topics)]
+                    
+                    fig = px.imshow(
+                        doc_topics,
+                        labels=dict(x="Topics", y="Documents", color="Weight"),
+                        x=topic_labels,
+                        y=doc_labels,
+                        aspect="auto"
                     )
                     
-                    if model_results:
-                        lda_model, vectorizer, doc_topics, vis_data = model_results
-                        
-                        # Store results in session state
-                        st.session_state.topic_results = {
-                            'model': lda_model,
-                            'vectorizer': vectorizer,
-                            'doc_topics': doc_topics,
-                            'vis_data': vis_data,
-                            'filtered_data': filtered_df
-                        }
-                        
-                        # Display results
-                        display_topic_modeling_results(
-                            lda_model,
-                            vectorizer,
-                            doc_topics,
-                            filtered_df,
-                            vis_data
-                        )
+                    st.plotly_chart(fig, use_container_width=True)
                     
-            except Exception as e:
-                st.error(f"Error during topic modeling: {str(e)}")
-                logging.error(f"Topic modeling error: {e}", exc_info=True)
+                    # Show document assignments
+                    assignments = pd.DataFrame({
+                        'Document': valid_data['Title'].values,
+                        'Primary Topic': [f"Topic {i+1}" for i in doc_topics.argmax(axis=1)],
+                        'Confidence': doc_topics.max(axis=1)
+                    })
+                    
+                    st.dataframe(
+                        assignments.sort_values('Confidence', ascending=False),
+                        hide_index=True
+                    )
+                
+                with network_tab:
+                    st.markdown("### Topic Similarity Network")
+                    
+                    # Calculate topic similarities
+                    topic_sims = cosine_similarity(lda.components_)
+                    
+                    # Create network graph
+                    G = nx.Graph()
+                    
+                    # Add nodes
+                    for i in range(num_topics):
+                        top_words = get_top_words(lda, feature_names, i)
+                        G.add_node(i, name=f"Topic {i+1}\n{' - '.join(top_words[:3])}")
+                    
+                    # Add edges
+                    for i in range(num_topics):
+                        for j in range(i+1, num_topics):
+                            if topic_sims[i,j] > 0.2:  # Similarity threshold
+                                G.add_edge(i, j, weight=float(topic_sims[i,j]))
+                    
+                    # Create network visualization
+                    pos = nx.spring_layout(G)
+                    
+                    # Create plotly figure
+                    edge_trace = create_edge_trace(G, pos)
+                    node_trace = create_node_trace(G, pos)
+                    
+                    fig = go.Figure(
+                        data=[edge_trace, node_trace],
+                        layout=go.Layout(
+                            showlegend=False,
+                            hovermode='closest',
+                            margin=dict(b=20,l=5,r=5,t=40)
+                        )
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                
+                # Add export options
+                st.markdown("### Export Results")
+                
+                # Prepare export data
+                output = io.BytesIO()
+                with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                    # Topics overview
+                    topics_df = pd.DataFrame([
+                        {
+                            'Topic': f"Topic {i+1}",
+                            'Top Words': ', '.join(get_top_words(lda, feature_names, i)),
+                            'Prevalence': (doc_topics[:, i] > 0.2).mean() * 100
+                        }
+                        for i in range(num_topics)
+                    ])
+                    topics_df.to_excel(writer, sheet_name='Topics Overview', index=False)
+                    
+                    # Document-topic distributions
+                    doc_topics_df = pd.DataFrame(
+                        doc_topics,
+                        columns=[f"Topic {i+1}" for i in range(num_topics)]
+                    )
+                    doc_topics_df['Document'] = valid_data['Title'].values
+                    doc_topics_df.set_index('Document').to_excel(
+                        writer,
+                        sheet_name='Document-Topic Distribution'
+                    )
+                
+                # Download button
+                st.download_button(
+                    "📥 Download Analysis (Excel)",
+                    output.getvalue(),
+                    "topic_analysis.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
         
-        # Display previous results if they exist
-        elif hasattr(st.session_state, 'topic_results') and st.session_state.topic_results is not None:
-            results = st.session_state.topic_results
-            display_topic_modeling_results(
-                results['model'],
-                results['vectorizer'],
-                results['doc_topics'],
-                results['filtered_data'],
-                results['vis_data']
-            )
-
+        except Exception as e:
+            st.error(f"Error during topic modeling: {str(e)}")
+            logging.error(f"Topic modeling error: {e}", exc_info=True)
 
 
 def main():
