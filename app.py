@@ -2821,44 +2821,45 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary")
 
     if analyze_clicked:
-        with st.spinner("Initializing resources..."):
-            try:
-                # Initialize NLTK resources first
+        try:
+            # Initialize NLTK resources
+            with st.spinner("Initializing resources..."):
                 initialize_nltk()
-            with st.spinner("Performing semantic clustering analysis..."):
-                # Filter data
-                filtered_df = data.copy()
-                
-                # Apply date filter
+
+            # Filter data
+            filtered_df = data.copy()
+            
+            # Apply date filter
+            filtered_df = filtered_df[
+                (filtered_df['date_of_report'].dt.date >= start_date) &
+                (filtered_df['date_of_report'].dt.date <= end_date)
+            ]
+            
+            # Apply document type filter
+            if doc_type:
+                is_response_mask = filtered_df.apply(is_response, axis=1)
+                if "Report" in doc_type and "Response" in doc_type:
+                    pass  # Keep all documents
+                elif "Response" in doc_type:
+                    filtered_df = filtered_df[is_response_mask]
+                elif "Report" in doc_type:
+                    filtered_df = filtered_df[~is_response_mask]
+            
+            # Apply category filter
+            if categories:
                 filtered_df = filtered_df[
-                    (filtered_df['date_of_report'].dt.date >= start_date) &
-                    (filtered_df['date_of_report'].dt.date <= end_date)
+                    filtered_df['categories'].apply(
+                        lambda x: bool(x) and any(cat in x for cat in categories)
+                    )
                 ]
-                
-                # Apply document type filter
-                if doc_type:
-                    is_response_mask = filtered_df.apply(is_response, axis=1)
-                    if "Report" in doc_type and "Response" in doc_type:
-                        pass  # Keep all documents
-                    elif "Response" in doc_type:
-                        filtered_df = filtered_df[is_response_mask]
-                    elif "Report" in doc_type:
-                        filtered_df = filtered_df[~is_response_mask]
-                
-                # Apply category filter
-                if categories:
-                    filtered_df = filtered_df[
-                        filtered_df['categories'].apply(
-                            lambda x: bool(x) and any(cat in x for cat in categories)
-                        )
-                    ]
-                
-                # Validate filtered data
-                if len(filtered_df) < min_cluster_size:
-                    st.warning("Not enough documents match the selected filters.")
-                    return
-                
-                # Perform clustering
+            
+            # Validate filtered data
+            if len(filtered_df) < min_cluster_size:
+                st.warning("Not enough documents match the selected filters.")
+                return
+            
+            # Perform clustering
+            with st.spinner("Performing semantic clustering analysis..."):
                 cluster_results = perform_semantic_clustering(
                     filtered_df,
                     min_cluster_size=min_cluster_size,
@@ -2866,38 +2867,38 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     min_df=min_df,
                     max_df=max_df
                 )
-                
-                # Display results
-                display_cluster_analysis(cluster_results)
-                
-                # Add export options
-                st.markdown("---")
-                st.subheader("Export Results")
-                
-                # Prepare export data
-                export_data = {
-                    'metadata': {
-                        'total_documents': cluster_results['total_documents'],
-                        'number_of_clusters': cluster_results['n_clusters'],
-                        'silhouette_score': cluster_results['silhouette_score'],
-                        'parameters': {
-                            'min_cluster_size': min_cluster_size,
-                            'max_features': max_features,
-                            'min_df': min_df,
-                            'max_df': max_df
-                        }
-                    },
-                    'clusters': cluster_results['clusters']
-                }
-                
-                # Export as JSON
-                json_str = json.dumps(export_data, indent=2)
-                st.download_button(
-                    "📥 Download Analysis (JSON)",
-                    json_str,
-                    "cluster_analysis.json",
-                    "application/json"
-                )
+            
+            # Display results
+            display_cluster_analysis(cluster_results)
+            
+            # Add export options
+            st.markdown("---")
+            st.subheader("Export Results")
+            
+            # Prepare export data
+            export_data = {
+                'metadata': {
+                    'total_documents': cluster_results['total_documents'],
+                    'number_of_clusters': cluster_results['n_clusters'],
+                    'silhouette_score': cluster_results['silhouette_score'],
+                    'parameters': {
+                        'min_cluster_size': min_cluster_size,
+                        'max_features': max_features,
+                        'min_df': min_df,
+                        'max_df': max_df
+                    }
+                },
+                'clusters': cluster_results['clusters']
+            }
+            
+            # Export as JSON
+            json_str = json.dumps(export_data, indent=2)
+            st.download_button(
+                "📥 Download Analysis (JSON)",
+                json_str,
+                "cluster_analysis.json",
+                "application/json"
+            )
                 
         except Exception as e:
             st.error(f"Error during clustering analysis: {str(e)}")
