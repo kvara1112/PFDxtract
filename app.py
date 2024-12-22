@@ -2821,7 +2821,10 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary")
 
     if analyze_clicked:
-        try:
+        with st.spinner("Initializing resources..."):
+            try:
+                # Initialize NLTK resources first
+                initialize_nltk()
             with st.spinner("Performing semantic clustering analysis..."):
                 # Filter data
                 filtered_df = data.copy()
@@ -2939,6 +2942,20 @@ def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None
     html_string = pyLDAvis.prepared_data_to_html(vis_data)
     components.html(html_string, width=1300, height=800)
 
+# Initialize NLTK resources
+def initialize_nltk():
+    """Initialize required NLTK resources with error handling"""
+    required_resources = ['punkt', 'stopwords', 'averaged_perceptron_tagger']
+    for resource in required_resources:
+        try:
+            nltk.data.find(f'tokenizers/{resource}')
+        except LookupError:
+            try:
+                nltk.download(resource, quiet=True)
+            except Exception as e:
+                logging.error(f"Error downloading NLTK resource {resource}: {e}")
+                raise Exception(f"Failed to download required NLTK resource: {resource}")
+
 def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3, 
                              max_features: int = 5000, min_df: float = 0.01,
                              max_df: float = 0.95) -> Dict:
@@ -2957,6 +2974,9 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         Dictionary containing clustering results and analysis
     """
     try:
+        # Initialize NLTK resources
+        initialize_nltk()
+        
         # Enhanced preprocessing
         def preprocess_text(text: str) -> str:
             if pd.isna(text):
@@ -3158,8 +3178,6 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
     except Exception as e:
         st.error(f"Error displaying cluster analysis: {str(e)}")
         logging.error(f"Display error: {str(e)}", exc_info=True)
-
-
 
 
 def main():
