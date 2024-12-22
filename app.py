@@ -1403,7 +1403,7 @@ def display_document_analysis(doc_topics, df):
 
 def display_topic_network(lda, feature_names):
     """Display word similarity network with interactive filters"""
-    st.markdown("### Word Similarity Network")
+    #st.markdown("### Word Similarity Network")
     st.markdown("This network shows relationships between words based on their co-occurrence in documents.")
     
     # Store base network data in session state if not already present
