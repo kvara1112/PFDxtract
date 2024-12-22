@@ -1712,60 +1712,51 @@ def render_file_upload():
 
 def initialize_session_state():
     """Initialize all required session state variables"""
-    # Initialize basic state variables if they don't exist
     if not hasattr(st.session_state, 'initialized'):
-        # Clear all existing session state
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+        # Initialize basic state variables if they don't exist
+        if not hasattr(st.session_state, 'init_done'):
+            st.session_state.init_done = True
+            st.session_state['search_keyword_default'] = "report"
+            st.session_state['category_default'] = ""
+            st.session_state['order_default'] = "relevance"
+            st.session_state['max_pages_default'] = 0
         
-        # Set new session state variables
-        st.session_state.data_source = None
-        st.session_state.current_data = None
-        st.session_state.scraped_data = None
-        st.session_state.uploaded_data = None
-        st.session_state.topic_model = None
-        st.session_state.cleanup_done = False
-        st.session_state.last_scrape_time = None
-        st.session_state.last_upload_time = None
-        st.session_state.analysis_filters = {
-            'date_range': None,
-            'selected_categories': None,
-            'selected_areas': None
-        }
-        st.session_state.topic_model_settings = {
-            'num_topics': 5,
-            'max_features': 1000,
-            'similarity_threshold': 0.3
-        }
+        # Set basic session state variables if not present
+        if not hasattr(st.session_state, 'data_source'):
+            st.session_state.data_source = None
+        if not hasattr(st.session_state, 'current_data'):
+            st.session_state.current_data = None
+        if not hasattr(st.session_state, 'scraped_data'):
+            st.session_state.scraped_data = None
+        if not hasattr(st.session_state, 'uploaded_data'):
+            st.session_state.uploaded_data = None
+        if not hasattr(st.session_state, 'cleanup_done'):
+            st.session_state.cleanup_done = False
+        if not hasattr(st.session_state, 'last_scrape_time'):
+            st.session_state.last_scrape_time = None
+        if not hasattr(st.session_state, 'last_upload_time'):
+            st.session_state.last_upload_time = None
+        if not hasattr(st.session_state, 'analysis_filters'):
+            st.session_state.analysis_filters = {
+                'date_range': None,
+                'selected_categories': None,
+                'selected_areas': None
+            }
+            
+        # Add topic modeling specific states if not present
+        if not hasattr(st.session_state, 'topic_results'):
+            st.session_state.topic_results = None
+        if not hasattr(st.session_state, 'filtered_data'):
+            st.session_state.filtered_data = None
+        if not hasattr(st.session_state, 'topic_filters'):
+            st.session_state.topic_filters = {
+                'coroner_names': [],
+                'coroner_areas': [],
+                'categories': [],
+                'date_range': None
+            }
+        
         st.session_state.initialized = True
-    
-    # Perform PDF cleanup if not done
-    if not st.session_state.cleanup_done:
-        try:
-            pdf_dir = 'pdfs'
-            os.makedirs(pdf_dir, exist_ok=True)
-            
-            current_time = time.time()
-            cleanup_count = 0
-            
-            for file in os.listdir(pdf_dir):
-                file_path = os.path.join(pdf_dir, file)
-                try:
-                    if os.path.isfile(file_path):
-                        if os.stat(file_path).st_mtime < current_time - 86400:
-                            os.remove(file_path)
-                            cleanup_count += 1
-                except Exception as e:
-                    logging.warning(f"Error cleaning up file {file_path}: {e}")
-                    continue
-            
-            if cleanup_count > 0:
-                logging.info(f"Cleaned up {cleanup_count} old PDF files")
-        except Exception as e:
-            logging.error(f"Error during PDF cleanup: {e}")
-        finally:
-            st.session_state.cleanup_done = True
-            
 def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
     """
     Validate data for different purposes
@@ -2619,7 +2610,29 @@ def display_topic_analysis(topics_data):
         st.markdown("---")
 
 
+def display_topic_modeling_results(lda_model, vectorizer, doc_topics, filtered_df, vis_data):
+    """Display topic modeling results with tabs"""
+    topic_tab, docs_tab, network_tab = st.tabs([
+        "Topic Overview",
+        "Document Analysis",
+        "Topic Network"
+    ])
+    
+    with topic_tab:
+        st.markdown("### Topics Overview")
+        display_topic_overview(lda_model, vectorizer.get_feature_names_out(), doc_topics, filtered_df)
+    
+    with docs_tab:
+        st.markdown("### Document-Topic Distribution")
+        display_document_analysis(doc_topics, filtered_df)
+    
+    with network_tab:
+        st.markdown("### Topic Similarity Network")
+        display_topic_network(lda_model, vectorizer.get_feature_names_out())
 
+    # Add export options
+    export_topic_modeling_results(lda_model, vectorizer, doc_topics, filtered_df)
+    
 def format_topic_data(lda_model, vectorizer, doc_topics, df):
     """Format topic modeling results for display"""
     try:
