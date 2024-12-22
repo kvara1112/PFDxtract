@@ -1390,7 +1390,7 @@ def display_topic_network(lda, feature_names):
             "Minimum Connections",
             min_value=1,
             max_value=10,
-            value=2,
+            value=5,
             help="Minimum number of connections per word",
             key="network_min_connections"
         )
