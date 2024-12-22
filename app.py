@@ -2770,6 +2770,15 @@ def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None
     html_string = pyLDAvis.prepared_data_to_html(vis_data)
     components.html(html_string, width=1300, height=800)
 
+import streamlit as st
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+from collections import Counter
+import numpy as np
+import nltk
+from nltk.corpus import stopwords
+
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis for PFD reports."""
     st.header("Topic Modeling Analysis")
@@ -2784,13 +2793,18 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     with st.sidebar:
         st.header("Model Parameters")
         
-        max_clusters = st.slider(
-            "Maximum Number of Clusters",
-            min_value=2,
-            max_value=20,
-            value=10,
-            help="Select the maximum number of clusters to consider"
-        )
+        # Only show the maximum number of clusters slider if the optimal number is not determined
+        if 'optimal_num_clusters' not in st.session_state:
+            max_clusters = st.slider(
+                "Maximum Number of Clusters",
+                min_value=2,
+                max_value=20,
+                value=10,
+                help="Select the maximum number of clusters to consider"
+            )
+        else:
+            max_clusters = st.session_state.optimal_num_clusters
+            st.write(f"Optimal number of clusters: {max_clusters}")
         
         min_cluster_size = st.slider(
             "Minimum Cluster Size",
@@ -2943,7 +2957,9 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     return
 
                 # Cluster documents based on semantic similarity
-                tfidf = TfidfVectorizer()
+                nltk.download('stopwords', quiet=True)
+                stop_words = stopwords.words('english')
+                tfidf = TfidfVectorizer(stop_words=stop_words)
                 X = tfidf.fit_transform(filtered_df['Content'])
                 X_dense = X.toarray()
 
@@ -2955,6 +2971,9 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 )
                 clustering.fit(X_dense)
                 n_clusters = len(set(clustering.labels_)) - (1 if -1 in clustering.labels_ else 0)
+
+                # Store the optimal number of clusters in session state
+                st.session_state.optimal_num_clusters = n_clusters
 
                 # Filter out small clusters
                 cluster_sizes = Counter(clustering.labels_)
@@ -2974,12 +2993,15 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 for cluster_id in cluster_indices:
                     cluster_df = cluster_assignments[cluster_assignments['Cluster'] == cluster_id]
                     
+                    # Remove duplicate documents within the cluster
+                    cluster_df = cluster_df.drop_duplicates(subset='Document')
+                    
                     st.markdown(f"### Cluster {cluster_id} ({len(cluster_df)} documents)")
                     
                     # Get top words for the cluster
                     cluster_X = X_dense[cluster_assignments['Cluster'] == cluster_id]
                     cluster_feature_names = tfidf.get_feature_names_out()
-                    top_words = [cluster_feature_names[i] for i in np.argsort(-cluster_X.mean(axis=0))[:5]]
+                    top_words = [feature for feature in [cluster_feature_names[i] for i in np.argsort(-cluster_X.mean(axis=0))[:5]] if feature not in stop_words]
                     st.write(f"Top words: {', '.join(top_words)}")
                     
                     # Display documents in the cluster
@@ -2995,7 +3017,6 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
-
 
 
 
