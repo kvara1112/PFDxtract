@@ -2730,7 +2730,176 @@ def format_topic_data(lda_model, vectorizer, doc_topics, df):
         logging.error(f"Topic formatting error: {e}", exc_info=True)
         return []
 
+def render_topic_modeling_tab(data: pd.DataFrame) -> None:
+    """Enhanced semantic analysis for PFD reports using advanced clustering."""
+    st.header("Semantic Document Clustering")
+    st.markdown("""
+    This analysis uses advanced semantic clustering to group similar documents together,
+    identifying key themes and patterns in the reports. The algorithm automatically 
+    determines the optimal number of clusters based on document similarity.
+    """)
 
+    # Advanced parameters in sidebar
+    with st.sidebar:
+        st.header("Clustering Parameters")
+        
+        min_cluster_size = st.slider(
+            "Minimum Cluster Size",
+            min_value=2,
+            max_value=10,
+            value=3,
+            help="Minimum number of documents required to form a cluster"
+        )
+        
+        max_features = st.slider(
+            "Maximum Features",
+            min_value=1000,
+            max_value=10000,
+            value=5000,
+            help="Maximum number of terms to consider"
+        )
+        
+        min_df = st.slider(
+            "Minimum Document Frequency",
+            min_value=0.01,
+            max_value=0.2,
+            value=0.01,
+            step=0.01,
+            help="Minimum fraction of documents a term must appear in"
+        )
+        
+        max_df = st.slider(
+            "Maximum Document Frequency",
+            min_value=0.5,
+            max_value=0.99,
+            value=0.95,
+            step=0.01,
+            help="Maximum fraction of documents a term can appear in"
+        )
+
+    # Filters section
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        start_date = st.date_input(
+            "From",
+            value=data['date_of_report'].min().date(),
+            min_value=data['date_of_report'].min().date(),
+            max_value=data['date_of_report'].max().date(),
+            key="tm_start_date",
+            format="DD/MM/YYYY"
+        )
+        
+        doc_type = st.multiselect(
+            "Document Type",
+            ["Report", "Response"],
+            default=["Report"],
+            key="tm_doc_type",
+            help="Filter by document type"
+        )
+
+    with col2:
+        end_date = st.date_input(
+            "To",
+            value=data['date_of_report'].max().date(),
+            min_value=data['date_of_report'].min().date(),
+            max_value=data['date_of_report'].max().date(),
+            key="tm_end_date",
+            format="DD/MM/YYYY"
+        )
+        
+        categories = st.multiselect(
+            "Categories",
+            options=sorted(set().union(*[
+                set(cats) for cats in data['categories'].dropna()
+                if isinstance(cats, list)
+            ])),
+            key="tm_categories"
+        )
+
+    # Analysis button
+    analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary")
+
+    if analyze_clicked:
+        try:
+            with st.spinner("Performing semantic clustering analysis..."):
+                # Filter data
+                filtered_df = data.copy()
+                
+                # Apply date filter
+                filtered_df = filtered_df[
+                    (filtered_df['date_of_report'].dt.date >= start_date) &
+                    (filtered_df['date_of_report'].dt.date <= end_date)
+                ]
+                
+                # Apply document type filter
+                if doc_type:
+                    is_response_mask = filtered_df.apply(is_response, axis=1)
+                    if "Report" in doc_type and "Response" in doc_type:
+                        pass  # Keep all documents
+                    elif "Response" in doc_type:
+                        filtered_df = filtered_df[is_response_mask]
+                    elif "Report" in doc_type:
+                        filtered_df = filtered_df[~is_response_mask]
+                
+                # Apply category filter
+                if categories:
+                    filtered_df = filtered_df[
+                        filtered_df['categories'].apply(
+                            lambda x: bool(x) and any(cat in x for cat in categories)
+                        )
+                    ]
+                
+                # Validate filtered data
+                if len(filtered_df) < min_cluster_size:
+                    st.warning("Not enough documents match the selected filters.")
+                    return
+                
+                # Perform clustering
+                cluster_results = perform_semantic_clustering(
+                    filtered_df,
+                    min_cluster_size=min_cluster_size,
+                    max_features=max_features,
+                    min_df=min_df,
+                    max_df=max_df
+                )
+                
+                # Display results
+                display_cluster_analysis(cluster_results)
+                
+                # Add export options
+                st.markdown("---")
+                st.subheader("Export Results")
+                
+                # Prepare export data
+                export_data = {
+                    'metadata': {
+                        'total_documents': cluster_results['total_documents'],
+                        'number_of_clusters': cluster_results['n_clusters'],
+                        'silhouette_score': cluster_results['silhouette_score'],
+                        'parameters': {
+                            'min_cluster_size': min_cluster_size,
+                            'max_features': max_features,
+                            'min_df': min_df,
+                            'max_df': max_df
+                        }
+                    },
+                    'clusters': cluster_results['clusters']
+                }
+                
+                # Export as JSON
+                json_str = json.dumps(export_data, indent=2)
+                st.download_button(
+                    "📥 Download Analysis (JSON)",
+                    json_str,
+                    "cluster_analysis.json",
+                    "application/json"
+                )
+                
+        except Exception as e:
+            st.error(f"Error during clustering analysis: {str(e)}")
+            logging.error(f"Clustering error: {e}", exc_info=True)
+            
 def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None:
     """
     Render the pyLDAvis visualization in Streamlit.
@@ -2770,215 +2939,226 @@ def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None
     html_string = pyLDAvis.prepared_data_to_html(vis_data)
     components.html(html_string, width=1300, height=800)
 
-
-def render_topic_modeling_tab(data: pd.DataFrame) -> None:
-    """Enhanced topic modeling analysis for PFD reports."""
-    st.header("Topic Modeling Analysis")
-
-    # Diagnostic print to understand data composition
-    print(f"Total documents: {len(data)}")
-    print(f"Unique documents: {len(data.drop_duplicates(subset=['Content']))}")
-    print("Duplicate document titles:")
-    print(data[data.duplicated(subset=['Title'], keep=False)]['Title'].value_counts())
-
-    # Model Parameters in sidebar
-    with st.sidebar:
-        st.header("Model Parameters")
-        
-        num_topics = st.slider(
-            "Number of Topics",
-            min_value=2,
-            max_value=20,
-            value=10,
-            help="Select the number of topics to extract"
-        )
-        
-        min_topic_size = st.slider(
-            "Minimum Topic Size",
-            min_value=1,
-            max_value=10,
-            value=3,
-            help="Minimum number of documents per topic"
-        )
-
-    # Filters section
-    col1, col2 = st.columns(2)
+def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3, 
+                             max_features: int = 5000, min_df: float = 0.01,
+                             max_df: float = 0.95) -> Dict:
+    """
+    Perform advanced semantic clustering on documents with sophisticated preprocessing
+    and automated cluster number determination.
     
-    with col1:
-        start_date = st.date_input(
-            "From",
-            value=data['date_of_report'].min().date(),
-            min_value=data['date_of_report'].min().date(),
-            max_value=data['date_of_report'].max().date(),
-            key="tm_start_date",
-            format="DD/MM/YYYY"
-        )
+    Args:
+        data: DataFrame containing documents
+        min_cluster_size: Minimum number of documents per cluster
+        max_features: Maximum number of features for TF-IDF
+        min_df: Minimum document frequency for terms
+        max_df: Maximum document frequency for terms
         
-        # Document Type Filter
-        doc_type = st.multiselect(
-            "Document Type",
-            ["Report", "Response"],
-            default=["Report", "Response"],
-            key="tm_doc_type",
-            help="Filter by document type"
-        )
-        
-        # Coroner Name
-        coroner_names = sorted(data['coroner_name'].dropna().unique())
-        selected_coroners = st.multiselect(
-            "Coroner Names",
-            options=coroner_names,
-            key="tm_coroner_filter"
-        )
-        
-        # Categories
-        all_categories = set()
-        for cats in data['categories'].dropna():
-            if isinstance(cats, list):
-                all_categories.update(cats)
-        selected_categories = st.multiselect(
-            "Categories",
-            options=sorted(all_categories),
-            key="tm_categories_filter"
-        )
-
-    with col2:
-        end_date = st.date_input(
-            "To",
-            value=data['date_of_report'].max().date(),
-            min_value=data['date_of_report'].min().date(),
-            max_value=data['date_of_report'].max().date(),
-            key="tm_end_date",
-            format="DD/MM/YYYY"
-        )
-        
-        # Reference Number
-        ref_numbers = sorted(data['ref'].dropna().unique())
-        selected_refs = st.multiselect(
-            "Reference Numbers",
-            options=ref_numbers,
-            key="tm_ref_filter"
-        )
-        
-        # Coroner Area
-        coroner_areas = sorted(data['coroner_area'].dropna().unique())
-        selected_areas = st.multiselect(
-            "Coroner Areas",
-            options=coroner_areas,
-            key="tm_areas_filter"
-        )
-        
-        # Deceased Name
-        deceased_search = st.text_input(
-            "Deceased Name",
-            key="tm_deceased_filter",
-            help="Enter partial or full name"
-        )
-
-    # Reset Filters and Analyze buttons
-    col_reset, col_analyze = st.columns(2)
-    with col_reset:
-        if st.button("🔄 Reset Filters"):
-            for key in st.session_state:
-                if key.startswith('tm_'):
-                    del st.session_state[key]
-            st.rerun()
-    
-    with col_analyze:
-        analyze_clicked = st.button("🔍 Run Topic Analysis", type="primary")
-
-    # Run topic modeling if button is clicked
-    if analyze_clicked:
-        try:
-            with st.spinner("Analyzing document topics..."):
-                # Apply filters to create filtered dataset
-                filtered_df = data.copy()
-
-                # Date filter
-                filtered_df = filtered_df[
-                    (filtered_df['date_of_report'].dt.date >= start_date) &
-                    (filtered_df['date_of_report'].dt.date <= end_date)
-                ]
-
-                # Document type filter
-                if doc_type:
-                    is_response_mask = filtered_df.apply(is_response, axis=1)
-                    if "Report" in doc_type and "Response" in doc_type:
-                        pass  # Keep all documents
-                    elif "Response" in doc_type:
-                        filtered_df = filtered_df[is_response_mask]
-                    elif "Report" in doc_type:
-                        filtered_df = filtered_df[~is_response_mask]
-                    else:
-                        filtered_df = pd.DataFrame()  # Empty if no document type selected
-
-                # Additional filters (reference, coroner, categories, etc.)
-                if selected_refs:
-                    filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
-
-                if deceased_search:
-                    filtered_df = filtered_df[
-                        filtered_df['deceased_name'].fillna('').str.contains(
-                            deceased_search, 
-                            case=False, 
-                            na=False
-                        )
-                    ]
-
-                if selected_coroners:
-                    filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
-
-                if selected_areas:
-                    filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
-
-                if selected_categories:
-                    filtered_df = filtered_df[
-                        filtered_df['categories'].apply(
-                            lambda x: bool(x) and any(cat in x for cat in selected_categories)
-                        )
-                    ]
-
-                # Validate filtered data
-                if len(filtered_df) == 0:
-                    st.warning("No documents match the selected filters.")
-                    return
-
-                # Perform topic modeling
-                nltk.download('stopwords', quiet=True)
-                stop_words = stopwords.words('english')
-                tfidf = TfidfVectorizer(stop_words=stop_words)
-                X = tfidf.fit_transform(filtered_df['Content'])
+    Returns:
+        Dictionary containing clustering results and analysis
+    """
+    try:
+        # Enhanced preprocessing
+        def preprocess_text(text: str) -> str:
+            if pd.isna(text):
+                return ""
                 
-                lda = LatentDirichletAllocation(
-                    n_components=num_topics,
-                    random_state=42,
-                    learning_method='online',
-                    learning_offset=50.,
-                    max_iter=20
+            # Convert to lowercase and clean text
+            text = clean_text_for_modeling(str(text))
+            
+            # Remove standard English stopwords
+            stop_words = set(stopwords.words('english'))
+            
+            # Add domain-specific stop words
+            domain_stops = {
+                'report', 'death', 'pfd', 'coroner', 'regulation', 'paragraph',
+                'section', 'article', 'deceased', 'died', 'circumstances'
+            }
+            stop_words.update(domain_stops)
+            
+            # Tokenize and remove stopwords
+            tokens = word_tokenize(text.lower())
+            tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
+            
+            return ' '.join(tokens)
+
+        # Prepare documents
+        docs = data['Content'].fillna('').apply(preprocess_text)
+        unique_docs = pd.Series(docs.unique())
+        
+        # Configure vectorizer with enhanced parameters
+        vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=max_df,
+            ngram_range=(1, 2),  # Include bigrams
+            token_pattern=r'(?u)\b[a-z][a-z]+\b'
+        )
+        
+        # Create document vectors
+        doc_vectors = vectorizer.fit_transform(unique_docs)
+        feature_names = vectorizer.get_feature_names_out()
+        
+        # Calculate pairwise similarities
+        similarities = cosine_similarity(doc_vectors)
+        
+        # Determine optimal number of clusters using silhouette analysis
+        max_clusters = min(20, len(unique_docs) // min_cluster_size)
+        best_score = -1
+        optimal_clusters = 2
+        
+        for n_clusters in range(2, max_clusters + 1):
+            clustering = AgglomerativeClustering(
+                n_clusters=n_clusters,
+                affinity='precomputed',
+                linkage='complete'
+            )
+            
+            # Convert similarities to distances
+            distances = 1 - similarities
+            labels = clustering.fit_predict(distances)
+            
+            if len(set(labels)) == 1:
+                continue
+                
+            score = silhouette_score(distances, labels, metric='precomputed')
+            
+            if score > best_score:
+                best_score = score
+                optimal_clusters = n_clusters
+        
+        # Perform final clustering
+        clustering = AgglomerativeClustering(
+            n_clusters=optimal_clusters,
+            affinity='precomputed',
+            linkage='complete'
+        )
+        
+        cluster_labels = clustering.fit_predict(1 - similarities)
+        
+        # Extract insights for each cluster
+        clusters = []
+        for cluster_id in range(optimal_clusters):
+            # Get documents in cluster
+            cluster_mask = cluster_labels == cluster_id
+            cluster_docs = doc_vectors[cluster_mask]
+            
+            if cluster_docs.shape[0] < min_cluster_size:
+                continue
+            
+            # Calculate centroid
+            centroid = cluster_docs.mean(axis=0).A1
+            
+            # Get top terms with relevance scores
+            top_terms = []
+            for term_idx in centroid.argsort()[-20:][::-1]:
+                term = feature_names[term_idx]
+                score = centroid[term_idx]
+                
+                # Calculate term frequency in cluster
+                term_freq = sum(1 for doc in cluster_docs if term in str(doc))
+                
+                top_terms.append({
+                    'term': term,
+                    'relevance': float(score),
+                    'frequency': term_freq,
+                    'frequency_pct': term_freq / cluster_docs.shape[0] * 100
+                })
+            
+            # Get representative documents
+            doc_indices = np.where(cluster_mask)[0]
+            doc_similarities = similarities[doc_indices][:, doc_indices].mean(axis=1)
+            central_docs = []
+            
+            for doc_idx in doc_similarities.argsort()[-5:][::-1]:
+                orig_idx = doc_indices[doc_idx]
+                if orig_idx < len(data):
+                    doc_row = data.iloc[orig_idx]
+                    central_docs.append({
+                        'title': doc_row.get('Title', ''),
+                        'date': doc_row.get('date_of_report', ''),
+                        'similarity': float(doc_similarities[doc_idx]),
+                        'summary': str(doc_row.get('Content', ''))[:300] + '...'
+                    })
+            
+            # Calculate cluster metrics
+            cluster_size = cluster_docs.shape[0]
+            internal_similarity = similarities[cluster_mask][:, cluster_mask].mean()
+            
+            clusters.append({
+                'id': cluster_id,
+                'size': int(cluster_size),
+                'cohesion': float(internal_similarity),
+                'terms': top_terms,
+                'documents': central_docs
+            })
+        
+        # Sort clusters by size
+        clusters.sort(key=lambda x: x['size'], reverse=True)
+        
+        return {
+            'n_clusters': len(clusters),
+            'silhouette_score': float(best_score),
+            'total_documents': len(unique_docs),
+            'clusters': clusters
+        }
+        
+    except Exception as e:
+        logging.error(f"Clustering error: {str(e)}", exc_info=True)
+        raise
+
+def display_cluster_analysis(cluster_results: Dict) -> None:
+    """
+    Display comprehensive cluster analysis results
+    """
+    try:
+        st.subheader("Document Clustering Analysis")
+        
+        # Overview metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Number of Clusters", cluster_results['n_clusters'])
+        with col2:
+            st.metric("Total Documents", cluster_results['total_documents'])
+        with col3:
+            st.metric("Clustering Quality", 
+                     f"{cluster_results['silhouette_score']:.3f}",
+                     help="Silhouette score (ranges from -1 to 1, higher is better)")
+        
+        # Display each cluster
+        for cluster in cluster_results['clusters']:
+            with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", 
+                           expanded=True):
+                
+                # Cluster metrics
+                st.markdown(f"**Cohesion Score**: {cluster['cohesion']:.3f}")
+                
+                # Terms analysis
+                st.markdown("#### Key Terms")
+                terms_df = pd.DataFrame(cluster['terms'])
+                
+                # Create term importance visualization
+                fig = px.bar(
+                    terms_df.head(10),
+                    x='relevance',
+                    y='term',
+                    orientation='h',
+                    title='Top Terms by Relevance',
+                    labels={'relevance': 'Relevance Score', 'term': 'Term'}
                 )
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
                 
-                doc_topic_dist = lda.fit_transform(X)
-                feature_names = tfidf.get_feature_names_out()
+                # Representative documents
+                st.markdown("#### Representative Documents")
+                for doc in cluster['documents']:
+                    with st.expander(f"{doc['title']} (Similarity: {doc['similarity']:.2f})"):
+                        st.markdown(f"**Date**: {doc['date']}")
+                        st.markdown(doc['summary'])
 
-                # Display results
-                st.subheader(f"Topic Modeling Results ({num_topics} topics)")
-                
-                for topic_idx in range(num_topics):
-                    topic_words = [feature_names[i] for i in lda.components_[topic_idx].argsort()[:-6-1:-1]]
-                    topic_size = (doc_topic_dist[:, topic_idx] > 0.05).sum()
-                    
-                    if topic_size >= min_topic_size:
-                        st.markdown(f"### Topic {topic_idx + 1} ({topic_size} documents)")
-                        st.write(f"Top words: {', '.join(topic_words)}")
-                        
-                        # Get representative documents for the topic
-                        topic_doc_indices = np.argsort(doc_topic_dist[:, topic_idx])[-5:]
-                        for doc_idx in topic_doc_indices:
-                            st.write(f"- {filtered_df['Title'].iloc[doc_idx]}")
+    except Exception as e:
+        st.error(f"Error displaying cluster analysis: {str(e)}")
+        logging.error(f"Display error: {str(e)}", exc_info=True)
 
-        except Exception as e:
-            st.error(f"Error during topic modeling: {str(e)}")
-            logging.error(f"Topic modeling error: {e}", exc_info=True)
 
 
 
