@@ -1275,8 +1275,8 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     st.header("Topic Modeling Analysis")
     
     st.sidebar.markdown("# Model Parameters")
-        
-        num_topics = st.sidebar.slider(
+    
+    num_topics = st.sidebar.slider(
             "Number of Topics",
             min_value=2,
             max_value=20,
@@ -1284,16 +1284,16 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             help="Select number of topics to extract"
         )
         
-        max_features = st.sidebar.slider(
-            "Maximum Features",
-            min_value=500,
-            max_value=5000,
-            value=2000,
-            step=500,
-            help="Maximum number of terms to include"
-        )
-        
-        advanced_settings = st.sidebar.expander("Advanced Settings")
+    max_features = st.sidebar.slider(
+        "Maximum Features",
+        min_value=500,
+        max_value=5000,
+        value=2000,
+        step=500,
+        help="Maximum number of terms to include"
+    )
+    
+    advanced_settings = st.sidebar.expander("Advanced Settings")
         with advanced_settings:
             min_df = st.slider(
                 "Minimum Document Frequency",
