@@ -1401,7 +1401,6 @@ def display_document_analysis(doc_topics, df):
         logging.error(f"Document analysis error: {e}", exc_info=True)
 
 
-
 def display_topic_network(lda, feature_names):
     """Display word similarity network with interactive filters"""
     st.markdown("### Word Similarity Network")
