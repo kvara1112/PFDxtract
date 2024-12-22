@@ -1351,12 +1351,12 @@ def display_document_analysis(doc_topics, df):
         assignments_sorted = assignments.sort_values('Topic Confidence', ascending=False)
 
         # Visualization
-       # st.subheader("Document-Topic Distribution")
+        st.subheader("Document-Topic Assignments")
         
         # Summary statistics
         col1, col2, col3 = st.columns(3)
         with col1:
-            st.metric("Total Documents", len(assignments))
+            st.metric("Total Documents", len(df))
         with col2:
             st.metric("Unique Topics", len(assignments['Primary Topic'].unique()))
         with col3:
