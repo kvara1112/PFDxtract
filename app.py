@@ -2953,22 +2953,12 @@ def initialize_nltk():
         logging.error(f"Error initializing NLTK resources: {e}")
         raise
 
-def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3, 
+ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3, 
                              max_features: int = 5000, min_df: float = 0.01,
                              max_df: float = 0.95) -> Dict:
     """
     Perform advanced semantic clustering on documents with sophisticated preprocessing
     and automated cluster number determination.
-    
-    Args:
-        data: DataFrame containing documents
-        min_cluster_size: Minimum number of documents per cluster
-        max_features: Maximum number of features for TF-IDF
-        min_df: Minimum document frequency for terms
-        max_df: Maximum document frequency for terms
-        
-    Returns:
-        Dictionary containing clustering results and analysis
     """
     try:
         # Initialize NLTK resources
@@ -3054,7 +3044,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         for n_clusters in range(2, max_clusters + 1):
             clustering = AgglomerativeClustering(
                 n_clusters=n_clusters,
-                affinity='precomputed',
+                metric='precomputed',  # Changed from affinity
                 linkage='average'
             )
             
@@ -3072,7 +3062,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         # Perform final clustering with optimal number of clusters
         final_clustering = AgglomerativeClustering(
             n_clusters=best_n_clusters,
-            affinity='precomputed',
+            metric='precomputed',  # Changed from affinity
             linkage='average'
         )
         
