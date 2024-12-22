@@ -1274,16 +1274,17 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis for PFD reports."""
     st.header("Topic Modeling Analysis")
     
+    # Model Parameters in sidebar
     st.sidebar.markdown("# Model Parameters")
     
     num_topics = st.sidebar.slider(
-            "Number of Topics",
-            min_value=2,
-            max_value=20,
-            value=8,
-            help="Select number of topics to extract"
-        )
-        
+        "Number of Topics",
+        min_value=2,
+        max_value=20,
+        value=8,
+        help="Select number of topics to extract"
+    )
+    
     max_features = st.sidebar.slider(
         "Maximum Features",
         min_value=500,
@@ -1294,106 +1295,79 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     )
     
     advanced_settings = st.sidebar.expander("Advanced Settings")
-        with advanced_settings:
-            min_df = st.slider(
-                "Minimum Document Frequency",
-                min_value=1,
-                max_value=10,
-                value=2,
-                help="Minimum number of documents a term must appear in"
-            )
-            
-        # Add separator
-        st.markdown("---")
-            
-        # Filters section
-        st.header("Filters")
-        
-        # Date Range Filter
-        with st.expander("📅 Date Range", expanded=True):
-            min_date = data['date_of_report'].min().date()
-            max_date = data['date_of_report'].max().date()
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                start_date = st.date_input(
-                    "From",
-                    value=min_date,
-                    min_value=min_date,
-                    max_value=max_date,
-                    key="tm_start_date",
-                    format="DD/MM/YYYY"
-                )
-            with col2:
-                end_date = st.date_input(
-                    "To",
-                    value=max_date,
-                    min_value=min_date,
-                    max_value=max_date,
-                    key="tm_end_date",
-                    format="DD/MM/YYYY"
-                )
-
-        # Document Type Filter
-        doc_type = st.multiselect(
-            "Document Type",
-            ["Report", "Response"],
-            default=["Report", "Response"],
-            key="tm_doc_type",
-            help="Filter by document type"
+    with advanced_settings:
+        min_df = st.slider(
+            "Minimum Document Frequency",
+            min_value=1,
+            max_value=10,
+            value=2,
+            help="Minimum number of documents a term must appear in"
         )
 
-        # Coroner Area Filter
-        coroner_areas = sorted(data['coroner_area'].dropna().unique())
-        selected_areas = st.multiselect(
-            "Coroner Areas",
-            options=coroner_areas,
-            key="tm_areas"
+    # Add separator
+    st.sidebar.markdown("---")
+    
+    # Filters section in sidebar
+    st.sidebar.markdown("# Filters")
+    
+    # Date Range Filter
+    min_date = data['date_of_report'].min().date()
+    max_date = data['date_of_report'].max().date()
+    
+    date_col1, date_col2 = st.sidebar.columns(2)
+    with date_col1:
+        start_date = st.date_input(
+            "From",
+            value=min_date,
+            min_value=min_date,
+            max_value=max_date,
+            key="tm_start_date",
+            format="DD/MM/YYYY"
+        )
+    with date_col2:
+        end_date = st.date_input(
+            "To",
+            value=max_date,
+            min_value=min_date,
+            max_value=max_date,
+            key="tm_end_date",
+            format="DD/MM/YYYY"
         )
 
-        # Categories Filter
-        all_categories = set()
-        for cats in data['categories'].dropna():
-            if isinstance(cats, list):
-                all_categories.update(cats)
-        selected_categories = st.multiselect(
-            "Categories",
-            options=sorted(all_categories),
-            key="tm_categories"
-        )
-        
-        num_topics = st.slider(
-            "Number of Topics",
-            min_value=2,
-            max_value=20,
-            value=8,
-            help="Select number of topics to extract"
-        )
-        
-        max_features = st.slider(
-            "Maximum Features",
-            min_value=500,
-            max_value=5000,
-            value=2000,
-            step=500,
-            help="Maximum number of terms to include"
-        )
-        
-        with st.expander("Advanced Settings"):
-            min_df = st.slider(
-                "Minimum Document Frequency",
-                min_value=1,
-                max_value=10,
-                value=2,
-                help="Minimum number of documents a term must appear in"
-            )
+    # Document Type Filter
+    doc_type = st.sidebar.multiselect(
+        "Document Type",
+        ["Report", "Response"],
+        default=["Report", "Response"],
+        key="tm_doc_type",
+        help="Filter by document type"
+    )
 
-        # Reset Filters Button
-        if st.button("🔄 Reset Filters"):
-            for key in st.session_state:
-                if key.startswith('tm_'):
-                    del st.session_state[key]
-            st.rerun()
+    # Coroner Area Filter
+    coroner_areas = sorted(data['coroner_area'].dropna().unique())
+    selected_areas = st.sidebar.multiselect(
+        "Coroner Areas",
+        options=coroner_areas,
+        key="tm_areas"
+    )
+
+    # Categories Filter
+    all_categories = set()
+    for cats in data['categories'].dropna():
+        if isinstance(cats, list):
+            all_categories.update(cats)
+    selected_categories = st.sidebar.multiselect(
+        "Categories",
+        options=sorted(all_categories),
+        key="tm_categories"
+    )
+
+    # Reset Filters Button
+    if st.sidebar.button("🔄 Reset Filters"):
+        for key in st.session_state:
+            if key.startswith('tm_'):
+                del st.session_state[key]
+        st.rerun()
 
     # Apply filters to create filtered dataset
     filtered_df = data.copy()
@@ -1509,7 +1483,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     st.markdown("### Topic Similarity Network")
                     display_topic_network(lda, feature_names)
 
-                # Add export options with filter information
+                # Add export options
                 st.markdown("### Export Results")
                 
                 # Prepare export data with filter information
@@ -1550,23 +1524,17 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     doc_topics_df['Document'] = filtered_df['Title'].values
                     doc_topics_df.to_excel(writer, sheet_name='Document-Topic Distribution')
 
-                # Download button with timestamp and filter indication
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"topic_analysis_filtered_{timestamp}.xlsx"
-                
+                # Download button
                 st.download_button(
                     "📥 Download Analysis (Excel)",
                     output.getvalue(),
-                    filename,
+                    "topic_analysis_filtered.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
 
         except Exception as e:
             st.error(f"Error in topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
-            return
-
-
 def get_top_words(model, feature_names, topic_idx, n_words=10):
     """Get top words for a topic."""
     return [feature_names[i] for i in model.components_[topic_idx].argsort()[:-n_words-1:-1]]
