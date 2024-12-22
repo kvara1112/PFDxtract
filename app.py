@@ -2770,14 +2770,6 @@ def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None
     html_string = pyLDAvis.prepared_data_to_html(vis_data)
     components.html(html_string, width=1300, height=800)
 
-import streamlit as st
-from sklearn.cluster import AgglomerativeClustering
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-from collections import Counter
-import numpy as np
-import nltk
-from nltk.corpus import stopwords
 
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis for PFD reports."""
@@ -2793,25 +2785,20 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     with st.sidebar:
         st.header("Model Parameters")
         
-        # Only show the maximum number of clusters slider if the optimal number is not determined
-        if 'optimal_num_clusters' not in st.session_state:
-            max_clusters = st.slider(
-                "Maximum Number of Clusters",
-                min_value=2,
-                max_value=20,
-                value=10,
-                help="Select the maximum number of clusters to consider"
-            )
-        else:
-            max_clusters = st.session_state.optimal_num_clusters
-            st.write(f"Optimal number of clusters: {max_clusters}")
+        num_topics = st.slider(
+            "Number of Topics",
+            min_value=2,
+            max_value=20,
+            value=10,
+            help="Select the number of topics to extract"
+        )
         
-        min_cluster_size = st.slider(
-            "Minimum Cluster Size",
+        min_topic_size = st.slider(
+            "Minimum Topic Size",
             min_value=1,
             max_value=10,
             value=3,
-            help="Minimum number of documents per cluster"
+            help="Minimum number of documents per topic"
         )
 
     # Filters section
@@ -2956,63 +2943,38 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     st.warning("No documents match the selected filters.")
                     return
 
-                # Cluster documents based on semantic similarity
+                # Perform topic modeling
                 nltk.download('stopwords', quiet=True)
                 stop_words = stopwords.words('english')
                 tfidf = TfidfVectorizer(stop_words=stop_words)
                 X = tfidf.fit_transform(filtered_df['Content'])
-                X_dense = X.toarray()
-
-                # Determine optimal number of clusters
-                clustering = AgglomerativeClustering(
-                    n_clusters=None, 
-                    linkage='complete', 
-                    distance_threshold=1 - max_clusters/100
+                
+                lda = LatentDirichletAllocation(
+                    n_components=num_topics,
+                    random_state=42,
+                    learning_method='online',
+                    learning_offset=50.,
+                    max_iter=20
                 )
-                clustering.fit(X_dense)
-                n_clusters = len(set(clustering.labels_)) - (1 if -1 in clustering.labels_ else 0)
-
-                # Store the optimal number of clusters in session state
-                st.session_state.optimal_num_clusters = n_clusters
-
-                # Filter out small clusters
-                cluster_sizes = Counter(clustering.labels_)
-                cluster_indices = [i for i, size in cluster_sizes.items() if size >= min_cluster_size]
-                labels = [l if l in cluster_indices else -1 for l in clustering.labels_]
-
-                # Create cluster-topic assignments
-                cluster_assignments = pd.DataFrame({
-                    'Document': filtered_df['Title'],
-                    'Cluster': labels,
-                    'Cluster Size': [cluster_sizes[l] for l in labels]
-                })
+                
+                doc_topic_dist = lda.fit_transform(X)
+                feature_names = tfidf.get_feature_names_out()
 
                 # Display results
-                st.subheader(f"Document Clusters (Optimal: {n_clusters} clusters)")
+                st.subheader(f"Topic Modeling Results ({num_topics} topics)")
                 
-                for cluster_id in cluster_indices:
-                    cluster_df = cluster_assignments[cluster_assignments['Cluster'] == cluster_id]
+                for topic_idx in range(num_topics):
+                    topic_words = [feature_names[i] for i in lda.components_[topic_idx].argsort()[:-6-1:-1]]
+                    topic_size = (doc_topic_dist[:, topic_idx] > 0.05).sum()
                     
-                    # Remove duplicate documents within the cluster
-                    cluster_df = cluster_df.drop_duplicates(subset='Document')
-                    
-                    st.markdown(f"### Cluster {cluster_id} ({len(cluster_df)} documents)")
-                    
-                    # Get top words for the cluster
-                    cluster_X = X_dense[cluster_assignments['Cluster'] == cluster_id]
-                    cluster_feature_names = tfidf.get_feature_names_out()
-                    top_words = [feature for feature in [cluster_feature_names[i] for i in np.argsort(-cluster_X.mean(axis=0))[:5]] if feature not in stop_words]
-                    st.write(f"Top words: {', '.join(top_words)}")
-                    
-                    # Display documents in the cluster
-                    st.dataframe(
-                        cluster_df[['Document', 'Cluster Size']],
-                        column_config={
-                            'Document': st.column_config.TextColumn('Report Title'),
-                            'Cluster Size': st.column_config.NumberColumn('Cluster Size')
-                        },
-                        hide_index=True
-                    )
+                    if topic_size >= min_topic_size:
+                        st.markdown(f"### Topic {topic_idx + 1} ({topic_size} documents)")
+                        st.write(f"Top words: {', '.join(topic_words)}")
+                        
+                        # Get representative documents for the topic
+                        topic_doc_indices = np.argsort(doc_topic_dist[:, topic_idx])[-5:]
+                        for doc_idx in topic_doc_indices:
+                            st.write(f"- {filtered_df['Title'].iloc[doc_idx]}")
 
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
