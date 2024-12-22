@@ -23,6 +23,7 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.cluster import AgglomerativeClustering
 import networkx as nx
 import nltk
 from nltk.tokenize import word_tokenize
@@ -2768,6 +2769,10 @@ def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None
     html_string = pyLDAvis.prepared_data_to_html(vis_data)
     components.html(html_string, width=1300, height=800)
 
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis for PFD reports."""
     st.header("Topic Modeling Analysis")
@@ -2782,40 +2787,21 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     with st.sidebar:
         st.header("Model Parameters")
         
-        num_topics = st.slider(
-            "Number of Topics",
+        max_clusters = st.slider(
+            "Maximum Number of Clusters",
             min_value=2,
             max_value=20,
-            value=8,
-            help="Select number of topics to extract"
+            value=10,
+            help="Select the maximum number of clusters to consider"
         )
         
-        max_features = st.slider(
-            "Maximum Features",
-            min_value=500,
-            max_value=5000,
-            value=2000,
-            step=500,
-            help="Maximum number of terms to include"
+        min_cluster_size = st.slider(
+            "Minimum Cluster Size",
+            min_value=1,
+            max_value=10,
+            value=3,
+            help="Minimum number of documents per cluster"
         )
-        
-        with st.expander("Advanced Settings"):
-            min_df = st.slider(
-                "Minimum Document Frequency",
-                min_value=1,
-                max_value=10,
-                value=2,
-                help="Minimum number of documents a term must appear in"
-            )
-            
-            min_similarity = st.slider(
-                "Minimum Similarity",
-                min_value=0.0,
-                max_value=1.0,
-                value=0.9,
-                step=0.05,
-                help="Higher values show stronger connections only"
-            )
 
     # Filters section
     col1, col2 = st.columns(2)
@@ -2959,41 +2945,55 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     st.warning("No documents match the selected filters.")
                     return
 
-                # Run topic modeling
-                lda_model, vectorizer, doc_topics = extract_advanced_topics(
-                    filtered_df, 
-                    num_topics=num_topics,
-                    max_features=max_features,
-                    min_df=min_df,
-                    min_similarity=min_similarity
-                )
+                # Cluster documents based on semantic similarity
+                tfidf = TfidfVectorizer()
+                X = tfidf.fit_transform(filtered_df['Content'])
+                cosine_sim = cosine_similarity(X, X)
 
-                # Get feature names
-                feature_names = vectorizer.get_feature_names_out()
+                # Determine optimal number of clusters
+                clustering = AgglomerativeClustering(n_clusters=None, affinity='cosine', linkage='complete', distance_threshold=1-max_clusters/100)
+                clustering.fit(X)
+                n_clusters = len(set(clustering.labels_)) - (1 if -1 in clustering.labels_ else 0)
 
-                # Create tabs for different visualizations
-                topic_tab, docs_tab, network_tab = st.tabs([
-                    "Topic Overview",
-                    "Document Analysis",
-                    "Topic Network"
-                ])
+                # Filter out small clusters
+                cluster_sizes = Counter(clustering.labels_)
+                cluster_indices = [i for i, size in cluster_sizes.items() if size >= min_cluster_size]
+                labels = [l if l in cluster_indices else -1 for l in clustering.labels_]
+
+                # Create cluster-topic assignments
+                cluster_assignments = pd.DataFrame({
+                    'Document': filtered_df['Title'],
+                    'Cluster': labels,
+                    'Cluster Size': [cluster_sizes[l] for l in labels]
+                })
+
+                # Display results
+                st.subheader(f"Document Clusters (Optimal: {n_clusters} clusters)")
                 
-                with topic_tab:
-                    st.markdown("### Topics Overview")
-                    display_topic_overview(lda_model, feature_names, doc_topics, filtered_df)
-                
-                with docs_tab:
-                    st.markdown("### Document-Topic Assignments")
-                    display_document_analysis(doc_topics, filtered_df)
-                
-                with network_tab:
-                    st.markdown("### Topic Similarity Network")
-                    display_topic_network(lda_model, feature_names)
+                for cluster_id in cluster_indices:
+                    cluster_df = cluster_assignments[cluster_assignments['Cluster'] == cluster_id]
+                    
+                    st.markdown(f"### Cluster {cluster_id} ({len(cluster_df)} documents)")
+                    
+                    # Get top words for the cluster
+                    cluster_X = X[cluster_assignments['Cluster'] == cluster_id]
+                    cluster_feature_names = tfidf.get_feature_names_out()
+                    top_words = [cluster_feature_names[i] for i in np.argsort(-cluster_X.mean(axis=0).toarray().ravel())[:5]]
+                    st.write(f"Top words: {', '.join(top_words)}")
+                    
+                    # Display documents in the cluster
+                    st.dataframe(
+                        cluster_df[['Document', 'Cluster Size']],
+                        column_config={
+                            'Document': st.column_config.TextColumn('Report Title'),
+                            'Cluster Size': st.column_config.NumberColumn('Cluster Size')
+                        },
+                        hide_index=True
+                    )
 
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
-
             
 def main():
     initialize_session_state()
