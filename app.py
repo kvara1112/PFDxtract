@@ -2447,7 +2447,7 @@ def extract_advanced_topics(data: pd.DataFrame, num_topics: int = 5, max_feature
         # Verify we have enough features
         if dtm.shape[1] < num_topics:
             num_topics = max(2, dtm.shape[1] - 1)  # Adjust number of topics if necessary
-            st.warning(f"Adjusted number of topics to {num_topics} due to limited vocabulary")
+            logging.warning(f"Adjusted number of topics to {num_topics} due to limited vocabulary")
         
         # Configure and fit LDA model
         lda_model = LatentDirichletAllocation(
