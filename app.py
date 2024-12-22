@@ -885,9 +885,6 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
 
-
-
-
 def plot_category_distribution(df: pd.DataFrame) -> None:
     """Plot category distribution"""
     all_cats = []
@@ -1269,18 +1266,122 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             # Cleanup zip file
             os.remove(pdf_zip_path)
 
+def display_topic_overview(lda, feature_names, doc_topics, df):
+    """Display overview of topics with word distributions and prevalence"""
+    for topic_idx in range(len(lda.components_)):
+        # Get top words for topic
+        top_words = get_top_words(lda, feature_names, topic_idx)
+        
+        # Calculate topic prevalence
+        topic_prev = (doc_topics[:, topic_idx] > 0.2).mean() * 100
+        
+        with st.expander(f"Topic {topic_idx + 1}: {' - '.join(top_words[:3])}"):
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Show word distribution
+                word_weights = lda.components_[topic_idx]
+                top_word_indices = word_weights.argsort()[:-10-1:-1]
+                
+                words_df = pd.DataFrame({
+                    'Word': [feature_names[i] for i in top_word_indices],
+                    'Weight': word_weights[top_word_indices]
+                })
+                
+                fig = px.bar(
+                    words_df,
+                    x='Weight',
+                    y='Word',
+                    orientation='h',
+                    title='Top Terms'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                st.metric(
+                    "Topic Prevalence",
+                    f"{topic_prev:.1f}%"
+                )
+                
+                # Get representative docs
+                top_doc_indices = doc_topics[:, topic_idx].argsort()[-3:][::-1]
+                st.markdown("#### Representative Documents")
+                
+                for doc_idx in top_doc_indices:
+                    doc_title = df.iloc[doc_idx]['Title']
+                    doc_score = doc_topics[doc_idx, topic_idx]
+                    st.markdown(f"- {doc_title} ({doc_score:.1%})")
 
+def display_document_analysis(doc_topics, df):
+    """Display document-topic distribution analysis"""
+    # Create heatmap
+    topic_labels = [f"Topic {i+1}" for i in range(doc_topics.shape[1])]
+    
+    fig = px.imshow(
+        doc_topics,
+        labels=dict(x="Topics", y="Documents", color="Weight"),
+        x=topic_labels,
+        y=df['Title'].values,
+        aspect="auto"
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Show document assignments
+    assignments = pd.DataFrame({
+        'Document': df['Title'].values,
+        'Primary Topic': [f"Topic {i+1}" for i in doc_topics.argmax(axis=1)],
+        'Confidence': doc_topics.max(axis=1)
+    })
+    
+    st.dataframe(
+        assignments.sort_values('Confidence', ascending=False),
+        hide_index=True
+    )
 
-
-
-
+def display_topic_network(lda, feature_names):
+    """Display network visualization of topic relationships"""
+    # Calculate topic similarities
+    topic_sims = cosine_similarity(lda.components_)
+    
+    # Create network graph
+    G = nx.Graph()
+    
+    # Add nodes
+    for i in range(len(lda.components_)):
+        top_words = get_top_words(lda, feature_names, i)
+        G.add_node(i, name=f"Topic {i+1}\n{' - '.join(top_words[:3])}")
+    
+    # Add edges
+    for i in range(len(lda.components_)):
+        for j in range(i+1, len(lda.components_)):
+            if topic_sims[i,j] > 0.2:  # Similarity threshold
+                G.add_edge(i, j, weight=float(topic_sims[i,j]))
+    
+    # Create network visualization
+    pos = nx.spring_layout(G)
+    
+    # Create plotly figure
+    edge_trace = create_edge_trace(G, pos)
+    node_trace = create_node_trace(G, pos)
+    
+    fig = go.Figure(
+        data=[edge_trace, node_trace],
+        layout=go.Layout(
+            showlegend=False,
+            hovermode='closest',
+            margin=dict(b=20,l=5,r=5,t=40)
+        )
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
 
 def get_top_words(model, feature_names, topic_idx, n_words=10):
-    """Get top words for a topic."""
+    """Get top words for a given topic"""
     return [feature_names[i] for i in model.components_[topic_idx].argsort()[:-n_words-1:-1]]
 
 def create_edge_trace(G, pos):
-    """Create edge trace for network visualization."""
+    """Create edge trace for network visualization"""
     edge_x = []
     edge_y = []
     for edge in G.edges():
@@ -1297,7 +1398,7 @@ def create_edge_trace(G, pos):
     )
 
 def create_node_trace(G, pos):
-    """Create node trace for network visualization."""
+    """Create node trace for network visualization"""
     node_x = []
     node_y = []
     node_text = []
@@ -1320,6 +1421,14 @@ def create_node_trace(G, pos):
             color='lightblue'
         )
     )
+
+
+
+
+
+
+
+
 
 def format_topics_for_display(topic_insights):
     """Format topic insights for the React component"""
