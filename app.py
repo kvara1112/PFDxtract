@@ -1269,12 +1269,46 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             # Cleanup zip file
             os.remove(pdf_zip_path)
 
+
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis for PFD reports."""
     st.header("Topic Modeling Analysis")
     
-    # Sidebar controls
+    # Sidebar controls for both filters and model parameters
     with st.sidebar:
+        # Model Parameters first
+        st.header("Model Parameters")
+        
+        num_topics = st.slider(
+            "Number of Topics",
+            min_value=2,
+            max_value=20,
+            value=8,
+            help="Select number of topics to extract"
+        )
+        
+        max_features = st.slider(
+            "Maximum Features",
+            min_value=500,
+            max_value=5000,
+            value=2000,
+            step=500,
+            help="Maximum number of terms to include"
+        )
+        
+        with st.expander("Advanced Settings"):
+            min_df = st.slider(
+                "Minimum Document Frequency",
+                min_value=1,
+                max_value=10,
+                value=2,
+                help="Minimum number of documents a term must appear in"
+            )
+            
+        # Add separator
+        st.markdown("---")
+            
+        # Filters section
         st.header("Filters")
         
         # Date Range Filter
@@ -1329,8 +1363,6 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             options=sorted(all_categories),
             key="tm_categories"
         )
-
-        st.header("Model Parameters")
         
         num_topics = st.slider(
             "Number of Topics",
@@ -1535,7 +1567,8 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             st.error(f"Error in topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
             return
-            
+
+
 def get_top_words(model, feature_names, topic_idx, n_words=10):
     """Get top words for a topic."""
     return [feature_names[i] for i in model.components_[topic_idx].argsort()[:-n_words-1:-1]]
