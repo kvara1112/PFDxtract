@@ -1315,48 +1315,44 @@ def display_topic_overview(lda, feature_names, doc_topics, df):
                         st.markdown(f"- {doc_title} ({doc_score:.1%})")
 
 def display_document_analysis(doc_topics, df):
-    """Display document-topic distribution analysis"""
-    # Create DataFrame with document-topic assignments
-    assignments = pd.DataFrame({
-        'Document': df['Title'].values,
-        'Primary Topic': [f"Topic {i+1}" for i in doc_topics.argmax(axis=1)],
-        'Topic Confidence': doc_topics.max(axis=1),
-        'Secondary Topics': [
-            ', '.join([f"Topic {j+1}" for j in np.where(doc_topics[i] > 0.1)[0] if j != doc_topics[i].argmax()])
-            for i in range(len(df))
-        ]
-    })
-    
-    # Sort by topic confidence
-    assignments_sorted = assignments.sort_values('Topic Confidence', ascending=False)
-    
-    # Display top 20 documents
-    st.dataframe(
-        assignments_sorted.head(20),
-        column_config={
-            'Document': st.column_config.TextColumn('Report Title'),
-            'Primary Topic': st.column_config.TextColumn('Primary Topic'),
-            'Topic Confidence': st.column_config.NumberColumn(
-                'Confidence', 
-                format='%.2f%%'
-            ),
-            'Secondary Topics': st.column_config.ListColumn('Secondary Topics')
-        },
-        hide_index=True
-    )
-    
-    # Create heatmap
-    topic_labels = [f"Topic {i+1}" for i in range(doc_topics.shape[1])]
-    
-    fig = px.imshow(
-        doc_topics,
-        labels=dict(x="Topics", y="Documents", color="Weight"),
-        x=topic_labels,
-        y=df['Title'].values,
-        aspect="auto"
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
+    """Robust document-topic distribution analysis"""
+    try:
+        # Validate inputs
+        if doc_topics is None or df is None or len(doc_topics) == 0:
+            st.warning("No valid data for document analysis")
+            return
+
+        # Create comprehensive assignment dataframe
+        assignments = pd.DataFrame({
+            'Document': df['Title'].values,
+            'Primary Topic': doc_topics.argmax(axis=1) + 1,
+            'Topic Distribution': [
+                ', '.join([f"Topic {j+1}: {score:.2%}" for j, score in enumerate(row) if score > 0.1])
+                for row in doc_topics
+            ]
+        })
+
+        # Sort by how distinctively a document belongs to a topic
+        assignments['Topic Distinctiveness'] = doc_topics.max(axis=1)
+        assignments_sorted = assignments.sort_values('Topic Distinctiveness', ascending=False)
+
+        # Display results
+        st.dataframe(
+            assignments_sorted.head(20),
+            column_config={
+                'Document': st.column_config.TextColumn('Report Title'),
+                'Primary Topic': st.column_config.NumberColumn('Primary Topic'),
+                'Topic Distribution': st.column_config.TextColumn('Topic Distribution'),
+                'Topic Distinctiveness': st.column_config.NumberColumn('Distinctiveness', format='%.2f')
+            },
+            hide_index=True
+        )
+
+    except Exception as e:
+        st.error(f"Error in document analysis: {e}")
+        logging.error(f"Document analysis error: {e}", exc_info=True)
+
+
 
 def display_topic_network(lda, feature_names):
     """Display word similarity network with interactive filters"""
@@ -2416,93 +2412,71 @@ def extract_topics_lda(data: pd.DataFrame, num_topics: int = 5, max_features: in
         raise e
 
 def extract_advanced_topics(data: pd.DataFrame, num_topics: int = 5, max_features: int = 1000, min_df: int = 2, n_iterations: int = 20):
-    """Extract topics with improved preprocessing and error handling"""
+    """Enhanced topic modeling with robust error handling and logging"""
     try:
-        # Create a copy of the data to avoid modifying the original
-        working_data = data.copy()
+        # Extensive logging
+        logging.info(f"Starting topic modeling with {len(data)} documents")
+        logging.info(f"Parameters: topics={num_topics}, max_features={max_features}, min_df={min_df}")
+
+        # Validate input data more rigorously
+        if data is None or len(data) == 0:
+            raise ValueError("No data provided for topic modeling")
+
+        # More aggressive text cleaning
+        def prepare_document(row):
+            try:
+                # Combine all text sources
+                combined_text = combine_document_text(row)
+                cleaned_text = clean_text_for_modeling(combined_text)
+                return cleaned_text
+            except Exception as e:
+                logging.warning(f"Document preparation error: {e}")
+                return None
+
+        # Process documents
+        documents = data['Content'].apply(prepare_document).dropna().tolist()
         
-        # Ensure 'Content' column exists
-        if 'Content' not in working_data.columns:
-            raise ValueError("DataFrame must contain a 'Content' column")
-        
-        # Filter valid data first
-        valid_data = working_data[working_data['Content'].notna()].copy()
-        if len(valid_data) == 0:
-            raise ValueError("No valid content found in the dataset")
-        
-        # Combine and clean texts
-        texts = []
-        doc_mapping = []  # Keep track of original document indices
-        
-        for idx, row in valid_data.iterrows():
-            combined_text = combine_document_text(row)
-            cleaned_text = clean_text_for_modeling(combined_text)
-            if cleaned_text and len(cleaned_text.split()) > 3:
-                texts.append(cleaned_text)
-                doc_mapping.append(idx)
-        
-        if not texts:
-            raise ValueError("No valid documents found after cleaning")
-        
-        # Configure vectorizer with error checking
+        logging.info(f"Processed {len(documents)} valid documents")
+
+        if len(documents) < num_topics:
+            raise ValueError(f"Not enough documents ({len(documents)}) for {num_topics} topics")
+
+        # Vectorization with more robust settings
         vectorizer = TfidfVectorizer(
             max_features=max_features,
-            min_df=min(min_df, len(texts)),  # Ensure min_df doesn't exceed document count
+            min_df=min(min_df, len(documents) // 10),  # Adaptive min_df
             max_df=0.95,
-            stop_words='english',
-            token_pattern=r'(?u)\b[a-z]{2,}\b'
+            stop_words='english'
         )
+
+        dtm = vectorizer.fit_transform(documents)
         
-        # Create document-term matrix
-        try:
-            dtm = vectorizer.fit_transform(texts)
-        except ValueError as e:
-            raise ValueError(f"Error in document vectorization: {str(e)}")
+        # Adaptive number of topics
+        n_topics = min(num_topics, dtm.shape[0] // 2)
         
-        # Verify we have enough features
-        if dtm.shape[1] < num_topics:
-            num_topics = max(2, dtm.shape[1] - 1)  # Adjust number of topics if necessary
-            st.warning(f"Adjusted number of topics to {num_topics} due to limited vocabulary")
-        
-        # Configure and fit LDA model
+        logging.info(f"Using {n_topics} topics")
+
+        # LDA with more robust parameters
         lda_model = LatentDirichletAllocation(
-            n_components=num_topics,
+            n_components=n_topics,
             random_state=42,
-            n_jobs=-1,
-            max_iter=n_iterations,
-            learning_method='batch',
-            doc_topic_prior=0.1,
-            topic_word_prior=0.01
+            learning_method='online',
+            learning_offset=50.,
+            max_iter=n_iterations
         )
+
+        doc_topics = lda_model.fit_transform(dtm)
         
-        # Fit model and get document-topic distributions
-        doc_topic_dist = lda_model.fit_transform(dtm)
+        # Add extensive logging of results
+        logging.info("Topic modeling completed successfully")
+        logging.info(f"Document-topic matrix shape: {doc_topics.shape}")
         
-        # Normalize components
-        for idx in range(len(lda_model.components_)):
-            lda_model.components_[idx] = lda_model.components_[idx] / lda_model.components_[idx].sum()
-        
-        # Prepare visualization data
-        feature_names = vectorizer.get_feature_names_out()
-        doc_lengths = np.array(dtm.sum(axis=1)).ravel()
-        term_frequency = np.array(dtm.sum(axis=0)).ravel()
-        
-        # Format data for pyLDAvis
-        prepared_data = pyLDAvis.prepare(
-            lda_model.components_,
-            doc_topic_dist,
-            doc_lengths,
-            feature_names,
-            term_frequency,
-            sort_topics=False,
-            mds='mmds'
-        )
-        
-        return lda_model, vectorizer, doc_topic_dist, prepared_data
-        
+        return lda_model, vectorizer, doc_topics
+
     except Exception as e:
-        logging.error(f"Error in topic extraction: {str(e)}", exc_info=True)
-        raise Exception(f"Topic modeling failed: {str(e)}")
+        logging.error(f"Topic modeling failed: {e}", exc_info=True)
+        raise
+
 
 def extract_topic_insights(lda_model, vectorizer, doc_topics, data: pd.DataFrame):
     """Extract insights from topic modeling results with improved error handling"""
