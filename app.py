@@ -1270,190 +1270,249 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             os.remove(pdf_zip_path)
 
 
+
+
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis for PFD reports."""
     st.header("Topic Modeling Analysis")
-    
-    # Model Parameters in sidebar
-    st.sidebar.markdown("# Model Parameters")
-    
-    num_topics = st.sidebar.slider(
-        "Number of Topics",
-        min_value=2,
-        max_value=20,
-        value=8,
-        help="Select number of topics to extract"
-    )
-    
-    max_features = st.sidebar.slider(
-        "Maximum Features",
-        min_value=500,
-        max_value=5000,
-        value=2000,
-        step=500,
-        help="Maximum number of terms to include"
-    )
-    
-    advanced_settings = st.sidebar.expander("Advanced Settings")
-    with advanced_settings:
-        min_df = st.slider(
-            "Minimum Document Frequency",
-            min_value=1,
-            max_value=10,
-            value=2,
-            help="Minimum number of documents a term must appear in"
-        )
 
-    # Add separator
-    st.sidebar.markdown("---")
+    # Model Parameters in sidebar
+    with st.sidebar:
+        st.header("Model Parameters")
+        
+        num_topics = st.slider(
+            "Number of Topics",
+            min_value=2,
+            max_value=20,
+            value=8,
+            help="Select number of topics to extract"
+        )
+        
+        max_features = st.slider(
+            "Maximum Features",
+            min_value=500,
+            max_value=5000,
+            value=2000,
+            step=500,
+            help="Maximum number of terms to include"
+        )
+        
+        with st.expander("Advanced Settings"):
+            min_df = st.slider(
+                "Minimum Document Frequency",
+                min_value=1,
+                max_value=10,
+                value=2,
+                help="Minimum number of documents a term must appear in"
+            )
+
+    # Create two columns for filters
+    col1, col2 = st.columns(2)
     
-    # Filters section in sidebar
-    st.sidebar.markdown("# Filters")
-    
-    # Date Range Filter
-    min_date = data['date_of_report'].min().date()
-    max_date = data['date_of_report'].max().date()
-    
-    date_col1, date_col2 = st.sidebar.columns(2)
-    with date_col1:
+    with col1:
         start_date = st.date_input(
             "From",
-            value=min_date,
-            min_value=min_date,
-            max_value=max_date,
+            value=data['date_of_report'].min().date(),
+            min_value=data['date_of_report'].min().date(),
+            max_value=data['date_of_report'].max().date(),
             key="tm_start_date",
             format="DD/MM/YYYY"
         )
-    with date_col2:
+        
+        # Document Type Filter
+        doc_type = st.multiselect(
+            "Document Type",
+            ["Report", "Response"],
+            default=["Report", "Response"],
+            key="tm_doc_type",
+            help="Filter by document type"
+        )
+        
+        # Coroner Name
+        coroner_names = sorted(data['coroner_name'].dropna().unique())
+        selected_coroners = st.multiselect(
+            "Coroner Names",
+            options=coroner_names,
+            key="tm_coroner_filter"
+        )
+        
+        # Categories
+        all_categories = set()
+        for cats in data['categories'].dropna():
+            if isinstance(cats, list):
+                all_categories.update(cats)
+        selected_categories = st.multiselect(
+            "Categories",
+            options=sorted(all_categories),
+            key="tm_categories_filter"
+        )
+
+    with col2:
         end_date = st.date_input(
             "To",
-            value=max_date,
-            min_value=min_date,
-            max_value=max_date,
+            value=data['date_of_report'].max().date(),
+            min_value=data['date_of_report'].min().date(),
+            max_value=data['date_of_report'].max().date(),
             key="tm_end_date",
             format="DD/MM/YYYY"
         )
+        
+        # Reference Number
+        ref_numbers = sorted(data['ref'].dropna().unique())
+        selected_refs = st.multiselect(
+            "Reference Numbers",
+            options=ref_numbers,
+            key="tm_ref_filter"
+        )
+        
+        # Coroner Area
+        coroner_areas = sorted(data['coroner_area'].dropna().unique())
+        selected_areas = st.multiselect(
+            "Coroner Areas",
+            options=coroner_areas,
+            key="tm_areas_filter"
+        )
+        
+        # Deceased Name
+        deceased_search = st.text_input(
+            "Deceased Name",
+            key="tm_deceased_filter",
+            help="Enter partial or full name"
+        )
 
-    # Document Type Filter
-    doc_type = st.sidebar.multiselect(
-        "Document Type",
-        ["Report", "Response"],
-        default=["Report", "Response"],
-        key="tm_doc_type",
-        help="Filter by document type"
-    )
+    # Action Buttons Row
+    button_col1, button_col2, button_col3 = st.columns([1, 2, 1])
+    with button_col1:
+        if st.button("🔄 Reset Filters", use_container_width=True):
+            for key in st.session_state:
+                if key.startswith('tm_'):
+                    del st.session_state[key]
+            st.rerun()
+    with button_col2:
+        analyze_clicked = st.button("🔍 Run Topic Analysis", type="primary", use_container_width=True)
 
-    # Coroner Area Filter
-    coroner_areas = sorted(data['coroner_area'].dropna().unique())
-    selected_areas = st.sidebar.multiselect(
-        "Coroner Areas",
-        options=coroner_areas,
-        key="tm_areas"
-    )
+    # Show a divider before results
+    st.divider()
 
-    # Categories Filter
-    all_categories = set()
-    for cats in data['categories'].dropna():
-        if isinstance(cats, list):
-            all_categories.update(cats)
-    selected_categories = st.sidebar.multiselect(
-        "Categories",
-        options=sorted(all_categories),
-        key="tm_categories"
-    )
-
-    # Reset Filters Button
-    if st.sidebar.button("🔄 Reset Filters"):
-        for key in st.session_state:
-            if key.startswith('tm_'):
-                del st.session_state[key]
-        st.rerun()
-
-    # Apply filters to create filtered dataset
-    filtered_df = data.copy()
-
-    # Date filter
-    if start_date and end_date:
-        filtered_df = filtered_df[
-            (filtered_df['date_of_report'].dt.date >= start_date) &
-            (filtered_df['date_of_report'].dt.date <= end_date)
-        ]
-
-    # Document type filter
-    if doc_type:
-        is_response_mask = filtered_df.apply(is_response, axis=1)
-        if "Report" in doc_type and "Response" in doc_type:
-            pass  # Keep all documents
-        elif "Response" in doc_type:
-            filtered_df = filtered_df[is_response_mask]
-        elif "Report" in doc_type:
-            filtered_df = filtered_df[~is_response_mask]
-        else:
-            filtered_df = pd.DataFrame()  # Empty if no document type selected
-
-    # Coroner area filter
-    if selected_areas:
-        filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
-
-    # Categories filter
-    if selected_categories:
-        filtered_df = filtered_df[
-            filtered_df['categories'].apply(
-                lambda x: bool(x) and any(cat in x for cat in selected_categories)
-            )
-        ]
-
-    # Show number of documents after filtering
-    st.write(f"Analysis will be performed on {len(filtered_df)} documents")
-
-    # Show active filters
-    active_filters = []
-    if start_date != min_date or end_date != max_date:
-        active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
-    if doc_type and doc_type != ["Report", "Response"]:
-        active_filters.append(f"Document Types: {', '.join(doc_type)}")
-    if selected_areas:
-        active_filters.append(f"Areas: {', '.join(selected_areas)}")
-    if selected_categories:
-        active_filters.append(f"Categories: {', '.join(selected_categories)}")
-
-    if active_filters:
-        st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
-
-    # Run topic modeling
-    if st.button("Extract Topics", type="primary"):
-        if len(filtered_df) < 2:
-            st.error("Not enough documents to perform topic modeling. Please adjust your filters.")
-            return
-
+    # Run topic modeling if button is clicked
+    if analyze_clicked:
         try:
             with st.spinner("Analyzing document topics..."):
-                # Prepare documents
+                # Apply filters to create filtered dataset
+                filtered_df = data.copy()
+
+                # Date filter
+                if start_date and end_date:
+                    filtered_df = filtered_df[
+                        (filtered_df['date_of_report'].dt.date >= start_date) &
+                        (filtered_df['date_of_report'].dt.date <= end_date)
+                    ]
+
+                # Document type filter
+                if doc_type:
+                    is_response_mask = filtered_df.apply(is_response, axis=1)
+                    if "Report" in doc_type and "Response" in doc_type:
+                        pass  # Keep all documents
+                    elif "Response" in doc_type:
+                        filtered_df = filtered_df[is_response_mask]
+                    elif "Report" in doc_type:
+                        filtered_df = filtered_df[~is_response_mask]
+                    else:
+                        filtered_df = pd.DataFrame()  # Empty if no document type selected
+
+                # Reference number filter
+                if selected_refs:
+                    filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
+
+                # Deceased name filter
+                if deceased_search:
+                    filtered_df = filtered_df[
+                        filtered_df['deceased_name'].fillna('').str.contains(
+                            deceased_search, 
+                            case=False, 
+                            na=False
+                        )
+                    ]
+
+                # Coroner name filter
+                if selected_coroners:
+                    filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
+
+                # Coroner area filter
+                if selected_areas:
+                    filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
+
+                # Categories filter
+                if selected_categories:
+                    filtered_df = filtered_df[
+                        filtered_df['categories'].apply(
+                            lambda x: bool(x) and any(cat in x for cat in selected_categories)
+                        )
+                    ]
+
+                # Show number of documents after filtering
+                st.write(f"Analysis will be performed on {len(filtered_df)} documents")
+
+                # Show active filters
+                active_filters = []
+                if start_date != data['date_of_report'].min().date() or end_date != data['date_of_report'].max().date():
+                    active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
+                if doc_type and doc_type != ["Report", "Response"]:
+                    active_filters.append(f"Document Types: {', '.join(doc_type)}")
+                if selected_refs:
+                    active_filters.append(f"References: {', '.join(selected_refs)}")
+                if deceased_search:
+                    active_filters.append(f"Deceased name contains: {deceased_search}")
+                if selected_coroners:
+                    active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+                if selected_areas:
+                    active_filters.append(f"Areas: {', '.join(selected_areas)}")
+                if selected_categories:
+                    active_filters.append(f"Categories: {', '.join(selected_categories)}")
+
+                if active_filters:
+                    st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
+
+                # Prepare documents from filtered data
+                valid_data = filtered_df[filtered_df['Content'].notna()].copy()
+
+                # Combine text from content and PDFs
                 documents = []
-                for _, row in filtered_df.iterrows():
+                for _, row in valid_data.iterrows():
                     doc_text = combine_document_text(row)
                     if doc_text.strip():
-                        documents.append(clean_text_for_modeling(doc_text))
-
+                        cleaned_text = clean_text_for_modeling(doc_text)
+                        if cleaned_text.strip():
+                            documents.append(cleaned_text)
+                
+                if not documents:
+                    st.error("No valid documents found for analysis")
+                    return
+                
                 # Create document-term matrix
                 vectorizer = CountVectorizer(
                     max_features=max_features,
                     min_df=min_df,
                     stop_words='english'
                 )
-
-                dtm = vectorizer.fit_transform(documents)
+                
+                try:
+                    dtm = vectorizer.fit_transform(documents)
+                except ValueError as e:
+                    st.error(f"Error creating document-term matrix: {str(e)}")
+                    return
+                
                 feature_names = vectorizer.get_feature_names_out()
-
+                
                 # Train LDA model
                 lda = LatentDirichletAllocation(
                     n_components=num_topics,
                     random_state=42,
                     n_jobs=-1
                 )
-
+                
                 doc_topics = lda.fit_transform(dtm)
-
+                
                 # Store results
                 st.session_state.topic_results = {
                     'model': lda,
@@ -1463,26 +1522,26 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     'documents': documents,
                     'filtered_data': filtered_df
                 }
-
+                
                 # Create visualization tabs
                 topic_tab, docs_tab, network_tab = st.tabs([
                     "Topic Overview",
                     "Document Analysis",
                     "Topic Network"
                 ])
-
+                
                 with topic_tab:
                     st.markdown("### Topics Overview")
                     display_topic_overview(lda, feature_names, doc_topics, filtered_df)
-
+                
                 with docs_tab:
                     st.markdown("### Document-Topic Distribution")
                     display_document_analysis(doc_topics, filtered_df)
-
+                
                 with network_tab:
                     st.markdown("### Topic Similarity Network")
                     display_topic_network(lda, feature_names)
-
+                
                 # Add export options
                 st.markdown("### Export Results")
                 
@@ -1522,8 +1581,8 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                         columns=[f"Topic {i+1}" for i in range(num_topics)]
                     )
                     doc_topics_df['Document'] = filtered_df['Title'].values
-                    doc_topics_df.to_excel(writer, sheet_name='Document-Topic Distribution')
-
+                    doc_topics_df.to_excel(writer, sheet_name='Document-Topic Distribution', index=False)
+                
                 # Download button
                 st.download_button(
                     "📥 Download Analysis (Excel)",
@@ -1531,10 +1590,13 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     "topic_analysis_filtered.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 )
-
+        
         except Exception as e:
-            st.error(f"Error in topic modeling: {str(e)}")
+            st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
+
+
+
 def get_top_words(model, feature_names, topic_idx, n_words=10):
     """Get top words for a topic."""
     return [feature_names[i] for i in model.components_[topic_idx].argsort()[:-n_words-1:-1]]
