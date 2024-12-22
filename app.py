@@ -2975,7 +2975,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     display_document_analysis(doc_topics, filtered_df)
                 
                 with network_tab:
-                    st.markdown("### Topic Similarity Network")
+                    st.markdown("### Word Similarity Network")
                     display_topic_network(lda_model, feature_names)
 
         except Exception as e:
