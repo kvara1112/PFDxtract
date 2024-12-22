@@ -1312,6 +1312,216 @@ def display_topic_overview(lda, feature_names, doc_topics, df):
                     doc_score = doc_topics[doc_idx, topic_idx]
                     st.markdown(f"- {doc_title} ({doc_score:.1%})")
 
+def display_topic_network(lda, feature_names):
+    """Display word similarity network with interactive filters"""
+    st.markdown("### Word Similarity Network")
+    st.markdown("This network shows relationships between words based on their co-occurrence in documents.")
+    
+    # Store base network data in session state if not already present
+    if 'network_data' not in st.session_state:
+        # Get word counts across all documents
+        word_counts = lda.components_.sum(axis=0)
+        top_word_indices = word_counts.argsort()[:-100-1:-1]  # Store more words initially
+        
+        # Create word co-occurrence matrix
+        word_vectors = normalize(lda.components_.T[top_word_indices])
+        word_similarities = cosine_similarity(word_vectors)
+        
+        st.session_state.network_data = {
+            'word_counts': word_counts,
+            'top_word_indices': top_word_indices,
+            'word_similarities': word_similarities,
+            'feature_names': feature_names
+        }
+    
+    # Network filters with keys to prevent rerun
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        min_similarity = st.slider(
+            "Minimum Similarity",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.3,
+            step=0.05,
+            help="Higher values show stronger connections only",
+            key="network_min_similarity"
+        )
+    with col2:
+        max_words = st.slider(
+            "Number of Words",
+            min_value=10,
+            max_value=100,
+            value=30,
+            step=5,
+            help="Number of most frequent words to show",
+            key="network_max_words"
+        )
+    with col3:
+        min_connections = st.slider(
+            "Minimum Connections",
+            min_value=1,
+            max_value=10,
+            value=2,
+            help="Minimum number of connections per word",
+            key="network_min_connections"
+        )
+
+    # Create network graph based on current filters
+    G = nx.Graph()
+    
+    # Get stored data
+    word_counts = st.session_state.network_data['word_counts']
+    word_similarities = st.session_state.network_data['word_similarities']
+    top_word_indices = st.session_state.network_data['top_word_indices'][:max_words]
+    feature_names = st.session_state.network_data['feature_names']
+    
+    # Add nodes
+    for idx, word_idx in enumerate(top_word_indices):
+        G.add_node(idx, name=feature_names[word_idx], freq=float(word_counts[word_idx]))
+    
+    # Add edges based on current similarity threshold
+    for i in range(len(top_word_indices)):
+        for j in range(i+1, len(top_word_indices)):
+            similarity = word_similarities[i, j]
+            if similarity > min_similarity:
+                G.add_edge(i, j, weight=float(similarity))
+    
+    # Filter nodes by minimum connections
+    nodes_to_remove = []
+    for node in G.nodes():
+        if G.degree(node) < min_connections:
+            nodes_to_remove.append(node)
+    G.remove_nodes_from(nodes_to_remove)
+    
+    if len(G.nodes()) == 0:
+        st.warning("No nodes match the current filter criteria. Try adjusting the filters.")
+        return
+    
+    # Create visualization
+    pos = nx.spring_layout(G, k=1/np.sqrt(len(G.nodes())), iterations=50)
+    
+    # Create edge traces with varying thickness and color based on weight
+    edge_traces = []
+    for edge in G.edges(data=True):
+        x0, y0 = pos[edge[0]]
+        x1, y1 = pos[edge[1]]
+        weight = edge[2]['weight']
+        
+        edge_trace = go.Scatter(
+            x=[x0, x1, None],
+            y=[y0, y1, None],
+            line=dict(
+                width=weight * 3,
+                color=f'rgba(100,100,100,{weight})'
+            ),
+            hoverinfo='none',
+            mode='lines'
+        )
+        edge_traces.append(edge_trace)
+    
+    # Create node trace with size based on frequency
+    node_x = []
+    node_y = []
+    node_text = []
+    node_size = []
+    
+    for node in G.nodes():
+        x, y = pos[node]
+        node_x.append(x)
+        node_y.append(y)
+        freq = G.nodes[node]['freq']
+        name = G.nodes[node]['name']
+        connections = G.degree(node)
+        node_text.append(f"{name}<br>Frequency: {freq:.0f}<br>Connections: {connections}")
+        node_size.append(np.sqrt(freq) * 10)
+    
+    node_trace = go.Scatter(
+        x=node_x,
+        y=node_y,
+        mode='markers+text',
+        hoverinfo='text',
+        text=node_text,
+        textposition="top center",
+        marker=dict(
+            size=node_size,
+            line=dict(width=1),
+            color='lightblue',
+            sizemode='area'
+        )
+    )
+    
+    # Create figure
+    fig = go.Figure(
+        data=edge_traces + [node_trace],
+        layout=go.Layout(
+            title=f"Word Network ({len(G.nodes())} words, {len(G.edges())} connections)",
+            titlefont_size=16,
+            showlegend=False,
+            hovermode='closest',
+            margin=dict(b=20,l=5,r=5,t=40),
+            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False)
+        )
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Add network statistics
+    st.markdown("### Network Statistics")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Number of Words", len(G.nodes()))
+    with col2:
+        st.metric("Number of Connections", len(G.edges()))
+    with col3:
+        if len(G.nodes()) > 0:
+            density = 2 * len(G.edges()) / (len(G.nodes()) * (len(G.nodes()) - 1))
+            st.metric("Network Density", f"{density:.2%}")def display_topic_overview(lda, feature_names, doc_topics, df):
+    """Display overview of topics with word distributions and prevalence"""
+    for topic_idx in range(len(lda.components_)):
+        # Get top words for topic
+        top_words = get_top_words(lda, feature_names, topic_idx)
+        
+        # Calculate topic prevalence
+        topic_prev = (doc_topics[:, topic_idx] > 0.2).mean() * 100
+        
+        with st.expander(f"Topic {topic_idx + 1}: {' - '.join(top_words[:3])}"):
+            col1, col2 = st.columns([2, 1])
+            
+            with col1:
+                # Show word distribution
+                word_weights = lda.components_[topic_idx]
+                top_word_indices = word_weights.argsort()[:-10-1:-1]
+                
+                words_df = pd.DataFrame({
+                    'Word': [feature_names[i] for i in top_word_indices],
+                    'Weight': word_weights[top_word_indices]
+                })
+                
+                fig = px.bar(
+                    words_df,
+                    x='Weight',
+                    y='Word',
+                    orientation='h',
+                    title='Top Terms'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+            
+            with col2:
+                st.metric(
+                    "Topic Prevalence",
+                    f"{topic_prev:.1f}%"
+                )
+                
+                # Get representative docs
+                top_doc_indices = doc_topics[:, topic_idx].argsort()[-3:][::-1]
+                st.markdown("#### Representative Documents")
+                
+                for doc_idx in top_doc_indices:
+                    doc_title = df.iloc[doc_idx]['Title']
+                    doc_score = doc_topics[doc_idx, topic_idx]
+                    st.markdown(f"- {doc_title} ({doc_score:.1%})")
+
 def display_document_analysis(doc_topics, df):
     """Display document-topic distribution analysis"""
     # Create heatmap
@@ -1532,8 +1742,6 @@ def create_node_trace(G, pos):
             color='lightblue'
         )
     )
-
-
 
 
 
