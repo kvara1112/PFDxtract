@@ -3033,14 +3033,12 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         tfidf_matrix = vectorizer.fit_transform(texts)
         feature_names = vectorizer.get_feature_names_out()
 
-        # Calculate document similarity matrix
+        # Calculate document similarity matrix and ensure non-negative distances
         similarity_matrix = cosine_similarity(tfidf_matrix)
         
-        # Convert similarity to distance matrix
-        distance_matrix = 1 - similarity_matrix
-        
-        # Set diagonal elements to 0
-        np.fill_diagonal(distance_matrix, 0)
+        # Convert similarities to distances and ensure non-negative values
+        distance_matrix = np.clip(1 - similarity_matrix, 0, 2)  # Clip to range [0, 2]
+        np.fill_diagonal(distance_matrix, 0)  # Set self-distances to 0
 
         # Determine optimal number of clusters
         max_clusters = min(20, len(texts) // min_cluster_size)
