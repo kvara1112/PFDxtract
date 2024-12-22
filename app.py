@@ -24,11 +24,13 @@ from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import AgglomerativeClustering
+from sklearn.metrics import silhouette_score  # Added for semantic clustering
 import networkx as nx
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
 from bs4 import BeautifulSoup, Tag
+import json  # Added for JSON export functionality
 # Initialize NLTK resources
 import nltk 
 nltk.download('punkt')
@@ -78,7 +80,7 @@ def combine_document_text(row: pd.Series) -> str:
     """Combine all text content from a document"""
     text_parts = []
     
-    # Simply combine all text fields
+    # Add title and content
     if pd.notna(row.get('Title')):
         text_parts.append(str(row['Title']))
     if pd.notna(row.get('Content')):
@@ -91,9 +93,9 @@ def combine_document_text(row: pd.Series) -> str:
             text_parts.append(str(row[pdf_col]))
     
     return ' '.join(text_parts)
-
+    
 def clean_text_for_modeling(text: str) -> str:
-    """Clean text with better preprocessing"""
+    """Clean text for modeling purposes"""
     if not isinstance(text, str):
         return ""
     
@@ -2950,7 +2952,6 @@ def initialize_nltk():
     except Exception as e:
         logging.error(f"Error initializing NLTK resources: {e}")
         raise
-        
 
 def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3, 
                              max_features: int = 5000, min_df: float = 0.01,
@@ -2973,37 +2974,189 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         # Initialize NLTK resources
         initialize_nltk()
         
-        # Enhanced preprocessing
-def preprocess_text(text: str) -> str:
-    if pd.isna(text):
-        return ""
+        def preprocess_text(text: str) -> str:
+            """Preprocess text for clustering analysis"""
+            if pd.isna(text):
+                return ""
+                    
+            # Convert to lowercase and clean text
+            text = clean_text_for_modeling(str(text))
             
-    # Convert to lowercase and clean text
-    text = clean_text_for_modeling(str(text))
-    
-    try:
-        # Remove standard English stopwords
-        stop_words = set(stopwords.words('english'))
+            try:
+                # Remove standard English stopwords
+                stop_words = set(stopwords.words('english'))
+                
+                # Add domain-specific stop words
+                domain_stops = {
+                    'report', 'death', 'pfd', 'coroner', 'regulation', 'paragraph',
+                    'section', 'article', 'deceased', 'died', 'circumstances'
+                }
+                stop_words.update(domain_stops)
+                
+                # Tokenize and remove stopwords
+                try:
+                    tokens = word_tokenize(text.lower())
+                except:
+                    tokens = text.lower().split()
+                    
+                tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
+                
+                return ' '.join(tokens)
+            except Exception as e:
+                logging.error(f"Error in text preprocessing: {e}")
+                return text
+
+        # Combine document text and preprocess
+        texts = []
+        docs_info = []
         
-        # Add domain-specific stop words
-        domain_stops = {
-            'report', 'death', 'pfd', 'coroner', 'regulation', 'paragraph',
-            'section', 'article', 'deceased', 'died', 'circumstances'
+        for _, row in data.iterrows():
+            # Combine all text content
+            text = combine_document_text(row)
+            
+            # Skip if no valid text
+            if not text or len(text.split()) < 10:
+                continue
+                
+            # Preprocess text
+            processed_text = preprocess_text(text)
+            if processed_text:
+                texts.append(processed_text)
+                docs_info.append({
+                    'title': row.get('Title', ''),
+                    'date': row.get('date_of_report', ''),
+                    'content': text[:500]  # Store first 500 chars for summary
+                })
+
+        if len(texts) < min_cluster_size:
+            raise ValueError(f"Not enough valid documents. Found {len(texts)}, need at least {min_cluster_size}")
+
+        # Create TF-IDF matrix
+        vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=max_df,
+            stop_words='english',
+            ngram_range=(1, 2)  # Include bigrams
+        )
+        
+        tfidf_matrix = vectorizer.fit_transform(texts)
+        feature_names = vectorizer.get_feature_names_out()
+
+        # Calculate document similarity matrix
+        similarity_matrix = cosine_similarity(tfidf_matrix)
+
+        # Determine optimal number of clusters
+        max_clusters = min(20, len(texts) // min_cluster_size)
+        best_n_clusters = 2
+        best_score = -1
+        
+        for n_clusters in range(2, max_clusters + 1):
+            clustering = AgglomerativeClustering(
+                n_clusters=n_clusters,
+                affinity='precomputed',
+                linkage='average'
+            )
+            
+            # Convert similarity to distance
+            distance_matrix = 1 - similarity_matrix
+            cluster_labels = clustering.fit_predict(distance_matrix)
+            
+            # Calculate silhouette score
+            if len(set(cluster_labels)) > 1:  # Ensure multiple clusters exist
+                score = silhouette_score(distance_matrix, cluster_labels, metric='precomputed')
+                if score > best_score:
+                    best_score = score
+                    best_n_clusters = n_clusters
+
+        # Perform final clustering with optimal number of clusters
+        final_clustering = AgglomerativeClustering(
+            n_clusters=best_n_clusters,
+            affinity='precomputed',
+            linkage='average'
+        )
+        
+        final_labels = final_clustering.fit_predict(1 - similarity_matrix)
+
+        # Extract cluster information
+        clusters = []
+        for cluster_id in range(best_n_clusters):
+            # Get documents in this cluster
+            cluster_doc_indices = np.where(final_labels == cluster_id)[0]
+            
+            if len(cluster_doc_indices) < min_cluster_size:
+                continue
+                
+            # Calculate cluster centroid
+            cluster_tfidf = tfidf_matrix[cluster_doc_indices].toarray()
+            centroid = cluster_tfidf.mean(axis=0)
+            
+            # Get top terms
+            top_term_indices = centroid.argsort()[-20:][::-1]
+            cluster_terms = []
+            
+            for idx in top_term_indices:
+                if centroid[idx] > 0:
+                    term = feature_names[idx]
+                    # Calculate term relevance metrics
+                    cluster_freq = np.mean(cluster_tfidf[:, idx] > 0)
+                    total_freq = np.mean(tfidf_matrix[:, idx].toarray() > 0)
+                    relevance = cluster_freq * np.log2(cluster_freq / total_freq + 1)
+                    
+                    cluster_terms.append({
+                        'term': term,
+                        'relevance': float(relevance),
+                        'cluster_frequency': float(cluster_freq),
+                        'total_frequency': float(total_freq)
+                    })
+
+            # Get representative documents
+            doc_similarities = []
+            for doc_idx in cluster_doc_indices:
+                # Calculate similarity to cluster centroid
+                doc_vector = tfidf_matrix[doc_idx].toarray().flatten()
+                sim_to_centroid = cosine_similarity(
+                    doc_vector.reshape(1, -1),
+                    centroid.reshape(1, -1)
+                )[0][0]
+                
+                doc_similarities.append((doc_idx, sim_to_centroid))
+
+            # Sort by similarity and get top documents
+            doc_similarities.sort(key=lambda x: x[1], reverse=True)
+            representative_docs = []
+            
+            for doc_idx, similarity in doc_similarities[:5]:  # Top 5 documents
+                doc_info = docs_info[doc_idx]
+                representative_docs.append({
+                    'title': doc_info['title'],
+                    'date': doc_info['date'],
+                    'similarity': float(similarity),
+                    'summary': doc_info['content']
+                })
+
+            # Calculate cluster cohesion (average intra-cluster similarity)
+            cluster_similarities = similarity_matrix[cluster_doc_indices][:, cluster_doc_indices]
+            cohesion = float(np.mean(cluster_similarities))
+
+            clusters.append({
+                'id': cluster_id,
+                'size': len(cluster_doc_indices),
+                'cohesion': cohesion,
+                'terms': cluster_terms,
+                'documents': representative_docs
+            })
+
+        return {
+            'n_clusters': len(clusters),
+            'total_documents': len(texts),
+            'silhouette_score': float(best_score),
+            'clusters': clusters
         }
-        stop_words.update(domain_stops)
         
-        # Tokenize and remove stopwords - using split() as a fallback if word_tokenize fails
-        try:
-            tokens = word_tokenize(text.lower())
-        except:
-            tokens = text.lower().split()
-            
-        tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
-        
-        return ' '.join(tokens)
     except Exception as e:
-        logging.error(f"Error in text preprocessing: {e}")
-        return text
+        logging.error(f"Error in semantic clustering: {e}")
+        raise
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """
