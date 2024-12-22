@@ -1644,57 +1644,7 @@ def format_topics_for_display(topic_insights):
         } for doc in topic['representativeDocs']]
     } for topic in topic_insights]
 
-def export_topic_analysis(topic_insights, data):
-    """Export topic analysis to Excel"""
-    output = io.BytesIO()
-    
-    with pd.ExcelWriter(output, engine='openpyxl') as writer:
-        # Overview sheet
-        overview_data = []
-        for topic in topic_insights:
-            overview_data.append({
-                'Topic': topic['label'],
-                'Prevalence': topic['prevalence'],
-                'Description': topic['description'],
-                'Top Words': ', '.join([w['word'] for w in topic['words'][:10]])
-            })
-        
-        pd.DataFrame(overview_data).to_excel(
-            writer,
-            sheet_name='Topics Overview',
-            index=False
-        )
-        
-        # Detailed sheets for each topic
-        for topic in topic_insights:
-            # Words sheet
-            words_df = pd.DataFrame([{
-                'Word': w['word'],
-                'Weight': w['weight'],
-                'Document Frequency': w.get('docs', 0)
-            } for w in topic['words']])
-            
-            words_df.to_excel(
-                writer,
-                sheet_name=f'Topic_{topic["id"]}_Words',
-                index=False
-            )
-            
-            # Documents sheet
-            docs_df = pd.DataFrame([{
-                'Title': doc['title'],
-                'Date': doc['date'],
-                'Relevance': doc['relevance'],
-                'Summary': doc['summary']
-            } for doc in topic['representativeDocs']])
-            
-            docs_df.to_excel(
-                writer,
-                sheet_name=f'Topic_{topic["id"]}_Docs',
-                index=False
-            )
-    
-    return output.getvalue()
+
 
 def render_file_upload():
     """Render file upload section"""
@@ -3195,14 +3145,96 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
                 # Representative documents
                 st.markdown("#### Representative Documents")
                 for doc in cluster['documents']:
-                    with st.expander(f"{doc['title']} (Similarity: {doc['similarity']:.2f})"):
-                        st.markdown(f"**Date**: {doc['date']}")
-                        st.markdown(doc['summary'])
+                    st.markdown(f"**{doc['title']}** (Similarity: {doc['similarity']:.2f})")
+                    st.markdown(f"**Date**: {doc['date']}")
+                    st.markdown(f"**Summary**: {doc['summary'][:300]}...")
+                    st.markdown("---")  # Separator between documents
 
     except Exception as e:
         st.error(f"Error displaying cluster analysis: {str(e)}")
         logging.error(f"Display error: {str(e)}", exc_info=True)
 
+def export_topic_analysis(topic_insights, data):
+    """Export topic analysis to Excel with timestamp handling"""
+    output = io.BytesIO()
+    
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Overview sheet
+        overview_data = []
+        for topic in topic_insights:
+            overview_data.append({
+                'Topic': topic['label'],
+                'Prevalence': topic['prevalence'],
+                'Description': topic['description'],
+                'Top Words': ', '.join([w['word'] for w in topic['words'][:10]])
+            })
+        
+        pd.DataFrame(overview_data).to_excel(
+            writer,
+            sheet_name='Topics Overview',
+            index=False
+        )
+        
+        # Detailed sheets for each topic
+        for topic in topic_insights:
+            # Words sheet
+            words_df = pd.DataFrame([{
+                'Word': w['word'],
+                'Weight': w['weight'],
+                'Document Frequency': w.get('docs', 0)
+            } for w in topic['words']])
+            
+            words_df.to_excel(
+                writer,
+                sheet_name=f'Topic_{topic["id"]}_Words',
+                index=False
+            )
+            
+            # Documents sheet
+            docs_df = pd.DataFrame([{
+                'Title': doc['title'],
+                'Date': doc['date'].strftime('%Y-%m-%d') if isinstance(doc['date'], pd.Timestamp) else str(doc['date']),
+                'Relevance': doc['relevance'],
+                'Summary': doc['summary']
+            } for doc in topic['representativeDocs']])
+            
+            docs_df.to_excel(
+                writer,
+                sheet_name=f'Topic_{topic["id"]}_Docs',
+                index=False
+            )
+    
+    return output.getvalue()
+
+def export_cluster_results(cluster_results: Dict) -> bytes:
+    """Export cluster results with proper timestamp handling"""
+    output = io.BytesIO()
+    
+    # Prepare export data with timestamp conversion
+    export_data = {
+        'metadata': {
+            'total_documents': cluster_results['total_documents'],
+            'number_of_clusters': cluster_results['n_clusters'],
+            'silhouette_score': cluster_results['silhouette_score'],
+        },
+        'clusters': []
+    }
+    
+    # Convert cluster data
+    for cluster in cluster_results['clusters']:
+        # Create a copy of cluster with converted documents
+        cluster_export = cluster.copy()
+        for doc in cluster_export['documents']:
+            # Ensure date is a string
+            doc['date'] = str(doc['date'])
+        
+        export_data['clusters'].append(cluster_export)
+    
+    # Write JSON to BytesIO
+    json.dump(export_data, io.TextIOWrapper(output, encoding='utf-8'), indent=2)
+    output.seek(0)
+    
+    return output.getvalue()
 
 def main():
     initialize_session_state()
