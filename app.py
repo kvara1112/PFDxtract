@@ -1304,14 +1304,15 @@ def display_topic_overview(lda, feature_names, doc_topics, df):
                 )
                 
                 # Get representative docs
-                top_doc_indices = doc_topics[:, topic_idx].argsort()[-3:][::-1]
+                topic_docs = doc_topics[:, topic_idx]
+                top_doc_indices = topic_docs.argsort()[-3:][::-1]
                 st.markdown("#### Representative Documents")
                 
                 for doc_idx in top_doc_indices:
-                    doc_title = df.iloc[doc_idx]['Title']
-                    doc_score = doc_topics[doc_idx, topic_idx]
-                    st.markdown(f"- {doc_title} ({doc_score:.1%})")
-
+                    if doc_idx < len(df):  # Ensure valid index
+                        doc_title = df.iloc[doc_idx]['Title']
+                        doc_score = topic_docs[doc_idx]
+                        st.markdown(f"- {doc_title} ({doc_score:.1%})")
 
 def display_document_analysis(doc_topics, df):
     """Display document-topic distribution analysis"""
