@@ -2988,7 +2988,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 
                 with network_tab:
                     st.markdown("### Topic Similarity Network")
-                    display_topic_network(lda_model, feature_names, min_similarity)
+                    display_topic_network(lda_model, feature_names)
 
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
