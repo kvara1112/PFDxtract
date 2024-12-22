@@ -1315,38 +1315,86 @@ def display_topic_overview(lda, feature_names, doc_topics, df):
                         st.markdown(f"- {doc_title} ({doc_score:.1%})")
 
 def display_document_analysis(doc_topics, df):
-    """Robust document-topic distribution analysis"""
+    """
+    Display comprehensive document-topic distribution analysis
+    
+    Args:
+        doc_topics (np.ndarray): Document-topic distribution matrix
+        df (pd.DataFrame): Original document dataframe
+    """
     try:
         # Validate inputs
         if doc_topics is None or df is None or len(doc_topics) == 0:
             st.warning("No valid data for document analysis")
             return
 
-        # Create comprehensive assignment dataframe
+        # Ensure unique documents
+        df_unique = df.drop_duplicates(subset=['Content'])
+        doc_topics_unique = doc_topics[:len(df_unique)]
+
+        # Create comprehensive assignments DataFrame
         assignments = pd.DataFrame({
-            'Document': df['Title'].values,
-            'Primary Topic': doc_topics.argmax(axis=1) + 1,
+            'Document': df_unique['Title'],
+            'Primary Topic': doc_topics_unique.argmax(axis=1) + 1,
+            'Topic Confidence': doc_topics_unique.max(axis=1) * 100,
             'Topic Distribution': [
-                ', '.join([f"Topic {j+1}: {score:.2%}" for j, score in enumerate(row) if score > 0.1])
-                for row in doc_topics
+                ', '.join([
+                    f"Topic {j+1}: {score*100:.2f}%" 
+                    for j, score in enumerate(row) 
+                    if score > 0.1
+                ])
+                for row in doc_topics_unique
             ]
         })
 
-        # Sort by how distinctively a document belongs to a topic
-        assignments['Topic Distinctiveness'] = doc_topics.max(axis=1)
-        assignments_sorted = assignments.sort_values('Topic Distinctiveness', ascending=False)
+        # Sort by topic confidence
+        assignments_sorted = assignments.sort_values('Topic Confidence', ascending=False)
 
-        # Display results
+        # Visualization
+        st.subheader("Document-Topic Distribution")
+        
+        # Summary statistics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total Documents", len(assignments))
+        with col2:
+            st.metric("Unique Topics", len(assignments['Primary Topic'].unique()))
+        with col3:
+            st.metric("Avg Topic Confidence", f"{assignments['Topic Confidence'].mean():.2f}%")
+
+        # Display dataframe
         st.dataframe(
-            assignments_sorted.head(20),
+            assignments_sorted.head(20),  # Limit to top 20 for readability
             column_config={
                 'Document': st.column_config.TextColumn('Report Title'),
-                'Primary Topic': st.column_config.NumberColumn('Primary Topic'),
-                'Topic Distribution': st.column_config.TextColumn('Topic Distribution'),
-                'Topic Distinctiveness': st.column_config.NumberColumn('Distinctiveness', format='%.2f')
+                'Primary Topic': st.column_config.NumberColumn('Primary Topic', format='%d'),
+                'Topic Confidence': st.column_config.NumberColumn('Confidence', format='%.2f%%'),
+                'Topic Distribution': st.column_config.TextColumn('Topic Distribution')
             },
             hide_index=True
         )
+
+        # Visualization of topic distribution
+        st.subheader("Topic Distribution Heatmap")
+        
+        # Create heatmap of topic distributions
+        topic_labels = [f"Topic {i+1}" for i in range(doc_topics_unique.shape[1])]
+        
+        fig = px.imshow(
+            doc_topics_unique,
+            labels=dict(x="Topics", y="Documents", color="Weight"),
+            x=topic_labels,
+            y=df_unique['Title'].values,
+            aspect="auto",
+            title="Document-Topic Weight Heatmap"
+        )
+        
+        fig.update_layout(
+            height=max(600, len(df_unique) * 10),  # Dynamic height
+            width=1000
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
 
     except Exception as e:
         st.error(f"Error in document analysis: {e}")
@@ -2411,68 +2459,93 @@ def extract_topics_lda(data: pd.DataFrame, num_topics: int = 5, max_features: in
         logging.error(f"Topic extraction error: {e}", exc_info=True)
         raise e
 
-def extract_advanced_topics(data: pd.DataFrame, num_topics: int = 5, max_features: int = 1000, min_df: int = 2, n_iterations: int = 20):
-    """Enhanced topic modeling with robust error handling and logging"""
+def extract_advanced_topics(
+    data: pd.DataFrame, 
+    num_topics: int = 5, 
+    max_features: int = 1000, 
+    min_df: int = 2, 
+    n_iterations: int = 20
+) -> Tuple[LatentDirichletAllocation, CountVectorizer, np.ndarray]:
+    """
+    Advanced topic modeling with comprehensive preprocessing and error handling
+    
+    Args:
+        data (pd.DataFrame): Input DataFrame containing documents
+        num_topics (int): Number of topics to extract
+        max_features (int): Maximum number of features to use
+        min_df (int): Minimum document frequency for terms
+        n_iterations (int): Maximum number of iterations for LDA
+    
+    Returns:
+        Tuple containing LDA model, vectorizer, and document-topic distribution
+    """
     try:
         # Extensive logging
         logging.info(f"Starting topic modeling with {len(data)} documents")
         logging.info(f"Parameters: topics={num_topics}, max_features={max_features}, min_df={min_df}")
 
-        # Validate input data more rigorously
+        # Validate input data
         if data is None or len(data) == 0:
             raise ValueError("No data provided for topic modeling")
 
-        # More aggressive text cleaning
-        def prepare_document(row):
-            try:
-                # Combine all text sources
-                combined_text = combine_document_text(row)
-                cleaned_text = clean_text_for_modeling(combined_text)
-                return cleaned_text
-            except Exception as e:
-                logging.warning(f"Document preparation error: {e}")
+        # Remove duplicate documents based on content
+        def prepare_document(doc: str) -> str:
+            """Clean and prepare individual documents"""
+            if pd.isna(doc):
                 return None
+            
+            # Aggressive text cleaning
+            cleaned_doc = clean_text_for_modeling(str(doc))
+            
+            # Minimum length check
+            return cleaned_doc if len(cleaned_doc.split()) > 3 else None
 
         # Process documents
-        documents = data['Content'].apply(prepare_document).dropna().tolist()
+        documents = data['Content'].apply(prepare_document).dropna().unique().tolist()
         
-        logging.info(f"Processed {len(documents)} valid documents")
+        logging.info(f"Processed {len(documents)} unique valid documents")
 
+        # Validate document count
         if len(documents) < num_topics:
-            raise ValueError(f"Not enough documents ({len(documents)}) for {num_topics} topics")
+            adjusted_topics = max(2, len(documents) // 2)
+            logging.warning(f"Not enough documents for {num_topics} topics. Adjusting to {adjusted_topics}")
+            num_topics = adjusted_topics
 
-        # Vectorization with more robust settings
-        vectorizer = TfidfVectorizer(
+        # Vectorization with robust settings
+        vectorizer = CountVectorizer(
             max_features=max_features,
-            min_df=min(min_df, len(documents) // 10),  # Adaptive min_df
+            min_df=min(min_df, max(2, len(documents) // 10)),  # Adaptive min_df
             max_df=0.95,
             stop_words='english'
         )
 
+        # Create document-term matrix
         dtm = vectorizer.fit_transform(documents)
+        feature_names = vectorizer.get_feature_names_out()
         
-        # Adaptive number of topics
-        n_topics = min(num_topics, dtm.shape[0] // 2)
-        
-        logging.info(f"Using {n_topics} topics")
+        logging.info(f"Document-term matrix shape: {dtm.shape}")
+        logging.info(f"Number of features: {len(feature_names)}")
 
-        # LDA with more robust parameters
+        # LDA with robust parameters
         lda_model = LatentDirichletAllocation(
-            n_components=n_topics,
+            n_components=num_topics,
             random_state=42,
             learning_method='online',
             learning_offset=50.,
-            max_iter=n_iterations
+            max_iter=n_iterations,
+            doc_topic_prior=None,  # Let scikit-learn auto-estimate
+            topic_word_prior=None  # Let scikit-learn auto-estimate
         )
 
+        # Fit LDA model
         doc_topics = lda_model.fit_transform(dtm)
         
-        # Add extensive logging of results
+        # Add logging of results
         logging.info("Topic modeling completed successfully")
         logging.info(f"Document-topic matrix shape: {doc_topics.shape}")
-        
-        return lda_model, vectorizer, doc_topics
 
+        return lda_model, vectorizer, doc_topics
+        
     except Exception as e:
         logging.error(f"Topic modeling failed: {e}", exc_info=True)
         raise
@@ -2694,9 +2767,16 @@ def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None
     html_string = pyLDAvis.prepared_data_to_html(vis_data)
     components.html(html_string, width=1300, height=800)
 
+
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis for PFD reports."""
     st.header("Topic Modeling Analysis")
+
+    # Diagnostic print to understand data composition
+    print(f"Total documents: {len(data)}")
+    print(f"Unique documents: {len(data.drop_duplicates(subset=['Content']))}")
+    print("Duplicate document titles:")
+    print(data[data.duplicated(subset=['Title'], keep=False)]['Title'].value_counts())
 
     # Model Parameters in sidebar
     with st.sidebar:
@@ -2728,7 +2808,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 help="Minimum number of documents a term must appear in"
             )
 
-    # Create two columns for filters
+    # Filters section
     col1, col2 = st.columns(2)
     
     with col1:
@@ -2802,15 +2882,17 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             help="Enter partial or full name"
         )
 
-    # Simple Reset Filters button
-    if st.button("🔄 Reset Filters"):
-        for key in st.session_state:
-            if key.startswith('tm_'):
-                del st.session_state[key]
-        st.rerun()
+    # Reset Filters and Analyze buttons
+    col_reset, col_analyze = st.columns(2)
+    with col_reset:
+        if st.button("🔄 Reset Filters"):
+            for key in st.session_state:
+                if key.startswith('tm_'):
+                    del st.session_state[key]
+            st.rerun()
     
-    # Simple Topic Analysis button - no columns or extra markup
-    analyze_clicked = st.button("🔍 Run Topic Analysis", type="primary")
+    with col_analyze:
+        analyze_clicked = st.button("🔍 Run Topic Analysis", type="primary")
 
     # Run topic modeling if button is clicked
     if analyze_clicked:
@@ -2820,11 +2902,10 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 filtered_df = data.copy()
 
                 # Date filter
-                if start_date and end_date:
-                    filtered_df = filtered_df[
-                        (filtered_df['date_of_report'].dt.date >= start_date) &
-                        (filtered_df['date_of_report'].dt.date <= end_date)
-                    ]
+                filtered_df = filtered_df[
+                    (filtered_df['date_of_report'].dt.date >= start_date) &
+                    (filtered_df['date_of_report'].dt.date <= end_date)
+                ]
 
                 # Document type filter
                 if doc_type:
@@ -2838,11 +2919,10 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     else:
                         filtered_df = pd.DataFrame()  # Empty if no document type selected
 
-                # Reference number filter
+                # Additional filters (reference, coroner, categories, etc.)
                 if selected_refs:
                     filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
 
-                # Deceased name filter
                 if deceased_search:
                     filtered_df = filtered_df[
                         filtered_df['deceased_name'].fillna('').str.contains(
@@ -2852,15 +2932,12 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                         )
                     ]
 
-                # Coroner name filter
                 if selected_coroners:
                     filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
 
-                # Coroner area filter
                 if selected_areas:
                     filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
 
-                # Categories filter
                 if selected_categories:
                     filtered_df = filtered_df[
                         filtered_df['categories'].apply(
@@ -2868,80 +2945,22 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                         )
                     ]
 
-                # Show number of documents after filtering
-                st.write(f"Analysis will be performed on {len(filtered_df)} documents")
-
-                # Show active filters
-                active_filters = []
-                if start_date != data['date_of_report'].min().date() or end_date != data['date_of_report'].max().date():
-                    active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
-                if doc_type and doc_type != ["Report", "Response"]:
-                    active_filters.append(f"Document Types: {', '.join(doc_type)}")
-                if selected_refs:
-                    active_filters.append(f"References: {', '.join(selected_refs)}")
-                if deceased_search:
-                    active_filters.append(f"Deceased name contains: {deceased_search}")
-                if selected_coroners:
-                    active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
-                if selected_areas:
-                    active_filters.append(f"Areas: {', '.join(selected_areas)}")
-                if selected_categories:
-                    active_filters.append(f"Categories: {', '.join(selected_categories)}")
-
-                if active_filters:
-                    st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
-
-                # Prepare documents from filtered data
-                valid_data = filtered_df[filtered_df['Content'].notna()].copy()
-
-                # Combine text from content and PDFs
-                documents = []
-                for _, row in valid_data.iterrows():
-                    doc_text = combine_document_text(row)
-                    if doc_text.strip():
-                        cleaned_text = clean_text_for_modeling(doc_text)
-                        if cleaned_text.strip():
-                            documents.append(cleaned_text)
-                
-                if not documents:
-                    st.error("No valid documents found for analysis")
+                # Validate filtered data
+                if len(filtered_df) == 0:
+                    st.warning("No documents match the selected filters.")
                     return
-                
-                # Create document-term matrix
-                vectorizer = CountVectorizer(
-                    max_features=max_features,
-                    min_df=min_df,
-                    stop_words='english'
+
+                # Run topic modeling
+                lda_model, vectorizer, doc_topics = extract_advanced_topics(
+                    filtered_df, 
+                    num_topics=num_topics,
+                    max_features=max_features
                 )
-                
-                try:
-                    dtm = vectorizer.fit_transform(documents)
-                except ValueError as e:
-                    st.error(f"Error creating document-term matrix: {str(e)}")
-                    return
-                
+
+                # Get feature names
                 feature_names = vectorizer.get_feature_names_out()
-                
-                # Train LDA model
-                lda = LatentDirichletAllocation(
-                    n_components=num_topics,
-                    random_state=42,
-                    n_jobs=-1
-                )
-                
-                doc_topics = lda.fit_transform(dtm)
-                
-                # Store results
-                st.session_state.topic_results = {
-                    'model': lda,
-                    'vectorizer': vectorizer,
-                    'doc_topics': doc_topics,
-                    'feature_names': feature_names,
-                    'documents': documents,
-                    'filtered_data': filtered_df
-                }
-                
-                # Create visualization tabs
+
+                # Create tabs for different visualizations
                 topic_tab, docs_tab, network_tab = st.tabs([
                     "Topic Overview",
                     "Document Analysis",
@@ -2950,7 +2969,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 
                 with topic_tab:
                     st.markdown("### Topics Overview")
-                    display_topic_overview(lda, feature_names, doc_topics, filtered_df)
+                    display_topic_overview(lda_model, feature_names, doc_topics, filtered_df)
                 
                 with docs_tab:
                     st.markdown("### Document-Topic Distribution")
@@ -2958,61 +2977,12 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 
                 with network_tab:
                     st.markdown("### Topic Similarity Network")
-                    display_topic_network(lda, feature_names)
-                
-                # Add export options
-                st.markdown("### Export Results")
-                
-                # Prepare export data with filter information
-                output = io.BytesIO()
-                with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                    # Filter information
-                    filter_info = pd.DataFrame([{
-                        'Filter': 'Date Range',
-                        'Value': f"{start_date} to {end_date}",
-                    }, {
-                        'Filter': 'Document Types',
-                        'Value': ', '.join(doc_type),
-                    }, {
-                        'Filter': 'Coroner Areas',
-                        'Value': ', '.join(selected_areas) if selected_areas else 'All',
-                    }, {
-                        'Filter': 'Categories',
-                        'Value': ', '.join(selected_categories) if selected_categories else 'All',
-                    }])
-                    filter_info.to_excel(writer, sheet_name='Analysis Parameters', index=False)
-                    
-                    # Topics overview
-                    topics_df = pd.DataFrame([
-                        {
-                            'Topic': f"Topic {i+1}",
-                            'Top Words': ', '.join(get_top_words(lda, feature_names, i)),
-                            'Prevalence': (doc_topics[:, i] > 0.2).mean() * 100
-                        }
-                        for i in range(num_topics)
-                    ])
-                    topics_df.to_excel(writer, sheet_name='Topics Overview', index=False)
-                    
-                    # Document-topic distributions
-                    doc_topics_df = pd.DataFrame(
-                        doc_topics,
-                        columns=[f"Topic {i+1}" for i in range(num_topics)]
-                    )
-                    doc_topics_df['Document'] = filtered_df['Title'].values
-                    doc_topics_df.to_excel(writer, sheet_name='Document-Topic Distribution', index=False)
-                
-                # Download button
-                st.download_button(
-                    "📥 Download Analysis (Excel)",
-                    output.getvalue(),
-                    "topic_analysis_filtered.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-        
+                    display_topic_network(lda_model, feature_names)
+
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
-
+            
 def main():
     initialize_session_state()
     st.title("UK Judiciary PFD Reports Analysis")
