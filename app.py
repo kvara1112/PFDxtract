@@ -1274,12 +1274,9 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis for PFD reports."""
     st.header("Topic Modeling Analysis")
     
-    # Sidebar controls for both filters and model parameters
-    with st.sidebar:
-        # Model Parameters first
-        st.header("Model Parameters")
+    st.sidebar.markdown("# Model Parameters")
         
-        num_topics = st.slider(
+        num_topics = st.sidebar.slider(
             "Number of Topics",
             min_value=2,
             max_value=20,
@@ -1287,7 +1284,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             help="Select number of topics to extract"
         )
         
-        max_features = st.slider(
+        max_features = st.sidebar.slider(
             "Maximum Features",
             min_value=500,
             max_value=5000,
@@ -1296,7 +1293,8 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             help="Maximum number of terms to include"
         )
         
-        with st.expander("Advanced Settings"):
+        advanced_settings = st.sidebar.expander("Advanced Settings")
+        with advanced_settings:
             min_df = st.slider(
                 "Minimum Document Frequency",
                 min_value=1,
