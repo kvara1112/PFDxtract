@@ -31,6 +31,7 @@ from nltk.corpus import stopwords
 from collections import Counter
 from bs4 import BeautifulSoup, Tag
 
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -2769,10 +2770,6 @@ def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None
     html_string = pyLDAvis.prepared_data_to_html(vis_data)
     components.html(html_string, width=1300, height=800)
 
-from sklearn.cluster import AgglomerativeClustering
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
-
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis for PFD reports."""
     st.header("Topic Modeling Analysis")
@@ -2948,6 +2945,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 # Cluster documents based on semantic similarity
                 tfidf = TfidfVectorizer()
                 X = tfidf.fit_transform(filtered_df['Content'])
+                X_dense = X.toarray()
 
                 # Determine optimal number of clusters
                 clustering = AgglomerativeClustering(
@@ -2955,7 +2953,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     linkage='complete', 
                     distance_threshold=1 - max_clusters/100
                 )
-                clustering.fit(X)
+                clustering.fit(X_dense)
                 n_clusters = len(set(clustering.labels_)) - (1 if -1 in clustering.labels_ else 0)
 
                 # Filter out small clusters
@@ -2979,9 +2977,9 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     st.markdown(f"### Cluster {cluster_id} ({len(cluster_df)} documents)")
                     
                     # Get top words for the cluster
-                    cluster_X = X[cluster_assignments['Cluster'] == cluster_id]
+                    cluster_X = X_dense[cluster_assignments['Cluster'] == cluster_id]
                     cluster_feature_names = tfidf.get_feature_names_out()
-                    top_words = [cluster_feature_names[i] for i in np.argsort(-cluster_X.mean(axis=0).toarray().ravel())[:5]]
+                    top_words = [cluster_feature_names[i] for i in np.argsort(-cluster_X.mean(axis=0))[:5]]
                     st.write(f"Top words: {', '.join(top_words)}")
                     
                     # Display documents in the cluster
@@ -2997,7 +2995,10 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
-            
+
+
+
+
 def main():
     initialize_session_state()
     st.title("UK Judiciary PFD Reports Analysis")
