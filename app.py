@@ -1351,7 +1351,7 @@ def display_document_analysis(doc_topics, df):
         assignments_sorted = assignments.sort_values('Topic Confidence', ascending=False)
 
         # Visualization
-        st.subheader("Document-Topic Distribution")
+       # st.subheader("Document-Topic Distribution")
         
         # Summary statistics
         col1, col2, col3 = st.columns(3)
