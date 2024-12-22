@@ -2935,16 +2935,22 @@ def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None
 # Initialize NLTK resources
 def initialize_nltk():
     """Initialize required NLTK resources with error handling"""
-    required_resources = ['punkt', 'stopwords', 'averaged_perceptron_tagger']
-    for resource in required_resources:
-        try:
-            nltk.data.find(f'tokenizers/{resource}')
-        except LookupError:
+    try:
+        resources = ['punkt', 'stopwords', 'averaged_perceptron_tagger']
+        for resource in resources:
             try:
-                nltk.download(resource, quiet=True)
-            except Exception as e:
-                logging.error(f"Error downloading NLTK resource {resource}: {e}")
-                raise Exception(f"Failed to download required NLTK resource: {resource}")
+                if resource == 'punkt':
+                    nltk.data.find('tokenizers/punkt')
+                elif resource == 'stopwords':
+                    nltk.data.find('corpora/stopwords')
+                elif resource == 'averaged_perceptron_tagger':
+                    nltk.data.find('taggers/averaged_perceptron_tagger')
+            except LookupError:
+                nltk.download(resource)
+    except Exception as e:
+        logging.error(f"Error initializing NLTK resources: {e}")
+        raise
+        
 
 def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3, 
                              max_features: int = 5000, min_df: float = 0.01,
@@ -2968,153 +2974,36 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         initialize_nltk()
         
         # Enhanced preprocessing
-        def preprocess_text(text: str) -> str:
-            if pd.isna(text):
-                return ""
-                
-            # Convert to lowercase and clean text
-            text = clean_text_for_modeling(str(text))
+def preprocess_text(text: str) -> str:
+    if pd.isna(text):
+        return ""
             
-            # Remove standard English stopwords
-            stop_words = set(stopwords.words('english'))
-            
-            # Add domain-specific stop words
-            domain_stops = {
-                'report', 'death', 'pfd', 'coroner', 'regulation', 'paragraph',
-                'section', 'article', 'deceased', 'died', 'circumstances'
-            }
-            stop_words.update(domain_stops)
-            
-            # Tokenize and remove stopwords
-            tokens = word_tokenize(text.lower())
-            tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
-            
-            return ' '.join(tokens)
-
-        # Prepare documents
-        docs = data['Content'].fillna('').apply(preprocess_text)
-        unique_docs = pd.Series(docs.unique())
+    # Convert to lowercase and clean text
+    text = clean_text_for_modeling(str(text))
+    
+    try:
+        # Remove standard English stopwords
+        stop_words = set(stopwords.words('english'))
         
-        # Configure vectorizer with enhanced parameters
-        vectorizer = TfidfVectorizer(
-            max_features=max_features,
-            min_df=min_df,
-            max_df=max_df,
-            ngram_range=(1, 2),  # Include bigrams
-            token_pattern=r'(?u)\b[a-z][a-z]+\b'
-        )
-        
-        # Create document vectors
-        doc_vectors = vectorizer.fit_transform(unique_docs)
-        feature_names = vectorizer.get_feature_names_out()
-        
-        # Calculate pairwise similarities
-        similarities = cosine_similarity(doc_vectors)
-        
-        # Determine optimal number of clusters using silhouette analysis
-        max_clusters = min(20, len(unique_docs) // min_cluster_size)
-        best_score = -1
-        optimal_clusters = 2
-        
-        for n_clusters in range(2, max_clusters + 1):
-            clustering = AgglomerativeClustering(
-                n_clusters=n_clusters,
-                affinity='precomputed',
-                linkage='complete'
-            )
-            
-            # Convert similarities to distances
-            distances = 1 - similarities
-            labels = clustering.fit_predict(distances)
-            
-            if len(set(labels)) == 1:
-                continue
-                
-            score = silhouette_score(distances, labels, metric='precomputed')
-            
-            if score > best_score:
-                best_score = score
-                optimal_clusters = n_clusters
-        
-        # Perform final clustering
-        clustering = AgglomerativeClustering(
-            n_clusters=optimal_clusters,
-            affinity='precomputed',
-            linkage='complete'
-        )
-        
-        cluster_labels = clustering.fit_predict(1 - similarities)
-        
-        # Extract insights for each cluster
-        clusters = []
-        for cluster_id in range(optimal_clusters):
-            # Get documents in cluster
-            cluster_mask = cluster_labels == cluster_id
-            cluster_docs = doc_vectors[cluster_mask]
-            
-            if cluster_docs.shape[0] < min_cluster_size:
-                continue
-            
-            # Calculate centroid
-            centroid = cluster_docs.mean(axis=0).A1
-            
-            # Get top terms with relevance scores
-            top_terms = []
-            for term_idx in centroid.argsort()[-20:][::-1]:
-                term = feature_names[term_idx]
-                score = centroid[term_idx]
-                
-                # Calculate term frequency in cluster
-                term_freq = sum(1 for doc in cluster_docs if term in str(doc))
-                
-                top_terms.append({
-                    'term': term,
-                    'relevance': float(score),
-                    'frequency': term_freq,
-                    'frequency_pct': term_freq / cluster_docs.shape[0] * 100
-                })
-            
-            # Get representative documents
-            doc_indices = np.where(cluster_mask)[0]
-            doc_similarities = similarities[doc_indices][:, doc_indices].mean(axis=1)
-            central_docs = []
-            
-            for doc_idx in doc_similarities.argsort()[-5:][::-1]:
-                orig_idx = doc_indices[doc_idx]
-                if orig_idx < len(data):
-                    doc_row = data.iloc[orig_idx]
-                    central_docs.append({
-                        'title': doc_row.get('Title', ''),
-                        'date': doc_row.get('date_of_report', ''),
-                        'similarity': float(doc_similarities[doc_idx]),
-                        'summary': str(doc_row.get('Content', ''))[:300] + '...'
-                    })
-            
-            # Calculate cluster metrics
-            cluster_size = cluster_docs.shape[0]
-            internal_similarity = similarities[cluster_mask][:, cluster_mask].mean()
-            
-            clusters.append({
-                'id': cluster_id,
-                'size': int(cluster_size),
-                'cohesion': float(internal_similarity),
-                'terms': top_terms,
-                'documents': central_docs
-            })
-        
-        # Sort clusters by size
-        clusters.sort(key=lambda x: x['size'], reverse=True)
-        
-        return {
-            'n_clusters': len(clusters),
-            'silhouette_score': float(best_score),
-            'total_documents': len(unique_docs),
-            'clusters': clusters
+        # Add domain-specific stop words
+        domain_stops = {
+            'report', 'death', 'pfd', 'coroner', 'regulation', 'paragraph',
+            'section', 'article', 'deceased', 'died', 'circumstances'
         }
+        stop_words.update(domain_stops)
         
+        # Tokenize and remove stopwords - using split() as a fallback if word_tokenize fails
+        try:
+            tokens = word_tokenize(text.lower())
+        except:
+            tokens = text.lower().split()
+            
+        tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
+        
+        return ' '.join(tokens)
     except Exception as e:
-        logging.error(f"Clustering error: {str(e)}", exc_info=True)
-        raise
+        logging.error(f"Error in text preprocessing: {e}")
+        return text
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """
