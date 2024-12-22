@@ -1370,7 +1370,7 @@ def display_topic_network(lda, feature_names):
             "Minimum Similarity",
             min_value=0.0,
             max_value=1.0,
-            value=0.8,
+            value=0.9,
             step=0.05,
             help="Higher values show stronger connections only",
             key="network_min_similarity"
