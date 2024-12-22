@@ -1601,6 +1601,8 @@ def format_topics_for_display(topic_insights):
         } for doc in topic['representativeDocs']]
     } for topic in topic_insights]
 
+
+
 def export_topic_analysis(topic_insights, data):
     """Export topic analysis to Excel"""
     output = io.BytesIO()
@@ -2747,12 +2749,22 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         
         # Date Range Filter
         st.markdown("##### Date Range")
-        min_date = data['date_of_report'].min().date()
-        max_date = data['date_of_report'].max().date()
+        if 'date_of_report' in data.columns and len(data) > 0:
+            min_date = data['date_of_report'].min().date()
+            max_date = data['date_of_report'].max().date()
+        else:
+            min_date = max_date = datetime.now().date()
+            
+        # Get default dates
+        default_start = min_date
+        default_end = max_date
+        if st.session_state.topic_filters.get('date_range'):
+            default_start = st.session_state.topic_filters['date_range'].get('start', min_date)
+            default_end = st.session_state.topic_filters['date_range'].get('end', max_date)
         
         start_date = st.date_input(
             "From",
-            value=st.session_state.topic_filters.get('date_range', {}).get('start', min_date),
+            value=default_start,
             min_value=min_date,
             max_value=max_date,
             key="tm_start_date"
@@ -2760,7 +2772,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         
         end_date = st.date_input(
             "To",
-            value=st.session_state.topic_filters.get('date_range', {}).get('end', max_date),
+            value=default_end,
             min_value=min_date,
             max_value=max_date,
             key="tm_end_date"
@@ -2851,7 +2863,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         filtered_df = data.copy()
         
         # Apply date filter
-        if start_date and end_date:
+        if start_date and end_date and 'date_of_report' in filtered_df.columns:
             filtered_df = filtered_df[
                 (filtered_df['date_of_report'].dt.date >= start_date) &
                 (filtered_df['date_of_report'].dt.date <= end_date)
