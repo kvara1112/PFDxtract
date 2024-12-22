@@ -2766,7 +2766,6 @@ def render_topic_visualization(vis_data: pyLDAvis._prepare.PreparedData) -> None
     html_string = pyLDAvis.prepared_data_to_html(vis_data)
     components.html(html_string, width=1300, height=800)
 
-
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced topic modeling analysis for PFD reports."""
     st.header("Topic Modeling Analysis")
@@ -2805,6 +2804,15 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 max_value=10,
                 value=2,
                 help="Minimum number of documents a term must appear in"
+            )
+            
+            min_similarity = st.slider(
+                "Minimum Similarity",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.9,
+                step=0.05,
+                help="Higher values show stronger connections only"
             )
 
     # Filters section
@@ -2953,7 +2961,9 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 lda_model, vectorizer, doc_topics = extract_advanced_topics(
                     filtered_df, 
                     num_topics=num_topics,
-                    max_features=max_features
+                    max_features=max_features,
+                    min_df=min_df,
+                    min_similarity=min_similarity
                 )
 
                 # Get feature names
@@ -2971,16 +2981,17 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     display_topic_overview(lda_model, feature_names, doc_topics, filtered_df)
                 
                 with docs_tab:
-                    st.markdown("### Document-Topic Distribution")
+                    st.markdown("### Document-Topic Assignments")
                     display_document_analysis(doc_topics, filtered_df)
                 
                 with network_tab:
-                    st.markdown("### Word Similarity Network")
-                    display_topic_network(lda_model, feature_names)
+                    st.markdown("### Topic Similarity Network")
+                    display_topic_network(lda_model, feature_names, min_similarity)
 
         except Exception as e:
             st.error(f"Error during topic modeling: {str(e)}")
             logging.error(f"Topic modeling error: {e}", exc_info=True)
+
             
 def main():
     initialize_session_state()
