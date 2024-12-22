@@ -1316,6 +1316,35 @@ def display_topic_overview(lda, feature_names, doc_topics, df):
 
 def display_document_analysis(doc_topics, df):
     """Display document-topic distribution analysis"""
+    # Create DataFrame with document-topic assignments
+    assignments = pd.DataFrame({
+        'Document': df['Title'].values,
+        'Primary Topic': [f"Topic {i+1}" for i in doc_topics.argmax(axis=1)],
+        'Topic Confidence': doc_topics.max(axis=1),
+        'Secondary Topics': [
+            ', '.join([f"Topic {j+1}" for j in np.where(doc_topics[i] > 0.1)[0] if j != doc_topics[i].argmax()])
+            for i in range(len(df))
+        ]
+    })
+    
+    # Sort by topic confidence
+    assignments_sorted = assignments.sort_values('Topic Confidence', ascending=False)
+    
+    # Display top 20 documents
+    st.dataframe(
+        assignments_sorted.head(20),
+        column_config={
+            'Document': st.column_config.TextColumn('Report Title'),
+            'Primary Topic': st.column_config.TextColumn('Primary Topic'),
+            'Topic Confidence': st.column_config.NumberColumn(
+                'Confidence', 
+                format='%.2f%%'
+            ),
+            'Secondary Topics': st.column_config.ListColumn('Secondary Topics')
+        },
+        hide_index=True
+    )
+    
     # Create heatmap
     topic_labels = [f"Topic {i+1}" for i in range(doc_topics.shape[1])]
     
@@ -1328,19 +1357,6 @@ def display_document_analysis(doc_topics, df):
     )
     
     st.plotly_chart(fig, use_container_width=True)
-    
-    # Show document assignments
-    assignments = pd.DataFrame({
-        'Document': df['Title'].values,
-        'Primary Topic': [f"Topic {i+1}" for i in doc_topics.argmax(axis=1)],
-        'Confidence': doc_topics.max(axis=1)
-    })
-    
-    st.dataframe(
-        assignments.sort_values('Confidence', ascending=False),
-        hide_index=True
-    )
-
 
 def display_topic_network(lda, feature_names):
     """Display word similarity network with interactive filters"""
