@@ -3035,6 +3035,12 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
 
         # Calculate document similarity matrix
         similarity_matrix = cosine_similarity(tfidf_matrix)
+        
+        # Convert similarity to distance matrix
+        distance_matrix = 1 - similarity_matrix
+        
+        # Set diagonal elements to 0
+        np.fill_diagonal(distance_matrix, 0)
 
         # Determine optimal number of clusters
         max_clusters = min(20, len(texts) // min_cluster_size)
@@ -3044,12 +3050,10 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         for n_clusters in range(2, max_clusters + 1):
             clustering = AgglomerativeClustering(
                 n_clusters=n_clusters,
-                metric='precomputed',  # Changed from affinity
+                metric='precomputed',
                 linkage='average'
             )
             
-            # Convert similarity to distance
-            distance_matrix = 1 - similarity_matrix
             cluster_labels = clustering.fit_predict(distance_matrix)
             
             # Calculate silhouette score
@@ -3062,11 +3066,11 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         # Perform final clustering with optimal number of clusters
         final_clustering = AgglomerativeClustering(
             n_clusters=best_n_clusters,
-            metric='precomputed',  # Changed from affinity
+            metric='precomputed',
             linkage='average'
         )
         
-        final_labels = final_clustering.fit_predict(1 - similarity_matrix)
+        final_labels = final_clustering.fit_predict(distance_matrix)
 
         # Extract cluster information
         clusters = []
