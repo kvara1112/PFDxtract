@@ -2948,10 +2948,13 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 # Cluster documents based on semantic similarity
                 tfidf = TfidfVectorizer()
                 X = tfidf.fit_transform(filtered_df['Content'])
-                cosine_sim = cosine_similarity(X, X)
 
                 # Determine optimal number of clusters
-                clustering = AgglomerativeClustering(n_clusters=None, affinity='cosine', linkage='complete', distance_threshold=1-max_clusters/100)
+                clustering = AgglomerativeClustering(
+                    n_clusters=None, 
+                    linkage='complete', 
+                    distance_threshold=1 - max_clusters/100
+                )
                 clustering.fit(X)
                 n_clusters = len(set(clustering.labels_)) - (1 if -1 in clustering.labels_ else 0)
 
