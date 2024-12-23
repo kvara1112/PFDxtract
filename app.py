@@ -544,6 +544,7 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
 
+
 def construct_search_url(base_url: str, keyword: Optional[str] = None, 
                         category: Optional[str] = None, 
                         category_slug: Optional[str] = None, 
@@ -568,7 +569,7 @@ def construct_search_url(base_url: str, keyword: Optional[str] = None,
     
     logging.info(f"Constructed URL: {url}")
     return url
-
+                            
 def get_category_slug(category: str) -> str:
     """Generate proper category slug for the website's URL structure"""
     if not category:
@@ -583,6 +584,7 @@ def get_category_slug(category: str) -> str:
     
     logging.info(f"Generated category slug: {slug} from category: {category}")
     return slug
+
 
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
