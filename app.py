@@ -24,22 +24,21 @@ from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import AgglomerativeClustering
-from sklearn.metrics import silhouette_score  # Added for semantic clustering
+from sklearn.metrics import silhouette_score
 import networkx as nx
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from collections import Counter
+from collections import Counter, defaultdict
 from bs4 import BeautifulSoup, Tag
-import json  # Added for JSON export functionality
+import json
+import traceback
+from dataclasses import dataclass
+import nltk
+
 # Initialize NLTK resources
-import nltk 
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('averaged_perceptron_tagger')
-from summarization import display_cluster_summaries  # Update this line
-
-import traceback
-from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -50,6 +49,113 @@ logging.basicConfig(
         logging.StreamHandler()
     ]
 )
+
+@dataclass
+class DocumentSummary:
+    title: str
+    extractive: str
+    abstractive: str
+    metadata: Dict
+    facts: List[Dict]
+    confidence: float
+
+# Define key patterns
+SECTION_PATTERNS = {
+    'circumstances': r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=CORONER|$)',
+    'concerns': r'CORONER'?S CONCERNS\s*(.*?)(?=MATTERS|$)', 
+    'actions': r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)',
+    'response': r'(?:In response to|Following)\s*(.*?)(?=\n\n|$)'
+}
+
+METADATA_PATTERNS = {
+    'ref': r'Ref(?:erence)?:\s*([-\d]+)',
+    'date': r'Date of report:\s*(\d{1,2}(?:/|-)\d{1,2}(?:/|-)\d{4})',
+    'deceased': r'Deceased name:\s*([^\n]+)',
+    'coroner': r'Coroner(?:\'?s)? name:\s*([^\n]+)',
+    'area': r'Coroner(?:\'?s)? [Aa]rea:\s*([^\n]+)',
+    'category': r'Category:\s*([^\n]+)'
+}
+
+def extract_key_sections(text: str) -> Dict:
+    """Extract key sections with exact text matches"""
+    sections = {
+        'circumstances': None,
+        'concerns': None,
+        'actions': None,
+        'response': None,
+        'metadata': {}
+    }
+    
+    # Extract sections with source tracking
+    for section, pattern in SECTION_PATTERNS.items():
+        match = re.search(pattern, text, re.I | re.S)
+        if match:
+            sections[section] = {
+                'content': match.group(1).strip(),
+                'source': match.group(0),
+                'start': match.start(),
+                'end': match.end()
+            }
+            
+    # Extract metadata
+    for key, pattern in METADATA_PATTERNS.items():
+        match = re.search(pattern, text)
+        if match:
+            sections['metadata'][key] = match.group(1).strip()
+            
+    return sections
+
+def generate_summary(doc: Dict) -> DocumentSummary:
+    """Generate fact-based summary with verification"""
+    text = str(doc.get('Content', ''))
+    sections = extract_key_sections(text)
+    
+    # Build extractive summary
+    extractive_parts = []
+    facts = []
+    
+    for section in ['circumstances', 'concerns', 'actions']:
+        if sections[section]:
+            content = sections[section]['content']
+            extractive_parts.append(f"{section.upper()}:\n{content[:300]}...")
+            facts.append({
+                'type': section,
+                'content': content,
+                'source': sections[section]['source']
+            })
+    
+    extractive = '\n\n'.join(extractive_parts)
+    
+    # Build abstractive summary from verified facts only
+    abstract_parts = []
+    meta = sections['metadata']
+    
+    if meta.get('ref') and meta.get('date'):
+        abstract_parts.append(
+            f"Prevention of Future Deaths report {meta['ref']} dated {meta['date']}"
+        )
+    
+    if meta.get('deceased'):
+        abstract_parts.append(f"regarding the death of {meta['deceased']}")
+        
+    for section in ['circumstances', 'concerns', 'actions']:
+        if sections[section]:
+            title = section.title()
+            abstract_parts.append(
+                f"\n{title}: {sections[section]['content'][:200]}..."
+            )
+    
+    abstractive = ' '.join(abstract_parts)
+    
+    return DocumentSummary(
+        title=doc.get('Title', ''),
+        extractive=extractive,
+        abstractive=abstractive,
+        metadata=sections['metadata'],
+        facts=facts,
+        confidence=len(facts) / 3
+    )
+
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
