@@ -1913,45 +1913,45 @@ def generate_topic_label(topic_words):
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """
-    Export DataFrame to Excel bytes with proper formatting and error handling
-    
-    Args:
-        df: DataFrame to export
-        
-    Returns:
-        bytes: Excel file content as bytes
+    Export DataFrame to Excel bytes with proper formatting
     """
     try:
+        if df is None or len(df) == 0:
+            raise ValueError("No data available to export")
+            
+        # Create clean copy for export
+        df_export = df.copy()
+        
+        # Format dates to UK format
+        if 'date_of_report' in df_export.columns:
+            df_export['date_of_report'] = df_export['date_of_report'].dt.strftime('%d/%m/%Y')
+            
+        # Handle list columns (like categories)
+        for col in df_export.columns:
+            if df_export[col].dtype == 'object':
+                df_export[col] = df_export[col].apply(
+                    lambda x: ', '.join(x) if isinstance(x, list) else str(x) if pd.notna(x) else ''
+                )
+        
         # Create output buffer
         output = io.BytesIO()
         
-        # Create Excel writer with xlsxwriter engine for better control
+        # Write to Excel
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # Convert DataFrame to Excel, handling problematic data types
-            df_export = df.copy()
-            
-            # Convert lists to strings
-            for col in df_export.columns:
-                if df_export[col].dtype == 'object':
-                    df_export[col] = df_export[col].apply(
-                        lambda x: str(x) if isinstance(x, list) else x
-                    )
-            
-            # Convert to Excel
             df_export.to_excel(writer, sheet_name='Reports', index=False)
             
             # Get the worksheet
             worksheet = writer.sheets['Reports']
             
-            # Auto-adjust column widths based on content
+            # Auto-adjust column widths
             for idx, col in enumerate(df_export.columns, 1):
                 max_length = max(
                     df_export[col].astype(str).apply(len).max(),
                     len(str(col))
                 )
-                # Add a little extra space and limit maximum width
                 adjusted_width = min(max_length + 2, 50)
-                worksheet.column_dimensions[chr(64 + idx)].width = adjusted_width
+                column_letter = chr(64 + idx)
+                worksheet.column_dimensions[column_letter].width = adjusted_width
             
             # Add filters to header row
             worksheet.auto_filter.ref = worksheet.dimensions
@@ -1960,15 +1960,15 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
             worksheet.freeze_panes = 'A2'
         
         # Get the bytes value
-        excel_data = output.getvalue()
-        return excel_data
+        output.seek(0)
+        return output.getvalue()
         
     except Exception as e:
         logging.error(f"Error exporting to Excel: {e}", exc_info=True)
         raise Exception(f"Failed to export data to Excel: {str(e)}")
-        
+
 def show_export_options(df: pd.DataFrame, prefix: str):
-    """Show export options for the data with descriptive filename and error handling"""
+    """Show export options for the data with descriptive filename"""
     try:
         st.subheader("Export Options")
         
@@ -1981,7 +1981,12 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         # CSV Export
         with col1:
             try:
-                csv = df.to_csv(index=False).encode('utf-8')
+                # Create export copy with formatted dates
+                df_csv = df.copy()
+                if 'date_of_report' in df_csv.columns:
+                    df_csv['date_of_report'] = df_csv['date_of_report'].dt.strftime('%d/%m/%Y')
+                
+                csv = df_csv.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     "📥 Download Reports (CSV)",
                     csv,
@@ -2043,6 +2048,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         st.error(f"Error setting up export options: {str(e)}")
         logging.error(f"Export options error: {e}", exc_info=True)
         
+
 def extract_key_points(text, point_type='findings'):
     """Extract key findings or recommendations from text"""
     text = text.lower()
