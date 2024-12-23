@@ -3575,8 +3575,8 @@ def summarize_cluster_documents(documents):
         try:
             # Ensure minimum required keys exist with fallback values
             doc_data = {
-                'Title': doc.get('title', doc.get('Title', 'Untitled Document')),
-                'Content': doc.get('summary', doc.get('content', doc.get('Content', '')))
+                'Title': str(doc.get('title', doc.get('Title', 'Untitled Document'))),
+                'Content': str(doc.get('summary', doc.get('content', doc.get('Content', ''))))
             }
         
             # Skip if no content
@@ -3596,7 +3596,6 @@ def summarize_cluster_documents(documents):
             logging.error(f"Error processing document summary: {e}")
     
     return summaries, responses
-
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """Display comprehensive cluster analysis with summaries"""
