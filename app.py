@@ -3551,17 +3551,19 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
             for summary in summaries:
                 st.markdown(f"#### {summary.title}")
                 st.markdown(f"**Confidence**: {summary.confidence:.2%}")
+                
                 st.markdown("**Extractive Summary:**")
-                st.markdown(summary.extractive)
+                st.markdown(summary.extractive[:1000])  # Limit to first 1000 characters
                 
                 st.markdown("**Abstractive Summary:**")
                 st.markdown(summary.abstractive)
                 
-                if st.button(f"Show Facts for {summary.title}"):
+                # Display facts directly
+                if summary.facts:
+                    st.markdown("**Key Facts:**")
                     for fact in summary.facts:
                         st.markdown(f"**{fact['type'].title()}**")
-                        st.markdown(f"Content: {fact['content']}")
-                        st.markdown(f"Source: `{fact['source']}`")
+                        st.markdown(f"Content: {fact['content'][:300]}...")
             
             # Display responses if any
             if responses:
@@ -3569,9 +3571,11 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
                 for response in responses:
                     st.markdown(f"#### {response.title}")
                     st.markdown(f"**Confidence**: {response.confidence:.2%}")
-                    st.markdown(response.extractive)
+                    st.markdown(response.extractive[:1000])  # Limit to first 1000 characters
                     
-                    if st.button(f"Show Facts for {response.title}"):
+                    # Display facts directly
+                    if response.facts:
+                        st.markdown("**Key Facts:**")
                         for fact in response.facts:
                             st.markdown(f"Source: `{fact['source']}`")
             
