@@ -3556,28 +3556,38 @@ def generate_summary(doc: Dict) -> DocumentSummary:
 
 
 def summarize_cluster_documents(documents):
-    """Generate summaries for cluster documents"""
+    """
+    Generate summaries for cluster documents with robust error handling
+    
+    Args:
+        documents (List[Dict]): List of documents in the cluster
+    
+    Returns:
+        Tuple[List[DocumentSummary], List[DocumentSummary]]: Summaries of reports and responses
+    """
     summaries = []
     responses = []
     
+    if not documents or not isinstance(documents, list):
+        return summaries, responses
+    
     for doc in documents:
         try:
-            # Prepare document data
+            # Ensure minimum required keys exist with fallback values
             doc_data = {
-                'Title': doc.get('title', 'Untitled Document'),
-                'Content': doc.get('summary', doc.get('content', ''))
+                'Title': doc.get('title', doc.get('Title', 'Untitled Document')),
+                'Content': doc.get('summary', doc.get('content', doc.get('Content', '')))
             }
-            
+        
+            # Skip if no content
+            if not doc_data['Content']:
+                continue
+        
             # Generate summary
             summary = generate_summary(doc_data)
-            
+        
             # Determine if it's a response
-            is_response = any(
-                phrase in str(doc.get('title', '')).lower() 
-                for phrase in ['response', 'reply', 'following']
-            )
-            
-            if is_response:
+            if any(phrase in str(doc.get('title', '')).lower() for phrase in ['response', 'reply']):
                 responses.append(summary)
             else:
                 summaries.append(summary)
@@ -3586,7 +3596,6 @@ def summarize_cluster_documents(documents):
             logging.error(f"Error processing document summary: {e}")
     
     return summaries, responses
-
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """Display comprehensive cluster analysis with summaries"""
