@@ -33,3 +33,6 @@ cryptography>=42.0.0
 six>=1.16.0
 tzdata>=2024.1
 tqdm>=4.66.1
+transformers>=4.37.2
+torch>=2.2.0
+sentence-transformers>=2.3.1
