@@ -1993,8 +1993,8 @@ def generate_topic_label(topic_words):
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """
-    Export DataFrame to Excel bytes with proper formatting
-    extract_topics_lda
+    Export DataFrame to Excel bytes with proper formatting and error handling
+    
     Args:
         df: DataFrame to export
         
@@ -2005,18 +2005,28 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
         # Create output buffer
         output = io.BytesIO()
         
-        # Create Excel writer
+        # Create Excel writer with xlsxwriter engine for better control
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            # Convert main data to Excel
-            df.to_excel(writer, sheet_name='Reports', index=False)
+            # Convert DataFrame to Excel, handling problematic data types
+            df_export = df.copy()
+            
+            # Convert lists to strings
+            for col in df_export.columns:
+                if df_export[col].dtype == 'object':
+                    df_export[col] = df_export[col].apply(
+                        lambda x: str(x) if isinstance(x, list) else x
+                    )
+            
+            # Convert to Excel
+            df_export.to_excel(writer, sheet_name='Reports', index=False)
             
             # Get the worksheet
             worksheet = writer.sheets['Reports']
             
             # Auto-adjust column widths based on content
-            for idx, col in enumerate(df.columns, 1):
+            for idx, col in enumerate(df_export.columns, 1):
                 max_length = max(
-                    df[col].astype(str).apply(len).max(),
+                    df_export[col].astype(str).apply(len).max(),
                     len(str(col))
                 )
                 # Add a little extra space and limit maximum width
@@ -2031,11 +2041,10 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
         
         # Get the bytes value
         excel_data = output.getvalue()
-        
         return excel_data
         
     except Exception as e:
-        logging.error(f"Error exporting to Excel: {e}")
+        logging.error(f"Error exporting to Excel: {e}", exc_info=True)
         raise Exception(f"Failed to export data to Excel: {str(e)}")
         
 def extract_key_points(text, point_type='findings'):
