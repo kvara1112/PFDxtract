@@ -136,6 +136,11 @@ def extract_key_sections(text: str) -> Dict:
 def generate_summary(doc: Dict) -> DocumentSummary:
     """Generate fact-based summary with verification"""
     text = str(doc.get('Content', ''))
+    
+    # If content is empty, use title or fallback data
+    if not text:
+        text = str(doc.get('title', ''))
+    
     sections = extract_key_sections(text)
     
     # Build extractive summary
@@ -143,21 +148,21 @@ def generate_summary(doc: Dict) -> DocumentSummary:
     facts = []
     
     for section in ['circumstances', 'concerns', 'actions']:
-        if sections[section]:
+        if sections.get(section, {}).get('content'):
             content = sections[section]['content']
             extractive_parts.append(f"{section.upper()}:\n{content[:300]}...")
             facts.append({
                 'type': section,
                 'content': content,
-                'source': sections[section]['source']
+                'source': sections[section].get('source', '')
             })
     
-    extractive = '\n\n'.join(extractive_parts)
+    extractive = '\n\n'.join(extractive_parts) if extractive_parts else text[:500]
     
-    # Build abstractive summary from verified facts only
+    # Build abstractive summary from verified facts
+    meta = sections.get('metadata', {})
+    
     abstract_parts = []
-    meta = sections['metadata']
-    
     if meta.get('ref') and meta.get('date'):
         abstract_parts.append(
             f"Prevention of Future Deaths report {meta['ref']} dated {meta['date']}"
@@ -165,23 +170,16 @@ def generate_summary(doc: Dict) -> DocumentSummary:
     
     if meta.get('deceased'):
         abstract_parts.append(f"regarding the death of {meta['deceased']}")
-        
-    for section in ['circumstances', 'concerns', 'actions']:
-        if sections[section]:
-            title = section.title()
-            abstract_parts.append(
-                f"\n{title}: {sections[section]['content'][:200]}..."
-            )
     
-    abstractive = ' '.join(abstract_parts)
+    abstractive = ' '.join(abstract_parts) or extractive[:300]
     
     return DocumentSummary(
         title=doc.get('Title', ''),
         extractive=extractive,
         abstractive=abstractive,
-        metadata=sections['metadata'],
+        metadata=meta,
         facts=facts,
-        confidence=len(facts) / 3
+        confidence=len(facts) / 3 if facts else 0.5
     )
 
 def display_cluster_summaries(cluster_docs: List[dict]) -> None:
