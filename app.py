@@ -544,37 +544,46 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
 
-
 def construct_search_url(base_url: str, keyword: Optional[str] = None, 
                         category: Optional[str] = None, 
                         category_slug: Optional[str] = None, 
                         page: Optional[int] = None) -> str:
     """Constructs search URL with proper parameter handling"""
-    # Clean inputs
-    keyword = keyword.strip() if keyword else None
-    category = category.strip() if category else None
-    
-    # Base query parameters
-    query_params = ["post_type=pfd"]
+    # Always start with the prevention of future death reports search URL
+    url = f"{base_url}?s=&post_type=pfd"
     
     # Add category filter if present
     if category and category_slug:
-        query_params.append(f"pfd_report_type={category_slug}")
+        url += f"&pfd_report_type={category_slug}"
     
-    # Add keyword filter if present
+    # Add keyword if present (overwrites empty s= parameter)
     if keyword:
-        query_params.append(f"s={keyword}")
+        url = f"{base_url}?s={keyword}&post_type=pfd"
+        if category and category_slug:
+            url += f"&pfd_report_type={category_slug}"
     
-    # Construct URL
-    query_string = "&".join(query_params)
-    url = f"{base_url}?{query_string}"
-    
-    # Add pagination
+    # Add pagination if needed
     if page and page > 1:
-        url = f"{url}&page={page}"
+        url += f"&page={page}"
     
+    logging.info(f"Constructed URL: {url}")
     return url
-                            
+
+def get_category_slug(category: str) -> str:
+    """Generate proper category slug for the website's URL structure"""
+    if not category:
+        return None
+        
+    # Create a slug exactly matching the website's format
+    slug = category.lower()\
+        .replace(' ', '-')\
+        .replace('&', 'and')\
+        .replace('--', '-')\
+        .strip('-')
+    
+    logging.info(f"Generated category slug: {slug} from category: {category}")
+    return slug
+
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
     category: Optional[str] = None,
@@ -582,26 +591,20 @@ def scrape_pfd_reports(
     max_pages: Optional[int] = None
 ) -> List[Dict]:
     """
-    Scrape PFD reports with enhanced progress tracking
+    Scrape PFD reports with enhanced progress tracking and error handling
     """
     all_reports = []
     base_url = "https://www.judiciary.uk/"
     
     try:
-        # Validate and prepare category
+        # Prepare category slug
         category_slug = None
         if category:
-            matching_categories = [
-                cat for cat in get_pfd_categories() 
-                if cat.lower() == category.lower()
-            ]
-            
-            if not matching_categories:
-                st.error(f"No matching category found for: {category}")
-                return []
-            
-            category = matching_categories[0]
-            category_slug = category.lower().replace(' ', '-').replace('&', 'and')
+            category_slug = get_category_slug(category)
+            logging.info(f"Using category: {category}, slug: {category_slug}")
+        
+        # Start scraping
+        st.info("Constructing search URL...")
         
         # Construct initial search URL
         base_search_url = construct_search_url(
@@ -610,6 +613,8 @@ def scrape_pfd_reports(
             category=category,
             category_slug=category_slug
         )
+        
+        st.info(f"Using search URL: {base_search_url}")
         
         # Get total pages and results count
         total_pages, total_results = get_total_pages(base_search_url)
@@ -626,23 +631,22 @@ def scrape_pfd_reports(
             st.info(f"Limiting search to first {total_pages} pages")
         
         # Create containers for progress tracking
-        progress_container = st.empty()
-        status_container = st.empty()
-        report_container = st.empty()
-        page_reports = []
-        total_reports_processed = 0
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        report_count_text = st.empty()
         
+        # Process each page
         for current_page in range(1, total_pages + 1):
             try:
                 # Check if scraping should be stopped
                 if hasattr(st.session_state, 'stop_scraping') and st.session_state.stop_scraping:
-                    status_container.warning("Scraping stopped by user")
+                    st.warning("Scraping stopped by user")
                     break
                 
-                # Update page progress
-                page_progress = (current_page - 1) / total_pages
-                progress_container.progress(page_progress)
-                status_container.write(f"📄 Processing page {current_page} of {total_pages}")
+                # Update progress
+                progress = (current_page - 1) / total_pages
+                progress_bar.progress(progress)
+                status_text.text(f"Processing page {current_page} of {total_pages}")
                 
                 # Construct page URL
                 page_url = construct_search_url(
@@ -654,39 +658,29 @@ def scrape_pfd_reports(
                 )
                 
                 # Scrape current page
-                current_page_reports = scrape_page(page_url)
+                page_reports = scrape_page(page_url)
                 
-                if current_page_reports:
-                    for report in current_page_reports:
-                        total_reports_processed += 1
-                        page_reports.append(report)
-                        
-                        # Update report progress
-                        report_container.write(f"📑 Retrieved: {report.get('Title', 'Untitled Report')} ({total_reports_processed} reports processed)")
-                        
-                        # Update overall progress
-                        overall_progress = (current_page - 1 + total_reports_processed/len(current_page_reports)) / total_pages
-                        progress_container.progress(min(overall_progress, 1.0))
-                else:
-                    status_container.warning(f"No results found on page {current_page}")
-                    continue
+                if page_reports:
+                    all_reports.extend(page_reports)
+                    report_count_text.text(f"Retrieved {len(all_reports)} reports so far...")
                 
                 # Add delay between pages
                 time.sleep(2)
                 
-            except Exception as page_error:
-                logging.error(f"Error processing page {current_page}: {page_error}")
-                status_container.warning(f"Error on page {current_page}. Continuing with next page...")
+            except Exception as e:
+                logging.error(f"Error processing page {current_page}: {e}")
+                st.warning(f"Error on page {current_page}. Continuing with next page...")
                 continue
         
-        all_reports.extend(page_reports)
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        report_count_text.empty()
         
-        # Clear progress indicators and show final status
-        progress_container.empty()
-        status_container.empty()
-        report_container.empty()
-        
-        st.success(f"Successfully scraped {len(all_reports)} reports")
+        if all_reports:
+            st.success(f"Successfully scraped {len(all_reports)} reports")
+        else:
+            st.warning("No reports were successfully retrieved")
         
         # Sort results if specified
         if order != "relevance":
@@ -698,6 +692,67 @@ def scrape_pfd_reports(
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
         return all_reports
+
+def render_scraping_tab():
+    """Render the scraping tab with a clean 2x2 filter layout"""
+    st.header("Scrape PFD Reports")
+    
+    # Create the search form with 2x2 layout
+    with st.form("scraping_form"):
+        # Create two rows with two columns each
+        row1_col1, row1_col2 = st.columns(2)
+        row2_col1, row2_col2 = st.columns(2)
+
+        with row1_col1:
+            search_keyword = st.text_input(
+                "Search keywords (optional):",
+                value="",
+                key='search_keyword',
+                help="Optional: Enter keywords to search within reports, or leave empty to view all reports in the selected category"
+            )
+
+        with row1_col2:
+            category = st.selectbox(
+                "PFD Report type:", 
+                [""] + get_pfd_categories(), 
+                index=0,
+                key='category',
+                format_func=lambda x: x if x else "Select a category (optional)"
+            )
+
+        with row2_col1:
+            order = st.selectbox(
+                "Sort by:", 
+                ["relevance", "desc", "asc"],
+                index=0,
+                key='order',
+                format_func=lambda x: {
+                    "relevance": "Relevance",
+                    "desc": "Newest first",
+                    "asc": "Oldest first"
+                }[x]
+            )
+
+        with row2_col2:
+            max_pages = st.number_input(
+                "Maximum pages to scrape:",
+                min_value=0,
+                value=0,
+                key='max_pages',
+                help="Enter 0 for all pages"
+            )
+
+        # Action buttons in a row
+        button_col1, button_col2 = st.columns(2)
+        with button_col1:
+            submitted = st.form_submit_button("Search Reports", 
+                                           use_container_width=True)
+        with button_col2:
+            stop_scraping = st.form_submit_button("Stop Scraping",
+                                               use_container_width=True)
+
+
+                            
 
 def filter_reports_by_date(reports: List[Dict], date_after: Optional[str] = None, date_before: Optional[str] = None) -> List[Dict]:
     """
