@@ -1683,32 +1683,63 @@ def create_node_trace(G, pos):
         )
     )
 
-
 def generate_summary(doc: Dict) -> DocumentSummary:
     """Generate comprehensive summary for Prevention of Future Deaths reports"""
     text = str(doc.get('Content', ''))
+    title = doc.get('Title', 'Untitled PFD Report')
     
-    def extract_comprehensive_summary(full_text):
-        """Extract a detailed, comprehensive summary of the report"""
-        # Clean and prepare the text
-        full_text = re.sub(r'^.*?Prevention of Future Deaths Report', '', full_text, flags=re.DOTALL)
+    def generate_comprehensive_summary():
+        """Generate a comprehensive summary with fallback mechanisms"""
+        # Basic metadata extraction with robust fallbacks
+        ref = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text)
+        date = re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text)
+        deceased = re.search(r'Deceased name:?\s*([^\n]+)', text)
+        coroner = re.search(r'Coroners? name:?\s*([^\n]+)', text)
+        area = re.search(r'Coroners? Area:?\s*([^\n]+)', text)
         
+        # Prepare summary components
+        summary_parts = []
+        
+        # Add report identification
+        if ref and date:
+            summary_parts.append(
+                f"Prevention of Future Deaths report {ref.group(1)} "
+                f"dated {date.group(1)}"
+            )
+        
+        # Add deceased details
+        if deceased:
+            summary_parts.append(f"Concerning the death of {deceased.group(1)}")
+        
+        # Add coroner and area information
+        if coroner and area:
+            summary_parts.append(
+                f"Reported by {coroner.group(1)} from {area.group(1)}"
+            )
+        
+        # Fallback if no structured summary
+        if not summary_parts:
+            # Use first 300 characters of text
+            summary_parts.append(text[:300] + '...')
+        
+        return ' '.join(summary_parts)
+
+    def extract_comprehensive_summary():
+        """Extract key sections from the document"""
         # Key sections to extract
         sections = [
-            (r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)', 'Circumstances of Death'),
+            (r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)', 'Circumstances'),
             (r'CORONER\'?S CONCERNS\s*(.*?)(?=\n\n|$)', 'Coroner\'s Concerns'),
-            (r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)', 'Matters of Concern'),
-            (r'THIS REPORT IS BEING SENT TO:\s*(.*?)(?=\n\n|$)', 'Recipient Agencies')
+            (r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)', 'Matters of Concern')
         ]
         
-        # Compile comprehensive summary
         summary_parts = []
         
         for pattern, section_name in sections:
-            match = re.search(pattern, full_text, re.IGNORECASE | re.DOTALL)
+            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
             if match:
                 section_content = match.group(1).strip()
-                # Limit section to 300 characters, but try to keep complete sentences
+                # Truncate to 300 characters while preserving whole sentences
                 if len(section_content) > 300:
                     sentences = re.split(r'(?<=[.!?])\s+', section_content)
                     truncated_content = ''
@@ -1721,23 +1752,13 @@ def generate_summary(doc: Dict) -> DocumentSummary:
                 
                 summary_parts.append(f"**{section_name}**: {section_content}")
         
-        # If no specific sections found, use first 500 characters of text
+        # Fallback if no sections found
         if not summary_parts:
-            summary_parts = [full_text[:500] + '...']
+            summary_parts = [text[:500] + '...']
         
         return '\n\n'.join(summary_parts)
-    
-    # Existing metadata and other summary generation code remains the same
-    metadata = {
-        'ref': re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text).group(1) if re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text) else '',
-        'date': re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text).group(1) if re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text) else '',
-        'deceased': re.search(r'Deceased name:?\s*([^\n]+)', text).group(1) if re.search(r'Deceased name:?\s*([^\n]+)', text) else '',
-        'coroner': re.search(r'Coroners? name:?\s*([^\n]+)', text).group(1) if re.search(r'Coroners? name:?\s*([^\n]+)', text) else '',
-        'area': re.search(r'Coroners? Area:?\s*([^\n]+)', text).group(1) if re.search(r'Coroners? Area:?\s*([^\n]+)', text) else '',
-        'categories': re.findall(r'Category:?\s*([^\n]+)', text)
-    }
-    
-    # Generate facts and other components as in previous implementation
+
+    # Extract facts
     facts = []
     for section, pattern in [
         ('circumstances', r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)'),
@@ -1751,46 +1772,26 @@ def generate_summary(doc: Dict) -> DocumentSummary:
                 'content': match.group(1).strip(),
                 'source': match.group(0)
             })
-    
+
+    # Confidence calculation
+    confidence = len(facts) / 3 if facts else 0.5
+
     return DocumentSummary(
-        title=doc.get('Title', 'Untitled PFD Report'),
-        extractive=extract_comprehensive_summary(text),
-        abstractive=generate_comprehensive_summary(),  # From previous implementation
-        metadata=metadata,
-        facts=facts,
-        confidence=len(facts) / 3 if facts else 0.5
-    )
-    # Extractive summary with improved cleaning
-    def clean_extractive_summary(full_text):
-        # Remove redundant headers and metadata
-        cleaned = re.sub(r'^.*?Prevention of Future Deaths Report', '', full_text, flags=re.DOTALL)
-        cleaned = re.sub(r'Date of report:.*?Ref:.*?Deceased name:.*', '', cleaned, flags=re.DOTALL)
-        cleaned = re.sub(r'REGULATION 28.*', '', cleaned, flags=re.DOTALL)
-        return cleaned.strip()[:1000]
-    
-    # Generate facts
-    facts = []
-    for section, pattern in [
-        ('circumstances', r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)'),
-        ('concerns', r'CORONER\'?S CONCERNS\s*(.*?)(?=\n\n|$)'),
-        ('actions', r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)')
-    ]:
-        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-        if match:
-            facts.append({
-                'type': section,
-                'content': match.group(1).strip(),
-                'source': match.group(0)
-            })
-    
-    return DocumentSummary(
-        title=doc.get('Title', 'Untitled PFD Report'),
-        extractive=clean_extractive_summary(text),
+        title=title,
+        extractive=extract_comprehensive_summary(),
         abstractive=generate_comprehensive_summary(),
-        metadata=metadata,
+        metadata={
+            'ref': re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text).group(1) if re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text) else '',
+            'date': re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text).group(1) if re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text) else '',
+            'deceased': re.search(r'Deceased name:?\s*([^\n]+)', text).group(1) if re.search(r'Deceased name:?\s*([^\n]+)', text) else '',
+            'coroner': re.search(r'Coroners? name:?\s*([^\n]+)', text).group(1) if re.search(r'Coroners? name:?\s*([^\n]+)', text) else '',
+            'area': re.search(r'Coroners? Area:?\s*([^\n]+)', text).group(1) if re.search(r'Coroners? Area:?\s*([^\n]+)', text) else '',
+            'categories': re.findall(r'Category:?\s*([^\n]+)', text)
+        },
         facts=facts,
-        confidence=len(facts) / 3 if facts else 0.5
+        confidence=confidence
     )
+
 
 
 
