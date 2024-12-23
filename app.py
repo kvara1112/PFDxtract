@@ -37,6 +37,9 @@ nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('averaged_perceptron_tagger')
 
+import traceback
+from datetime import datetime
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -2795,114 +2798,123 @@ def process_filtered_data(filtered_df: pd.DataFrame) -> pd.DataFrame:
     
     return deduped_df
 
-
 def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3, 
                              max_features: int = 5000, min_df: float = 0.01,
                              max_df: float = 0.95) -> Dict:
     """
-    Perform advanced semantic clustering on documents with sophisticated preprocessing
-    and automated cluster number determination.
+    Perform advanced semantic clustering with improved parameters and date handling
     """
     try:
         # Initialize NLTK resources
         initialize_nltk()
         
         def preprocess_text(text: str) -> str:
-            """Preprocess text for clustering analysis"""
+            """Enhanced text preprocessing"""
             if pd.isna(text):
                 return ""
             
-            # Convert to lowercase and clean text
             text = clean_text_for_modeling(str(text))
             
             try:
-                # Remove standard English stopwords
                 stop_words = set(stopwords.words('english'))
-                
-                # Add domain-specific stop words
                 domain_stops = {
                     'report', 'death', 'pfd', 'coroner', 'regulation', 'paragraph',
                     'section', 'article', 'deceased', 'died', 'circumstances'
                 }
                 stop_words.update(domain_stops)
                 
-                # Tokenize and remove stopwords
-                try:
-                    tokens = word_tokenize(text.lower())
-                except:
-                    tokens = text.lower().split()
-                
+                tokens = word_tokenize(text.lower())
                 tokens = [t for t in tokens if t not in stop_words and len(t) > 2]
                 return ' '.join(tokens)
             except Exception as e:
                 logging.error(f"Error in text preprocessing: {e}")
                 return text
 
-        # Create unique document identifier for deduplication
+        # Create document identifier using more fields
         def create_doc_id(row):
-            return f"{row.get('Title', '')}_{row.get('ref', '')}_{row.get('deceased_name', '')}"
+            title = str(row.get('Title', '')).strip()
+            ref = str(row.get('ref', '')).strip()
+            date = row.get('date_of_report', '')
+            date_str = date.strftime('%Y-%m-%d') if isinstance(date, pd.Timestamp) else str(date)
+            return f"{title}_{ref}_{date_str}"
         
-        # Add unique identifier
+        # Add unique identifier and deduplicate
         data['doc_id'] = data.apply(create_doc_id, axis=1)
-        
-        # Deduplicate based on doc_id
         data = data.drop_duplicates(subset=['doc_id'])
         
-        # Process documents
+        # Process documents with enhanced content combination
         texts = []
         docs_info = []
         
         for _, row in data.iterrows():
-            # Combine all text content
-            text = combine_document_text(row)
+            # Combine text with better weighting
+            text_parts = []
+            if pd.notna(row.get('Title')):
+                text_parts.append(str(row['Title']) * 2)  # Give more weight to title
+            if pd.notna(row.get('Content')):
+                text_parts.append(str(row['Content']))
             
-            # Skip if no valid text
-            if not text or len(text.split()) < 10:
-                continue
+            # Add PDF contents
+            pdf_cols = [col for col in row.index if col.startswith('PDF_') and col.endswith('_Content')]
+            for col in pdf_cols:
+                if pd.notna(row.get(col)):
+                    text_parts.append(str(row[col]))
             
-            # Preprocess text
-            processed_text = preprocess_text(text)
-            if processed_text and len(processed_text.split()) > 3:
-                texts.append(processed_text)
-                docs_info.append({
-                    'title': row.get('Title', ''),
-                    'date': row.get('date_of_report', ''),
-                    'content': text[:500],
-                    'categories': row.get('categories', []),
-                    'area': row.get('coroner_area', ''),
-                    'doc_id': row.get('doc_id', '')
-                })
+            text = ' '.join(text_parts)
+            
+            if text and len(text.split()) >= 10:
+                processed_text = preprocess_text(text)
+                if processed_text and len(processed_text.split()) > 3:
+                    texts.append(processed_text)
+                    
+                    # Format date for JSON serialization
+                    date = row.get('date_of_report', '')
+                    if isinstance(date, pd.Timestamp):
+                        date = date.strftime('%Y-%m-%d')
+                    
+                    docs_info.append({
+                        'title': row.get('Title', ''),
+                        'date': date,
+                        'content': text[:500],
+                        'categories': row.get('categories', []),
+                        'area': row.get('coroner_area', ''),
+                        'doc_id': row.get('doc_id', '')
+                    })
 
         if len(texts) < min_cluster_size:
             raise ValueError(f"Not enough valid documents. Found {len(texts)}, need at least {min_cluster_size}")
 
-        # Create TF-IDF matrix
+        # Enhanced vectorization with better parameters
         vectorizer = TfidfVectorizer(
             max_features=max_features,
-            min_df=min_df,
+            min_df=max(min_df, 2/len(texts)),  # Adaptive minimum document frequency
             max_df=max_df,
             stop_words='english',
-            ngram_range=(1, 2)
+            ngram_range=(1, 2),
+            token_pattern=r'(?u)\b\w+\b'  # Include single-character words
         )
         
         tfidf_matrix = vectorizer.fit_transform(texts)
         feature_names = vectorizer.get_feature_names_out()
 
-        # Calculate document similarity matrix
+        # Calculate similarities with better normalization
         similarity_matrix = cosine_similarity(tfidf_matrix)
-        distance_matrix = np.clip(1 - similarity_matrix, 0, 2)
+        distance_matrix = 1 - similarity_matrix
         np.fill_diagonal(distance_matrix, 0)
 
-        # Determine optimal number of clusters
-        max_clusters = min(20, len(texts) // min_cluster_size)
+        # Improved cluster number determination
+        max_clusters = min(int(len(texts) * 0.4), 20)  # Allow more clusters
         best_n_clusters = 2
         best_score = -1
         
         for n_clusters in range(2, max_clusters + 1):
+            if len(texts) < n_clusters * min_cluster_size:
+                break
+                
             clustering = AgglomerativeClustering(
                 n_clusters=n_clusters,
                 metric='precomputed',
-                linkage='average'
+                linkage='ward'  # Changed to ward for better separation
             )
             
             cluster_labels = clustering.fit_predict(distance_matrix)
@@ -2917,7 +2929,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         final_clustering = AgglomerativeClustering(
             n_clusters=best_n_clusters,
             metric='precomputed',
-            linkage='average'
+            linkage='ward'
         )
         
         final_labels = final_clustering.fit_predict(distance_matrix)
@@ -2930,7 +2942,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
             if len(cluster_doc_indices) < min_cluster_size:
                 continue
             
-            # Calculate cluster centroid and terms
+            # Calculate cluster terms with better weighting
             cluster_tfidf = tfidf_matrix[cluster_doc_indices].toarray()
             centroid = cluster_tfidf.mean(axis=0)
             
@@ -2965,19 +2977,19 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
             doc_similarities.sort(key=lambda x: x[1], reverse=True)
             representative_docs = []
             
-            seen_doc_ids = set()  # Track unique documents
+            seen_doc_ids = set()
             for doc_idx, similarity in doc_similarities:
                 doc_info = docs_info[doc_idx]
                 if doc_info['doc_id'] not in seen_doc_ids:
                     seen_doc_ids.add(doc_info['doc_id'])
                     representative_docs.append({
                         'title': doc_info['title'],
-                        'date': doc_info['date'],
+                        'date': doc_info['date'],  # Now properly formatted for JSON
                         'similarity': float(similarity),
                         'summary': doc_info['content']
                     })
                 
-                if len(representative_docs) >= 5:  # Limit to top 5 unique documents
+                if len(representative_docs) >= 5:
                     break
 
             # Calculate cluster cohesion
@@ -3003,6 +3015,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
 
+
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced semantic analysis for PFD reports using advanced clustering."""
     st.header("Semantic Document Clustering")
@@ -3016,11 +3029,12 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     with st.sidebar:
         st.header("Clustering Parameters")
         
+        # Adjusted parameter ranges for better clustering
         min_cluster_size = st.slider(
             "Minimum Cluster Size",
             min_value=2,
-            max_value=10,
-            value=3,
+            max_value=5,  # Reduced maximum to prevent overclustering
+            value=2,
             help="Minimum number of documents required to form a cluster"
         )
         
@@ -3028,7 +3042,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             "Maximum Features",
             min_value=1000,
             max_value=10000,
-            value=5000,
+            value=3000,  # Adjusted default
             help="Maximum number of terms to consider"
         )
         
@@ -3036,7 +3050,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             "Minimum Document Frequency",
             min_value=0.01,
             max_value=0.2,
-            value=0.01,
+            value=0.05,  # Adjusted default
             step=0.01,
             help="Minimum fraction of documents a term must appear in"
         )
@@ -3045,12 +3059,12 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             "Maximum Document Frequency",
             min_value=0.5,
             max_value=0.99,
-            value=0.95,
+            value=0.90,  # Adjusted default
             step=0.01,
             help="Maximum fraction of documents a term can appear in"
         )
 
-    # Filters section
+    # Filters section with better date handling
     col1, col2 = st.columns(2)
     
     with col1:
@@ -3059,13 +3073,15 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             value=data['date_of_report'].min().date(),
             min_value=data['date_of_report'].min().date(),
             max_value=data['date_of_report'].max().date(),
+            key="tm_start_date",
             format="DD/MM/YYYY"
         )
         
         doc_type = st.multiselect(
             "Document Type",
             ["Report", "Response"],
-            default=["Report"],
+            default=["Report", "Response"],  # Changed to include both by default
+            key="tm_doc_type",
             help="Filter by document type"
         )
 
@@ -3075,28 +3091,46 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             value=data['date_of_report'].max().date(),
             min_value=data['date_of_report'].min().date(),
             max_value=data['date_of_report'].max().date(),
+            key="tm_end_date",
             format="DD/MM/YYYY"
         )
         
+        # Get unique categories
+        all_categories = set()
+        for cats in data['categories'].dropna():
+            if isinstance(cats, list):
+                all_categories.update(cats)
+        
         categories = st.multiselect(
             "Categories",
-            options=sorted(set().union(*[
-                set(cats) for cats in data['categories'].dropna()
-                if isinstance(cats, list)
-            ]))
+            options=sorted(all_categories),
+            key="tm_categories"
         )
 
-    # Analysis button
-    analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary")
+    # Analysis button with progress indication
+    analyze_col1, analyze_col2 = st.columns([3, 1])
+    with analyze_col1:
+        analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary", use_container_width=True)
+    with analyze_col2:
+        show_details = st.checkbox("Show Details", value=False)
 
     if analyze_clicked:
         try:
+            # Initialize progress tracking
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+            
             # Initialize NLTK resources
             with st.spinner("Initializing resources..."):
                 initialize_nltk()
+                progress_bar.progress(0.1)
+                status_text.text("Initialized resources...")
 
-            # Filter data
+            # Filter data with progress updates
             filtered_df = data.copy()
+            
+            status_text.text("Applying filters...")
+            progress_bar.progress(0.2)
             
             # Apply date filter
             filtered_df = filtered_df[
@@ -3114,6 +3148,9 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 elif "Report" in doc_type:
                     filtered_df = filtered_df[~is_response_mask]
             
+            progress_bar.progress(0.3)
+            status_text.text("Processing document types...")
+            
             # Apply category filter
             if categories:
                 filtered_df = filtered_df[
@@ -3122,39 +3159,63 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     )
                 ]
             
-            # Deduplicate the filtered data
+            progress_bar.progress(0.4)
+            status_text.text("Filtering by categories...")
+            
+            # Create document identifier and deduplicate
             filtered_df['doc_id'] = filtered_df.apply(
-                lambda row: f"{row.get('Title', '')}_{row.get('ref', '')}_{row.get('deceased_name', '')}", 
+                lambda row: f"{row.get('Title', '')}_{row.get('ref', '')}_{row.get('date_of_report', '').strftime('%Y-%m-%d')}", 
                 axis=1
             )
             filtered_df = filtered_df.drop_duplicates(subset=['doc_id'])
             
+            progress_bar.progress(0.5)
+            status_text.text("Removing duplicates...")
+            
             # Validate filtered data
             if len(filtered_df) < min_cluster_size:
-                st.warning("Not enough documents match the selected filters.")
+                progress_bar.empty()
+                status_text.empty()
+                st.warning(f"Not enough documents match the selected filters. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
             
             # Show number of documents being analyzed
-            st.info(f"Analyzing {len(filtered_df)} unique documents...")
+            doc_count = len(filtered_df)
+            st.info(f"Analyzing {doc_count} unique documents...")
+            
+            if show_details:
+                st.write("Documents being analyzed:")
+                st.dataframe(
+                    filtered_df[['Title', 'date_of_report', 'categories']],
+                    hide_index=True
+                )
+            
+            progress_bar.progress(0.6)
+            status_text.text("Starting clustering analysis...")
             
             # Perform clustering
-            with st.spinner("Performing semantic clustering analysis..."):
-                cluster_results = perform_semantic_clustering(
-                    filtered_df,
-                    min_cluster_size=min_cluster_size,
-                    max_features=max_features,
-                    min_df=min_df,
-                    max_df=max_df
-                )
+            cluster_results = perform_semantic_clustering(
+                filtered_df,
+                min_cluster_size=min_cluster_size,
+                max_features=max_features,
+                min_df=min_df,
+                max_df=max_df
+            )
+            
+            progress_bar.progress(0.8)
+            status_text.text("Generating visualizations...")
             
             # Display results
             display_cluster_analysis(cluster_results)
+            
+            progress_bar.progress(0.9)
+            status_text.text("Preparing export...")
             
             # Add export options
             st.markdown("---")
             st.subheader("Export Results")
             
-            # Prepare export data
+            # Prepare export data with proper date handling
             export_data = {
                 'metadata': {
                     'total_documents': cluster_results['total_documents'],
@@ -3175,14 +3236,23 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             st.download_button(
                 "📥 Download Analysis (JSON)",
                 json_str,
-                "cluster_analysis.json",
+                f"cluster_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                 "application/json"
             )
-                
-        except Exception as e:
-            st.error(f"Error during clustering analysis: {str(e)}")
-            logging.error(f"Clustering error: {e}", exc_info=True)
             
+            progress_bar.progress(1.0)
+            status_text.empty()
+            progress_bar.empty()
+            
+        except Exception as e:
+            progress_bar.empty()
+            status_text.empty()
+            st.error(f"Error during clustering analysis: {str(e)}")
+            if show_details:
+                st.error(f"Detailed error: {traceback.format_exc()}")
+            logging.error(f"Clustering error: {e}", exc_info=True)
+
+
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """
     Display comprehensive cluster analysis results
