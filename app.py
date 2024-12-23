@@ -133,54 +133,6 @@ def extract_key_sections(text: str) -> Dict:
             
     return sections
 
-def generate_summary(doc: Dict) -> DocumentSummary:
-    """Generate fact-based summary with verification"""
-    text = str(doc.get('Content', ''))
-    
-    # If content is empty, use title or fallback data
-    if not text:
-        text = str(doc.get('title', ''))
-    
-    sections = extract_key_sections(text)
-    
-    # Build extractive summary
-    extractive_parts = []
-    facts = []
-    
-    for section in ['circumstances', 'concerns', 'actions']:
-        if sections.get(section, {}).get('content'):
-            content = sections[section]['content']
-            extractive_parts.append(f"{section.upper()}:\n{content[:300]}...")
-            facts.append({
-                'type': section,
-                'content': content,
-                'source': sections[section].get('source', '')
-            })
-    
-    extractive = '\n\n'.join(extractive_parts) if extractive_parts else text[:500]
-    
-    # Build abstractive summary from verified facts
-    meta = sections.get('metadata', {})
-    
-    abstract_parts = []
-    if meta.get('ref') and meta.get('date'):
-        abstract_parts.append(
-            f"Prevention of Future Deaths report {meta['ref']} dated {meta['date']}"
-        )
-    
-    if meta.get('deceased'):
-        abstract_parts.append(f"regarding the death of {meta['deceased']}")
-    
-    abstractive = ' '.join(abstract_parts) or extractive[:300]
-    
-    return DocumentSummary(
-        title=doc.get('Title', ''),
-        extractive=extractive,
-        abstractive=abstractive,
-        metadata=meta,
-        facts=facts,
-        confidence=len(facts) / 3 if facts else 0.5
-    )
 
 def display_cluster_summaries(cluster_docs: List[dict]) -> None:
     """Display document summaries for cluster"""
@@ -3475,35 +3427,89 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Clustering error: {e}", exc_info=True)
 
+def generate_summary(doc: Dict) -> DocumentSummary:
+    """Generate summary for Prevention of Future Deaths reports"""
+    # Assume the document contains the full PFD report text
+    text = str(doc.get('Content', ''))
+    
+    # Extract basic metadata
+    ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text)
+    date_match = re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text)
+    deceased_match = re.search(r'Deceased name:?\s*([^\n]+)', text)
+    
+    # Prepare metadata
+    metadata = {
+        'ref': ref_match.group(1) if ref_match else '',
+        'date': date_match.group(1) if date_match else '',
+        'deceased': deceased_match.group(1) if deceased_match else ''
+    }
+    
+    # Create extractive summary
+    extractive_parts = []
+    facts = []
+    
+    # Look for key sections
+    sections = ['circumstances', 'concerns', 'actions']
+    for section in sections:
+        section_match = re.search(
+            rf'{section.upper()} OF (?:THE )?(?:DEATH|CASE|REPORT)\s*(.*?)(?=\n\n|$)', 
+            text, 
+            re.IGNORECASE | re.DOTALL
+        )
+        if section_match:
+            content = section_match.group(1).strip()
+            extractive_parts.append(f"{section.upper()}:\n{content[:300]}...")
+            facts.append({
+                'type': section,
+                'content': content,
+                'source': section_match.group(0)
+            })
+    
+    extractive = '\n\n'.join(extractive_parts) or text[:500]
+    
+    # Create abstractive summary
+    abstractive_parts = []
+    if metadata['ref'] and metadata['date']:
+        abstractive_parts.append(
+            f"Prevention of Future Deaths report {metadata['ref']} dated {metadata['date']}"
+        )
+    if metadata['deceased']:
+        abstractive_parts.append(f"regarding the death of {metadata['deceased']}")
+    
+    abstractive = ' '.join(abstractive_parts) or extractive[:300]
+    
+    return DocumentSummary(
+        title=doc.get('Title', 'Untitled PFD Report'),
+        extractive=extractive,
+        abstractive=abstractive,
+        metadata=metadata,
+        facts=facts,
+        confidence=len(facts) / 3 if facts else 0.5
+    )
+
 def summarize_cluster_documents(documents):
-    """
-    Generate summaries for cluster documents
-    
-    Args:
-        documents (List[Dict]): List of documents in the cluster
-    
-    Returns:
-        Tuple[List[DocumentSummary], List[DocumentSummary]]: Summaries of reports and responses
-    """
+    """Generate summaries for cluster documents"""
     summaries = []
     responses = []
     
-    if not documents:
-        return summaries, responses
-    
     for doc in documents:
         try:
-            # Ensure minimum required keys exist
+            # Prepare document data
             doc_data = {
                 'Title': doc.get('title', 'Untitled Document'),
                 'Content': doc.get('summary', doc.get('content', ''))
             }
-        
+            
             # Generate summary
             summary = generate_summary(doc_data)
-        
-            # Check if it's a response
-            if any(phrase in str(doc.get('title', '')).lower() for phrase in ['response', 'reply']):
+            
+            # Determine if it's a response
+            is_response = any(
+                phrase in str(doc.get('title', '')).lower() 
+                for phrase in ['response', 'reply', 'following']
+            )
+            
+            if is_response:
                 responses.append(summary)
             else:
                 summaries.append(summary)
@@ -3512,7 +3518,8 @@ def summarize_cluster_documents(documents):
             logging.error(f"Error processing document summary: {e}")
     
     return summaries, responses
-    
+
+
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """Display comprehensive cluster analysis with summaries"""
     try:
