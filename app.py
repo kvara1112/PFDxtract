@@ -544,6 +544,7 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
 
+
 def construct_search_url(base_url: str, keyword: Optional[str] = None, 
                         category: Optional[str] = None, 
                         category_slug: Optional[str] = None, 
@@ -553,30 +554,34 @@ def construct_search_url(base_url: str, keyword: Optional[str] = None,
     keyword = keyword.strip() if keyword else None
     category = category.strip() if category else None
     
-    # Build query parameters
-    query_params = []
-    
-    # Always add post_type=pfd when searching or filtering
-    query_params.append("post_type=pfd")
-    
-    # Add category filter if present
-    if category and category_slug:
-        query_params.append(f"pfd_report_type={category_slug}")
-    
-    # Add keyword filter only if explicitly provided
+    # Determine if we're doing a search or category browse
     if keyword:
+        # Search URL with keyword
+        query_params = ["post_type=pfd"]
+        if category and category_slug:
+            query_params.append(f"pfd_report_type={category_slug}")
         query_params.append(f"s={keyword}")
-    
-    # Construct URL - always use query parameters for consistency
-    query_string = "&".join(query_params)
-    url = f"{base_url}?{query_string}"
-    
-    # Add pagination if needed
-    if page and page > 1:
-        url = f"{url}&page={page}"
+        
+        base_query = f"?{'&'.join(query_params)}"
+        url = f"{base_url}{base_query}"
+        
+        # Add pagination for search
+        if page and page > 1:
+            url = f"{url}&page={page}"
+            
+    else:
+        # Category browse URL
+        if category and category_slug:
+            url = f"{base_url}prevention-of-future-death-report-category/{category_slug}/"
+        else:
+            url = f"{base_url}prevention-of-future-death-reports/"
+            
+        # Add pagination for category browse
+        if page and page > 1:
+            url = f"{url}page/{page}/"
     
     return url
-
+                            
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
     category: Optional[str] = None,
