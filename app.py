@@ -2909,6 +2909,16 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
     """
     Perform advanced semantic clustering on documents with sophisticated preprocessing
     and automated cluster number determination.
+    
+    Args:
+        data (pd.DataFrame): Input DataFrame containing documents
+        min_cluster_size (int): Minimum number of documents per cluster
+        max_features (int): Maximum number of features for TF-IDF
+        min_df (float): Minimum document frequency for terms
+        max_df (float): Maximum document frequency for terms
+        
+    Returns:
+        Dict: Clustering results including clusters and their documents
     """
     try:
         # Initialize NLTK resources
@@ -2965,8 +2975,24 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                 docs_info.append({
                     'title': row.get('Title', ''),
                     'date': row.get('date_of_report', ''),
-                    'content': text[:500]  # Store first 500 chars for summary
+                    'content': text[:500],  # Store first 500 chars for summary
+                    'categories': row.get('categories', []),
+                    'area': row.get('coroner_area', '')
                 })
+
+        # Deduplicate documents based on content
+        unique_texts = []
+        unique_docs_info = []
+        seen_content = set()
+
+        for text, doc_info in zip(texts, docs_info):
+            if text not in seen_content:
+                seen_content.add(text)
+                unique_texts.append(text)
+                unique_docs_info.append(doc_info)
+
+        texts = unique_texts
+        docs_info = unique_docs_info
 
         if len(texts) < min_cluster_size:
             raise ValueError(f"Not enough valid documents. Found {len(texts)}, need at least {min_cluster_size}")
@@ -3097,8 +3123,10 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         }
         
     except Exception as e:
-        logging.error(f"Error in semantic clustering: {e}")
+        logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
+
+
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """
