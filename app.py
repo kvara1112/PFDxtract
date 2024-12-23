@@ -473,8 +473,11 @@ def get_total_pages(url: str) -> Tuple[int, int]:
         return 0, 0
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data with improved metadata extraction"""
+    """Process and clean scraped data with metadata extraction"""
     try:
+        if df is None or len(df) == 0:
+            return pd.DataFrame()
+        
         # Create a copy
         df = df.copy()
         
@@ -483,16 +486,15 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
             # Process each row
             processed_rows = []
             for _, row in df.iterrows():
-                # Start with the original row data
+                # Start with original row data
                 processed_row = row.to_dict()
                 
-                # Extract metadata using the existing function
+                # Extract metadata using existing function
                 content = str(row.get('Content', ''))
                 metadata = extract_metadata(content)
                 
                 # Update row with metadata
                 processed_row.update(metadata)
-                
                 processed_rows.append(processed_row)
             
             # Create new DataFrame from processed rows
@@ -515,10 +517,10 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
                 # Remove ordinal indicators
                 date_str = re.sub(r'(\d)(st|nd|rd|th)', r'\1', date_str)
                 
-                # Try different formats but always convert to datetime
+                # Try different formats
                 formats = [
                     '%Y-%m-%d',
-                    '%d-%m-%Y',
+                    '%d-%m-%Y', 
                     '%d %B %Y',
                     '%d %b %Y'
                 ]
@@ -526,16 +528,14 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
                 for fmt in formats:
                     try:
                         return pd.to_datetime(date_str, format=fmt)
-                    except:
+                    except ValueError:
                         continue
                 
                 try:
-                    # Last resort - try pandas default parser
                     return pd.to_datetime(date_str)
                 except:
                     return pd.NaT
             
-            # Convert dates to datetime objects
             result['date_of_report'] = result['date_of_report'].apply(parse_date)
         
         return result
@@ -543,7 +543,6 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
-
 
                             
 def get_category_slug(category: str) -> str:
@@ -839,99 +838,7 @@ def sort_reports(reports: List[Dict], order: str) -> List[Dict]:
                      key=lambda x: datetime.strptime(x['date'], "%Y-%m-%d"))
     return reports
 
-        
-def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data with improved metadata extraction"""
-    try:
-        # Create a copy
-        df = df.copy()
-        
-        # Extract metadata from Content field if it exists
-        if 'Content' in df.columns:
-            # Process each row
-            processed_rows = []
-            for _, row in df.iterrows():
-                # Start with the original row data
-                processed_row = row.to_dict()
-                
-                # Extract metadata from Content
-                content = str(row.get('Content', ''))
-                
-                # Extract date
-                date_match = re.search(r'Date of report:\s*(\d{1,2}(?:/|-)\d{1,2}(?:/|-)\d{4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})', content)
-                if date_match:
-                    processed_row['date_of_report'] = date_match.group(1)
-                
-                # Rest of metadata extraction remains the same
-                ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', content)
-                if ref_match:
-                    processed_row['ref'] = ref_match.group(1)
-                
-                name_match = re.search(r'Deceased name:?\s*([^\n]+)', content)
-                if name_match:
-                    processed_row['deceased_name'] = name_match.group(1).strip()
-                
-                coroner_match = re.search(r'Coroner(?:\'?s)? name:?\s*([^\n]+)', content)
-                if coroner_match:
-                    processed_row['coroner_name'] = coroner_match.group(1).strip()
-                
-                area_match = re.search(r'Coroner(?:\'?s)? Area:?\s*([^\n]+)', content)
-                if area_match:
-                    processed_row['coroner_area'] = area_match.group(1).strip()
-                
-                cat_match = re.search(r'Category:?\s*([^\n]+)', content)
-                if cat_match:
-                    categories = cat_match.group(1).split('|')
-                    processed_row['categories'] = [cat.strip() for cat in categories if cat.strip()]
-                else:
-                    processed_row['categories'] = []
-                
-                processed_rows.append(processed_row)
-            
-            # Create new DataFrame from processed rows
-            result = pd.DataFrame(processed_rows)
-        else:
-            result = df.copy()
-        
-        # Convert date_of_report to datetime with improved handling
-        if 'date_of_report' in result.columns:
-            def parse_date(date_str):
-                if pd.isna(date_str):
-                    return pd.NaT
-                
-                date_str = str(date_str).strip()
-                
-                # Try different date formats
-                formats = [
-                    '%d/%m/%Y',
-                    '%Y-%m-%d',
-                    '%d-%m-%Y',
-                    '%d %B %Y',
-                    '%d %b %Y'
-                ]
-                
-                # Remove ordinal indicators
-                date_str = re.sub(r'(\d)(st|nd|rd|th)', r'\1', date_str)
-                
-                for fmt in formats:
-                    try:
-                        return pd.to_datetime(date_str, format=fmt)
-                    except:
-                        continue
-                
-                # If all formats fail, try pandas default parser
-                try:
-                    return pd.to_datetime(date_str)
-                except:
-                    return pd.NaT
-            
-            result['date_of_report'] = result['date_of_report'].apply(parse_date)
-        
-        return result
-            
-    except Exception as e:
-        logging.error(f"Error in process_scraped_data: {e}")
-        return df
+    
 
 def plot_category_distribution(df: pd.DataFrame) -> None:
     """Plot category distribution"""
