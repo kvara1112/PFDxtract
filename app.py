@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import re
-import requestsa
+import requests
 from bs4 import BeautifulSoup
 import time
 import urllib3
