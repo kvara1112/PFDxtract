@@ -50,6 +50,34 @@ logging.basicConfig(
     ]
 )
 
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Global headers for all requests
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.5',
+    'Connection': 'keep-alive',
+    'Referer': 'https://judiciary.uk/'
+}
+
+# Core utility functions
+def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[requests.Response]:
+    """Make HTTP request with retries and delay"""
+    for attempt in range(retries):
+        try:
+            time.sleep(delay)
+            response = requests.get(url, headers=HEADERS, verify=False, timeout=30)
+            response.raise_for_status()
+            return response
+        except Exception as e:
+            if attempt == retries - 1:
+                st.error(f"Request failed: {str(e)}")
+                raise e
+            time.sleep(delay * (attempt + 1))
+    return None
+
 @dataclass
 class DocumentSummary:
     title: str
@@ -156,35 +184,51 @@ def generate_summary(doc: Dict) -> DocumentSummary:
         confidence=len(facts) / 3
     )
 
+def display_cluster_summaries(cluster_docs: List[dict]) -> None:
+    """Display document summaries for cluster"""
+    # Generate summaries
+    summaries = []
+    responses = []
+    
+    for doc in cluster_docs:
+        # Check if response
+        content = str(doc.get('Content', '')).lower()
+        is_response = any(phrase in content for phrase in [
+            'in response to',
+            'responding to',
+            'following the regulation 28'
+        ])
+        
+        summary = generate_summary(doc)
+        if is_response:
+            responses.append(summary) 
+        else:
+            summaries.append(summary)
+    
+    # Display reports
+    st.markdown("### Reports")
+    for summary in summaries:
+        with st.expander(f"{summary.title} (Confidence: {summary.confidence:.2%})"):
+            tab1, tab2 = st.tabs(["Extractive Summary", "Abstractive Summary"])
+            
+            with tab1:
+                st.markdown(summary.extractive)
+                
+            with tab2:
+                st.markdown(summary.abstractive)
+                
+            if st.checkbox("Show Source Facts", key=f"facts_{summary.title}"):
+                for fact in summary.facts:
+                    st.markdown(f"**{fact['type'].title()}**")
+                    st.markdown(f"Content: {fact['content']}")
+                    st.markdown(f"Source: `{fact['source']}`")
 
-# Disable SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# Global headers for all requests
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Accept-Language': 'en-US,en;q=0.5',
-    'Connection': 'keep-alive',
-    'Referer': 'https://judiciary.uk/'
-}
-
-# Core utility functions
-def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[requests.Response]:
-    """Make HTTP request with retries and delay"""
-    for attempt in range(retries):
-        try:
-            time.sleep(delay)
-            response = requests.get(url, headers=HEADERS, verify=False, timeout=30)
-            response.raise_for_status()
-            return response
-        except Exception as e:
-            if attempt == retries - 1:
-                st.error(f"Request failed: {str(e)}")
-                raise e
-            time.sleep(delay * (attempt + 1))
-    return None
-
+    # Display responses
+    if responses:
+        st.markdown("### Responses")
+        for response in responses:
+            with st.expander(f"{response.title}"):
+                st.markdown(response.extractive)
 
 def combine_document_text(row: pd.Series) -> str:
     """Combine all text content from a document"""
