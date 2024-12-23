@@ -3488,21 +3488,28 @@ def summarize_cluster_documents(documents):
     summaries = []
     responses = []
     
+    if not documents:
+        return summaries, responses
+    
     for doc in documents:
-        # Create a dictionary-like object that mimics the structure expected by generate_summary
-        doc_data = {
-            'Title': doc['title'],
-            'Content': doc['summary']
-        }
+        try:
+            # Ensure minimum required keys exist
+            doc_data = {
+                'Title': doc.get('title', 'Untitled Document'),
+                'Content': doc.get('summary', doc.get('content', ''))
+            }
         
-        # Generate summary
-        summary = generate_summary(doc_data)
+            # Generate summary
+            summary = generate_summary(doc_data)
         
-        # Check if it's a response or a report
-        if any(phrase in doc['title'].lower() for phrase in ['response', 'reply']):
-            responses.append(summary)
-        else:
-            summaries.append(summary)
+            # Check if it's a response
+            if any(phrase in str(doc.get('title', '')).lower() for phrase in ['response', 'reply']):
+                responses.append(summary)
+            else:
+                summaries.append(summary)
+        
+        except Exception as e:
+            logging.error(f"Error processing document summary: {e}")
     
     return summaries, responses
     
