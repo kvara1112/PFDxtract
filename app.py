@@ -1683,11 +1683,51 @@ def create_node_trace(G, pos):
         )
     )
 
+
 def generate_summary(doc: Dict) -> DocumentSummary:
     """Generate comprehensive summary for Prevention of Future Deaths reports"""
     text = str(doc.get('Content', ''))
     
-    # Enhanced metadata extraction
+    def extract_comprehensive_summary(full_text):
+        """Extract a detailed, comprehensive summary of the report"""
+        # Clean and prepare the text
+        full_text = re.sub(r'^.*?Prevention of Future Deaths Report', '', full_text, flags=re.DOTALL)
+        
+        # Key sections to extract
+        sections = [
+            (r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)', 'Circumstances of Death'),
+            (r'CORONER\'?S CONCERNS\s*(.*?)(?=\n\n|$)', 'Coroner\'s Concerns'),
+            (r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)', 'Matters of Concern'),
+            (r'THIS REPORT IS BEING SENT TO:\s*(.*?)(?=\n\n|$)', 'Recipient Agencies')
+        ]
+        
+        # Compile comprehensive summary
+        summary_parts = []
+        
+        for pattern, section_name in sections:
+            match = re.search(pattern, full_text, re.IGNORECASE | re.DOTALL)
+            if match:
+                section_content = match.group(1).strip()
+                # Limit section to 300 characters, but try to keep complete sentences
+                if len(section_content) > 300:
+                    sentences = re.split(r'(?<=[.!?])\s+', section_content)
+                    truncated_content = ''
+                    for sentence in sentences:
+                        if len(truncated_content) + len(sentence) <= 300:
+                            truncated_content += sentence + ' '
+                        else:
+                            break
+                    section_content = truncated_content.strip() + '...'
+                
+                summary_parts.append(f"**{section_name}**: {section_content}")
+        
+        # If no specific sections found, use first 500 characters of text
+        if not summary_parts:
+            summary_parts = [full_text[:500] + '...']
+        
+        return '\n\n'.join(summary_parts)
+    
+    # Existing metadata and other summary generation code remains the same
     metadata = {
         'ref': re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text).group(1) if re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text) else '',
         'date': re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text).group(1) if re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text) else '',
@@ -1697,44 +1737,29 @@ def generate_summary(doc: Dict) -> DocumentSummary:
         'categories': re.findall(r'Category:?\s*([^\n]+)', text)
     }
     
-    # Advanced abstractive summary generation
-    def generate_comprehensive_summary():
-        # Core summary components
-        summary_parts = []
-        
-        # Basic report identification
-        if metadata['ref'] and metadata['date']:
-            summary_parts.append(f"Prevention of Future Deaths report {metadata['ref']} dated {metadata['date']}")
-        
-        # Deceased details
-        if metadata['deceased']:
-            summary_parts.append(f"Concerning the death of {metadata['deceased']}")
-        
-        # Coroner and jurisdiction
-        if metadata['coroner'] and metadata['area']:
-            summary_parts.append(f"Reported by {metadata['coroner']} from {metadata['area']}")
-        
-        # Key categories
-        if metadata['categories']:
-            summary_parts.append(f"Categories: {', '.join(metadata['categories'])}")
-        
-        # Key sections extraction
-        sections = {
-            'Circumstances': re.search(r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)', text, re.IGNORECASE | re.DOTALL),
-            'Concerns': re.search(r'CORONER\'?S CONCERNS\s*(.*?)(?=\n\n|$)', text, re.IGNORECASE | re.DOTALL),
-            'Actions': re.search(r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)', text, re.IGNORECASE | re.DOTALL)
-        }
-        
-        # Add key section summaries
-        for section, match in sections.items():
-            if match:
-                section_text = match.group(1).strip()
-                # Extract first meaningful sentence
-                sentence = re.split(r'[.!?]', section_text)[0] + '.'
-                summary_parts.append(f"{section}: {sentence}")
-        
-        return ' '.join(summary_parts)
+    # Generate facts and other components as in previous implementation
+    facts = []
+    for section, pattern in [
+        ('circumstances', r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)'),
+        ('concerns', r'CORONER\'?S CONCERNS\s*(.*?)(?=\n\n|$)'),
+        ('actions', r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)')
+    ]:
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            facts.append({
+                'type': section,
+                'content': match.group(1).strip(),
+                'source': match.group(0)
+            })
     
+    return DocumentSummary(
+        title=doc.get('Title', 'Untitled PFD Report'),
+        extractive=extract_comprehensive_summary(text),
+        abstractive=generate_comprehensive_summary(),  # From previous implementation
+        metadata=metadata,
+        facts=facts,
+        confidence=len(facts) / 3 if facts else 0.5
+    )
     # Extractive summary with improved cleaning
     def clean_extractive_summary(full_text):
         # Remove redundant headers and metadata
