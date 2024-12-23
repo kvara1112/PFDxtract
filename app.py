@@ -36,6 +36,7 @@ import nltk
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('averaged_perceptron_tagger')
+from summarization import display_cluster_summaries
 
 import traceback
 from datetime import datetime
@@ -3328,9 +3329,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
 
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
-    """
-    Display comprehensive cluster analysis results
-    """
+    """Display comprehensive cluster analysis with summaries"""
     try:
         st.subheader("Document Clustering Analysis")
         
@@ -3353,8 +3352,39 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
                 # Cluster metrics
                 st.markdown(f"**Cohesion Score**: {cluster['cohesion']:.3f}")
                 
+                # Generate and display summaries
+                summaries, responses = summarize_cluster_documents(cluster['documents'])
+                
+                # Display reports
+                st.markdown("### Reports")
+                for summary in summaries:
+                    with st.expander(f"{summary.title} (Confidence: {summary.confidence:.2%})"):
+                        tab1, tab2 = st.tabs(["Extractive Summary", "Abstractive Summary"])
+                        
+                        with tab1:
+                            st.markdown(summary.extractive)
+                            
+                        with tab2:
+                            st.markdown(summary.abstractive)
+                            
+                        if st.checkbox("Show Source Facts", key=f"facts_{summary.title}"):
+                            for fact in summary.facts:
+                                st.markdown(f"**{fact['type'].title()}**")
+                                st.markdown(f"Content: {fact['content']}")
+                                st.markdown(f"Source: `{fact['source']}`")
+                
+                # Display responses if any
+                if responses:
+                    st.markdown("### Responses")
+                    for response in responses:
+                        with st.expander(f"{response.title} (Confidence: {response.confidence:.2%})"):
+                            st.markdown(response.extractive)
+                            if st.checkbox("Show Source Facts", key=f"response_facts_{response.title}"):
+                                for fact in response.facts:
+                                    st.markdown(f"Source: `{fact['source']}`")
+                
                 # Terms analysis
-                st.markdown("#### Key Terms")
+                st.markdown("### Key Terms")
                 terms_df = pd.DataFrame(cluster['terms'])
                 
                 # Create term importance visualization
@@ -3369,17 +3399,97 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
                 fig.update_layout(height=400)
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Representative documents
-                st.markdown("#### Representative Documents")
-                for doc in cluster['documents']:
-                    st.markdown(f"**{doc['title']}** (Similarity: {doc['similarity']:.2f})")
-                    st.markdown(f"**Date**: {doc['date']}")
-                    st.markdown(f"**Summary**: {doc['summary'][:300]}...")
-                    st.markdown("---")  # Separator between documents
+                # Document relationships
+                if len(cluster['documents']) > 1:
+                    st.markdown("### Document Relationships")
+                    # Create similarity matrix
+                    n_docs = len(cluster['documents'])
+                    similarity_matrix = np.zeros((n_docs, n_docs))
+                    doc_labels = [f"Doc {i+1}" for i in range(n_docs)]
+                    
+                    for i in range(n_docs):
+                        for j in range(n_docs):
+                            # Calculate similarity score
+                            similarity_matrix[i,j] = float(cluster['documents'][i]['similarity'] * 
+                                                        cluster['documents'][j]['similarity'])
+                    
+                    # Plot heatmap
+                    fig_heatmap = px.imshow(
+                        similarity_matrix,
+                        labels=dict(x="Document", y="Document", color="Similarity"),
+                        x=doc_labels,
+                        y=doc_labels,
+                        title="Document Similarity Heatmap"
+                    )
+                    fig_heatmap.update_layout(height=400)
+                    st.plotly_chart(fig_heatmap, use_container_width=True)
+                
+                # Export options
+                st.markdown("### Export Options")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Prepare cluster data
+                    cluster_data = {
+                        'metadata': {
+                            'cluster_id': cluster['id'],
+                            'size': cluster['size'],
+                            'cohesion': cluster['cohesion']
+                        },
+                        'terms': cluster['terms'],
+                        'reports': [{
+                            'title': s.title,
+                            'extractive': s.extractive,
+                            'abstractive': s.abstractive,
+                            'confidence': s.confidence,
+                            'metadata': s.metadata
+                        } for s in summaries],
+                        'responses': [{
+                            'title': r.title,
+                            'extractive': r.extractive,
+                            'abstractive': r.abstractive,
+                            'confidence': r.confidence,
+                            'metadata': r.metadata
+                        } for r in responses]
+                    }
+                    
+                    st.download_button(
+                        "📥 Export Cluster Analysis (JSON)",
+                        json.dumps(cluster_data, indent=2),
+                        f"cluster_{cluster['id']+1}_analysis.json",
+                        "application/json",
+                        key=f"download_cluster_{cluster['id']}"
+                    )
+                
+                with col2:
+                    # Export summaries to CSV
+                    summary_data = []
+                    for s in summaries + responses:
+                        summary_data.append({
+                            'title': s.title,
+                            'type': 'Response' if s in responses else 'Report',
+                            'extractive_summary': s.extractive,
+                            'abstractive_summary': s.abstractive,
+                            'confidence': s.confidence,
+                            **s.metadata
+                        })
+                    
+                    summaries_df = pd.DataFrame(summary_data)
+                    st.download_button(
+                        "📥 Export Summaries (CSV)",
+                        summaries_df.to_csv(index=False).encode('utf-8'),
+                        f"cluster_{cluster['id']+1}_summaries.csv",
+                        "text/csv",
+                        key=f"download_summaries_{cluster['id']}"
+                    )
+                
+                st.markdown("---")
 
     except Exception as e:
         st.error(f"Error displaying cluster analysis: {str(e)}")
         logging.error(f"Display error: {str(e)}", exc_info=True)
+        if st.checkbox("Show detailed error"):
+            st.code(traceback.format_exc())
 
 def export_topic_analysis(topic_insights, data):
     """Export topic analysis to Excel with timestamp handling"""
