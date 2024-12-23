@@ -3068,7 +3068,6 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
 
-
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced semantic analysis for PFD reports using advanced clustering."""
     st.header("Semantic Document Clustering")
@@ -3077,6 +3076,35 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     identifying key themes and patterns in the reports. The algorithm automatically 
     determines the optimal number of clusters based on document similarity.
     """)
+
+    # Check if previous topic model exists in session state
+    if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
+        st.sidebar.success("Previous topic model results are available.")
+        
+        # Add buttons to view previous results
+        col1, col2 = st.sidebar.columns(2)
+        with col1:
+            view_prev_results = st.button("View Previous Results", key="view_prev_topic_model")
+        with col2:
+            export_prev_results = st.button("Export Previous Results", key="export_prev_topic_model")
+        
+        if view_prev_results:
+            # Display previous clustering results
+            display_cluster_analysis(st.session_state.topic_model)
+        
+        if export_prev_results:
+            # Export previous results
+            try:
+                json_str = json.dumps(st.session_state.topic_model, indent=2)
+                st.download_button(
+                    "📥 Download Previous Analysis (JSON)",
+                    json_str,
+                    f"previous_cluster_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    "application/json",
+                    key="download_prev_topic_model"
+                )
+            except Exception as e:
+                st.error(f"Error exporting previous results: {str(e)}")
 
     # Advanced parameters in sidebar
     with st.sidebar:
@@ -3255,6 +3283,9 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 max_df=max_df
             )
             
+            # Store results in session state
+            st.session_state.topic_model = cluster_results
+            
             progress_bar.progress(0.8)
             status_text.text("Generating visualizations...")
             
@@ -3268,29 +3299,15 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             st.markdown("---")
             st.subheader("Export Results")
             
-            # Prepare export data with proper date handling
-            export_data = {
-                'metadata': {
-                    'total_documents': cluster_results['total_documents'],
-                    'number_of_clusters': cluster_results['n_clusters'],
-                    'silhouette_score': cluster_results['silhouette_score'],
-                    'parameters': {
-                        'min_cluster_size': min_cluster_size,
-                        'max_features': max_features,
-                        'min_df': min_df,
-                        'max_df': max_df
-                    }
-                },
-                'clusters': cluster_results['clusters']
-            }
+            # Prepare export data 
+            export_json = json.dumps(cluster_results, indent=2)
             
-            # Export as JSON
-            json_str = json.dumps(export_data, indent=2)
             st.download_button(
                 "📥 Download Analysis (JSON)",
-                json_str,
+                export_json,
                 f"cluster_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                "application/json"
+                "application/json",
+                key="download_cluster_analysis"
             )
             
             progress_bar.progress(1.0)
@@ -3298,6 +3315,10 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             progress_bar.empty()
             
         except Exception as e:
+            # Clear topic model on failure
+            if 'topic_model' in st.session_state:
+                del st.session_state.topic_model
+            
             progress_bar.empty()
             status_text.empty()
             st.error(f"Error during clustering analysis: {str(e)}")
