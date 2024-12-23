@@ -699,6 +699,7 @@ def construct_search_url(base_url: str, keyword: Optional[str] = None,
 
     return url
 
+
 def render_scraping_tab():
     """Render the scraping tab with a clean 2x2 filter layout"""
     st.header("Scrape PFD Reports")
