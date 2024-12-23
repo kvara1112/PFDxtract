@@ -545,30 +545,6 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
 
-def construct_search_url(base_url: str, keyword: Optional[str] = None, 
-                        category: Optional[str] = None, 
-                        category_slug: Optional[str] = None, 
-                        page: Optional[int] = None) -> str:
-    """Constructs search URL with proper parameter handling"""
-    # Always start with the prevention of future death reports search URL
-    url = f"{base_url}?s=&post_type=pfd"
-    
-    # Add category filter if present
-    if category and category_slug:
-        url += f"&pfd_report_type={category_slug}"
-    
-    # Add keyword if present (overwrites empty s= parameter)
-    if keyword:
-        url = f"{base_url}?s={keyword}&post_type=pfd"
-        if category and category_slug:
-            url += f"&pfd_report_type={category_slug}"
-    
-    # Add pagination if needed
-    if page and page > 1:
-        url += f"&page={page}"
-    
-    logging.info(f"Constructed URL: {url}")
-    return url
                             
 def get_category_slug(category: str) -> str:
     """Generate proper category slug for the website's URL structure"""
@@ -585,7 +561,6 @@ def get_category_slug(category: str) -> str:
     logging.info(f"Generated category slug: {slug} from category: {category}")
     return slug
 
-
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
     category: Optional[str] = None,
@@ -593,25 +568,26 @@ def scrape_pfd_reports(
     max_pages: Optional[int] = None
 ) -> List[Dict]:
     """
-    Scrape PFD reports with enhanced progress tracking
+    Scrape PFD reports with enhanced progress tracking and proper pagination
     """
     all_reports = []
     base_url = "https://www.judiciary.uk/"
     
     try:
+        # Initialize progress tracking
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        report_count_text = st.empty()
+        
         # Validate and prepare category
         category_slug = None
         if category:
-            # Create a slug exactly matching the website's format
             category_slug = category.lower()\
                 .replace(' ', '-')\
                 .replace('&', 'and')\
                 .replace('--', '-')\
                 .strip('-')
             logging.info(f"Using category: {category}, slug: {category_slug}")
-        
-        # Start scraping
-        st.info("Constructing search URL...")
         
         # Construct initial search URL
         base_search_url = construct_search_url(
@@ -621,7 +597,7 @@ def scrape_pfd_reports(
             category_slug=category_slug
         )
         
-        st.info(f"Using search URL: {base_search_url}")
+        st.info(f"Searching at: {base_search_url}")
         
         # Get total pages and results count
         total_pages, total_results = get_total_pages(base_search_url)
@@ -637,11 +613,6 @@ def scrape_pfd_reports(
             total_pages = min(total_pages, max_pages)
             st.info(f"Limiting search to first {total_pages} pages")
         
-        # Create containers for progress tracking
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        report_count_text = st.empty()
-        
         # Process each page
         for current_page in range(1, total_pages + 1):
             try:
@@ -655,7 +626,7 @@ def scrape_pfd_reports(
                 progress_bar.progress(progress)
                 status_text.text(f"Processing page {current_page} of {total_pages}")
                 
-                # Construct page URL
+                # Construct current page URL
                 page_url = construct_search_url(
                     base_url=base_url,
                     keyword=keyword,
@@ -668,8 +639,12 @@ def scrape_pfd_reports(
                 page_reports = scrape_page(page_url)
                 
                 if page_reports:
-                    all_reports.extend(page_reports)
-                    report_count_text.text(f"Retrieved {len(all_reports)} reports so far...")
+                    # Deduplicate based on title and URL
+                    existing_reports = {(r['Title'], r['URL']) for r in all_reports}
+                    new_reports = [r for r in page_reports if (r['Title'], r['URL']) not in existing_reports]
+                    
+                    all_reports.extend(new_reports)
+                    report_count_text.text(f"Retrieved {len(all_reports)} unique reports so far...")
                 
                 # Add delay between pages
                 time.sleep(2)
@@ -679,26 +654,50 @@ def scrape_pfd_reports(
                 st.warning(f"Error on page {current_page}. Continuing with next page...")
                 continue
         
+        # Sort results if specified
+        if order != "relevance":
+            all_reports = sort_reports(all_reports, order)
+        
         # Clear progress indicators
         progress_bar.empty()
         status_text.empty()
         report_count_text.empty()
         
         if all_reports:
-            st.success(f"Successfully scraped {len(all_reports)} reports")
+            st.success(f"Successfully scraped {len(all_reports)} unique reports")
         else:
             st.warning("No reports were successfully retrieved")
-        
-        # Sort results if specified
-        if order != "relevance":
-            all_reports = sort_reports(all_reports, order)
         
         return all_reports
         
     except Exception as e:
         logging.error(f"Error in scrape_pfd_reports: {e}")
         st.error(f"An error occurred while scraping reports: {e}")
-        return all_reports
+        return []
+
+def construct_search_url(base_url: str, keyword: Optional[str] = None, 
+                      category: Optional[str] = None, 
+                      category_slug: Optional[str] = None, 
+                      page: Optional[int] = None) -> str:
+    """Constructs proper search URL with pagination"""
+    # Start with base search URL
+    url = f"{base_url}?s=&post_type=pfd"
+    
+    # Add category filter
+    if category and category_slug:
+        url += f"&pfd_report_type={category_slug}"
+    
+    # Add keyword search
+    if keyword:
+        url = f"{base_url}?s={keyword}&post_type=pfd"
+        if category and category_slug:
+            url += f"&pfd_report_type={category_slug}"
+    
+    # Add pagination
+    if page and page > 1:
+        url += f"&paged={page}"  # Changed from &page= to &paged= for proper pagination
+
+    return url
 
 def render_scraping_tab():
     """Render the scraping tab with a clean 2x2 filter layout"""
