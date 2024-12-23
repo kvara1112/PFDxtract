@@ -1906,101 +1906,68 @@ def generate_topic_label(topic_words):
     """Generate a meaningful label for a topic based on its top words"""
     return " & ".join([word for word, _ in topic_words[:3]]).title()
 
-
-def clean_dataframe_for_export(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Clean and prepare DataFrame for export by handling problematic data types
-    """
-    try:
-        # Create a copy to avoid modifying original
-        df_clean = df.copy()
-        
-        # Handle specific columns
-        for col in df_clean.columns:
-            try:
-                # Convert lists to string representation
-                if df_clean[col].dtype == 'object':
-                    df_clean[col] = df_clean[col].apply(
-                        lambda x: ', '.join(x) if isinstance(x, list) 
-                        else str(x) if pd.notna(x) else ''
-                    )
-                
-                # Handle datetime columns
-                elif pd.api.types.is_datetime64_any_dtype(df_clean[col]):
-                    df_clean[col] = df_clean[col].dt.strftime('%d/%m/%Y')
-                
-            except Exception as col_error:
-                logging.warning(f"Error cleaning column {col}: {str(col_error)}")
-                # Replace problematic column with string versions
-                df_clean[col] = df_clean[col].astype(str)
-        
-        return df_clean
-    
-    except Exception as e:
-        logging.error(f"Error in clean_dataframe_for_export: {e}", exc_info=True)
-        raise Exception(f"Failed to clean data for export: {str(e)}")
-
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """
-    Export DataFrame to Excel bytes with proper formatting
+    Export DataFrame to Excel bytes with proper formatting and error handling
+    
+    Args:
+        df: DataFrame to export
+        
+    Returns:
+        bytes: Excel file content as bytes
     """
     try:
-        if df is None or df.empty:
-            raise ValueError("No data available for export")
-        
-        # Clean the DataFrame first
-        df_export = clean_dataframe_for_export(df)
-        
         # Create output buffer
         output = io.BytesIO()
         
-        # Create Excel writer
+        # Create Excel writer with xlsxwriter engine for better control
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            # Convert DataFrame to Excel, handling problematic data types
+            df_export = df.copy()
+            
+            # Convert lists to strings
+            for col in df_export.columns:
+                if df_export[col].dtype == 'object':
+                    df_export[col] = df_export[col].apply(
+                        lambda x: str(x) if isinstance(x, list) else x
+                    )
+            
             # Convert to Excel
             df_export.to_excel(writer, sheet_name='Reports', index=False)
             
             # Get the worksheet
             worksheet = writer.sheets['Reports']
             
-            # Auto-adjust column widths
+            # Auto-adjust column widths based on content
             for idx, col in enumerate(df_export.columns, 1):
-                max_length = 0
-                column = worksheet.column_dimensions[chr(64 + idx)]
-                
-                # Get maximum length in column
-                for cell in worksheet[chr(64 + idx)]:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(str(cell.value))
-                    except:
-                        pass
-                
+                max_length = max(
+                    df_export[col].astype(str).apply(len).max(),
+                    len(str(col))
+                )
+                # Add a little extra space and limit maximum width
                 adjusted_width = min(max_length + 2, 50)
-                column.width = adjusted_width
+                worksheet.column_dimensions[chr(64 + idx)].width = adjusted_width
             
-            # Add filters and freeze panes
+            # Add filters to header row
             worksheet.auto_filter.ref = worksheet.dimensions
+            
+            # Freeze the header row
             worksheet.freeze_panes = 'A2'
         
         # Get the bytes value
         excel_data = output.getvalue()
-        
         return excel_data
         
     except Exception as e:
         logging.error(f"Error exporting to Excel: {e}", exc_info=True)
         raise Exception(f"Failed to export data to Excel: {str(e)}")
-
+        
 def show_export_options(df: pd.DataFrame, prefix: str):
-    """Show export options for the data with descriptive filename"""
+    """Show export options for the data with descriptive filename and error handling"""
     try:
-        if df is None or df.empty:
-            st.warning("No data available to export")
-            return
-            
         st.subheader("Export Options")
         
-        # Generate timestamp
+        # Generate timestamp for filenames
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"pfd_reports_{prefix}_{timestamp}"
         
@@ -2009,10 +1976,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         # CSV Export
         with col1:
             try:
-                # Clean data for CSV
-                df_csv = clean_dataframe_for_export(df)
-                csv = df_csv.to_csv(index=False).encode('utf-8')
-                
+                csv = df.to_csv(index=False).encode('utf-8')
                 st.download_button(
                     "📥 Download Reports (CSV)",
                     csv,
@@ -2020,9 +1984,8 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                     "text/csv",
                     key=f"download_csv_{prefix}_{timestamp}"
                 )
-            except Exception as csv_error:
-                st.error(f"Unable to prepare CSV download: {str(csv_error)}")
-                logging.error(f"CSV export error: {csv_error}", exc_info=True)
+            except Exception as e:
+                st.error(f"Error preparing CSV export: {str(e)}")
         
         # Excel Export
         with col2:
@@ -2035,23 +1998,24 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     key=f"download_excel_{prefix}_{timestamp}"
                 )
-            except Exception as excel_error:
-                st.error(f"Unable to prepare Excel download: {str(excel_error)}")
-                logging.error(f"Excel export error: {excel_error}", exc_info=True)
+            except Exception as e:
+                st.error(f"Error preparing Excel export: {str(e)}")
         
-        # PDF Download section
-        pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
-        if pdf_columns:
+        # PDF Download
+        if any(col.startswith('PDF_') and col.endswith('_Path') for col in df.columns):
             st.subheader("Download PDFs")
-            if st.button("Download all PDFs", key=f"pdf_button_{prefix}_{timestamp}"):
-                try:
-                    with st.spinner("Preparing PDF download..."):
+            if st.button(f"Download all PDFs", key=f"pdf_button_{prefix}_{timestamp}"):
+                with st.spinner("Preparing PDF download..."):
+                    try:
                         pdf_zip_path = f"{filename}_pdfs.zip"
                         
                         with zipfile.ZipFile(pdf_zip_path, 'w') as zipf:
+                            pdf_columns = [col for col in df.columns if col.startswith('PDF_') and col.endswith('_Path')]
                             added_files = set()
+                            
                             for col in pdf_columns:
-                                for pdf_path in df[col].dropna():
+                                paths = df[col].dropna()
+                                for pdf_path in paths:
                                     if pdf_path and os.path.exists(pdf_path) and pdf_path not in added_files:
                                         zipf.write(pdf_path, os.path.basename(pdf_path))
                                         added_files.add(pdf_path)
@@ -2065,14 +2029,11 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                                 key=f"download_pdfs_zip_{prefix}_{timestamp}"
                             )
                         
-                        # Cleanup
-                        if os.path.exists(pdf_zip_path):
-                            os.remove(pdf_zip_path)
-                            
-                except Exception as pdf_error:
-                    st.error(f"Unable to prepare PDF download: {str(pdf_error)}")
-                    logging.error(f"PDF export error: {pdf_error}", exc_info=True)
-    
+                        # Cleanup zip file
+                        os.remove(pdf_zip_path)
+                    except Exception as e:
+                        st.error(f"Error preparing PDF download: {str(e)}")
+                        
     except Exception as e:
         st.error(f"Error setting up export options: {str(e)}")
         logging.error(f"Export options error: {e}", exc_info=True)
