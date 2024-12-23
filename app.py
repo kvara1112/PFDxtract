@@ -3428,65 +3428,88 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             logging.error(f"Clustering error: {e}", exc_info=True)
 
 def generate_summary(doc: Dict) -> DocumentSummary:
-    """Generate summary for Prevention of Future Deaths reports"""
-    # Assume the document contains the full PFD report text
+    """Generate comprehensive summary for Prevention of Future Deaths reports"""
     text = str(doc.get('Content', ''))
     
-    # Extract basic metadata
-    ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text)
-    date_match = re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text)
-    deceased_match = re.search(r'Deceased name:?\s*([^\n]+)', text)
-    
-    # Prepare metadata
+    # Enhanced metadata extraction
     metadata = {
-        'ref': ref_match.group(1) if ref_match else '',
-        'date': date_match.group(1) if date_match else '',
-        'deceased': deceased_match.group(1) if deceased_match else ''
+        'ref': re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text).group(1) if re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text) else '',
+        'date': re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text).group(1) if re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text) else '',
+        'deceased': re.search(r'Deceased name:?\s*([^\n]+)', text).group(1) if re.search(r'Deceased name:?\s*([^\n]+)', text) else '',
+        'coroner': re.search(r'Coroners? name:?\s*([^\n]+)', text).group(1) if re.search(r'Coroners? name:?\s*([^\n]+)', text) else '',
+        'area': re.search(r'Coroners? Area:?\s*([^\n]+)', text).group(1) if re.search(r'Coroners? Area:?\s*([^\n]+)', text) else '',
+        'categories': re.findall(r'Category:?\s*([^\n]+)', text)
     }
     
-    # Create extractive summary
-    extractive_parts = []
-    facts = []
+    # Advanced abstractive summary generation
+    def generate_comprehensive_summary():
+        # Core summary components
+        summary_parts = []
+        
+        # Basic report identification
+        if metadata['ref'] and metadata['date']:
+            summary_parts.append(f"Prevention of Future Deaths report {metadata['ref']} dated {metadata['date']}")
+        
+        # Deceased details
+        if metadata['deceased']:
+            summary_parts.append(f"Concerning the death of {metadata['deceased']}")
+        
+        # Coroner and jurisdiction
+        if metadata['coroner'] and metadata['area']:
+            summary_parts.append(f"Reported by {metadata['coroner']} from {metadata['area']}")
+        
+        # Key categories
+        if metadata['categories']:
+            summary_parts.append(f"Categories: {', '.join(metadata['categories'])}")
+        
+        # Key sections extraction
+        sections = {
+            'Circumstances': re.search(r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)', text, re.IGNORECASE | re.DOTALL),
+            'Concerns': re.search(r'CORONER\'?S CONCERNS\s*(.*?)(?=\n\n|$)', text, re.IGNORECASE | re.DOTALL),
+            'Actions': re.search(r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)', text, re.IGNORECASE | re.DOTALL)
+        }
+        
+        # Add key section summaries
+        for section, match in sections.items():
+            if match:
+                section_text = match.group(1).strip()
+                # Extract first meaningful sentence
+                sentence = re.split(r'[.!?]', section_text)[0] + '.'
+                summary_parts.append(f"{section}: {sentence}")
+        
+        return ' '.join(summary_parts)
     
-    # Look for key sections
-    sections = ['circumstances', 'concerns', 'actions']
-    for section in sections:
-        section_match = re.search(
-            rf'{section.upper()} OF (?:THE )?(?:DEATH|CASE|REPORT)\s*(.*?)(?=\n\n|$)', 
-            text, 
-            re.IGNORECASE | re.DOTALL
-        )
-        if section_match:
-            content = section_match.group(1).strip()
-            extractive_parts.append(f"{section.upper()}:\n{content[:300]}...")
+    # Extractive summary with improved cleaning
+    def clean_extractive_summary(full_text):
+        # Remove redundant headers and metadata
+        cleaned = re.sub(r'^.*?Prevention of Future Deaths Report', '', full_text, flags=re.DOTALL)
+        cleaned = re.sub(r'Date of report:.*?Ref:.*?Deceased name:.*', '', cleaned, flags=re.DOTALL)
+        cleaned = re.sub(r'REGULATION 28.*', '', cleaned, flags=re.DOTALL)
+        return cleaned.strip()[:1000]
+    
+    # Generate facts
+    facts = []
+    for section, pattern in [
+        ('circumstances', r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)'),
+        ('concerns', r'CORONER\'?S CONCERNS\s*(.*?)(?=\n\n|$)'),
+        ('actions', r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)')
+    ]:
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
             facts.append({
                 'type': section,
-                'content': content,
-                'source': section_match.group(0)
+                'content': match.group(1).strip(),
+                'source': match.group(0)
             })
-    
-    extractive = '\n\n'.join(extractive_parts) or text[:500]
-    
-    # Create abstractive summary
-    abstractive_parts = []
-    if metadata['ref'] and metadata['date']:
-        abstractive_parts.append(
-            f"Prevention of Future Deaths report {metadata['ref']} dated {metadata['date']}"
-        )
-    if metadata['deceased']:
-        abstractive_parts.append(f"regarding the death of {metadata['deceased']}")
-    
-    abstractive = ' '.join(abstractive_parts) or extractive[:300]
     
     return DocumentSummary(
         title=doc.get('Title', 'Untitled PFD Report'),
-        extractive=extractive,
-        abstractive=abstractive,
+        extractive=clean_extractive_summary(text),
+        abstractive=generate_comprehensive_summary(),
         metadata=metadata,
         facts=facts,
         confidence=len(facts) / 3 if facts else 0.5
     )
-
 def summarize_cluster_documents(documents):
     """Generate summaries for cluster documents"""
     summaries = []
