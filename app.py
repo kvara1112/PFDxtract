@@ -93,7 +93,7 @@ SECTION_PATTERNS = {
     'concerns': r'CORONER'?S CONCERNS\s*(.*?)(?=MATTERS|$)', 
     'actions': r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)',
     'response': r'(?:In response to|Following)\s*(.*?)(?=\n\n|$)'
-}
+} 
 
 METADATA_PATTERNS = {
     'ref': r'Ref(?:erence)?:\s*([-\d]+)',
