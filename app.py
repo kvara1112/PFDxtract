@@ -24,21 +24,21 @@ from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import AgglomerativeClustering
-from sklearn.metrics import silhouette_score
+from sklearn.metrics import silhouette_score  # Added for semantic clustering
 import networkx as nx
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from collections import Counter, defaultdict
+from collections import Counter
 from bs4 import BeautifulSoup, Tag
-import json
-import traceback
-from dataclasses import dataclass
-import nltk
-
+import json  # Added for JSON export functionality
 # Initialize NLTK resources
+import nltk 
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('averaged_perceptron_tagger')
+
+import traceback
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -78,107 +78,6 @@ def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[request
             time.sleep(delay * (attempt + 1))
     return None
 
-@dataclass
-class DocumentSummary:
-    title: str
-    extractive: str
-    abstractive: str
-    metadata: Dict
-    facts: List[Dict]
-    confidence: float
-
-# Define key patterns
-SECTION_PATTERNS = {
-    'circumstances': r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=CORONER|$)',
-    'concerns': r"CORONER'S CONCERNS\s*(.*?)(?=MATTERS|$)", 
-    'actions': r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)',
-    'response': r'(?:In response to|Following)\s*(.*?)(?=\n\n|$)'
-}
-
-METADATA_PATTERNS = {
-    'ref': r'Ref(?:erence)?:\s*([-\d]+)',
-    'date': r'Date of report:\s*(\d{1,2}(?:/|-)\d{1,2}(?:/|-)\d{4})',
-    'deceased': r'Deceased name:\s*([^\n]+)',
-    'coroner': r'Coroner(?:\'?s)? name:\s*([^\n]+)',
-    'area': r'Coroner(?:\'?s)? [Aa]rea:\s*([^\n]+)',
-    'category': r'Category:\s*([^\n]+)'
-}
-
-def extract_key_sections(text: str) -> Dict:
-    """Extract key sections with exact text matches"""
-    sections = {
-        'circumstances': None,
-        'concerns': None,
-        'actions': None,
-        'response': None,
-        'metadata': {}
-    }
-    
-    # Extract sections with source tracking
-    for section, pattern in SECTION_PATTERNS.items():
-        match = re.search(pattern, text, re.I | re.S)
-        if match:
-            sections[section] = {
-                'content': match.group(1).strip(),
-                'source': match.group(0),
-                'start': match.start(),
-                'end': match.end()
-            }
-            
-    # Extract metadata
-    for key, pattern in METADATA_PATTERNS.items():
-        match = re.search(pattern, text)
-        if match:
-            sections['metadata'][key] = match.group(1).strip()
-            
-    return sections
-
-
-def display_cluster_summaries(cluster_docs: List[dict]) -> None:
-    """Display document summaries for cluster"""
-    # Generate summaries
-    summaries = []
-    responses = []
-    
-    for doc in cluster_docs:
-        # Check if response
-        content = str(doc.get('Content', '')).lower()
-        is_response = any(phrase in content for phrase in [
-            'in response to',
-            'responding to',
-            'following the regulation 28'
-        ])
-        
-        summary = generate_summary(doc)
-        if is_response:
-            responses.append(summary) 
-        else:
-            summaries.append(summary)
-    
-    # Display reports
-    st.markdown("### Reports")
-    for summary in summaries:
-        with st.expander(f"{summary.title} (Confidence: {summary.confidence:.2%})"):
-            tab1, tab2 = st.tabs(["Extractive Summary", "Abstractive Summary"])
-            
-            with tab1:
-                st.markdown(summary.extractive)
-                
-            with tab2:
-                st.markdown(summary.abstractive)
-                
-            if st.checkbox("Show Source Facts", key=f"facts_{summary.title}"):
-                for fact in summary.facts:
-                    st.markdown(f"**{fact['type'].title()}**")
-                    st.markdown(f"Content: {fact['content']}")
-                    st.markdown(f"Source: `{fact['source']}`")
-
-    # Display responses
-    if responses:
-        st.markdown("### Responses")
-        for response in responses:
-            with st.expander(f"{response.title}"):
-                st.markdown(response.extractive)
 
 def combine_document_text(row: pd.Series) -> str:
     """Combine all text content from a document"""
@@ -1683,114 +1582,6 @@ def create_node_trace(G, pos):
         )
     )
 
-def generate_summary(doc: Dict) -> DocumentSummary:
-    """Generate comprehensive summary for Prevention of Future Deaths reports"""
-    text = str(doc.get('Content', ''))
-    title = doc.get('Title', 'Untitled PFD Report')
-    
-    def generate_comprehensive_summary():
-        """Generate a comprehensive summary with fallback mechanisms"""
-        # Basic metadata extraction with robust fallbacks
-        ref = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text)
-        date = re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text)
-        deceased = re.search(r'Deceased name:?\s*([^\n]+)', text)
-        coroner = re.search(r'Coroners? name:?\s*([^\n]+)', text)
-        area = re.search(r'Coroners? Area:?\s*([^\n]+)', text)
-        
-        # Prepare summary components
-        summary_parts = []
-        
-        # Add report identification
-        if ref and date:
-            summary_parts.append(
-                f"Prevention of Future Deaths report {ref.group(1)} "
-                f"dated {date.group(1)}"
-            )
-        
-        # Add deceased details
-        if deceased:
-            summary_parts.append(f"Concerning the death of {deceased.group(1)}")
-        
-        # Add coroner and area information
-        if coroner and area:
-            summary_parts.append(
-                f"Reported by {coroner.group(1)} from {area.group(1)}"
-            )
-        
-        # Fallback if no structured summary
-        if not summary_parts:
-            # Use first 300 characters of text
-            summary_parts.append(text[:300] + '...')
-        
-        return ' '.join(summary_parts)
-
-    def extract_comprehensive_summary():
-        """Extract key sections from the document"""
-        # Key sections to extract
-        sections = [
-            (r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)', 'Circumstances'),
-            (r'CORONER\'?S CONCERNS\s*(.*?)(?=\n\n|$)', 'Coroner\'s Concerns'),
-            (r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)', 'Matters of Concern')
-        ]
-        
-        summary_parts = []
-        
-        for pattern, section_name in sections:
-            match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-            if match:
-                section_content = match.group(1).strip()
-                # Truncate to 300 characters while preserving whole sentences
-                if len(section_content) > 300:
-                    sentences = re.split(r'(?<=[.!?])\s+', section_content)
-                    truncated_content = ''
-                    for sentence in sentences:
-                        if len(truncated_content) + len(sentence) <= 300:
-                            truncated_content += sentence + ' '
-                        else:
-                            break
-                    section_content = truncated_content.strip() + '...'
-                
-                summary_parts.append(f"**{section_name}**: {section_content}")
-        
-        # Fallback if no sections found
-        if not summary_parts:
-            summary_parts = [text[:500] + '...']
-        
-        return '\n\n'.join(summary_parts)
-
-    # Extract facts
-    facts = []
-    for section, pattern in [
-        ('circumstances', r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=\n\n|$)'),
-        ('concerns', r'CORONER\'?S CONCERNS\s*(.*?)(?=\n\n|$)'),
-        ('actions', r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)')
-    ]:
-        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-        if match:
-            facts.append({
-                'type': section,
-                'content': match.group(1).strip(),
-                'source': match.group(0)
-            })
-
-    # Confidence calculation
-    confidence = len(facts) / 3 if facts else 0.5
-
-    return DocumentSummary(
-        title=title,
-        extractive=extract_comprehensive_summary(),
-        abstractive=generate_comprehensive_summary(),
-        metadata={
-            'ref': re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text).group(1) if re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text) else '',
-            'date': re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text).group(1) if re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text) else '',
-            'deceased': re.search(r'Deceased name:?\s*([^\n]+)', text).group(1) if re.search(r'Deceased name:?\s*([^\n]+)', text) else '',
-            'coroner': re.search(r'Coroners? name:?\s*([^\n]+)', text).group(1) if re.search(r'Coroners? name:?\s*([^\n]+)', text) else '',
-            'area': re.search(r'Coroners? Area:?\s*([^\n]+)', text).group(1) if re.search(r'Coroners? Area:?\s*([^\n]+)', text) else '',
-            'categories': re.findall(r'Category:?\s*([^\n]+)', text)
-        },
-        facts=facts,
-        confidence=confidence
-    )
 
 
 
@@ -3535,70 +3326,11 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Clustering error: {e}", exc_info=True)
 
-def generate_summary(doc: Dict) -> DocumentSummary:
-    """Generate comprehensive summary for Prevention of Future Deaths reports"""
-    text = str(doc.get('Content', ''))
-    
-    # Enhanced metadata extraction
-    metadata = {
-        'ref': re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text).group(1) if re.search(r'Ref(?:erence)?:?\s*([-\d]+)', text) else '',
-        'date': re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text).group(1) if re.search(r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})', text) else '',
-        'deceased': re.search(r'Deceased name:?\s*([^\n]+)', text).group(1) if re.search(r'Deceased name:?\s*([^\n]+)', text) else '',
-        'coroner': re.search(r'Coroners? name:?\s*([^\n]+)', text).group(1) if re.search(r'Coroners? name:?\s*([^\n]+)', text) else '',
-        'area': re.search(r'Coroners? Area:?\s*([^\n]+)', text).group(1) if re.search(r'Coroners? Area:?\s*([^\n]+)', text) else '',
-        'categories': re.findall(r'Category:?\s*([^\n]+)', text)
-    }
-    
-    # Advanced abstractive summary generation
-    
-    
-
-
-
-def summarize_cluster_documents(documents):
-    """
-    Generate summaries for cluster documents with robust error handling
-    
-    Args:
-        documents (List[Dict]): List of documents in the cluster
-    
-    Returns:
-        Tuple[List[DocumentSummary], List[DocumentSummary]]: Summaries of reports and responses
-    """
-    summaries = []
-    responses = []
-    
-    if not documents or not isinstance(documents, list):
-        return summaries, responses
-    
-    for doc in documents:
-        try:
-            # Ensure minimum required keys exist with fallback values
-            doc_data = {
-                'Title': str(doc.get('title', doc.get('Title', 'Untitled Document'))),
-                'Content': str(doc.get('summary', doc.get('content', doc.get('Content', ''))))
-            }
-        
-            # Skip if no content
-            if not doc_data['Content']:
-                continue
-        
-            # Generate summary
-            summary = generate_summary(doc_data)
-        
-            # Determine if it's a response
-            if any(phrase in str(doc.get('title', '')).lower() for phrase in ['response', 'reply']):
-                responses.append(summary)
-            else:
-                summaries.append(summary)
-        
-        except Exception as e:
-            logging.error(f"Error processing document summary: {e}")
-    
-    return summaries, responses
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
-    """Display comprehensive cluster analysis with summaries"""
+    """
+    Display comprehensive cluster analysis results
+    """
     try:
         st.subheader("Document Clustering Analysis")
         
@@ -3615,70 +3347,39 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
         
         # Display each cluster
         for cluster in cluster_results['clusters']:
-            st.markdown(f"## Cluster {cluster['id']+1} ({cluster['size']} documents)")
-            
-            # Cluster metrics
-            st.markdown(f"**Cohesion Score**: {cluster['cohesion']:.3f}")
-            
-            # Generate and display summaries
-            summaries, responses = summarize_cluster_documents(cluster['documents'])
-            
-            # Display reports
-            st.markdown("### Reports")
-            for summary in summaries:
-                st.markdown(f"#### {summary.title}")
-                st.markdown(f"**Confidence**: {summary.confidence:.2%}")
+            with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", 
+                           expanded=True):
                 
-                st.markdown("**Extractive Summary:**")
-                st.markdown(summary.extractive[:1000])  # Limit to first 1000 characters
+                # Cluster metrics
+                st.markdown(f"**Cohesion Score**: {cluster['cohesion']:.3f}")
                 
-                st.markdown("**Abstractive Summary:**")
-                st.markdown(summary.abstractive)
+                # Terms analysis
+                st.markdown("#### Key Terms")
+                terms_df = pd.DataFrame(cluster['terms'])
                 
-                # Display facts directly
-                if summary.facts:
-                    st.markdown("**Key Facts:**")
-                    for fact in summary.facts:
-                        st.markdown(f"**{fact['type'].title()}**")
-                        st.markdown(f"Content: {fact['content'][:300]}...")
-            
-            # Display responses if any
-            if responses:
-                st.markdown("### Responses")
-                for response in responses:
-                    st.markdown(f"#### {response.title}")
-                    st.markdown(f"**Confidence**: {response.confidence:.2%}")
-                    st.markdown(response.extractive[:1000])  # Limit to first 1000 characters
-                    
-                    # Display facts directly
-                    if response.facts:
-                        st.markdown("**Key Facts:**")
-                        for fact in response.facts:
-                            st.markdown(f"Source: `{fact['source']}`")
-            
-            # Terms analysis
-            st.markdown("### Key Terms")
-            terms_df = pd.DataFrame(cluster['terms'])
-            
-            # Create term importance visualization
-            fig = px.bar(
-                terms_df.head(10),
-                x='relevance',
-                y='term',
-                orientation='h',
-                title='Top Terms by Relevance',
-                labels={'relevance': 'Relevance Score', 'term': 'Term'}
-            )
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
-            
-            st.markdown("---")
+                # Create term importance visualization
+                fig = px.bar(
+                    terms_df.head(10),
+                    x='relevance',
+                    y='term',
+                    orientation='h',
+                    title='Top Terms by Relevance',
+                    labels={'relevance': 'Relevance Score', 'term': 'Term'}
+                )
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Representative documents
+                st.markdown("#### Representative Documents")
+                for doc in cluster['documents']:
+                    st.markdown(f"**{doc['title']}** (Similarity: {doc['similarity']:.2f})")
+                    st.markdown(f"**Date**: {doc['date']}")
+                    st.markdown(f"**Summary**: {doc['summary'][:300]}...")
+                    st.markdown("---")  # Separator between documents
 
     except Exception as e:
         st.error(f"Error displaying cluster analysis: {str(e)}")
         logging.error(f"Display error: {str(e)}", exc_info=True)
-        if st.checkbox("Show detailed error"):
-            st.code(traceback.format_exc())
 
 def export_topic_analysis(topic_insights, data):
     """Export topic analysis to Excel with timestamp handling"""
