@@ -556,34 +556,26 @@ def construct_search_url(base_url: str, keyword: Optional[str] = None,
     # Build query parameters
     query_params = []
     
-    # Always add post_type for filtered searches
-    if category or keyword:
-        query_params.append("post_type=pfd")
+    # Always add post_type=pfd when searching or filtering
+    query_params.append("post_type=pfd")
     
     # Add category filter if present
     if category and category_slug:
         query_params.append(f"pfd_report_type={category_slug}")
     
-    # Add keyword filter if present
+    # Add keyword filter only if explicitly provided
     if keyword:
         query_params.append(f"s={keyword}")
     
-    # Construct base URL
-    if query_params:
-        query_string = "&".join(query_params)
-        url = f"{base_url}?{query_string}"
-    else:
-        url = f"{base_url}prevention-of-future-death-reports/"
+    # Construct URL - always use query parameters for consistency
+    query_string = "&".join(query_params)
+    url = f"{base_url}?{query_string}"
     
     # Add pagination if needed
     if page and page > 1:
-        if query_params:
-            url = f"{url}&page={page}"
-        else:
-            url = f"{url}page/{page}/"
+        url = f"{url}&page={page}"
     
     return url
-
 
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
