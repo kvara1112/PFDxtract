@@ -5,7 +5,7 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import re
-import requests
+import requestsa
 from bs4 import BeautifulSoup
 import time
 import urllib3
@@ -3596,6 +3596,7 @@ def summarize_cluster_documents(documents):
             logging.error(f"Error processing document summary: {e}")
     
     return summaries, responses
+
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """Display comprehensive cluster analysis with summaries"""
