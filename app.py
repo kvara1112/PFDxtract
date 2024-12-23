@@ -3477,7 +3477,37 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Clustering error: {e}", exc_info=True)
 
-
+def summarize_cluster_documents(documents):
+    """
+    Generate summaries for cluster documents
+    
+    Args:
+        documents (List[Dict]): List of documents in the cluster
+    
+    Returns:
+        Tuple[List[DocumentSummary], List[DocumentSummary]]: Summaries of reports and responses
+    """
+    summaries = []
+    responses = []
+    
+    for doc in documents:
+        # Create a dictionary-like object that mimics the structure expected by generate_summary
+        doc_data = {
+            'Title': doc['title'],
+            'Content': doc['summary']
+        }
+        
+        # Generate summary
+        summary = generate_summary(doc_data)
+        
+        # Check if it's a response or a report
+        if any(phrase in doc['title'].lower() for phrase in ['response', 'reply']):
+            responses.append(summary)
+        else:
+            summaries.append(summary)
+    
+    return summaries, responses
+    
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """Display comprehensive cluster analysis with summaries"""
     try:
