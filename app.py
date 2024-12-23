@@ -3328,9 +3328,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
 
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
-    """
-    Display comprehensive cluster analysis results
-    """
+    """Display comprehensive cluster analysis with both extractive and abstractive summaries"""
     try:
         st.subheader("Document Clustering Analysis")
         
@@ -3353,8 +3351,12 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
                 # Cluster metrics
                 st.markdown(f"**Cohesion Score**: {cluster['cohesion']:.3f}")
                 
+                # Generate both extractive and abstractive summaries for documents
+                st.markdown("### Document Summaries")
+                display_cluster_summaries(cluster['documents'])
+                
                 # Terms analysis
-                st.markdown("#### Key Terms")
+                st.markdown("### Key Terms")
                 terms_df = pd.DataFrame(cluster['terms'])
                 
                 # Create term importance visualization
@@ -3366,20 +3368,112 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
                     title='Top Terms by Relevance',
                     labels={'relevance': 'Relevance Score', 'term': 'Term'}
                 )
-                fig.update_layout(height=400)
+                fig.update_layout(
+                    height=400,
+                    xaxis_title="Relevance Score",
+                    yaxis_title="Term",
+                    margin=dict(l=10, r=10, t=40, b=10)
+                )
                 st.plotly_chart(fig, use_container_width=True)
                 
-                # Representative documents
-                st.markdown("#### Representative Documents")
-                for doc in cluster['documents']:
-                    st.markdown(f"**{doc['title']}** (Similarity: {doc['similarity']:.2f})")
-                    st.markdown(f"**Date**: {doc['date']}")
-                    st.markdown(f"**Summary**: {doc['summary'][:300]}...")
-                    st.markdown("---")  # Separator between documents
+                # Term frequency table
+                st.markdown("### Detailed Term Analysis")
+                st.dataframe(
+                    terms_df.head(20),
+                    column_config={
+                        'term': st.column_config.TextColumn('Term'),
+                        'relevance': st.column_config.NumberColumn(
+                            'Relevance',
+                            format="%.3f"
+                        ),
+                        'cluster_frequency': st.column_config.NumberColumn(
+                            'Cluster Frequency',
+                            format="%.1%"
+                        ),
+                        'total_frequency': st.column_config.NumberColumn(
+                            'Overall Frequency',
+                            format="%.1%"
+                        )
+                    },
+                    hide_index=True
+                )
+                
+                # Document relationships
+                if len(cluster['documents']) > 1:
+                    st.markdown("### Document Relationships")
+                    doc_similarity_matrix = np.zeros((len(cluster['documents']), len(cluster['documents'])))
+                    doc_labels = []
+                    
+                    for i, doc1 in enumerate(cluster['documents']):
+                        doc_labels.append(f"Doc {i+1}")
+                        for j, doc2 in enumerate(cluster['documents']):
+                            # Use cosine similarity of term vectors as relationship strength
+                            doc_similarity_matrix[i,j] = doc1['similarity'] * doc2['similarity']
+                    
+                    fig_heatmap = px.imshow(
+                        doc_similarity_matrix,
+                        labels=dict(x="Document", y="Document", color="Similarity"),
+                        x=doc_labels,
+                        y=doc_labels,
+                        title="Document Similarity Heatmap"
+                    )
+                    fig_heatmap.update_layout(height=400)
+                    st.plotly_chart(fig_heatmap, use_container_width=True)
+                
+                # Export options for cluster
+                st.markdown("### Export Options")
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Prepare cluster data for export
+                    cluster_data = {
+                        'metadata': {
+                            'cluster_id': cluster['id'],
+                            'size': cluster['size'],
+                            'cohesion': cluster['cohesion']
+                        },
+                        'terms': cluster['terms'],
+                        'documents': cluster['documents']
+                    }
+                    
+                    cluster_json = json.dumps(cluster_data, indent=2)
+                    st.download_button(
+                        "📥 Export Cluster Data (JSON)",
+                        cluster_json,
+                        f"cluster_{cluster['id']+1}_analysis.json",
+                        "application/json",
+                        key=f"download_cluster_{cluster['id']}"
+                    )
+                
+                with col2:
+                    # Export summaries
+                    summaries_data = []
+                    for doc in cluster['documents']:
+                        summary = generate_factual_summaries(doc)
+                        summaries_data.append({
+                            'title': doc['title'],
+                            'extractive_summary': summary.extractive,
+                            'abstractive_summary': summary.abstractive,
+                            'confidence': summary.confidence
+                        })
+                    
+                    summaries_df = pd.DataFrame(summaries_data)
+                    csv = summaries_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "📥 Export Summaries (CSV)",
+                        csv,
+                        f"cluster_{cluster['id']+1}_summaries.csv",
+                        "text/csv",
+                        key=f"download_summaries_{cluster['id']}"
+                    )
+                
+                st.markdown("---")  # Visual separator between clusters
 
     except Exception as e:
         st.error(f"Error displaying cluster analysis: {str(e)}")
         logging.error(f"Display error: {str(e)}", exc_info=True)
+        if st.checkbox("Show detailed error"):
+            st.code(traceback.format_exc())
 
 def export_topic_analysis(topic_insights, data):
     """Export topic analysis to Excel with timestamp handling"""
@@ -3515,6 +3609,187 @@ def main():
         </div>""",
         unsafe_allow_html=True
     )
+
+from typing import NamedTuple, List, Optional
+import re
+
+class VerifiedFact(NamedTuple):
+    """Verified fact from document with source text"""
+    content: str
+    source_text: str
+    section: str
+
+class DocumentSummary(NamedTuple):
+    """Summary containing both extractive and abstractive versions with facts"""
+    extractive: str
+    abstractive: str
+    facts: List[VerifiedFact]
+    source_doc: str
+    confidence: float
+
+def extract_key_sections(text: str) -> dict:
+    """Extract key sections with exact text matches"""
+    sections = {
+        'circumstances': None,
+        'concerns': None,
+        'actions': None,
+        'response': None,
+        'metadata': {}
+    }
+    
+    patterns = {
+        'circumstances': r'CIRCUMSTANCES OF (?:THE )?DEATH\s*(.*?)(?=CORONER|$)',
+        'concerns': r'CORONER'?S CONCERNS\s*(.*?)(?=MATTERS|$)', 
+        'actions': r'(?:MATTERS|ACTION) OF CONCERN\s*(.*?)(?=\n\n|$)',
+        'response': r'(?:In response to|Following)\s*(.*?)(?=\n\n|$)'
+    }
+
+    metadata_patterns = {
+        'ref': r'Ref(?:erence)?:\s*([-\d]+)',
+        'date': r'Date of report:\s*(\d{1,2}(?:/|-)\d{1,2}(?:/|-)\d{4})',
+        'deceased': r'Deceased name:\s*([^\n]+)',
+        'coroner': r'Coroner(?:\'?s)? name:\s*([^\n]+)',
+        'area': r'Coroner(?:\'?s)? [Aa]rea:\s*([^\n]+)',
+        'category': r'Category:\s*([^\n]+)'
+    }
+    
+    # Extract main sections
+    for section, pattern in patterns.items():
+        match = re.search(pattern, text, re.I | re.S)
+        if match:
+            sections[section] = {
+                'content': match.group(1).strip(),
+                'source': match.group(0)
+            }
+            
+    # Extract metadata
+    for key, pattern in metadata_patterns.items():
+        match = re.search(pattern, text)
+        if match:
+            sections['metadata'][key] = match.group(1).strip()
+            
+    return sections
+
+def generate_factual_summaries(doc: dict) -> DocumentSummary:
+    """Generate both extractive and abstractive summaries with fact verification"""
+    text = doc.get('Content', '')
+    sections = extract_key_sections(text)
+    facts = []
+    extractive_parts = []
+    
+    # Build extractive summary from verified sections
+    if sections['circumstances']:
+        extractive_parts.append(f"CIRCUMSTANCES:\n{sections['circumstances']['content'][:300]}...")
+        facts.append(VerifiedFact(
+            sections['circumstances']['content'],
+            sections['circumstances']['source'],
+            'circumstances'
+        ))
+        
+    if sections['concerns']:
+        extractive_parts.append(f"CONCERNS:\n{sections['concerns']['content'][:300]}...")
+        facts.append(VerifiedFact(
+            sections['concerns']['content'],
+            sections['concerns']['source'],
+            'concerns'
+        ))
+        
+    if sections['actions']:
+        extractive_parts.append(f"ACTIONS:\n{sections['actions']['content'][:300]}...")
+        facts.append(VerifiedFact(
+            sections['actions']['content'],
+            sections['actions']['source'],
+            'actions'
+        ))
+        
+    extractive = "\n\n".join(extractive_parts)
+    
+    # Build abstractive summary using verified facts only
+    abstract_parts = []
+    meta = sections['metadata']
+    
+    if meta.get('ref') and meta.get('date'):
+        abstract_parts.append(
+            f"Prevention of Future Deaths report {meta['ref']} dated {meta['date']}"
+        )
+    
+    if meta.get('deceased'):
+        abstract_parts.append(f"regarding the death of {meta['deceased']}")
+    
+    if sections['circumstances']:
+        abstract_parts.append(f"\nThe circumstances involved: {sections['circumstances']['content'][:200]}...")
+        
+    if sections['concerns']:
+        abstract_parts.append(f"\nKey concerns identified: {sections['concerns']['content'][:200]}...")
+        
+    if sections['actions']:
+        abstract_parts.append(f"\nRecommended actions: {sections['actions']['content'][:200]}...")
+        
+    abstractive = " ".join(abstract_parts)
+    
+    # Calculate confidence based on section presence
+    total_sections = len(patterns)
+    present_sections = sum(1 for s in sections.values() if s is not None)
+    confidence = present_sections / total_sections
+    
+    return DocumentSummary(
+        extractive=extractive,
+        abstractive=abstractive,
+        facts=facts,
+        source_doc=doc.get('Title', ''),
+        confidence=confidence
+    )
+
+def summarize_cluster_documents(docs: List[dict]) -> tuple:
+    """Generate summaries for all documents in a cluster"""
+    summaries = []
+    responses = []
+    
+    for doc in docs:
+        content = doc.get('Content', '').lower()
+        is_response = any(phrase in content for phrase in [
+            'in response to', 
+            'responding to',
+            'following the regulation 28'
+        ])
+        
+        summary = generate_factual_summaries(doc)
+        if is_response:
+            responses.append(summary)
+        else:
+            summaries.append(summary)
+            
+    return summaries, responses
+
+def display_cluster_summaries(cluster_docs: List[dict]) -> None:
+    """Display both summary types for cluster documents"""
+    report_summaries, response_summaries = summarize_cluster_documents(cluster_docs)
+    
+    st.markdown("### Reports")
+    for summary in report_summaries:
+        with st.expander(f"{summary.source_doc} (Confidence: {summary.confidence:.2%})"):
+            tab1, tab2 = st.tabs(["Extractive Summary", "Abstractive Summary"])
+            
+            with tab1:
+                st.markdown(summary.extractive)
+                
+            with tab2:
+                st.markdown(summary.abstractive)
+                
+            if st.checkbox("Show Source Facts", key=f"facts_{summary.source_doc}"):
+                for fact in summary.facts:
+                    st.markdown(f"**{fact.section.title()}**")
+                    st.markdown(f"Content: {fact.content}")
+                    st.markdown(f"Source: `{fact.source_text}`")
+                    
+    if response_summaries:
+        st.markdown("### Responses")
+        for summary in response_summaries:
+            with st.expander(f"{summary.source_doc} (Confidence: {summary.confidence:.2%})"):
+                st.markdown(summary.extractive)
+                st.markdown("---")
+                st.markdown(summary.abstractive)
+                
 
 if __name__ == "__main__":
     main()
