@@ -591,16 +591,21 @@ def scrape_pfd_reports(
     max_pages: Optional[int] = None
 ) -> List[Dict]:
     """
-    Scrape PFD reports with enhanced progress tracking and error handling
+    Scrape PFD reports with enhanced progress tracking
     """
     all_reports = []
     base_url = "https://www.judiciary.uk/"
     
     try:
-        # Prepare category slug
+        # Validate and prepare category
         category_slug = None
         if category:
-            category_slug = get_category_slug(category)
+            # Create a slug exactly matching the website's format
+            category_slug = category.lower()\
+                .replace(' ', '-')\
+                .replace('&', 'and')\
+                .replace('--', '-')\
+                .strip('-')
             logging.info(f"Using category: {category}, slug: {category_slug}")
         
         # Start scraping
