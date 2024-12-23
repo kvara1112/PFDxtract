@@ -2802,7 +2802,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                              max_features: int = 5000, min_df: float = 0.01,
                              max_df: float = 0.95) -> Dict:
     """
-    Perform advanced semantic clustering with improved parameters and date handling
+    Perform advanced semantic clustering with improved parameters and distance calculation
     """
     try:
         # Initialize NLTK resources
@@ -2830,21 +2830,16 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                 logging.error(f"Error in text preprocessing: {e}")
                 return text
 
-        # Create document identifier using more fields
-        def create_doc_id(row):
-            title = str(row.get('Title', '')).strip()
-            ref = str(row.get('ref', '')).strip()
-            date = row.get('date_of_report', '')
-            date_str = date.strftime('%Y-%m-%d') if isinstance(date, pd.Timestamp) else str(date)
-            return f"{title}_{ref}_{date_str}"
-        
-        # Add unique identifier and deduplicate
-        data['doc_id'] = data.apply(create_doc_id, axis=1)
-        data = data.drop_duplicates(subset=['doc_id'])
-        
-        # Process documents with enhanced content combination
+        # Process documents
         texts = []
         docs_info = []
+        
+        # Create document identifier
+        data['doc_id'] = data.apply(
+            lambda row: f"{row.get('Title', '')}_{row.get('ref', '')}_{row.get('deceased_name', '')}", 
+            axis=1
+        )
+        data = data.drop_duplicates(subset=['doc_id'])
         
         for _, row in data.iterrows():
             # Combine text with better weighting
@@ -2884,26 +2879,20 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         if len(texts) < min_cluster_size:
             raise ValueError(f"Not enough valid documents. Found {len(texts)}, need at least {min_cluster_size}")
 
-        # Enhanced vectorization with better parameters
+        # Enhanced vectorization
         vectorizer = TfidfVectorizer(
             max_features=max_features,
-            min_df=max(min_df, 2/len(texts)),  # Adaptive minimum document frequency
+            min_df=max(min_df, 2/len(texts)),
             max_df=max_df,
             stop_words='english',
-            ngram_range=(1, 2),
-            token_pattern=r'(?u)\b\w+\b'  # Include single-character words
+            ngram_range=(1, 2)
         )
         
         tfidf_matrix = vectorizer.fit_transform(texts)
         feature_names = vectorizer.get_feature_names_out()
 
-        # Calculate similarities with better normalization
-        similarity_matrix = cosine_similarity(tfidf_matrix)
-        distance_matrix = 1 - similarity_matrix
-        np.fill_diagonal(distance_matrix, 0)
-
-        # Improved cluster number determination
-        max_clusters = min(int(len(texts) * 0.4), 20)  # Allow more clusters
+        # Calculate similarities and determine optimal clusters
+        max_clusters = min(int(len(texts) * 0.4), 20)
         best_n_clusters = 2
         best_score = -1
         
@@ -2913,14 +2902,16 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                 
             clustering = AgglomerativeClustering(
                 n_clusters=n_clusters,
-                metric='precomputed',
-                linkage='ward'  # Changed to ward for better separation
+                metric='euclidean',  # Changed from precomputed
+                linkage='average'    # Changed from ward
             )
             
-            cluster_labels = clustering.fit_predict(distance_matrix)
+            # Convert TF-IDF matrix to dense array for euclidean distance
+            tfidf_dense = tfidf_matrix.toarray()
+            cluster_labels = clustering.fit_predict(tfidf_dense)
             
             if len(set(cluster_labels)) > 1:
-                score = silhouette_score(distance_matrix, cluster_labels, metric='precomputed')
+                score = silhouette_score(tfidf_dense, cluster_labels, metric='euclidean')
                 if score > best_score:
                     best_score = score
                     best_n_clusters = n_clusters
@@ -2928,11 +2919,14 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         # Final clustering
         final_clustering = AgglomerativeClustering(
             n_clusters=best_n_clusters,
-            metric='precomputed',
-            linkage='ward'
+            metric='euclidean',  # Changed from precomputed
+            linkage='average'    # Changed from ward
         )
         
-        final_labels = final_clustering.fit_predict(distance_matrix)
+        final_labels = final_clustering.fit_predict(tfidf_matrix.toarray())
+
+        # Calculate similarity matrix for document relationships
+        similarity_matrix = cosine_similarity(tfidf_matrix)
 
         # Extract cluster information
         clusters = []
@@ -2942,10 +2936,11 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
             if len(cluster_doc_indices) < min_cluster_size:
                 continue
             
-            # Calculate cluster terms with better weighting
+            # Calculate cluster terms
             cluster_tfidf = tfidf_matrix[cluster_doc_indices].toarray()
             centroid = cluster_tfidf.mean(axis=0)
             
+            # Get top terms
             top_term_indices = centroid.argsort()[-20:][::-1]
             cluster_terms = []
             
@@ -2984,7 +2979,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                     seen_doc_ids.add(doc_info['doc_id'])
                     representative_docs.append({
                         'title': doc_info['title'],
-                        'date': doc_info['date'],  # Now properly formatted for JSON
+                        'date': doc_info['date'],
                         'similarity': float(similarity),
                         'summary': doc_info['content']
                     })
