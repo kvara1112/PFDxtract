@@ -2432,6 +2432,114 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
 
+
+def generate_extractive_summary(documents, max_length=500):
+    """Generate extractive summary from cluster documents with traceability"""
+    try:
+        # Combine all document texts with source tracking
+        all_sentences = []
+        for doc in documents:
+            sentences = sent_tokenize(doc['summary'])
+            for sent in sentences:
+                all_sentences.append({
+                    'text': sent,
+                    'source': doc['title'],
+                    'date': doc['date']
+                })
+        
+        # Calculate sentence importance using TF-IDF
+        vectorizer = TfidfVectorizer(stop_words='english')
+        tfidf_matrix = vectorizer.fit_transform([s['text'] for s in all_sentences])
+        
+        # Calculate sentence scores
+        sentence_scores = []
+        for idx, sentence in enumerate(all_sentences):
+            score = np.mean(tfidf_matrix[idx].toarray())
+            sentence_scores.append((score, sentence))
+        
+        # Sort by importance and select top sentences
+        sentence_scores.sort(reverse=True)
+        summary_length = 0
+        summary_sentences = []
+        
+        for score, sentence in sentence_scores:
+            if summary_length + len(sentence['text']) <= max_length:
+                summary_sentences.append({
+                    'text': sentence['text'],
+                    'source': sentence['source'],
+                    'date': sentence['date'],
+                    'score': float(score)
+                })
+                summary_length += len(sentence['text'])
+            else:
+                break
+                
+        return summary_sentences
+        
+    except Exception as e:
+        logging.error(f"Error in extractive summarization: {e}")
+        return []
+
+def generate_abstractive_summary(cluster_terms, documents, max_length=200):
+    """Generate abstractive summary from cluster information"""
+    try:
+        # Extract key themes from terms
+        top_themes = [term['term'] for term in cluster_terms[:5]]
+        
+        # Get document dates
+        dates = [doc['date'] for doc in documents]
+        date_range = f"from {min(dates)} to {max(dates)}" if dates else ""
+        
+        # Build template-based summary
+        summary = f"This cluster contains reports {date_range} primarily focused on {', '.join(top_themes[:-1])} and {top_themes[-1]}. "
+        
+        # Add document count and main patterns
+        summary += f"Across {len(documents)} documents, common patterns include "
+        
+        # Add key findings from terms
+        term_patterns = [f"{term['term']} (appearing in {term['cluster_frequency']*100:.0f}% of cluster documents)"
+                        for term in cluster_terms[5:8]]
+        summary += ', '.join(term_patterns) + '. '
+        
+        # Truncate to max length
+        if len(summary) > max_length:
+            summary = summary[:max_length-3] + '...'
+            
+        return summary
+        
+    except Exception as e:
+        logging.error(f"Error in abstractive summarization: {e}")
+        return "Error generating summary"
+
+def render_summary_tab(cluster_results: Dict) -> None:
+    """Render the cluster summaries tab"""
+    st.header("Cluster Summaries")
+    
+    if not cluster_results or 'clusters' not in cluster_results:
+        st.warning("No cluster results available. Please run the clustering analysis first.")
+        return
+        
+    for cluster in cluster_results['clusters']:
+        with st.expander(f"Cluster {cluster['id']+1} Summary", expanded=True):
+            # Generate summaries
+            extractive_summary = generate_extractive_summary(cluster['documents'])
+            abstractive_summary = generate_abstractive_summary(
+                cluster['terms'],
+                cluster['documents']
+            )
+            
+            # Display abstractive summary
+            st.subheader("Overview")
+            st.write(abstractive_summary)
+            
+            # Display extractive summary with traceability
+            st.subheader("Key Excerpts")
+            for sentence in extractive_summary:
+                with st.container():
+                    st.markdown(f"- {sentence['text']}")
+                    st.caption(f"Source: {sentence['source']} ({sentence['date']})")
+
+
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced semantic analysis for PFD reports using advanced clustering."""
     st.header("Semantic Document Clustering")
@@ -2776,57 +2884,148 @@ def export_cluster_results(cluster_results: Dict) -> bytes:
     return output.getvalue()
 
 def main():
+    """Main application entry point with integrated summaries functionality"""
     initialize_session_state()
+    
     st.title("UK Judiciary PFD Reports Analysis")
     st.markdown("""
-    This application allows you to analyze Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can either scrape new reports or analyze existing data.
+    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can scrape new reports, analyze existing data, explore topics, and view summaries.
     """)
     
-    # Create separate tab selection to avoid key conflicts
+    # Create tab selection with summaries tab
     current_tab = st.radio(
         "Select section:",
-        ["🔍 Scrape Reports", "📊 Analysis", "🔬 Topic Modeling"],
+        [
+            "🔍 Scrape Reports",
+            "📊 Analysis",
+            "🔬 Topic Modeling",
+            "📝 Summaries"
+        ],
         label_visibility="collapsed",
         horizontal=True,
         key="main_tab_selector"
     )
     
-    st.markdown("---")  # Add separator
-    
-    # Handle tab content
-    if current_tab == "🔍 Scrape Reports":
-        render_scraping_tab()
-    
-    elif current_tab == "📊 Analysis":
-        if hasattr(st.session_state, 'current_data'):
-            render_analysis_tab(st.session_state.current_data)
-        else:
-            st.warning("No data available. Please scrape reports or upload a file.")
-    
-    elif current_tab == "🔬 Topic Modeling":
-        if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
-            st.warning("No data available. Please scrape reports or upload a file first.")
-            return
-            
-        try:
-            is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
-            if is_valid:
-                render_topic_modeling_tab(st.session_state.current_data)
-            else:
-                st.error(message)
-        except Exception as e:
-            st.error(f"Error in topic modeling: {e}")
-            logging.error(f"Topic modeling error: {e}", exc_info=True)
-    
-    # Add footer
     st.markdown("---")
-    st.markdown(
-        """<div style='text-align: center'>
-        <p>Built with Streamlit • Data from UK Judiciary</p>
-        </div>""",
-        unsafe_allow_html=True
-    )
+    
+    try:
+        # Handle tab content
+        if current_tab == "🔍 Scrape Reports":
+            render_scraping_tab()
+            
+            # Show data preview if available
+            if hasattr(st.session_state, 'scraped_data') and st.session_state.scraped_data is not None:
+                st.success(f"Found {len(st.session_state.scraped_data)} reports")
+                st.dataframe(
+                    st.session_state.scraped_data,
+                    column_config={
+                        "URL": st.column_config.LinkColumn("Report Link"),
+                        "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY"),
+                        "categories": st.column_config.ListColumn("Categories")
+                    },
+                    hide_index=True
+                )
+                show_export_options(st.session_state.scraped_data, "scraped")
+        
+        elif current_tab == "📊 Analysis":
+            if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
+                st.warning("No data available. Please scrape reports or upload a file first.")
+                
+                # Add file upload option
+                uploaded_file = st.file_uploader(
+                    "Upload existing data file",
+                    type=['csv', 'xlsx'],
+                    key="analysis_uploader"
+                )
+                
+                if uploaded_file:
+                    try:
+                        if uploaded_file.name.endswith('.csv'):
+                            data = pd.read_csv(uploaded_file)
+                        else:
+                            data = pd.read_excel(uploaded_file)
+                        
+                        # Process uploaded data
+                        data = process_scraped_data(data)
+                        st.session_state.current_data = data
+                        st.experimental_rerun()
+                    except Exception as e:
+                        st.error(f"Error loading file: {str(e)}")
+            else:
+                render_analysis_tab(st.session_state.current_data)
+        
+        elif current_tab == "🔬 Topic Modeling":
+            if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
+                st.warning("No data available. Please scrape reports or upload a file first.")
+                return
+                
+            try:
+                is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
+                if is_valid:
+                    render_topic_modeling_tab(st.session_state.current_data)
+                else:
+                    st.error(message)
+            except Exception as e:
+                st.error(f"Error in topic modeling: {str(e)}")
+                logging.error(f"Topic modeling error: {e}", exc_info=True)
+        
+        elif current_tab == "📝 Summaries":
+            if 'topic_model' not in st.session_state or not st.session_state.topic_model:
+                st.warning("Please run the clustering analysis first to view summaries.")
+                
+                # Add quick link to clustering
+                if st.button("Go to Topic Modeling"):
+                    st.session_state.main_tab_selector = "🔬 Topic Modeling"
+                    st.experimental_rerun()
+            else:
+                render_summary_tab(st.session_state.topic_model)
+        
+        # Add data management section in sidebar
+        with st.sidebar:
+            st.header("Data Management")
+            
+            # Show current data source
+            if hasattr(st.session_state, 'data_source'):
+                st.info(f"Current data: {st.session_state.data_source}")
+            
+            # Add clear data option
+            if st.button("Clear All Data"):
+                for key in ['current_data', 'scraped_data', 'uploaded_data', 
+                          'topic_model', 'data_source']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.success("All data cleared")
+                st.experimental_rerun()
+        
+        # Add footer
+        st.markdown("---")
+        st.markdown(
+            """<div style='text-align: center'>
+            <p>Built with Streamlit • Data from UK Judiciary</p>
+            </div>""",
+            unsafe_allow_html=True
+        )
+    
+    except Exception as e:
+        st.error("An unexpected error occurred")
+        st.error(str(e))
+        logging.error(f"Main application error: {e}", exc_info=True)
+        
+        # Add error details in expander
+        with st.expander("Error Details"):
+            st.code(traceback.format_exc())
+        
+        # Add recovery options
+        st.warning("You can:")
+        st.markdown("1. Try clearing the data and starting fresh")
+        st.markdown("2. Upload a different data file")
+        st.markdown("3. Adjust any filter settings that might be causing issues")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        st.error("Critical Error")
+        st.error(str(e))
+        logging.critical(f"Application crash: {e}", exc_info=True)
