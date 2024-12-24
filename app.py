@@ -1930,6 +1930,59 @@ def extract_advanced_topics(
         logging.error(f"Topic modeling failed: {e}", exc_info=True)
         raise
 
+def is_response(row: pd.Series) -> bool:
+    """
+    Check if a document is a response based on its metadata and content
+    """
+    try:
+        # Check PDF types first (most reliable)
+        for i in range(1, 5):  # Check PDF_1 to PDF_4
+            pdf_type = str(row.get(f'PDF_{i}_Type', '')).lower()
+            if pdf_type == 'response':
+                return True
+        
+        # Check PDF names as backup
+        for i in range(1, 5):
+            pdf_name = str(row.get(f'PDF_{i}_Name', '')).lower()
+            if 'response' in pdf_name or 'reply' in pdf_name:
+                return True
+        
+        # Check title and content as final fallback
+        title = str(row.get('Title', '')).lower()
+        if any(word in title for word in ['response', 'reply', 'answered']):
+            return True
+            
+        content = str(row.get('Content', '')).lower()
+        return any(phrase in content for phrase in [
+            'in response to',
+            'responding to',
+            'reply to',
+            'response to',
+            'following the regulation 28',
+            'following receipt of the regulation 28'
+        ])
+        
+    except Exception as e:
+        logging.error(f"Error checking response type: {e}")
+        return False
+
+def filter_by_document_type(df: pd.DataFrame, doc_types: List[str]) -> pd.DataFrame:
+    """
+    Filter DataFrame based on document types
+    """
+    if not doc_types:
+        return df
+    
+    filtered_df = df.copy()
+    is_response_mask = filtered_df.apply(is_response, axis=1)
+    
+    if len(doc_types) == 1:
+        if "Response" in doc_types:
+            return filtered_df[is_response_mask]
+        elif "Report" in doc_types:
+            return filtered_df[~is_response_mask]
+    
+    return filtered_df
 
 def extract_topic_insights(lda_model, vectorizer, doc_topics, data: pd.DataFrame):
     """Extract insights from topic modeling results with improved error handling"""
@@ -2547,15 +2600,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             ]
             
             # Document type filter
-            if doc_type:
-                filtered_df_temp = filtered_df.copy()
-                is_response_mask = filtered_df_temp.apply(is_response, axis=1)
-                if len(doc_type) == 1:
-                    if "Response" in doc_type:
-                        filtered_df = filtered_df_temp[is_response_mask].copy()
-                    elif "Report" in doc_type:
-                        filtered_df = filtered_df_temp[~is_response_mask].copy()
-                del filtered_df_temp
+            filtered_df = filter_by_document_type(filtered_df, doc_type)
             
             progress_bar.progress(0.3)
             status_text.text("Processing document types...")
@@ -2652,7 +2697,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Clustering error: {e}", exc_info=True)
-
+            
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """
     Display comprehensive cluster analysis results
