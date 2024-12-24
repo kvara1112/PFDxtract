@@ -2973,65 +2973,143 @@ def render_footer():
     )
 
 def main():
-    """Main application entry point"""
+    """Main application entry point with integrated summaries functionality"""
     initialize_session_state()
     
     st.title("UK Judiciary PFD Reports Analysis")
+    st.markdown("""
+    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can scrape new reports, analyze existing data, explore topics, and view summaries.
+    """)
     
-    tabs = st.tabs([
-        "🔍 Scrape Reports", 
-        "📊 Analysis", 
-        "🔬 Topic Modeling",
-        "📝 Summaries"
-    ])
+    # Create tab selection with summaries tab
+    current_tab = st.radio(
+        "Select section:",
+        [
+            "🔍 Scrape Reports",
+            "📊 Analysis",
+            "🔬 Topic Modeling",
+            "📝 Summaries"
+        ],
+        label_visibility="collapsed",
+        horizontal=True,
+        key="main_tab_selector"
+    )
     
-    with st.sidebar:
-        st.header("Data Management")
-        if 'current_data' in st.session_state:
-            st.info(f"Active dataset: {len(st.session_state.current_data)} reports")
-            if st.button("Clear Data"):
-                for key in ['current_data', 'scraped_data', 'uploaded_data', 'topic_model', 'data_source']:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.rerun()
+    st.markdown("---")
     
     try:
-        # Scraping Tab
-        with tabs[0]:
+        # Handle tab content
+        if current_tab == "🔍 Scrape Reports":
             render_scraping_tab()
-            if 'scraped_data' in st.session_state:
+            
+            # Show data preview if available
+            if hasattr(st.session_state, 'scraped_data') and st.session_state.scraped_data is not None:
+                st.success(f"Found {len(st.session_state.scraped_data)} reports")
+                st.dataframe(
+                    st.session_state.scraped_data,
+                    column_config={
+                        "URL": st.column_config.LinkColumn("Report Link"),
+                        "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY"),
+                        "categories": st.column_config.ListColumn("Categories")
+                    },
+                    hide_index=True
+                )
                 show_export_options(st.session_state.scraped_data, "scraped")
         
-        # Analysis Tab
-        with tabs[1]:
-            if not validate_data_state():
-                handle_no_data_state("analysis")
+        elif current_tab == "📊 Analysis":
+            if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
+                st.warning("No data available. Please scrape reports or upload a file first.")
+                
+                # Add file upload option
+                uploaded_file = st.file_uploader(
+                    "Upload existing data file",
+                    type=['csv', 'xlsx'],
+                    key="analysis_uploader"
+                )
+                
+                if uploaded_file:
+                    try:
+                        if uploaded_file.name.endswith('.csv'):
+                            data = pd.read_csv(uploaded_file)
+                        else:
+                            data = pd.read_excel(uploaded_file)
+                        
+                        # Process uploaded data
+                        data = process_scraped_data(data)
+                        st.session_state.current_data = data
+                        st.experimental_rerun()
+                    except Exception as e:
+                        st.error(f"Error loading file: {str(e)}")
             else:
                 render_analysis_tab(st.session_state.current_data)
         
-        # Topic Modeling Tab
-        with tabs[2]:
-            if not validate_data_state():
-                handle_no_data_state("topic_modeling")
-            else:
+        elif current_tab == "🔬 Topic Modeling":
+            if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
+                st.warning("No data available. Please scrape reports or upload a file first.")
+                return
+                
+            try:
                 is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
                 if is_valid:
                     render_topic_modeling_tab(st.session_state.current_data)
                 else:
                     st.error(message)
+            except Exception as e:
+                st.error(f"Error in topic modeling: {str(e)}")
+                logging.error(f"Topic modeling error: {e}", exc_info=True)
         
-        # Summaries Tab
-        with tabs[3]:
-            if not validate_model_state():
-                handle_no_model_state()
+        elif current_tab == "📝 Summaries":
+            if 'topic_model' not in st.session_state or not st.session_state.topic_model:
+                st.warning("Please run the clustering analysis first to view summaries.")
+                
+                # Add quick link to clustering
+                if st.button("Go to Topic Modeling"):
+                    st.session_state.main_tab_selector = "🔬 Topic Modeling"
+                    st.experimental_rerun()
             else:
                 render_summary_tab(st.session_state.topic_model)
-                
-    except Exception as e:
-        handle_error(e)
+        
+        # Add data management section in sidebar
+        with st.sidebar:
+            st.header("Data Management")
+            
+            # Show current data source
+            if hasattr(st.session_state, 'data_source'):
+                st.info(f"Current data: {st.session_state.data_source}")
+            
+            # Add clear data option
+            if st.button("Clear All Data"):
+                for key in ['current_data', 'scraped_data', 'uploaded_data', 
+                          'topic_model', 'data_source']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.success("All data cleared")
+                st.experimental_rerun()
+        
+        # Add footer
+        st.markdown("---")
+        st.markdown(
+            """<div style='text-align: center'>
+            <p>Built with Streamlit • Data from UK Judiciary</p>
+            </div>""",
+            unsafe_allow_html=True
+        )
     
-    finally:
-        render_footer()
+    except Exception as e:
+        st.error("An unexpected error occurred")
+        st.error(str(e))
+        logging.error(f"Main application error: {e}", exc_info=True)
+        
+        # Add error details in expander
+        with st.expander("Error Details"):
+            st.code(traceback.format_exc())
+        
+        # Add recovery options
+        st.warning("You can:")
+        st.markdown("1. Try clearing the data and starting fresh")
+        st.markdown("2. Upload a different data file")
+        st.markdown("3. Adjust any filter settings that might be causing issues")
 
 if __name__ == "__main__":
     try:
