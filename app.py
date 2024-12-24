@@ -2584,11 +2584,10 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     determines the optimal number of clusters based on document similarity.
     """)
 
-    # Check if previous topic model exists in session state
+    # Check if previous topic model exists
     if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
         st.sidebar.success("Previous topic model results are available.")
         
-        # Add buttons to view previous results
         col1, col2 = st.sidebar.columns(2)
         with col1:
             view_prev_results = st.button("View Previous Results", key="view_prev_topic_model")
@@ -2596,65 +2595,31 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             export_prev_results = st.button("Export Previous Results", key="export_prev_topic_model")
         
         if view_prev_results:
-            # Display previous clustering results
             display_cluster_analysis(st.session_state.topic_model)
         
         if export_prev_results:
-            # Export previous results
             try:
                 json_str = json.dumps(st.session_state.topic_model, indent=2)
                 st.download_button(
                     "📥 Download Previous Analysis (JSON)",
                     json_str,
-                    f"previous_cluster_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                    f"cluster_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                     "application/json",
                     key="download_prev_topic_model"
                 )
             except Exception as e:
                 st.error(f"Error exporting previous results: {str(e)}")
 
-    # Advanced parameters in sidebar
+    # Clustering parameters
     with st.sidebar:
         st.header("Clustering Parameters")
-        
-        # Adjusted parameter ranges for better clustering
-        min_cluster_size = st.slider(
-            "Minimum Cluster Size",
-            min_value=2,
-            max_value=5,  # Reduced maximum to prevent overclustering
-            value=2,
-            help="Minimum number of documents required to form a cluster"
-        )
-        
-        max_features = st.slider(
-            "Maximum Features",
-            min_value=1000,
-            max_value=10000,
-            value=3000,  # Adjusted default
-            help="Maximum number of terms to consider"
-        )
-        
-        min_df = st.slider(
-            "Minimum Document Frequency",
-            min_value=0.01,
-            max_value=0.2,
-            value=0.05,  # Adjusted default
-            step=0.01,
-            help="Minimum fraction of documents a term must appear in"
-        )
-        
-        max_df = st.slider(
-            "Maximum Document Frequency",
-            min_value=0.5,
-            max_value=0.99,
-            value=0.90,  # Adjusted default
-            step=0.01,
-            help="Maximum fraction of documents a term can appear in"
-        )
+        min_cluster_size = st.slider("Minimum Cluster Size", 2, 5, 2)
+        max_features = st.slider("Maximum Features", 1000, 10000, 3000)
+        min_df = st.slider("Minimum Document Frequency", 0.01, 0.2, 0.05, 0.01)
+        max_df = st.slider("Maximum Document Frequency", 0.5, 0.99, 0.90, 0.01)
 
-    # Filters section with better date handling
+    # Filters section
     col1, col2 = st.columns(2)
-    
     with col1:
         start_date = st.date_input(
             "From",
@@ -2668,9 +2633,8 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         doc_type = st.multiselect(
             "Document Type",
             ["Report", "Response"],
-            default=["Report", "Response"],  # Changed to include both by default
-            key="tm_doc_type",
-            help="Filter by document type"
+            default=["Report"],
+            key="tm_doc_type"
         )
 
     with col2:
@@ -2683,7 +2647,6 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             format="DD/MM/YYYY"
         )
         
-        # Get unique categories
         all_categories = set()
         for cats in data['categories'].dropna():
             if isinstance(cats, list):
@@ -2695,7 +2658,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             key="tm_categories"
         )
 
-    # Analysis button with progress indication
+    # Analysis button
     analyze_col1, analyze_col2 = st.columns([3, 1])
     with analyze_col1:
         analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary", use_container_width=True)
@@ -2704,7 +2667,6 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
 
     if analyze_clicked:
         try:
-            # Initialize progress tracking
             progress_bar = st.progress(0)
             status_text = st.empty()
             
@@ -2714,32 +2676,30 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 progress_bar.progress(0.1)
                 status_text.text("Initialized resources...")
 
-            # Filter data with progress updates
+            # Filter data
             filtered_df = data.copy()
-            
             status_text.text("Applying filters...")
             progress_bar.progress(0.2)
             
-            # Apply date filter
+            # Date filter
             filtered_df = filtered_df[
                 (filtered_df['date_of_report'].dt.date >= start_date) &
                 (filtered_df['date_of_report'].dt.date <= end_date)
             ]
             
-            # Apply document type filter
+            # Document type filter
             if doc_type:
                 is_response_mask = filtered_df.apply(is_response, axis=1)
-                if "Report" in doc_type and "Response" in doc_type:
-                    pass  # Keep all documents
-                elif "Response" in doc_type:
-                    filtered_df = filtered_df[is_response_mask]
-                elif "Report" in doc_type:
-                    filtered_df = filtered_df[~is_response_mask]
+                if len(doc_type) == 1:
+                    if "Response" in doc_type:
+                        filtered_df = filtered_df[is_response_mask]
+                    elif "Report" in doc_type:
+                        filtered_df = filtered_df[~is_response_mask]
             
             progress_bar.progress(0.3)
             status_text.text("Processing document types...")
             
-            # Apply category filter
+            # Category filter
             if categories:
                 filtered_df = filtered_df[
                     filtered_df['categories'].apply(
@@ -2751,6 +2711,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             status_text.text("Filtering by categories...")
             
             # Create document identifier and deduplicate
+            filtered_df = filtered_df.copy()
             filtered_df['doc_id'] = filtered_df.apply(
                 lambda row: f"{row.get('Title', '')}_{row.get('ref', '')}_{row.get('date_of_report', '').strftime('%Y-%m-%d')}", 
                 axis=1
@@ -2767,14 +2728,14 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 st.warning(f"Not enough documents match the selected filters. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
             
-            # Show number of documents being analyzed
+            # Show document count
             doc_count = len(filtered_df)
             st.info(f"Analyzing {doc_count} unique documents...")
             
             if show_details:
                 st.write("Documents being analyzed:")
                 st.dataframe(
-                    filtered_df[['Title', 'date_of_report', 'categories']],
+                    filtered_df[['Title', 'date_of_report', 'categories', 'doc_id']],
                     hide_index=True
                 )
             
@@ -2790,7 +2751,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 max_df=max_df
             )
             
-            # Store results in session state
+            # Store results
             st.session_state.topic_model = cluster_results
             
             progress_bar.progress(0.8)
@@ -2802,11 +2763,9 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.9)
             status_text.text("Preparing export...")
             
-            # Add export options
+            # Export options
             st.markdown("---")
             st.subheader("Export Results")
-            
-            # Prepare export data 
             export_json = json.dumps(cluster_results, indent=2)
             
             st.download_button(
@@ -2822,7 +2781,6 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             progress_bar.empty()
             
         except Exception as e:
-            # Clear topic model on failure
             if 'topic_model' in st.session_state:
                 del st.session_state.topic_model
             
