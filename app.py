@@ -2749,8 +2749,162 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Clustering error: {e}", exc_info=True)
+
+def render_summary_tab(data: pd.DataFrame) -> None:
+    """Enhanced summary tab with comprehensive filtering and analysis"""
+    st.header("Report Summaries")
+    
+    # If no data is available
+    if data is None or len(data) == 0:
+        st.warning("No data available. Please upload or scrape reports first.")
+        return
+    
+    # Sidebar for filtering
+    with st.sidebar:
+        st.header("Summary Filters")
+        
+        # Continue from the analysis stage with additional options
+        # Date range filter
+        start_date = st.date_input(
+            "From Date", 
+            value=data['date_of_report'].min().date(),
+            min_value=data['date_of_report'].min().date(),
+            max_value=data['date_of_report'].max().date(),
+            key="summary_start_date"
+        )
+        
+        end_date = st.date_input(
+            "To Date", 
+            value=data['date_of_report'].max().date(),
+            min_value=data['date_of_report'].min().date(),
+            max_value=data['date_of_report'].max().date(),
+            key="summary_end_date"
+        )
+        
+        # Category filter
+        all_categories = set()
+        for cats in data['categories'].dropna():
+            if isinstance(cats, list):
+                all_categories.update(cats)
+        
+        selected_categories = st.multiselect(
+            "Categories",
+            options=sorted(all_categories),
+            key="summary_categories"
+        )
+        
+        # Coroner area filter
+        coroner_areas = sorted(data['coroner_area'].dropna().unique())
+        selected_areas = st.multiselect(
+            "Coroner Areas",
+            options=coroner_areas,
+            key="summary_areas"
+        )
+        
+        # Coroner name filter
+        coroner_names = sorted(data['coroner_name'].dropna().unique())
+        selected_coroners = st.multiselect(
+            "Coroner Names",
+            options=coroner_names,
+            key="summary_coroners"
+        )
+    
+    # Apply filters
+    filtered_df = data.copy()
+    
+    # Date range filter
+    filtered_df = filtered_df[
+        (filtered_df['date_of_report'].dt.date >= start_date) &
+        (filtered_df['date_of_report'].dt.date <= end_date)
+    ]
+    
+    # Category filter
+    if selected_categories:
+        filtered_df = filtered_df[
+            filtered_df['categories'].apply(
+                lambda x: bool(x) and any(cat in x for cat in selected_categories)
+            )
+        ]
+    
+    # Coroner area filter
+    if selected_areas:
+        filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
+    
+    # Coroner name filter
+    if selected_coroners:
+        filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
+    
+    # Display filtered results
+    st.subheader(f"Summary of {len(filtered_df)} Reports")
+    
+    if len(filtered_df) == 0:
+        st.warning("No reports match the current filters.")
+        return
+    
+    # Summary statistics
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Total Reports", len(filtered_df))
+    with col2:
+        st.metric("Date Range", f"{start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
+    with col3:
+        st.metric("Unique Categories", len(set([cat for cats in filtered_df['categories'] for cat in cats])))
+    
+    # Detailed summaries
+    st.subheader("Detailed Insights")
+    
+    # Category distribution
+    st.markdown("### Category Distribution")
+    category_counts = {}
+    for cats in filtered_df['categories']:
+        if isinstance(cats, list):
+            for cat in cats:
+                category_counts[cat] = category_counts.get(cat, 0) + 1
+    
+    category_df = pd.DataFrame.from_dict(category_counts, orient='index', columns=['Count'])
+    category_df.sort_values('Count', ascending=False, inplace=True)
+    
+    fig_categories = px.bar(
+        category_df, 
+        x=category_df.index, 
+        y='Count', 
+        title='Report Categories'
+    )
+    st.plotly_chart(fig_categories, use_container_width=True)
+    
+    # Coroner area distribution
+    st.markdown("### Coroner Areas")
+    area_counts = filtered_df['coroner_area'].value_counts()
+    fig_areas = px.bar(
+        x=area_counts.index, 
+        y=area_counts.values, 
+        title='Distribution of Reports by Coroner Area'
+    )
+    st.plotly_chart(fig_areas, use_container_width=True)
+    
+    # Export options
+    st.subheader("Export")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        csv = filtered_df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            "📥 Download CSV Summary",
+            csv,
+            f"summary_reports_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv",
+            "text/csv"
+        )
+    
+    with col2:
+        excel_data = export_to_excel(filtered_df)
+        st.download_button(
+            "📥 Download Excel Summary",
+            excel_data,
+            f"summary_reports_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
             
-def render_summary_tab(cluster_results: Dict) -> None:
+def render_summary_tab2(cluster_results: Dict) -> None:
     """Render the cluster summaries tab with improved formatting and traceability"""
     st.header("Cluster Summaries")
     
@@ -2955,7 +3109,9 @@ def render_footer():
         unsafe_allow_html=True
     )
 
-def main():
+
+
+def main2():
     """Main application entry point with integrated summaries functionality"""
     initialize_session_state()
     
@@ -3065,6 +3221,145 @@ def main():
             if st.button("Clear All Data"):
                 for key in ['current_data', 'scraped_data', 'uploaded_data', 
                           'topic_model', 'data_source']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.success("All data cleared")
+                st.experimental_rerun()
+        
+        # Add footer
+        st.markdown("---")
+        st.markdown(
+            """<div style='text-align: center'>
+            <p>Built with Streamlit • Data from UK Judiciary</p>
+            </div>""",
+            unsafe_allow_html=True
+        )
+    
+    except Exception as e:
+        st.error("An unexpected error occurred")
+        st.error(str(e))
+        logging.error(f"Main application error: {e}", exc_info=True)
+        
+        # Add error details in expander
+        with st.expander("Error Details"):
+            st.code(traceback.format_exc())
+        
+        # Add recovery options
+        st.warning("You can:")
+        st.markdown("1. Try clearing the data and starting fresh")
+        st.markdown("2. Upload a different data file")
+        st.markdown("3. Adjust any filter settings that might be causing issues")
+
+def main():
+    """Main application entry point with integrated summaries functionality"""
+    initialize_session_state()
+    
+    st.title("UK Judiciary PFD Reports Analysis")
+    st.markdown("""
+    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can scrape new reports, analyze existing data, and view comprehensive summaries.
+    """)
+    
+    # Create tab selection without Topic Modeling
+    current_tab = st.radio(
+        "Select section:",
+        [
+            "🔍 Scrape Reports",
+            "📊 Analysis",
+            "📝 Summaries"
+        ],
+        label_visibility="collapsed",
+        horizontal=True,
+        key="main_tab_selector"
+    )
+    
+    st.markdown("---")
+    
+    try:
+        # Handle tab content
+        if current_tab == "🔍 Scrape Reports":
+            render_scraping_tab()
+            
+            # Show data preview if available
+            if hasattr(st.session_state, 'scraped_data') and st.session_state.scraped_data is not None:
+                st.success(f"Found {len(st.session_state.scraped_data)} reports")
+                st.dataframe(
+                    st.session_state.scraped_data,
+                    column_config={
+                        "URL": st.column_config.LinkColumn("Report Link"),
+                        "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY"),
+                        "categories": st.column_config.ListColumn("Categories")
+                    },
+                    hide_index=True
+                )
+                show_export_options(st.session_state.scraped_data, "scraped")
+        
+        elif current_tab == "📊 Analysis":
+            if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
+                st.warning("No data available. Please scrape reports or upload a file first.")
+                
+                # Add file upload option
+                uploaded_file = st.file_uploader(
+                    "Upload existing data file",
+                    type=['csv', 'xlsx'],
+                    key="analysis_uploader"
+                )
+                
+                if uploaded_file:
+                    try:
+                        if uploaded_file.name.endswith('.csv'):
+                            data = pd.read_csv(uploaded_file)
+                        else:
+                            data = pd.read_excel(uploaded_file)
+                        
+                        # Process uploaded data
+                        data = process_scraped_data(data)
+                        st.session_state.current_data = data
+                        st.experimental_rerun()
+                    except Exception as e:
+                        st.error(f"Error loading file: {str(e)}")
+            else:
+                render_analysis_tab(st.session_state.current_data)
+        
+        elif current_tab == "📝 Summaries":
+            if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
+                st.warning("No data available. Please scrape reports or upload a file first.")
+                
+                # Add file upload option
+                uploaded_file = st.file_uploader(
+                    "Upload existing data file",
+                    type=['csv', 'xlsx'],
+                    key="summary_uploader"
+                )
+                
+                if uploaded_file:
+                    try:
+                        if uploaded_file.name.endswith('.csv'):
+                            data = pd.read_csv(uploaded_file)
+                        else:
+                            data = pd.read_excel(uploaded_file)
+                        
+                        # Process uploaded data
+                        data = process_scraped_data(data)
+                        st.session_state.current_data = data
+                        st.experimental_rerun()
+                    except Exception as e:
+                        st.error(f"Error loading file: {str(e)}")
+            else:
+                render_summary_tab(st.session_state.current_data)
+        
+        # Add data management section in sidebar
+        with st.sidebar:
+            st.header("Data Management")
+            
+            # Show current data source
+            if hasattr(st.session_state, 'data_source'):
+                st.info(f"Current data: {st.session_state.data_source}")
+            
+            # Add clear data option
+            if st.button("Clear All Data"):
+                for key in ['current_data', 'scraped_data', 'uploaded_data', 
+                            'data_source']:
                     if key in st.session_state:
                         del st.session_state[key]
                 st.success("All data cleared")
