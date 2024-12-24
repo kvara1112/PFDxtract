@@ -306,8 +306,9 @@ def extract_pdf_content(pdf_path: str, chunk_size: int = 10) -> str:
         logging.error(f"Error extracting PDF text from {pdf_path}: {e}")
         return ""
 
+
 def get_report_content(url: str) -> Optional[Dict]:
-    """Get full content from report page with multiple PDF handling"""
+    """Get full content from report page with improved PDF and response handling"""
     try:
         logging.info(f"Fetching content from: {url}")
         response = make_request(url)
@@ -321,20 +322,25 @@ def get_report_content(url: str) -> Optional[Dict]:
             logging.warning(f"No content found at {url}")
             return None
         
+        # Extract main report content
         paragraphs = content.find_all(['p', 'table'])
         webpage_text = '\n\n'.join(p.get_text(strip=True, separator=' ') for p in paragraphs)
         
         pdf_contents = []
         pdf_paths = []
         pdf_names = []
+        pdf_types = []  # Track if PDF is main report or response
         
-        pdf_links = (
-            soup.find_all('a', class_='related-content__link', href=re.compile(r'\.pdf$')) or
-            soup.find_all('a', href=re.compile(r'\.pdf$'))
-        )
+        # Find all PDF links with improved classification
+        pdf_links = soup.find_all('a', href=re.compile(r'\.pdf$'))
         
         for pdf_link in pdf_links:
             pdf_url = pdf_link['href']
+            pdf_text = pdf_link.get_text(strip=True).lower()
+            
+            # Determine PDF type
+            is_response = any(word in pdf_text.lower() for word in ['response', 'reply'])
+            pdf_type = 'response' if is_response else 'report'
             
             if not pdf_url.startswith(('http://', 'https://')):
                 pdf_url = f"https://www.judiciary.uk{pdf_url}" if not pdf_url.startswith('/') else f"https://www.judiciary.uk/{pdf_url}"
@@ -346,21 +352,23 @@ def get_report_content(url: str) -> Optional[Dict]:
                 pdf_contents.append(pdf_content)
                 pdf_paths.append(pdf_path)
                 pdf_names.append(pdf_name)
+                pdf_types.append(pdf_type)
         
         return {
             'content': clean_text(webpage_text),
             'pdf_contents': pdf_contents,
             'pdf_paths': pdf_paths,
-            'pdf_names': pdf_names
+            'pdf_names': pdf_names,
+            'pdf_types': pdf_types
         }
         
     except Exception as e:
         logging.error(f"Error getting report content: {e}")
         return None
 
-# Scraping functions
 def scrape_page(url: str) -> List[Dict]:
-    """Scrape a single page of search results"""
+    """Scrape a single page with improved PDF handling"""
+    reports = []
     try:
         response = make_request(url)
         if not response:
@@ -373,7 +381,6 @@ def scrape_page(url: str) -> List[Dict]:
             logging.warning(f"No results list found on page: {url}")
             return []
         
-        reports = []
         cards = results_list.find_all('div', class_='card')
         
         for card in cards:
@@ -402,15 +409,17 @@ def scrape_page(url: str) -> List[Dict]:
                         'Content': content_data['content']
                     }
                     
-                    # Add PDF details
-                    for i, (name, content, path) in enumerate(zip(
+                    # Add PDF details with type classification
+                    for i, (name, content, path, pdf_type) in enumerate(zip(
                         content_data['pdf_names'],
                         content_data['pdf_contents'],
-                        content_data['pdf_paths']
+                        content_data['pdf_paths'],
+                        content_data['pdf_types']
                     ), 1):
                         report[f'PDF_{i}_Name'] = name
                         report[f'PDF_{i}_Content'] = content
                         report[f'PDF_{i}_Path'] = path
+                        report[f'PDF_{i}_Type'] = pdf_type
                     
                     reports.append(report)
                     logging.info(f"Successfully processed: {title}")
@@ -424,7 +433,6 @@ def scrape_page(url: str) -> List[Dict]:
     except Exception as e:
         logging.error(f"Error fetching page {url}: {e}")
         return []
-
 
 def get_total_pages(url: str) -> Tuple[int, int]:
     """
