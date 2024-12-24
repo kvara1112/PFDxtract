@@ -2461,6 +2461,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     determines the optimal number of clusters based on document similarity.
     """)
 
+    # Show previous results if available
     if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
         st.sidebar.success("Previous topic model results are available.")
         
@@ -2482,10 +2483,10 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 except Exception as e:
                     st.error(f"Error exporting previous results: {str(e)}")
 
+    # Clustering parameters
     with st.sidebar:
         st.header("Clustering Parameters")
         
-        # Updated sliders with help text
         min_cluster_size = st.slider(
             "Minimum Cluster Size ❓", 
             2, 5, 2,
@@ -2498,7 +2499,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             help="The maximum number of words to consider in the analysis. Higher values capture more detail but increase processing time."
         )
         
-        # Changed to use whole numbers for document frequency
+        # Use whole numbers for document frequency
         total_docs = len(data)
         min_docs = st.slider(
             "Minimum Documents ❓", 
@@ -2514,6 +2515,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         )
         max_df = max_docs / total_docs
 
+    # Date range selection
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input(
@@ -2523,14 +2525,6 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             max_value=data['date_of_report'].max().date(),
             key="tm_start_date",
             format="DD/MM/YYYY"
-        )
-        
-        doc_type = st.multiselect(
-            "Document Type ❓",
-            ["Report", "Response"],
-            default=["Report"],
-            key="tm_doc_type",
-            help="Select the types of documents to include in the analysis"
         )
 
     with col2:
@@ -2543,6 +2537,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             format="DD/MM/YYYY"
         )
         
+        # Category selection
         all_categories = set()
         for cats in data['categories'].dropna():
             if isinstance(cats, list):
@@ -2555,6 +2550,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             help="Select specific categories of reports to analyze"
         )
 
+    # Analysis buttons
     analyze_col1, analyze_col2 = st.columns([3, 1])
     with analyze_col1:
         analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary", use_container_width=True)
@@ -2575,68 +2571,52 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 progress_bar.progress(0.1)
                 status_text.text("Initialized resources...")
 
-            # Start with a fresh copy of the data, using only the 'Content' column
-            filtered_df = data[['Content', 'date_of_report', 'Title', 'ref', 'categories']].copy()
-            status_text.text("Applying filters...")
+            # Start with just the Content column and basic metadata
+            filtered_df = data[['Content', 'date_of_report', 'Title']].copy()
+            
+            # Filter out responses
+            response_mask = data.apply(is_response, axis=1)
+            filtered_df = filtered_df[~response_mask]  # Keep only non-responses
+            
+            status_text.text("Processing documents...")
             progress_bar.progress(0.2)
             
-            # Date filter
+            # Apply date filter
             filtered_df = filtered_df[
                 (filtered_df['date_of_report'].dt.date >= start_date) &
                 (filtered_df['date_of_report'].dt.date <= end_date)
             ]
             
-            # Document type filter
-            filtered_df = filter_by_document_type(filtered_df, doc_type)
-            
             progress_bar.progress(0.3)
-            status_text.text("Processing document types...")
+            status_text.text("Filtering by date...")
             
-            # Category filter
+            # Apply category filter
             if categories:
-                filtered_df = filtered_df[
-                    filtered_df['categories'].apply(
-                        lambda x: bool(x) and any(cat in x for cat in categories)
-                    )
-                ]
+                category_mask = data['categories'].apply(
+                    lambda x: bool(x) and any(cat in x for cat in categories)
+                )
+                filtered_df = filtered_df[category_mask]
             
             progress_bar.progress(0.4)
             status_text.text("Filtering by categories...")
-
-            # Create document identifier and deduplicate
-            try:
-                filtered_df['doc_id'] = [
-                    f"{str(title)}_{str(ref)}_{date.strftime('%Y-%m-%d')}"
-                    for title, ref, date in zip(
-                        filtered_df['Title'].fillna(''),
-                        filtered_df['ref'].fillna(''),
-                        filtered_df['date_of_report']
-                    )
-                ]
-                filtered_df = filtered_df.drop_duplicates(subset=['doc_id'])
-            except Exception as e:
-                logging.error(f"Error creating document IDs: {e}")
-                raise
             
-            progress_bar.progress(0.5)
-            status_text.text("Removing duplicates...")
-            
+            # Check minimum documents
             if len(filtered_df) < min_cluster_size:
                 progress_bar.empty()
                 status_text.empty()
                 st.warning(f"Not enough documents match the selected filters. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
             
+            # Show analysis details
             doc_count = len(filtered_df)
             st.info(f"Analyzing {doc_count} unique documents...")
             
             if show_details:
                 st.write("Documents being analyzed:")
                 st.dataframe(
-                    filtered_df[['Title', 'date_of_report', 'categories']],
+                    filtered_df[['Title', 'date_of_report']],
                     column_config={
-                        "date_of_report": st.column_config.DateColumn("Date", format="DD/MM/YYYY"),
-                        "categories": st.column_config.ListColumn("Categories")
+                        "date_of_report": st.column_config.DateColumn("Date", format="DD/MM/YYYY")
                     },
                     hide_index=True
                 )
@@ -2653,12 +2633,11 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.6)
             status_text.text("Starting clustering analysis...")
             
-            # Update cluster analysis to use only Content field
-            # Process only the Content column for clustering
+            # Process content
             text_data = filtered_df['Content'].copy()
             processed_texts = text_data.apply(clean_text_for_modeling)
             
-            # Remove any empty processed texts
+            # Remove empty texts
             valid_indices = processed_texts[processed_texts.notna() & (processed_texts != '')].index
             processed_df = pd.DataFrame({
                 'Content': text_data[valid_indices],
@@ -2667,15 +2646,16 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 'date_of_report': filtered_df.loc[valid_indices, 'date_of_report']
             })
             
+            # Perform clustering
             cluster_results = perform_semantic_clustering(
-                processed_df,  # Only passing the necessary data
+                processed_df,
                 min_cluster_size=min_cluster_size,
                 max_features=max_features,
                 min_df=min_df,
                 max_df=max_df
             )
             
-            # Process cluster results for storage
+            # Prepare results for storage
             final_results = {
                 'n_clusters': cluster_results['n_clusters'],
                 'total_documents': cluster_results['total_documents'],
@@ -2683,7 +2663,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 'clusters': []
             }
 
-            # Convert timestamps and prepare clusters for storage
+            # Process clusters and handle timestamps
             for cluster in cluster_results['clusters']:
                 processed_cluster = cluster.copy()
                 processed_docs = []
@@ -2695,13 +2675,13 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 processed_cluster['documents'] = processed_docs
                 final_results['clusters'].append(processed_cluster)
 
-            # Store in session state
+            # Save results
             st.session_state.topic_model = final_results
             
             progress_bar.progress(0.8)
             status_text.text("Generating visualizations...")
             
-            # Show clustering quality metrics
+            # Show quality metrics if requested
             if show_details:
                 st.subheader("Clustering Quality Metrics")
                 quality_metrics = {
@@ -2715,21 +2695,22 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 metrics_df.columns = ['Value']
                 st.dataframe(metrics_df)
             
+            # Display results
             display_cluster_analysis(cluster_results)
             
             progress_bar.progress(0.9)
             status_text.text("Preparing export...")
             
+            # Export section
             st.markdown("---")
             st.subheader("Export Results")
             
-            # Convert timestamps to strings for JSON serialization
             def json_serialize(obj):
                 if isinstance(obj, pd.Timestamp):
                     return obj.strftime('%Y-%m-%d')
                 return str(obj)
 
-            # Add clustering parameters to export
+            # Prepare export data
             export_data = cluster_results.copy()
             export_data['parameters'] = {
                 'min_cluster_size': min_cluster_size,
@@ -2741,12 +2722,11 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     'start': start_date.strftime('%Y-%m-%d'),
                     'end': end_date.strftime('%Y-%m-%d')
                 },
-                'document_types': doc_type,
                 'categories': categories if categories else []
             }
             
+            # Export button
             export_json = json.dumps(export_data, default=json_serialize, indent=2)
-            
             st.download_button(
                 "📥 Download Analysis (JSON)",
                 export_json,
