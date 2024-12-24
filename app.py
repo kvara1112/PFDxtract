@@ -2246,10 +2246,13 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         if len(data) < min_cluster_size * 2:
             raise ValueError(f"Not enough documents for clustering. Need at least {min_cluster_size * 2}, got {len(data)}")
             
-        # Process documents
+        # Only use the processed content for the actual analysis
         texts = data['processed_content'].dropna().tolist()
         if not texts:
             raise ValueError("No valid text content found after preprocessing")
+        
+        # Keep the original content and metadata only for display purposes
+        display_data = data[['Title', 'date_of_report', 'Content']]
             
         # Enhanced vectorization
         vectorizer = TfidfVectorizer(
@@ -2542,13 +2545,13 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         
         # Updated sliders with help text
         min_cluster_size = st.slider(
-            "Minimum Cluster Size ❓", 
+            "Minimum Cluster Size", 
             2, 5, 2,
             help="The minimum number of documents required to form a cluster. Lower values create more clusters but may be less meaningful."
         )
         
         max_features = st.slider(
-            "Maximum Features ❓", 
+            "Maximum Features", 
             1000, 10000, 3000,
             help="The maximum number of words to consider in the analysis. Higher values capture more detail but increase processing time."
         )
@@ -2556,14 +2559,14 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         # Changed to use whole numbers for document frequency
         total_docs = len(data)
         min_docs = st.slider(
-            "Minimum Documents ❓", 
+            "Minimum Documents", 
             2, max(2, total_docs//2), 5,
             help="The minimum number of documents a term must appear in to be considered. Higher values focus on more common terms."
         )
         min_df = min_docs / total_docs
         
         max_docs = st.slider(
-            "Maximum Documents ❓", 
+            "Maximum Documents", 
             min_docs, total_docs, int(total_docs * 0.9),
             help="The maximum number of documents a term can appear in. Lower values filter out very common terms."
         )
@@ -2581,7 +2584,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         )
         
         doc_type = st.multiselect(
-            "Document Type ❓",
+            "Document Type",
             ["Report", "Response"],
             default=["Report"],
             key="tm_doc_type",
@@ -2604,7 +2607,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 all_categories.update(cats)
         
         categories = st.multiselect(
-            "Categories ❓",
+            "Categories",
             options=sorted(all_categories),
             key="tm_categories",
             help="Select specific categories of reports to analyze"
@@ -2615,7 +2618,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary", use_container_width=True)
     with analyze_col2:
         show_details = st.checkbox(
-            "Show Details ❓", 
+            "Show Details", 
             value=False,
             help="When enabled, shows the list of documents being analyzed and additional processing information"
         )
@@ -2709,10 +2712,21 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             status_text.text("Starting clustering analysis...")
             
             # Update cluster analysis to use only Content field
-            filtered_df['processed_content'] = filtered_df['Content'].apply(clean_text_for_modeling)
+            # Process only the Content column for clustering
+            text_data = filtered_df['Content'].copy()
+            processed_texts = text_data.apply(clean_text_for_modeling)
+            
+            # Remove any empty processed texts
+            valid_indices = processed_texts[processed_texts.notna() & (processed_texts != '')].index
+            processed_df = pd.DataFrame({
+                'Content': text_data[valid_indices],
+                'processed_content': processed_texts[valid_indices],
+                'Title': filtered_df.loc[valid_indices, 'Title'],
+                'date_of_report': filtered_df.loc[valid_indices, 'date_of_report']
+            })
             
             cluster_results = perform_semantic_clustering(
-                filtered_df[filtered_df['processed_content'].notna()],
+                processed_df,  # Only passing the necessary data
                 min_cluster_size=min_cluster_size,
                 max_features=max_features,
                 min_df=min_df,
