@@ -36,7 +36,8 @@ import nltk
 nltk.download('punkt')
 nltk.download('stopwords')
 nltk.download('averaged_perceptron_tagger')
-
+import random
+import string
 import traceback
 from datetime import datetime
 
@@ -1532,13 +1533,16 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
         logging.error(f"Error exporting to Excel: {e}", exc_info=True)
         raise Exception(f"Failed to export data to Excel: {str(e)}")
 
+
 def show_export_options(df: pd.DataFrame, prefix: str):
-    """Show export options for the data with descriptive filename"""
+    """Show export options for the data with descriptive filename and unique keys"""
     try:
         st.subheader("Export Options")
         
-        # Generate timestamp for filenames
+        # Generate timestamp and random suffix for unique keys
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        unique_id = f"{timestamp}_{random_suffix}"
         filename = f"pfd_reports_{prefix}_{timestamp}"
         
         col1, col2 = st.columns(2)
@@ -1557,7 +1561,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                     csv,
                     f"{filename}.csv",
                     "text/csv",
-                    key=f"download_csv_{prefix}_{timestamp}"
+                    key=f"download_csv_{prefix}_{unique_id}"
                 )
             except Exception as e:
                 st.error(f"Error preparing CSV export: {str(e)}")
@@ -1571,7 +1575,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                     excel_data,
                     f"{filename}.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"download_excel_{prefix}_{timestamp}"
+                    key=f"download_excel_{prefix}_{unique_id}"
                 )
             except Exception as e:
                 st.error(f"Error preparing Excel export: {str(e)}")
@@ -1579,7 +1583,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         # PDF Download
         if any(col.startswith('PDF_') and col.endswith('_Path') for col in df.columns):
             st.subheader("Download PDFs")
-            if st.button(f"Download all PDFs", key=f"pdf_button_{prefix}_{timestamp}"):
+            if st.button(f"Download all PDFs", key=f"pdf_button_{prefix}_{unique_id}"):
                 with st.spinner("Preparing PDF download..."):
                     try:
                         pdf_zip_path = f"{filename}_pdfs.zip"
@@ -1601,7 +1605,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                                 f.read(),
                                 pdf_zip_path,
                                 "application/zip",
-                                key=f"download_pdfs_zip_{prefix}_{timestamp}"
+                                key=f"download_pdfs_zip_{prefix}_{unique_id}"
                             )
                         
                         # Cleanup zip file
