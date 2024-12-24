@@ -706,7 +706,7 @@ def construct_search_url(base_url: str, keyword: Optional[str] = None,
 
     return url
 
-
+#1
 def render_scraping_tab():
     """Render the scraping tab with a clean 2x2 filter layout"""
     st.header("Scrape PFD Reports")
@@ -943,138 +943,6 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
             st.markdown(issue)
     else:
         st.success("No significant quality issues found in the dataset.")
-
-
-def render_scraping_tab():
-    """Render the scraping tab with a clean 2x2 filter layout"""
-    st.header("Scrape PFD Reports")
-
-    # Initialize default values if not in session state
-    if 'init_done' not in st.session_state:
-        st.session_state.init_done = True
-        st.session_state['search_keyword_default'] = "report"
-        st.session_state['category_default'] = ""
-        st.session_state['order_default'] = "relevance"
-        st.session_state['max_pages_default'] = 0
-    
-    if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
-        st.success(f"Found {len(st.session_state.scraped_data)} reports")
-        
-        st.subheader("Results")
-        st.dataframe(
-            st.session_state.scraped_data,
-            column_config={
-                "URL": st.column_config.LinkColumn("Report Link"),
-                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY"),
-                "categories": st.column_config.ListColumn("Categories")
-            },
-            hide_index=True
-        )
-        
-        show_export_options(st.session_state.scraped_data, "scraped")
-
-    # Create the search form with 2x2 layout
-    with st.form("scraping_form"):
-        # Create two rows with two columns each
-        row1_col1, row1_col2 = st.columns(2)
-        row2_col1, row2_col2 = st.columns(2)
-
-        # First row
-        with row1_col1:
-            search_keyword = st.text_input(
-                "Search keywords:",
-                value=st.session_state.get('search_keyword_default', "report"),
-                key='search_keyword',
-                help="Do not leave empty, use 'report' or another search term"
-            )
-
-        with row1_col2:
-            category = st.selectbox(
-                "PFD Report type:", 
-                [""] + get_pfd_categories(), 
-                index=0,
-                key='category',
-                format_func=lambda x: x if x else "Select a category"
-            )
-
-        # Second row
-        with row2_col1:
-            order = st.selectbox(
-                "Sort by:", 
-                ["relevance", "desc", "asc"],
-                index=0,
-                key='order',
-                format_func=lambda x: {
-                    "relevance": "Relevance",
-                    "desc": "Newest first",
-                    "asc": "Oldest first"
-                }[x]
-            )
-
-        with row2_col2:
-            max_pages = st.number_input(
-                "Maximum pages to scrape:",
-                min_value=0,
-                value=st.session_state.get('max_pages_default', 0),
-                key='max_pages',
-                help="Enter 0 for all pages"
-            )
-
-        # Action buttons in a row
-        button_col1, button_col2 = st.columns(2)
-        with button_col1:
-            submitted = st.form_submit_button("Search Reports")
-        with button_col2:
-            stop_scraping = st.form_submit_button("Stop Scraping")
-    
-    # Handle stop scraping
-    if stop_scraping:
-        st.session_state.stop_scraping = True
-        st.warning("Scraping will be stopped after the current page completes...")
-        return
-    
-    if submitted:
-        try:
-            # Store search parameters in session state
-            st.session_state.last_search_params = {
-                'keyword': search_keyword,
-                'category': category,
-                'order': order
-            }
-            
-            # Initialize stop_scraping flag
-            st.session_state.stop_scraping = False
-
-            # Set max pages
-            max_pages_val = None if max_pages == 0 else max_pages
-            
-            # Perform scraping
-            reports = scrape_pfd_reports(
-                keyword=search_keyword,
-                category=category if category else None,
-                order=order,
-                max_pages=max_pages_val
-            )
-            
-            if reports:
-                # Process the data
-                df = pd.DataFrame(reports)
-                df = process_scraped_data(df)
-                
-                # Store in session state
-                st.session_state.scraped_data = df
-                st.session_state.data_source = 'scraped'
-                st.session_state.current_data = df
-                
-                # Trigger a rerun to refresh the page
-                st.rerun()
-            else:
-                st.warning("No reports found matching your search criteria")
-                
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-            logging.error(f"Scraping error: {e}")
-            return False
             
 def display_topic_network(lda, feature_names):
     """Display word similarity network with interactive filters"""
@@ -2667,6 +2535,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 progress_bar.progress(0.1)
                 status_text.text("Initialized resources...")
 
+            # Start with a fresh copy of the data
             filtered_df = data.copy()
             status_text.text("Applying filters...")
             progress_bar.progress(0.2)
@@ -2679,12 +2548,14 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             
             # Document type filter
             if doc_type:
-                is_response_mask = filtered_df.apply(is_response, axis=1)
+                filtered_df_temp = filtered_df.copy()
+                is_response_mask = filtered_df_temp.apply(is_response, axis=1)
                 if len(doc_type) == 1:
                     if "Response" in doc_type:
-                        filtered_df = filtered_df[is_response_mask]
+                        filtered_df = filtered_df_temp[is_response_mask].copy()
                     elif "Report" in doc_type:
-                        filtered_df = filtered_df[~is_response_mask]
+                        filtered_df = filtered_df_temp[~is_response_mask].copy()
+                del filtered_df_temp
             
             progress_bar.progress(0.3)
             status_text.text("Processing document types...")
@@ -2701,11 +2572,19 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             status_text.text("Filtering by categories...")
             
             # Create document identifier and deduplicate
-            filtered_df = filtered_df.assign(doc_id=filtered_df.apply(
-                lambda row: f"{str(row.get('Title', ''))}_{str(row.get('ref', ''))}_{row['date_of_report'].strftime('%Y-%m-%d')}", 
-                axis=1
-            ))
-            filtered_df = filtered_df.drop_duplicates(subset=['doc_id'])
+            try:
+                filtered_df['doc_id'] = [
+                    f"{str(title)}_{str(ref)}_{date.strftime('%Y-%m-%d')}"
+                    for title, ref, date in zip(
+                        filtered_df['Title'].fillna(''),
+                        filtered_df['ref'].fillna(''),
+                        filtered_df['date_of_report']
+                    )
+                ]
+                filtered_df = filtered_df.drop_duplicates(subset=['doc_id'])
+            except Exception as e:
+                logging.error(f"Error creating document IDs: {e}")
+                raise
             
             progress_bar.progress(0.5)
             status_text.text("Removing duplicates...")
@@ -2721,10 +2600,10 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             
             if show_details:
                 st.write("Documents being analyzed:")
-                st.dataframe(
-                    filtered_df[['Title', 'date_of_report', 'categories']],
-                    hide_index=True
-                )
+                display_cols = ['Title', 'date_of_report', 'categories']
+                if 'doc_id' in filtered_df.columns:
+                    display_cols.append('doc_id')
+                st.dataframe(filtered_df[display_cols], hide_index=True)
             
             progress_bar.progress(0.6)
             status_text.text("Starting clustering analysis...")
