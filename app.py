@@ -2584,33 +2584,27 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     determines the optimal number of clusters based on document similarity.
     """)
 
-    # Check if previous topic model exists
     if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
         st.sidebar.success("Previous topic model results are available.")
         
         col1, col2 = st.sidebar.columns(2)
         with col1:
-            view_prev_results = st.button("View Previous Results", key="view_prev_topic_model")
+            if st.button("View Previous Results", key="view_prev_topic_model"):
+                display_cluster_analysis(st.session_state.topic_model)
         with col2:
-            export_prev_results = st.button("Export Previous Results", key="export_prev_topic_model")
-        
-        if view_prev_results:
-            display_cluster_analysis(st.session_state.topic_model)
-        
-        if export_prev_results:
-            try:
-                json_str = json.dumps(st.session_state.topic_model, indent=2)
-                st.download_button(
-                    "📥 Download Previous Analysis (JSON)",
-                    json_str,
-                    f"cluster_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                    "application/json",
-                    key="download_prev_topic_model"
-                )
-            except Exception as e:
-                st.error(f"Error exporting previous results: {str(e)}")
+            if st.button("Export Previous Results", key="export_prev_topic_model"):
+                try:
+                    json_str = json.dumps(st.session_state.topic_model, indent=2)
+                    st.download_button(
+                        "📥 Download Previous Analysis (JSON)",
+                        json_str,
+                        f"cluster_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                        "application/json",
+                        key="download_prev_topic_model"
+                    )
+                except Exception as e:
+                    st.error(f"Error exporting previous results: {str(e)}")
 
-    # Clustering parameters
     with st.sidebar:
         st.header("Clustering Parameters")
         min_cluster_size = st.slider("Minimum Cluster Size", 2, 5, 2)
@@ -2618,7 +2612,6 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         min_df = st.slider("Minimum Document Frequency", 0.01, 0.2, 0.05, 0.01)
         max_df = st.slider("Maximum Document Frequency", 0.5, 0.99, 0.90, 0.01)
 
-    # Filters section
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input(
@@ -2658,7 +2651,6 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             key="tm_categories"
         )
 
-    # Analysis button
     analyze_col1, analyze_col2 = st.columns([3, 1])
     with analyze_col1:
         analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary", use_container_width=True)
@@ -2670,13 +2662,11 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             progress_bar = st.progress(0)
             status_text = st.empty()
             
-            # Initialize NLTK resources
             with st.spinner("Initializing resources..."):
                 initialize_nltk()
                 progress_bar.progress(0.1)
                 status_text.text("Initialized resources...")
 
-            # Filter data
             filtered_df = data.copy()
             status_text.text("Applying filters...")
             progress_bar.progress(0.2)
@@ -2711,38 +2701,34 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             status_text.text("Filtering by categories...")
             
             # Create document identifier and deduplicate
-            filtered_df = filtered_df.copy()
-            filtered_df['doc_id'] = filtered_df.apply(
-                lambda row: f"{row.get('Title', '')}_{row.get('ref', '')}_{row.get('date_of_report', '').strftime('%Y-%m-%d')}", 
+            filtered_df = filtered_df.assign(doc_id=filtered_df.apply(
+                lambda row: f"{str(row.get('Title', ''))}_{str(row.get('ref', ''))}_{row['date_of_report'].strftime('%Y-%m-%d')}", 
                 axis=1
-            )
+            ))
             filtered_df = filtered_df.drop_duplicates(subset=['doc_id'])
             
             progress_bar.progress(0.5)
             status_text.text("Removing duplicates...")
             
-            # Validate filtered data
             if len(filtered_df) < min_cluster_size:
                 progress_bar.empty()
                 status_text.empty()
                 st.warning(f"Not enough documents match the selected filters. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
             
-            # Show document count
             doc_count = len(filtered_df)
             st.info(f"Analyzing {doc_count} unique documents...")
             
             if show_details:
                 st.write("Documents being analyzed:")
                 st.dataframe(
-                    filtered_df[['Title', 'date_of_report', 'categories', 'doc_id']],
+                    filtered_df[['Title', 'date_of_report', 'categories']],
                     hide_index=True
                 )
             
             progress_bar.progress(0.6)
             status_text.text("Starting clustering analysis...")
             
-            # Perform clustering
             cluster_results = perform_semantic_clustering(
                 filtered_df,
                 min_cluster_size=min_cluster_size,
@@ -2751,19 +2737,16 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 max_df=max_df
             )
             
-            # Store results
             st.session_state.topic_model = cluster_results
             
             progress_bar.progress(0.8)
             status_text.text("Generating visualizations...")
             
-            # Display results
             display_cluster_analysis(cluster_results)
             
             progress_bar.progress(0.9)
             status_text.text("Preparing export...")
             
-            # Export options
             st.markdown("---")
             st.subheader("Export Results")
             export_json = json.dumps(cluster_results, indent=2)
@@ -2790,7 +2773,6 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Clustering error: {e}", exc_info=True)
-
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """
