@@ -2749,8 +2749,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Clustering error: {e}", exc_info=True)
-
-      
+            
 def render_summary_tab(cluster_results: Dict) -> None:
     """Render the cluster summaries tab with improved formatting and traceability"""
     st.header("Cluster Summaries")
