@@ -2506,6 +2506,7 @@ def render_summary_tab(cluster_results: Dict) -> None:
             ])
             st.dataframe(docs_df, hide_index=True)
 
+
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced semantic analysis for PFD reports using advanced clustering."""
     st.header("Semantic Document Clustering")
@@ -2785,7 +2786,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Clustering error: {e}", exc_info=True)
-
+            
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """
     Display comprehensive cluster analysis results
