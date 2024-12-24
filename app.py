@@ -2452,64 +2452,6 @@ def generate_abstractive_summary(cluster_terms, documents, max_length=500):
         logging.error(f"Error in abstractive summarization: {e}")
         return "Error generating summary"
 
-def render_summary_tab(cluster_results: Dict) -> None:
-    """Render the cluster summaries tab with improved formatting and traceability"""
-    st.header("Cluster Summaries")
-    
-    if not cluster_results or 'clusters' not in cluster_results:
-        st.warning("No cluster results available. Please run the clustering analysis first.")
-        return
-        
-    # Add metrics overview
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Total Clusters", cluster_results['n_clusters'])
-    with col2:
-        st.metric("Total Documents", cluster_results['total_documents'])
-        
-    for cluster in cluster_results['clusters']:
-        with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
-            # Generate summaries
-            extractive_summary = generate_extractive_summary(cluster['documents'])
-            abstractive_summary = generate_abstractive_summary(
-                cluster['terms'],
-                cluster['documents']
-            )
-            
-            # Display abstractive summary
-            st.subheader("Overview")
-            st.write(abstractive_summary)
-            
-            # Display key terms
-            st.subheader("Key Terms")
-            terms_df = pd.DataFrame([
-                {'Term': term['term'], 
-                 'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
-                for term in cluster['terms'][:10]
-            ])
-            st.dataframe(terms_df, hide_index=True)
-            
-            # Display extractive summary with traceability
-            st.subheader("Key Excerpts")
-            for idx, sentence in enumerate(extractive_summary, 1):
-                with st.container():
-                    st.markdown(f"{idx}. {sentence['text']}")
-                    with st.expander("Source Details"):
-                        st.markdown(f"- **Document**: {sentence['source']}")
-                        st.markdown(f"- **Date**: {sentence['date']}")
-                        st.markdown(f"- **Relevance Score**: {sentence['score']:.3f}")
-            
-            # Display document list
-            st.subheader("Source Documents")
-            docs_df = pd.DataFrame([
-                {'Title': doc['title'],
-                 'Date': doc['date'],
-                 'Similarity': f"{doc['similarity']:.2f}"}
-                for doc in cluster['documents']
-            ])
-            st.dataframe(docs_df, hide_index=True)
-
-
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced semantic analysis for PFD reports using advanced clustering."""
     st.header("Semantic Document Clustering")
@@ -2545,13 +2487,13 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         
         # Updated sliders with help text
         min_cluster_size = st.slider(
-            "Minimum Cluster Size", 
+            "Minimum Cluster Size ❓", 
             2, 5, 2,
             help="The minimum number of documents required to form a cluster. Lower values create more clusters but may be less meaningful."
         )
         
         max_features = st.slider(
-            "Maximum Features", 
+            "Maximum Features ❓", 
             1000, 10000, 3000,
             help="The maximum number of words to consider in the analysis. Higher values capture more detail but increase processing time."
         )
@@ -2559,14 +2501,14 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         # Changed to use whole numbers for document frequency
         total_docs = len(data)
         min_docs = st.slider(
-            "Minimum Documents", 
+            "Minimum Documents ❓", 
             2, max(2, total_docs//2), 5,
             help="The minimum number of documents a term must appear in to be considered. Higher values focus on more common terms."
         )
         min_df = min_docs / total_docs
         
         max_docs = st.slider(
-            "Maximum Documents", 
+            "Maximum Documents ❓", 
             min_docs, total_docs, int(total_docs * 0.9),
             help="The maximum number of documents a term can appear in. Lower values filter out very common terms."
         )
@@ -2584,7 +2526,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         )
         
         doc_type = st.multiselect(
-            "Document Type",
+            "Document Type ❓",
             ["Report", "Response"],
             default=["Report"],
             key="tm_doc_type",
@@ -2607,7 +2549,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 all_categories.update(cats)
         
         categories = st.multiselect(
-            "Categories",
+            "Categories ❓",
             options=sorted(all_categories),
             key="tm_categories",
             help="Select specific categories of reports to analyze"
@@ -2618,7 +2560,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary", use_container_width=True)
     with analyze_col2:
         show_details = st.checkbox(
-            "Show Details", 
+            "Show Details ❓", 
             value=False,
             help="When enabled, shows the list of documents being analyzed and additional processing information"
         )
@@ -2733,7 +2675,28 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 max_df=max_df
             )
             
-            st.session_state.topic_model = cluster_results
+            # Process cluster results for storage
+            final_results = {
+                'n_clusters': cluster_results['n_clusters'],
+                'total_documents': cluster_results['total_documents'],
+                'silhouette_score': cluster_results['silhouette_score'],
+                'clusters': []
+            }
+
+            # Convert timestamps and prepare clusters for storage
+            for cluster in cluster_results['clusters']:
+                processed_cluster = cluster.copy()
+                processed_docs = []
+                for doc in cluster['documents']:
+                    processed_doc = doc.copy()
+                    if isinstance(doc['date'], pd.Timestamp):
+                        processed_doc['date'] = doc['date'].strftime('%Y-%m-%d')
+                    processed_docs.append(processed_doc)
+                processed_cluster['documents'] = processed_docs
+                final_results['clusters'].append(processed_cluster)
+
+            # Store in session state
+            st.session_state.topic_model = final_results
             
             progress_bar.progress(0.8)
             status_text.text("Generating visualizations...")
@@ -2760,6 +2723,12 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             st.markdown("---")
             st.subheader("Export Results")
             
+            # Convert timestamps to strings for JSON serialization
+            def json_serialize(obj):
+                if isinstance(obj, pd.Timestamp):
+                    return obj.strftime('%Y-%m-%d')
+                return str(obj)
+
             # Add clustering parameters to export
             export_data = cluster_results.copy()
             export_data['parameters'] = {
@@ -2776,7 +2745,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 'categories': categories if categories else []
             }
             
-            export_json = json.dumps(export_data, indent=2)
+            export_json = json.dumps(export_data, default=json_serialize, indent=2)
             
             st.download_button(
                 "📥 Download Analysis (JSON)",
@@ -2800,7 +2769,66 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Clustering error: {e}", exc_info=True)
+
+def render_summary_tab(cluster_results: Dict) -> None:
+    """Render the cluster summaries tab with improved formatting and traceability"""
+    st.header("Cluster Summaries")
+    
+    if not cluster_results or 'clusters' not in cluster_results:
+        st.warning("No cluster results available. Please run the clustering analysis first.")
+        return
+        
+    # Add metrics overview
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Clusters", cluster_results['n_clusters'])
+    with col2:
+        st.metric("Total Documents", cluster_results['total_documents'])
+        
+    for cluster in cluster_results['clusters']:
+        with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
+            # Generate summaries
+            extractive_summary = generate_extractive_summary(cluster['documents'])
+            abstractive_summary = generate_abstractive_summary(
+                cluster['terms'],
+                cluster['documents']
+            )
             
+            # Display abstractive summary
+            st.subheader("Overview")
+            st.write(abstractive_summary)
+            
+            # Display key terms
+            st.subheader("Key Terms")
+            terms_df = pd.DataFrame([
+                {'Term': term['term'], 
+                 'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
+                for term in cluster['terms'][:10]
+            ])
+            st.dataframe(terms_df, hide_index=True)
+            
+            # Display extractive summary with traceability
+            st.subheader("Key Excerpts")
+            for idx, sentence in enumerate(extractive_summary, 1):
+                with st.container():
+                    st.markdown(f"{idx}. {sentence['text']}")
+                    with st.expander("Source Details"):
+                        st.markdown(f"- **Document**: {sentence['source']}")
+                        st.markdown(f"- **Date**: {sentence['date']}")
+                        st.markdown(f"- **Relevance Score**: {sentence['score']:.3f}")
+            
+            # Display document list
+            st.subheader("Source Documents")
+            docs_df = pd.DataFrame([
+                {'Title': doc['title'],
+                 'Date': doc['date'],
+                 'Similarity': f"{doc['similarity']:.2f}"}
+                for doc in cluster['documents']
+            ])
+            st.dataframe(docs_df, hide_index=True)
+
+
+
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """
     Display comprehensive cluster analysis results
