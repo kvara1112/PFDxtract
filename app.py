@@ -2432,7 +2432,6 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
 
-
 def generate_extractive_summary(documents, max_length=500):
     """Generate extractive summary from cluster documents with traceability"""
     try:
@@ -2480,7 +2479,7 @@ def generate_extractive_summary(documents, max_length=500):
         logging.error(f"Error in extractive summarization: {e}")
         return []
 
-def generate_abstractive_summary(cluster_terms, documents, max_length=200):
+def generate_abstractive_summary(cluster_terms, documents, max_length=500):
     """Generate abstractive summary from cluster information"""
     try:
         # Extract key themes from terms
@@ -2512,15 +2511,22 @@ def generate_abstractive_summary(cluster_terms, documents, max_length=200):
         return "Error generating summary"
 
 def render_summary_tab(cluster_results: Dict) -> None:
-    """Render the cluster summaries tab"""
+    """Render the cluster summaries tab with improved formatting and traceability"""
     st.header("Cluster Summaries")
     
     if not cluster_results or 'clusters' not in cluster_results:
         st.warning("No cluster results available. Please run the clustering analysis first.")
         return
         
+    # Add metrics overview
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Clusters", cluster_results['n_clusters'])
+    with col2:
+        st.metric("Total Documents", cluster_results['total_documents'])
+        
     for cluster in cluster_results['clusters']:
-        with st.expander(f"Cluster {cluster['id']+1} Summary", expanded=True):
+        with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
             # Generate summaries
             extractive_summary = generate_extractive_summary(cluster['documents'])
             abstractive_summary = generate_abstractive_summary(
@@ -2532,13 +2538,34 @@ def render_summary_tab(cluster_results: Dict) -> None:
             st.subheader("Overview")
             st.write(abstractive_summary)
             
+            # Display key terms
+            st.subheader("Key Terms")
+            terms_df = pd.DataFrame([
+                {'Term': term['term'], 
+                 'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
+                for term in cluster['terms'][:10]
+            ])
+            st.dataframe(terms_df, hide_index=True)
+            
             # Display extractive summary with traceability
             st.subheader("Key Excerpts")
-            for sentence in extractive_summary:
+            for idx, sentence in enumerate(extractive_summary, 1):
                 with st.container():
-                    st.markdown(f"- {sentence['text']}")
-                    st.caption(f"Source: {sentence['source']} ({sentence['date']})")
-
+                    st.markdown(f"{idx}. {sentence['text']}")
+                    with st.expander("Source Details"):
+                        st.markdown(f"- **Document**: {sentence['source']}")
+                        st.markdown(f"- **Date**: {sentence['date']}")
+                        st.markdown(f"- **Relevance Score**: {sentence['score']:.3f}")
+            
+            # Display document list
+            st.subheader("Source Documents")
+            docs_df = pd.DataFrame([
+                {'Title': doc['title'],
+                 'Date': doc['date'],
+                 'Similarity': f"{doc['similarity']:.2f}"}
+                for doc in cluster['documents']
+            ])
+            st.dataframe(docs_df, hide_index=True)
 
 def render_topic_modeling_tab(data: pd.DataFrame) -> None:
     """Enhanced semantic analysis for PFD reports using advanced clustering."""
