@@ -2548,70 +2548,39 @@ def render_summary_tab(cluster_results: Dict) -> None:
              'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
             for term in cluster['terms'][:10]
         ])
+        st.dataframe(terms_df, hide_index=True)
         
-        # Use custom styling for terms table
-        st.dataframe(
-            terms_df,
-            hide_index=True,
-            column_config={
-                "Term": st.column_config.TextColumn(
-                    "Term",
-                    width="medium",
-                    help="Keywords found in the cluster"
-                ),
-                "Frequency": st.column_config.TextColumn(
-                    "Frequency",
-                    width="small",
-                    help="Percentage of documents containing this term"
-                )
-            },
-            use_container_width=True
-        )
-        
-        # Records table with metadata only
+        # Records table with metadata
         st.markdown("#### Records")
-        
-        # Create DataFrame with only the columns shown in the image
         metadata_records = []
         for doc in cluster['documents']:
             record = {
-                'Date': format_date_uk(doc.get('date_of_report', doc.get('date', ''))),
-                'Reference': doc.get('ref', ''),
-                'Deceased Name': doc.get('deceased_name', ''),
-                'Coroner Name': doc.get('coroner_name', ''),
-                'Coroner Area': doc.get('coroner_area', '')
+                'date_of_report': pd.to_datetime(doc.get('date_of_report', doc.get('date', ''))),
+                'ref': doc.get('ref', ''),
+                'deceased_name': doc.get('deceased_name', ''),
+                'coroner_name': doc.get('coroner_name', ''),
+                'coroner_area': doc.get('coroner_area', ''),
+                'categories': doc.get('categories', [])
             }
             metadata_records.append(record)
         
         docs_df = pd.DataFrame(metadata_records)
         
-        # Display metadata table with custom styling to match the image
+        # Display using the same configuration as the analysis tab
         st.dataframe(
             docs_df,
-            hide_index=True,
             column_config={
-                "Date": st.column_config.TextColumn(
-                    "Date",
-                    help="Date of report"
+                "date_of_report": st.column_config.DateColumn(
+                    "Date of Report",
+                    format="DD/MM/YYYY"
                 ),
-                "Reference": st.column_config.TextColumn(
-                    "Reference",
-                    help="Reference number"
-                ),
-                "Deceased Name": st.column_config.TextColumn(
-                    "Deceased Name",
-                    help="Name of the deceased"
-                ),
-                "Coroner Name": st.column_config.TextColumn(
-                    "Coroner Name",
-                    help="Name of the coroner"
-                ),
-                "Coroner Area": st.column_config.TextColumn(
-                    "Coroner Area",
-                    help="Coroner's jurisdiction area"
-                )
+                "ref": st.column_config.TextColumn("Reference"),
+                "deceased_name": st.column_config.TextColumn("Deceased Name"),
+                "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                "categories": st.column_config.ListColumn("Categories")
             },
-            use_container_width=True
+            hide_index=True
         )
         
         st.markdown("---")
