@@ -2517,77 +2517,7 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
         st.error(f"Error displaying cluster analysis: {str(e)}")
         logging.error(f"Display error: {str(e)}", exc_info=True)
 
-def render_summary_tab(cluster_results: Dict) -> None:
-    st.header("Cluster Summaries")
-    
-    if not cluster_results or 'clusters' not in cluster_results:
-        st.warning("No cluster results available.")
-        return
-    
-    # Metrics
-    st.write(f"Found {cluster_results['total_documents']} total documents in {cluster_results['n_clusters']} clusters")
-    
-    for cluster in cluster_results['clusters']:
-        st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
-        
-        # Overview
-        st.markdown("#### Overview") 
-        abstractive_summary = generate_abstractive_summary(
-            cluster['terms'],
-            cluster['documents']
-        )
-        st.write(abstractive_summary)
-        
-        # Key terms table
-        st.markdown("#### Key Terms")
-        terms_df = pd.DataFrame([
-            {'Term': term['term'], 
-             'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
-            for term in cluster['terms'][:10]
-        ])
-        st.dataframe(terms_df, hide_index=True)
-        
-        # Records table
-        st.markdown("#### Records")
-        st.success(f"Showing {len(cluster['documents'])} matching documents")
 
-        # Create DataFrame with all documents in cluster
-        cluster_docs = []
-        for doc in cluster['documents']:
-            record = {
-                'URL': doc.get('URL', ''),
-                'Title': doc.get('Title', ''),
-                'date_of_report': doc.get('date_of_report', pd.NaT),
-                'ref': doc.get('ref', ''),
-                'deceased_name': doc.get('deceased_name', ''),
-                'coroner_name': doc.get('coroner_name', ''),
-                'coroner_area': doc.get('coroner_area', ''),
-                'categories': doc.get('categories', [])
-            }
-            cluster_docs.append(record)
-        
-        docs_df = pd.DataFrame(cluster_docs)
-        if 'date_of_report' in docs_df.columns:
-            docs_df['date_of_report'] = pd.to_datetime(docs_df['date_of_report'])
-
-        # Display the dataframe exactly as in analysis tab
-        st.dataframe(
-            docs_df,
-            column_config={
-                "URL": st.column_config.LinkColumn("Report Link"),
-                "date_of_report": st.column_config.DateColumn(
-                    "Date of Report",
-                    format="DD/MM/YYYY"
-                ),
-                "ref": st.column_config.TextColumn("Reference"),
-                "deceased_name": st.column_config.TextColumn("Deceased Name"),
-                "coroner_name": st.column_config.TextColumn("Coroner Name"),
-                "coroner_area": st.column_config.TextColumn("Coroner Area"),
-                "categories": st.column_config.ListColumn("Categories")
-            },
-            hide_index=True,
-            use_container_width=True
-        )
 
 def export_cluster_results(cluster_results: Dict) -> bytes:
     """Export cluster results with proper timestamp handling"""
@@ -2681,21 +2611,19 @@ def render_footer():
         unsafe_allow_html=True
     )
 
-
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    """Combined topic modeling and summarization analysis focusing only on content."""
+    """Main topic analysis and summary tab rendering function"""
     st.header("Topic Analysis & Summaries")
     st.markdown("""
     This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
     and generating summaries for each thematic group.
     """)
 
+    # Show previous results if available
     if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
         st.sidebar.success("Previous analysis results available")
-        
         if st.sidebar.button("View Previous Results"):
-            display_cluster_analysis(st.session_state.topic_model)
-            render_summary_tab(st.session_state.topic_model)
+            render_summary_tab(st.session_state.topic_model, data)
             return
 
     with st.sidebar:
@@ -2707,8 +2635,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             2, 5, 2,
             help="Minimum number of documents needed to form a thematic group"
         )
-        
-
         
         # Document frequency parameters
         total_docs = len(data)
@@ -2747,20 +2673,21 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             key="analysis_end_date",
             format="DD/MM/YYYY"
         )
-        
-        # Get unique categories
-        all_categories = set()
-        for cats in data['categories'].dropna():
-            if isinstance(cats, list):
-                all_categories.update(cats)
-        
-        categories = st.multiselect(
-            "Categories ❓",
-            options=sorted(all_categories),
-            key="analysis_categories",
-            help="Specific categories to analyze"
-        )
 
+    # Category selection
+    all_categories = set()
+    for cats in data['categories'].dropna():
+        if isinstance(cats, list):
+            all_categories.update(cats)
+    
+    categories = st.multiselect(
+        "Categories ❓",
+        options=sorted(all_categories),
+        key="analysis_categories",
+        help="Specific categories to analyze"
+    )
+
+    # Analysis button
     analyze_col1, analyze_col2 = st.columns([3, 1])
     with analyze_col1:
         analyze_clicked = st.button("🔍 Analyze Documents", type="primary", use_container_width=True)
@@ -2781,8 +2708,8 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 progress_bar.progress(0.1)
                 status_text.text("Initialized resources...")
 
-            # Filter data - only keep essential columns
-            filtered_df = data[['Content', 'date_of_report', 'Title', 'categories']].copy()
+            # Filter data
+            filtered_df = data.copy()
             status_text.text("Applying filters...")
             progress_bar.progress(0.2)
             
@@ -2792,9 +2719,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 (filtered_df['date_of_report'].dt.date <= end_date)
             ]
             
-            progress_bar.progress(0.4)
-            status_text.text("Processing categories...")
-
             # Apply category filter
             if categories:
                 filtered_df = filtered_df[
@@ -2803,7 +2727,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                     )
                 ]
             
-            # Remove any rows where Content is empty or NaN
+            # Remove empty content
             filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
             
             if len(filtered_df) < min_cluster_size:
@@ -2811,19 +2735,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 status_text.empty()
                 st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
-            
-            # Remove the analyzing message
-            
-            if show_details:
-                st.write("Documents being analyzed:")
-                st.dataframe(
-                    filtered_df[['Title', 'date_of_report', 'categories']],
-                    column_config={
-                        "date_of_report": st.column_config.DateColumn("Date", format="DD/MM/YYYY"),
-                        "categories": st.column_config.ListColumn("Categories")
-                    },
-                    hide_index=True
-                )
             
             progress_bar.progress(0.6)
             status_text.text("Starting thematic analysis...")
@@ -2836,14 +2747,20 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 'Content': filtered_df.loc[valid_indices, 'Content'],
                 'processed_content': processed_texts[valid_indices],
                 'Title': filtered_df.loc[valid_indices, 'Title'],
-                'date_of_report': filtered_df.loc[valid_indices, 'date_of_report']
+                'date_of_report': filtered_df.loc[valid_indices, 'date_of_report'],
+                'URL': filtered_df.loc[valid_indices, 'URL'],
+                'ref': filtered_df.loc[valid_indices, 'ref'],
+                'deceased_name': filtered_df.loc[valid_indices, 'deceased_name'],
+                'coroner_name': filtered_df.loc[valid_indices, 'coroner_name'],
+                'coroner_area': filtered_df.loc[valid_indices, 'coroner_area'],
+                'categories': filtered_df.loc[valid_indices, 'categories']
             })
             
             # Perform clustering
             cluster_results = perform_semantic_clustering(
                 processed_df,
                 min_cluster_size=min_cluster_size,
-                max_features=None,  # Consider all terms
+                max_features=None,
                 min_df=min_df,
                 max_df=max_df
             )
@@ -2851,36 +2768,12 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             # Store results
             st.session_state.topic_model = cluster_results
             
-            progress_bar.progress(0.8)
-            status_text.text("Generating summaries...")
-            
-            # Display results
-            st.markdown("## Analysis Results")
-            
-            # Overview metrics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Thematic Groups", cluster_results['n_clusters'])
-            with col2:
-                st.metric("Total Documents", cluster_results['total_documents'])
-            with col3:
-                st.metric("Analysis Quality", f"{cluster_results['silhouette_score']:.3f}")
-
-            # Add explanation of similarity score
-            st.info("""
-            **Understanding Similarity Scores:**
-            - Similarity percentage shows how closely a document matches the overall theme of its group
-            - 100% would mean perfect alignment with the theme
-            - Higher percentages (>70%) indicate strong thematic alignment
-            - Lower percentages suggest the document shares some but not all aspects of the theme
-            """)
-            
-            # Display summaries
-            render_summary_tab(cluster_results)
-            
             progress_bar.progress(1.0)
             status_text.empty()
             progress_bar.empty()
+            
+            # Display results
+            render_summary_tab(cluster_results, filtered_df)
             
         except Exception as e:
             progress_bar.empty()
@@ -2889,6 +2782,70 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Analysis error: {e}", exc_info=True)
+
+def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
+    """Render cluster summaries and records"""
+    if not cluster_results or 'clusters' not in cluster_results:
+        st.warning("No cluster results available.")
+        return
+    
+    st.write(f"Found {cluster_results['total_documents']} total documents in {cluster_results['n_clusters']} clusters")
+    
+    for cluster in cluster_results['clusters']:
+        st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
+        
+        # Overview
+        st.markdown("#### Overview") 
+        abstractive_summary = generate_abstractive_summary(
+            cluster['terms'],
+            cluster['documents']
+        )
+        st.write(abstractive_summary)
+        
+        # Key terms table
+        st.markdown("#### Key Terms")
+        terms_df = pd.DataFrame([
+            {'Term': term['term'], 
+             'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
+            for term in cluster['terms'][:10]
+        ])
+        st.dataframe(terms_df, hide_index=True)
+        
+        # Records
+        st.markdown("#### Records")
+        st.success(f"Showing {len(cluster['documents'])} matching documents")
+        
+        # Get the full records from original data
+        doc_titles = [doc.get('title', '') for doc in cluster['documents']]
+        cluster_docs = original_data[original_data['Title'].isin(doc_titles)].copy()
+        
+        # Sort to match the original order
+        title_to_position = {title: i for i, title in enumerate(doc_titles)}
+        cluster_docs['sort_order'] = cluster_docs['Title'].map(title_to_position)
+        cluster_docs = cluster_docs.sort_values('sort_order').drop('sort_order', axis=1)
+        
+        # Display using analysis tab format
+        st.dataframe(
+            cluster_docs[['URL', 'Title', 'date_of_report', 'ref', 'deceased_name', 
+                         'coroner_name', 'coroner_area', 'categories']],
+            column_config={
+                "URL": st.column_config.LinkColumn("Report Link"),
+                "Title": st.column_config.TextColumn("Title"),
+                "date_of_report": st.column_config.DateColumn(
+                    "Date of Report",
+                    format="DD/MM/YYYY"
+                ),
+                "ref": st.column_config.TextColumn("Reference"),
+                "deceased_name": st.column_config.TextColumn("Deceased Name"),
+                "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                "categories": st.column_config.ListColumn("Categories")
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+        
+        st.markdown("---")
 
 def main():
     """Updated main application entry point."""
