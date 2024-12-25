@@ -171,7 +171,15 @@ def clean_text(text: str) -> str:
         return ""
 
 def extract_metadata(content: str) -> dict:
-    """Extract structured metadata from report content"""
+    """
+    Extract structured metadata from report content.
+    
+    Args:
+        content (str): Raw report content
+        
+    Returns:
+        dict: Extracted metadata including date, reference, names, categories, etc.
+    """
     metadata = {
         'date_of_report': None,
         'ref': None,
@@ -187,10 +195,10 @@ def extract_metadata(content: str) -> dict:
     try:
         # Extract date patterns
         date_patterns = [
-            r'Date of report:\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})',
-            r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})',
+            r'Date of report:?\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})',
+            r'Date of report:?\s*(\d{1,2}/\d{1,2}/\d{4})',
             r'DATED this (\d{1,2}(?:st|nd|rd|th)?\s+day of [A-Za-z]+\s+\d{4})',
-            r'Date:\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})'
+            r'Date:?\s*(\d{1,2}\s+[A-Za-z]+\s+\d{4})'
         ]
         
         for pattern in date_patterns:
@@ -201,7 +209,9 @@ def extract_metadata(content: str) -> dict:
                     if '/' in date_str:
                         date_obj = datetime.strptime(date_str, '%d/%m/%Y')
                     else:
+                        # Remove ordinal indicators (st, nd, rd, th)
                         date_str = re.sub(r'(?<=\d)(st|nd|rd|th)', '', date_str)
+                        # Remove 'day of' if present
                         date_str = re.sub(r'day of ', '', date_str)
                         try:
                             date_obj = datetime.strptime(date_str, '%d %B %Y')
@@ -232,11 +242,24 @@ def extract_metadata(content: str) -> dict:
         if area_match:
             metadata['coroner_area'] = clean_text(area_match.group(1)).strip()
         
-        # Extract categories
+        # Extract categories with improved parsing
         cat_match = re.search(r'Category:?\s*([^\n]+)', content)
         if cat_match:
+            # Split by pipe and handle potential HTML entities
             categories = cat_match.group(1).split('|')
-            metadata['categories'] = [clean_text(cat).strip() for cat in categories if clean_text(cat).strip()]
+            
+            # Clean each category
+            cleaned_categories = []
+            for cat in categories:
+                # Clean the text and remove special characters
+                cleaned_cat = clean_text(cat).strip()
+                # Remove &nbsp; and other HTML entities
+                cleaned_cat = re.sub(r'&nbsp;', '', cleaned_cat)
+                # Only add non-empty categories
+                if cleaned_cat:
+                    cleaned_categories.append(cleaned_cat)
+            
+            metadata['categories'] = cleaned_categories
         
         return metadata
         
