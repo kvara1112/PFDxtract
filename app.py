@@ -268,7 +268,7 @@ def extract_metadata(content: str) -> dict:
         
     except Exception as e:
         logging.error(f"Error extracting metadata: {e}")
-        return metadata
+        return metadata 
 
 def extract_metadata2(content: str) -> dict:
     """
