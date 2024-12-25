@@ -2390,31 +2390,28 @@ def format_date_uk(date_obj):
 def generate_extractive_summary(documents, max_length=500):
     """Generate extractive summary from cluster documents with traceability"""
     try:
+        # Combine all document texts with source tracking
         all_sentences = []
         for doc in documents:
-            text = doc.get('summary', '')
-            if not isinstance(text, str) or len(text.strip()) < 10:
-                continue
-                
-            text = re.sub(r'\s+', ' ', text.strip())
-            sentences = [s.strip() for s in sent_tokenize(text) if len(s.strip()) > 20]
-            
+            sentences = sent_tokenize(doc['summary'])
             for sent in sentences:
                 all_sentences.append({
                     'text': sent,
-                    'source': doc.get('title', 'Unknown Document'),
-                    'date': format_date_uk(doc.get('date', '')),
-                    'length': len(sent)
+                    'source': doc['title'],
+                    'date': format_date_uk(doc['date'])  # Format date here
                 })
-                
+        
+        # Calculate sentence importance using TF-IDF
         vectorizer = TfidfVectorizer(stop_words='english')
         tfidf_matrix = vectorizer.fit_transform([s['text'] for s in all_sentences])
         
+        # Calculate sentence scores
         sentence_scores = []
         for idx, sentence in enumerate(all_sentences):
             score = np.mean(tfidf_matrix[idx].toarray())
             sentence_scores.append((score, sentence))
         
+        # Sort by importance and select top sentences
         sentence_scores.sort(reverse=True)
         summary_length = 0
         summary_sentences = []
@@ -2520,15 +2517,15 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
         st.error(f"Error displaying cluster analysis: {str(e)}")
         logging.error(f"Display error: {str(e)}", exc_info=True)
 
-
 def render_summary_tab(cluster_results: Dict) -> None:
-    """Render the cluster summaries tab with per-document summaries"""
+    """Render the cluster summaries tab with improved formatting and traceability"""
     st.header("Cluster Summaries")
     
     if not cluster_results or 'clusters' not in cluster_results:
         st.warning("No cluster results available. Please run the clustering analysis first.")
         return
         
+    # Add metrics overview
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Total Clusters", cluster_results['n_clusters'])
@@ -2536,72 +2533,51 @@ def render_summary_tab(cluster_results: Dict) -> None:
         st.metric("Total Documents", cluster_results['total_documents'])
         
     for cluster in cluster_results['clusters']:
-        st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
-        
-        # Display cluster overview
-        st.subheader("Overview")
-        abstractive_summary = generate_abstractive_summary(
-            cluster['terms'],
-            cluster['documents']
-        )
-        st.write(abstractive_summary)
-        
-        # Display key terms
-        st.subheader("Key Terms")
-        terms_df = pd.DataFrame([
-            {
-                'Term': term['term'],
-                'Frequency': f"{term['cluster_frequency']*100:.1f}%",
-                'Relevance Score': f"{term['relevance']:.3f}"
-            }
-            for term in cluster['terms'][:10]
-        ])
-        st.dataframe(terms_df, hide_index=True)
-        
-        # Display document summaries
-        st.subheader("Document Summaries")
-        summaries = []
-        
-        for doc in sorted(cluster['documents'], 
-                         key=lambda x: pd.to_datetime(x['date'], format='%d/%m/%Y', errors='coerce'),
-                         reverse=True):
-            original_text = doc.get('summary', '')
-            # Extract key information from the content
-            coroner_match = re.search(r"CORONER['S]* CONCERNS?", original_text, re.IGNORECASE)
-            action_match = re.search(r"ACTION SHOULD BE TAKEN", original_text, re.IGNORECASE)
-            matters_match = re.search(r"MATTERS OF CONCERNS?", original_text, re.IGNORECASE)
+        with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
+            # Generate summaries
+            extractive_summary = generate_extractive_summary(cluster['documents'])
+            abstractive_summary = generate_abstractive_summary(
+                cluster['terms'],
+                cluster['documents']
+            )
             
-            # Find the relevant section and extract key points
-            if coroner_match or action_match or matters_match:
-                start_idx = min(pos for pos in [
-                    coroner_match.start() if coroner_match else float('inf'),
-                    action_match.start() if action_match else float('inf'),
-                    matters_match.start() if matters_match else float('inf')
-                ] if pos != float('inf'))
-                
-                relevant_text = original_text[start_idx:start_idx + 1000]
-                key_points = re.split(r'\d+\.|\n\s*\n', relevant_text)
-                key_points = [p.strip() for p in key_points if len(p.strip()) > 50]
-                
-                summary = "Key concerns: " + "; ".join(key_points[:3]) if key_points else "No specific concerns listed."
-            else:
-                summary = "Document structure does not follow standard format."
+            # Display abstractive summary
+            st.subheader("Overview")
+            st.write(abstractive_summary)
             
-            summaries.append({
-                'Title': doc['title'],
-                'Date': format_date_uk(doc['date']),
-                'Similarity': f"{doc['similarity']:.3f}",
-                'Summary': summary
-            })
+            # Display key terms
+            st.subheader("Key Terms")
+            terms_df = pd.DataFrame([
+                {'Term': term['term'], 
+                 'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
+                for term in cluster['terms'][:10]
+            ])
+            st.dataframe(terms_df, hide_index=True)
             
-        docs_df = pd.DataFrame(summaries)
-        st.dataframe(docs_df, hide_index=True, column_config={
-            'Date': st.column_config.TextColumn('Date'),
-            'Similarity': st.column_config.TextColumn('Similarity Score'),
-            'Summary': st.column_config.TextColumn('Summary', width='large')
-        })
-        
-        st.markdown("---")
+            # Display extractive summary with traceability
+            st.subheader("Key Excerpts")
+            for idx, sentence in enumerate(extractive_summary, 1):
+                with st.container():
+                    st.markdown(f"{idx}. {sentence['text']}")
+                    with st.expander("Source Details"):
+                        st.markdown(f"- **Document**: {sentence['source']}")
+                        st.markdown(f"- **Date**: {sentence['date']}")
+                        st.markdown(f"- **Relevance Score**: {sentence['score']:.3f}")
+            
+            # Display document list with formatted dates
+            st.subheader("Source Documents")
+            docs_df = pd.DataFrame([
+                {'Title': doc['title'],
+                 'Date': format_date_uk(doc['date']),
+                 'Similarity': f"{doc['similarity']:.2f}"}
+                for doc in cluster['documents']
+            ])
+            st.dataframe(docs_df, hide_index=True)
+
+
+    
+
+
 def export_cluster_results(cluster_results: Dict) -> bytes:
     """Export cluster results with proper timestamp handling"""
     output = io.BytesIO()
