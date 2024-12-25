@@ -2518,14 +2518,13 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
         logging.error(f"Display error: {str(e)}", exc_info=True)
 
 def render_summary_tab(cluster_results: Dict) -> None:
-    """Render the cluster summaries tab with improved formatting and traceability"""
+    """Render the cluster summaries tab with improved document display"""
     st.header("Cluster Summaries")
     
     if not cluster_results or 'clusters' not in cluster_results:
         st.warning("No cluster results available. Please run the clustering analysis first.")
         return
         
-    # Add metrics overview
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Total Clusters", cluster_results['n_clusters'])
@@ -2534,15 +2533,12 @@ def render_summary_tab(cluster_results: Dict) -> None:
         
     for cluster in cluster_results['clusters']:
         with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
-            # Generate summaries
-            extractive_summary = generate_extractive_summary(cluster['documents'])
+            # Display abstractive summary
+            st.subheader("Overview")
             abstractive_summary = generate_abstractive_summary(
                 cluster['terms'],
                 cluster['documents']
             )
-            
-            # Display abstractive summary
-            st.subheader("Overview")
             st.write(abstractive_summary)
             
             # Display key terms
@@ -2554,26 +2550,18 @@ def render_summary_tab(cluster_results: Dict) -> None:
             ])
             st.dataframe(terms_df, hide_index=True)
             
-            # Display extractive summary with traceability
-            st.subheader("Key Excerpts")
-            for idx, sentence in enumerate(extractive_summary, 1):
-                with st.container():
-                    st.markdown(f"{idx}. {sentence['text']}")
-                    with st.expander("Source Details"):
-                        st.markdown(f"- **Document**: {sentence['source']}")
-                        st.markdown(f"- **Date**: {sentence['date']}")
-                        st.markdown(f"- **Relevance Score**: {sentence['score']:.3f}")
-            
-            # Display document list with formatted dates
-            st.subheader("Source Documents")
-            docs_df = pd.DataFrame([
-                {'Title': doc['title'],
-                 'Date': format_date_uk(doc['date']),
-                 'Similarity': f"{doc['similarity']:.2f}"}
-                for doc in cluster['documents']
-            ])
-            st.dataframe(docs_df, hide_index=True)
-
+            # Display documents in a more readable format
+            st.subheader("Documents in this Cluster")
+            for doc in cluster['documents']:
+                with st.expander(f"📄 {doc['title']} ({format_date_uk(doc['date'])})", expanded=False):
+                    st.markdown("**Similarity Score**: {:.1%}".format(doc['similarity']))
+                    st.markdown("**Document Content:**")
+                    
+                    # Split content into paragraphs for better readability
+                    paragraphs = doc['summary'].split('\n')
+                    for para in paragraphs:
+                        if para.strip():
+                            st.write(para.strip())
 
     
 
