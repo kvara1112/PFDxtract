@@ -2523,25 +2523,25 @@ def render_summary_tab(cluster_results: Dict) -> None:
    if not cluster_results or 'clusters' not in cluster_results:
        st.warning("No cluster results available. Please run the clustering analysis first.")
        return
-       
+   
    col1, col2 = st.columns(2)
    with col1:
        st.metric("Total Clusters", cluster_results['n_clusters'])
    with col2:
        st.metric("Total Documents", cluster_results['total_documents'])
-       
+   
    for cluster in cluster_results['clusters']:
        st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
        
        # Display abstractive summary
-       st.markdown("#### Overview")
+       st.markdown("#### Overview") 
        abstractive_summary = generate_abstractive_summary(
            cluster['terms'],
            cluster['documents']
        )
        st.write(abstractive_summary)
        
-       # Display key terms in table
+       # Display key terms table
        st.markdown("#### Key Terms")
        terms_df = pd.DataFrame([
            {'Term': term['term'], 
@@ -2550,28 +2550,14 @@ def render_summary_tab(cluster_results: Dict) -> None:
        ])
        st.dataframe(terms_df, hide_index=True)
        
-       # Display documents metadata in a table
-       st.markdown("#### Reports")
-       docs_df = pd.DataFrame([{
-           'Title': doc['title'],
-           'Date': format_date_uk(doc['date']),
-           'Deceased Name': doc.get('deceased_name', ''),
-           'Coroner Name': doc.get('coroner_name', ''),
-           'Coroner Area': doc.get('coroner_area', ''),
-           'Categories': doc.get('categories', []),
-           'Reference': doc.get('ref', ''),
-           'Similarity': f"{doc['similarity']:.1%}"
-       } for doc in cluster['documents']])
-       
-       st.dataframe(
-           docs_df,
-           column_config={
-               "Date": st.column_config.DateColumn("Date", format="DD/MM/YYYY"),
-               "Categories": st.column_config.ListColumn("Categories"),
-               "Title": st.column_config.TextColumn("Title", max_chars=50)
-           },
-           hide_index=True
-       )
+       # Display documents table with full record metadata
+       st.markdown("#### Records")
+       for doc in cluster['documents']:
+           # Get content field from 3rd column
+           content = doc.get('Content', 'No content available')
+           
+           with st.expander(f"📄 {doc['title']} ({format_date_uk(doc['date'])})"):
+               st.markdown(content)
        
        st.markdown("---")
 
