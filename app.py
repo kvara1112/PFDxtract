@@ -2520,6 +2520,7 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
         st.error(f"Error displaying cluster analysis: {str(e)}")
         logging.error(f"Display error: {str(e)}", exc_info=True)
 
+
 def render_summary_tab(cluster_results: Dict) -> None:
     """Render the cluster summaries tab with per-document summaries"""
     st.header("Cluster Summaries")
@@ -2559,17 +2560,41 @@ def render_summary_tab(cluster_results: Dict) -> None:
         
         # Display document summaries
         st.subheader("Document Summaries")
-        docs_df = pd.DataFrame([
-            {
+        summaries = []
+        
+        for doc in sorted(cluster['documents'], 
+                         key=lambda x: pd.to_datetime(x['date'], format='%d/%m/%Y', errors='coerce'),
+                         reverse=True):
+            original_text = doc.get('summary', '')
+            # Extract key information from the content
+            coroner_match = re.search(r"CORONER['S]* CONCERNS?", original_text, re.IGNORECASE)
+            action_match = re.search(r"ACTION SHOULD BE TAKEN", original_text, re.IGNORECASE)
+            matters_match = re.search(r"MATTERS OF CONCERNS?", original_text, re.IGNORECASE)
+            
+            # Find the relevant section and extract key points
+            if coroner_match or action_match or matters_match:
+                start_idx = min(pos for pos in [
+                    coroner_match.start() if coroner_match else float('inf'),
+                    action_match.start() if action_match else float('inf'),
+                    matters_match.start() if matters_match else float('inf')
+                ] if pos != float('inf'))
+                
+                relevant_text = original_text[start_idx:start_idx + 1000]
+                key_points = re.split(r'\d+\.|\n\s*\n', relevant_text)
+                key_points = [p.strip() for p in key_points if len(p.strip()) > 50]
+                
+                summary = "Key concerns: " + "; ".join(key_points[:3]) if key_points else "No specific concerns listed."
+            else:
+                summary = "Document structure does not follow standard format."
+            
+            summaries.append({
                 'Title': doc['title'],
                 'Date': format_date_uk(doc['date']),
                 'Similarity': f"{doc['similarity']:.3f}",
-                'Summary': doc.get('summary', '')[:500]
-            }
-            for doc in sorted(cluster['documents'], 
-                            key=lambda x: pd.to_datetime(x['date'], format='%d/%m/%Y', errors='coerce'),
-                            reverse=True)
-        ])
+                'Summary': summary
+            })
+            
+        docs_df = pd.DataFrame(summaries)
         st.dataframe(docs_df, hide_index=True, column_config={
             'Date': st.column_config.TextColumn('Date'),
             'Similarity': st.column_config.TextColumn('Similarity Score'),
@@ -2577,9 +2602,6 @@ def render_summary_tab(cluster_results: Dict) -> None:
         })
         
         st.markdown("---")
-    
-
-
 def export_cluster_results(cluster_results: Dict) -> bytes:
     """Export cluster results with proper timestamp handling"""
     output = io.BytesIO()
