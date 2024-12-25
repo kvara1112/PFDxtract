@@ -2550,19 +2550,30 @@ def render_summary_tab(cluster_results: Dict) -> None:
        ])
        st.dataframe(terms_df, hide_index=True)
        
-       # Display documents in tabs showing only Content
-       st.markdown("#### Documents")
-       doc_tabs = st.tabs([f"Document {i+1}" for i in range(len(cluster['documents']))])
+       # Display documents metadata in a table
+       st.markdown("#### Reports")
+       docs_df = pd.DataFrame([{
+           'Title': doc['title'],
+           'Date': format_date_uk(doc['date']),
+           'Deceased Name': doc.get('deceased_name', ''),
+           'Coroner Name': doc.get('coroner_name', ''),
+           'Coroner Area': doc.get('coroner_area', ''),
+           'Categories': doc.get('categories', []),
+           'Reference': doc.get('ref', ''),
+           'Similarity': f"{doc['similarity']:.1%}"
+       } for doc in cluster['documents']])
        
-       for doc, tab in zip(cluster['documents'], doc_tabs):
-           with tab:
-               st.markdown(f"**{doc['title']}**")
-               st.markdown(f"**Date:** {format_date_uk(doc['date'])}")
-               st.markdown(f"**Content:**")
-               st.markdown(doc.get('Content', 'No content available'))
+       st.dataframe(
+           docs_df,
+           column_config={
+               "Date": st.column_config.DateColumn("Date", format="DD/MM/YYYY"),
+               "Categories": st.column_config.ListColumn("Categories"),
+               "Title": st.column_config.TextColumn("Title", max_chars=50)
+           },
+           hide_index=True
+       )
        
        st.markdown("---")
-
 
 def export_cluster_results(cluster_results: Dict) -> bytes:
     """Export cluster results with proper timestamp handling"""
