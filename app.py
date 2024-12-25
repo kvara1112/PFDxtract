@@ -2550,26 +2550,34 @@ def render_summary_tab(cluster_results: Dict) -> None:
         ])
         st.dataframe(terms_df, hide_index=True)
         
-        # Records table with metadata
+        # Records table
         st.markdown("#### Records")
-        metadata_records = []
+        
+        # Convert document data to DataFrame, preserving all fields
+        cluster_docs = []
         for doc in cluster['documents']:
-            record = {
-                'date_of_report': pd.to_datetime(doc.get('date_of_report', doc.get('date', ''))),
+            # Extract all available fields from the original data
+            cluster_docs.append({
+                'Title': doc.get('title', ''),
+                'URL': doc.get('url', ''),
+                'date_of_report': doc.get('date', pd.NaT),  # Handle missing dates
                 'ref': doc.get('ref', ''),
                 'deceased_name': doc.get('deceased_name', ''),
                 'coroner_name': doc.get('coroner_name', ''),
                 'coroner_area': doc.get('coroner_area', ''),
                 'categories': doc.get('categories', [])
-            }
-            metadata_records.append(record)
+            })
         
-        docs_df = pd.DataFrame(metadata_records)
+        # Create DataFrame and ensure datetime format for date
+        docs_df = pd.DataFrame(cluster_docs)
+        if 'date_of_report' in docs_df.columns:
+            docs_df['date_of_report'] = pd.to_datetime(docs_df['date_of_report'])
         
-        # Display using the same configuration as the analysis tab
+        # Display with analysis tab configuration
         st.dataframe(
             docs_df,
             column_config={
+                "URL": st.column_config.LinkColumn("Report Link"),
                 "date_of_report": st.column_config.DateColumn(
                     "Date of Report",
                     format="DD/MM/YYYY"
