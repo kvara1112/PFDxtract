@@ -172,7 +172,7 @@ def clean_text(text: str) -> str:
 
 def extract_metadata(content: str) -> dict:
     """
-    Extract structured metadata from report content.
+    Extract structured metadata from report content with improved category handling.
     
     Args:
         content (str): Raw report content
@@ -209,9 +209,7 @@ def extract_metadata(content: str) -> dict:
                     if '/' in date_str:
                         date_obj = datetime.strptime(date_str, '%d/%m/%Y')
                     else:
-                        # Remove ordinal indicators (st, nd, rd, th)
                         date_str = re.sub(r'(?<=\d)(st|nd|rd|th)', '', date_str)
-                        # Remove 'day of' if present
                         date_str = re.sub(r'day of ', '', date_str)
                         try:
                             date_obj = datetime.strptime(date_str, '%d %B %Y')
@@ -243,18 +241,23 @@ def extract_metadata(content: str) -> dict:
             metadata['coroner_area'] = clean_text(area_match.group(1)).strip()
         
         # Extract categories with improved parsing
-        cat_match = re.search(r'Category:?\s*([^\n]+)', content)
+        # Look for category pattern and handle cases where "This report" follows immediately
+        cat_match = re.search(r'Category:?\s*(.+?)(?=This report is being sent to:|$)', content, re.IGNORECASE | re.DOTALL)
         if cat_match:
-            # Split by pipe and handle potential HTML entities
-            categories = cat_match.group(1).split('|')
+            # Get the raw category text
+            category_text = cat_match.group(1).strip()
             
-            # Clean each category
+            # Split by pipe and clean each category
             cleaned_categories = []
+            categories = category_text.split('|')
+            
             for cat in categories:
                 # Clean the text and remove special characters
                 cleaned_cat = clean_text(cat).strip()
                 # Remove &nbsp; and other HTML entities
                 cleaned_cat = re.sub(r'&nbsp;', '', cleaned_cat)
+                # Remove common trailing text patterns
+                cleaned_cat = re.sub(r'\s*This report.*$', '', cleaned_cat, flags=re.IGNORECASE)
                 # Only add non-empty categories
                 if cleaned_cat:
                     cleaned_categories.append(cleaned_cat)
