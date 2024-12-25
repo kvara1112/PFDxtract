@@ -2388,6 +2388,129 @@ def format_date_uk(date_obj):
     except:
         return str(date_obj)
 
+
+
+def clean_and_standardize_categories(category_field: str) -> List[str]:
+    """
+    Clean and standardize category strings to match official judiciary.uk categories
+    
+    Args:
+        category_field: The raw category field from the CSV
+        
+    Returns:
+        List of standardized category strings
+    """
+    official_categories = get_pfd_categories()
+    
+    # Early return for empty/null values
+    if pd.isna(category_field) or not category_field:
+        return []
+        
+    try:
+        # Clean the string
+        cleaned = str(category_field)\
+            .replace("'", '"')\
+            .strip('[]')\
+            .strip()
+            
+        # Try to parse as list
+        try:
+            parsed = ast.literal_eval(f"[{cleaned}]")
+            if isinstance(parsed, list):
+                categories = parsed
+            else:
+                categories = [parsed]
+        except:
+            # If parsing fails, split by comma
+            categories = [c.strip().strip('"\'') for c in cleaned.split(',')]
+        
+        # Clean individual categories
+        cleaned_categories = []
+        for cat in categories:
+            if not cat or pd.isna(cat):
+                continue
+                
+            cat = str(cat).strip()
+            
+            # Try to match to official categories
+            matched = False
+            for official_cat in official_categories:
+                # Exact match
+                if cat.lower() == official_cat.lower():
+                    cleaned_categories.append(official_cat)
+                    matched = True
+                    break
+                    
+                # Partial match based on keywords
+                if any(keyword in cat.lower() for keyword in [
+                    'child' in official_cat.lower(),
+                    'mental health' in official_cat.lower(),
+                    'hospital' in official_cat.lower(),
+                    'care home' in official_cat.lower(),
+                    'emergency' in official_cat.lower(),
+                    'police' in official_cat.lower(),
+                    'alcohol' in official_cat.lower(),
+                    'drug' in official_cat.lower(),
+                    'medication' in official_cat.lower(),
+                    'railway' in official_cat.lower(),
+                    'road' in official_cat.lower(),
+                    'military' in official_cat.lower(),
+                    'custody' in official_cat.lower(),
+                    'product' in official_cat.lower(),
+                    'suicide' in official_cat.lower()
+                ]):
+                    cleaned_categories.append(official_cat)
+                    matched = True
+                    break
+            
+            # If no match found, use the most appropriate general category
+            if not matched:
+                if any(term in cat.lower() for term in ['hospital', 'medical', 'clinical', 'healthcare', 'nhs']):
+                    cleaned_categories.append("Hospital Death Clinical Procedures and medical management related deaths")
+                elif any(term in cat.lower() for term in ['mental', 'psychiatric', 'suicide']):
+                    cleaned_categories.append("Mental Health related deaths")
+                else:
+                    cleaned_categories.append("Other related deaths")
+        
+        # Remove duplicates while preserving order
+        return list(dict.fromkeys(cleaned_categories))
+        
+    except Exception as e:
+        logging.error(f"Error cleaning categories: {str(e)}")
+        return []
+
+def preprocess_dataframe_categories(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Preprocess all categories in a DataFrame to match judiciary.uk standards
+    
+    Args:
+        df: Input DataFrame with 'categories' column
+        
+    Returns:
+        DataFrame with cleaned categories
+    """
+    if 'categories' not in df.columns:
+        return df
+        
+    df = df.copy()
+    df['categories'] = df['categories'].apply(clean_and_standardize_categories)
+    return df
+
+# Update the category filtering logic in the analysis functions
+def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd.DataFrame:
+    """Filter DataFrame based on selected categories"""
+    if not selected_categories:
+        return df
+        
+    # Clean categories in the DataFrame if needed
+    if not df['categories'].apply(lambda x: isinstance(x, list)).all():
+        df = preprocess_dataframe_categories(df)
+    
+    return df[df['categories'].apply(
+        lambda x: bool(x) and any(cat in selected_categories for cat in x)
+    )]
+
+
 def generate_extractive_summary(documents, max_length=500):
     """Generate extractive summary from cluster documents with traceability"""
     try:
@@ -2620,6 +2743,9 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     and generating summaries for each thematic group.
     """)
 
+    # Preprocess categories first
+    data = preprocess_dataframe_categories(data)
+
     # Show previous results if available
     if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
         st.sidebar.success("Previous analysis results available")
@@ -2675,17 +2801,12 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             format="DD/MM/YYYY"
         )
 
-    # Category selection
-    all_categories = set()
-    for cats in data['categories'].dropna():
-        if isinstance(cats, list):
-            all_categories.update(cats)
-    
-    categories = st.multiselect(
-        "Categories ❓",
-        options=sorted(all_categories),
-        key="analysis_categories",
-        help="Specific categories to analyze"
+    # Use the same category selection as scraping with guaranteed cleaned categories
+    categories = get_pfd_categories()
+    selected_categories = st.multiselect(
+        "Categories",
+        options=categories,
+        help="Select categories to analyze. Categories have been standardized to match official judiciary.uk categories."
     )
 
     # Analysis button
@@ -2712,11 +2833,11 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 (filtered_df['date_of_report'].dt.date <= end_date)
             ]
             
-            # Apply category filter
-            if categories:
+            # Apply category filter using preprocessed categories
+            if selected_categories:
                 filtered_df = filtered_df[
                     filtered_df['categories'].apply(
-                        lambda x: bool(x) and any(cat in x for cat in categories)
+                        lambda x: bool(x) and any(cat in x for cat in selected_categories)
                     )
                 ]
             
@@ -2732,7 +2853,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
             
-            # Process content
+            # Process content for topic modeling
             progress_bar.progress(0.4)
             status_text.text("Processing document content...")
             processed_texts = filtered_df['Content'].apply(clean_text_for_modeling)
@@ -2766,6 +2887,18 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.8)
             status_text.text("Analyzing cluster results...")
             
+            # Add category information to clusters
+            for cluster in cluster_results['clusters']:
+                cluster_docs = cluster['documents']
+                cluster_categories = set()
+                for doc in cluster_docs:
+                    doc_data = processed_df[processed_df['Title'] == doc['title']]
+                    if not doc_data.empty:
+                        cats = doc_data.iloc[0]['categories']
+                        if isinstance(cats, list):
+                            cluster_categories.update(cats)
+                cluster['categories'] = sorted(cluster_categories)
+            
             # Store results
             st.session_state.topic_model = cluster_results
             
@@ -2776,14 +2909,80 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             status_text.empty()
             
             # Display results
-            render_summary_tab(cluster_results, filtered_df)
+            st.success(f"Analysis complete! Found {len(cluster_results['clusters'])} topic clusters.")
+            
+            # Display each cluster
+            for cluster in cluster_results['clusters']:
+                with st.expander(f"Cluster {cluster['id']+1}: {len(cluster['documents'])} documents", expanded=True):
+                    # Show cluster categories
+                    if cluster['categories']:
+                        st.markdown("**Categories in this cluster:**")
+                        for cat in cluster['categories']:
+                            st.markdown(f"- {cat}")
+                    
+                    # Show key terms
+                    st.markdown("**Key Terms:**")
+                    terms_df = pd.DataFrame(cluster['terms'][:10])
+                    st.dataframe(
+                        terms_df[['term', 'relevance']],
+                        column_config={
+                            'term': "Term",
+                            'relevance': st.column_config.NumberColumn(
+                                "Relevance Score",
+                                format="%.3f"
+                            )
+                        },
+                        hide_index=True
+                    )
+                    
+                    # Show representative documents
+                    st.markdown("**Representative Documents:**")
+                    for doc in cluster['documents']:
+                        with st.expander(f"{doc['title']} ({format_date_uk(doc['date'])})"):
+                            st.markdown(f"[View Report]({processed_df[processed_df['Title'] == doc['title']]['URL'].iloc[0]})")
+                            st.markdown(doc['summary'])
+                    
+                    # Show cluster metrics
+                    metrics_col1, metrics_col2 = st.columns(2)
+                    with metrics_col1:
+                        st.metric("Document Count", len(cluster['documents']))
+                    with metrics_col2:
+                        st.metric("Cohesion Score", f"{cluster['cohesion']:.3f}")
+            
+            # Show export options
+            st.markdown("---")
+            st.subheader("Export Results")
+            
+            if st.button("📥 Export Analysis Results"):
+                # Create export data
+                export_data = {
+                    'analysis_parameters': {
+                        'min_cluster_size': min_cluster_size,
+                        'min_document_frequency': min_df,
+                        'max_document_frequency': max_df,
+                        'date_range': f"{start_date} to {end_date}",
+                        'selected_categories': selected_categories
+                    },
+                    'clusters': cluster_results['clusters']
+                }
+                
+                # Convert to JSON
+                json_str = json.dumps(export_data, indent=2, default=str)
+                
+                # Offer download
+                st.download_button(
+                    "Download JSON",
+                    json_str,
+                    file_name="topic_analysis_results.json",
+                    mime="application/json"
+                )
             
         except Exception as e:
             progress_bar.empty()
             status_text.empty()
             st.error(f"Analysis error: {str(e)}")
             logging.error(f"Analysis error: {e}", exc_info=True)
-
+            
 def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
     """Render cluster summaries and records"""
     if not cluster_results or 'clusters' not in cluster_results:
