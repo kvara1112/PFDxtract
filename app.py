@@ -2276,118 +2276,7 @@ def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd
     
     return df[df['categories'].apply(matches_categories)]
 
-def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    st.header("Topic Analysis & Summaries")
-    
-    if not isinstance(data, pd.DataFrame) or len(data) == 0:
-        st.warning("No data available for analysis")
-        return
 
-    # Convert date_of_report to datetime if it's not already
-    if 'date_of_report' in data.columns:
-        data['date_of_report'] = pd.to_datetime(data['date_of_report'])
-        
-    with st.sidebar:
-        st.header("Analysis Parameters")
-        min_cluster_size = st.slider("Minimum Group Size", 2, 5, 2)
-        total_docs = len(data)
-        min_docs = st.slider("Minimum Document Frequency", 2, max(2, total_docs//2), 5)
-        min_df = min_docs / total_docs
-        max_docs = st.slider("Maximum Document Frequency", min_docs, total_docs, int(total_docs * 0.9))
-        max_df = max_docs / total_docs
-
-    # Date range selection with proper datetime handling
-    min_date = data['date_of_report'].min()
-    max_date = data['date_of_report'].max()
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        start_date = st.date_input(
-            "From",
-            value=min_date.date(),
-            min_value=min_date.date(),
-            max_value=max_date.date(),
-            key="analysis_start_date",
-            format="DD/MM/YYYY"
-        )
-    with col2:
-        end_date = st.date_input(
-            "To",
-            value=max_date.date(),
-            min_value=min_date.date(),
-            max_value=max_date.date(),
-            key="analysis_end_date",
-            format="DD/MM/YYYY"
-        )
-
-    # Category selection with proper list handling
-    all_categories = set()
-    for cats in data['categories'].dropna():
-        try:
-            if isinstance(cats, str):
-                cat_list = eval(cats) if cats.startswith('[') else [cats]
-            elif isinstance(cats, list):
-                cat_list = cats
-            else:
-                continue
-            all_categories.update(cat_list)
-        except:
-            continue
-    
-    categories = st.multiselect(
-        "Categories",
-        options=sorted(all_categories),
-        key="analysis_categories"
-    )
-
-    if st.button("🔍 Analyze Documents", type="primary"):
-        try:
-            with st.spinner("Processing documents..."):
-                # Filter by date using datetime objects
-                start_datetime = pd.Timestamp(start_date)
-                end_datetime = pd.Timestamp(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
-                
-                filtered_df = data[
-                    (data['date_of_report'] >= start_datetime) &
-                    (data['date_of_report'] <= end_datetime)
-                ].copy()
-                
-                # Category filtering with proper list handling
-                if categories:
-                    filtered_df = filtered_df[filtered_df['categories'].apply(
-                        lambda x: any(cat in eval(x) if isinstance(x, str) else x 
-                                    for cat in categories)
-                    )]
-                
-                # Process Content column
-                filtered_df['processed_content'] = filtered_df['Content'].apply(clean_text_for_modeling)
-                
-                # Remove empty content
-                filtered_df = filtered_df[
-                    filtered_df['processed_content'].notna() & 
-                    (filtered_df['processed_content'].str.strip() != '')
-                ]
-                
-                if len(filtered_df) < min_cluster_size:
-                    st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
-                    return
-                
-                # Perform clustering
-                cluster_results = perform_semantic_clustering(
-                    filtered_df,
-                    min_cluster_size=min_cluster_size,
-                    min_df=min_df,
-                    max_df=max_df
-                )
-                
-                # Store and display results
-                st.session_state.topic_model = cluster_results
-                display_cluster_analysis(cluster_results)
-                render_summary_tab(cluster_results)
-                
-        except Exception as e:
-            st.error(f"Analysis error: {str(e)}")
-            logging.error(f"Analysis error: {e}", exc_info=True)
 
 def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                              min_df: float = 0.01, max_df: float = 0.95) -> Dict:
@@ -2592,116 +2481,78 @@ def generate_abstractive_summary(cluster_terms, documents, max_length=500):
         return "Error generating summary"
 
 def display_cluster_analysis(cluster_results: Dict) -> None:
-    """Display comprehensive cluster analysis results"""
-    try:
-        st.subheader("Document Clustering Analysis")
-        
-        # Overview metrics
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Number of Clusters", cluster_results['n_clusters'])
-        with col2:
-            st.metric("Total Documents", cluster_results['total_documents'])
-        with col3:
-            st.metric("Clustering Quality", 
-                     f"{cluster_results['silhouette_score']:.3f}",
-                     help="Silhouette score (ranges from -1 to 1, higher is better)")
-        
-        # Display each cluster
-        for cluster in cluster_results['clusters']:
-            with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", 
-                           expanded=True):
-                
-                # Cluster metrics
-                st.markdown(f"**Cohesion Score**: {cluster['cohesion']:.3f}")
-                
-                # Terms analysis
-                st.markdown("#### Key Terms")
-                terms_df = pd.DataFrame(cluster['terms'])
-                
-                # Create term importance visualization
-                fig = px.bar(
-                    terms_df.head(10),
-                    x='relevance',
-                    y='term',
-                    orientation='h',
-                    title='Top Terms by Relevance',
-                    labels={'relevance': 'Relevance Score', 'term': 'Term'}
-                )
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Representative documents with formatted dates
-                st.markdown("#### Representative Documents")
-                for doc in cluster['documents']:
-                    st.markdown(f"**{doc['title']}** (Similarity: {doc['similarity']:.2f})")
-                    st.markdown(f"**Date**: {format_date_uk(doc['date'])}")
-                    st.markdown(f"**Summary**: {doc['summary'][:300]}...")
-                    st.markdown("---")  # Separator between documents
-
-    except Exception as e:
-        st.error(f"Error displaying cluster analysis: {str(e)}")
-        logging.error(f"Display error: {str(e)}", exc_info=True)
-
-def render_summary_tab(cluster_results: Dict) -> None:
-    """Render the cluster summaries tab with improved formatting and traceability"""
-    st.header("Cluster Summaries")
+    st.subheader("Document Clustering Analysis")
     
-    if not cluster_results or 'clusters' not in cluster_results:
-        st.warning("No cluster results available. Please run the clustering analysis first.")
-        return
-        
-    # Add metrics overview
-    col1, col2 = st.columns(2)
+    # Overview metrics
+    col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Clusters", cluster_results['n_clusters'])
+        st.metric("Number of Clusters", cluster_results['n_clusters'])
     with col2:
         st.metric("Total Documents", cluster_results['total_documents'])
-        
+    with col3:
+        st.metric("Clustering Quality", f"{cluster_results['silhouette_score']:.3f}")
+
     for cluster in cluster_results['clusters']:
-        with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
-            # Generate summaries
-            extractive_summary = generate_extractive_summary(cluster['documents'])
-            abstractive_summary = generate_abstractive_summary(
-                cluster['terms'],
-                cluster['documents']
+        with st.expander(f"Topic {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
+            st.markdown(f"**Cohesion Score**: {cluster['cohesion']:.3f}")
+            
+            # Key terms analysis
+            st.markdown("### Key Terms")
+            top_terms = pd.DataFrame(cluster['terms'][:10])
+            top_terms['frequency'] = top_terms['cluster_frequency'].apply(lambda x: f"{x*100:.1f}%")
+            st.dataframe(
+                top_terms[['term', 'frequency']],
+                column_config={
+                    'term': 'Term',
+                    'frequency': 'Frequency in Topic'
+                },
+                hide_index=True
             )
             
-            # Display abstractive summary
-            st.subheader("Overview")
-            st.write(abstractive_summary)
-            
-            # Display key terms
-            st.subheader("Key Terms")
-            terms_df = pd.DataFrame([
-                {'Term': term['term'], 
-                 'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
-                for term in cluster['terms'][:10]
-            ])
-            st.dataframe(terms_df, hide_index=True)
-            
-            # Display extractive summary with traceability
-            st.subheader("Key Excerpts")
-            for idx, sentence in enumerate(extractive_summary, 1):
+            # Representative documents
+            st.markdown("### Representative Documents")
+            for doc in cluster['documents']:
                 with st.container():
-                    st.markdown(f"{idx}. {sentence['text']}")
-                    with st.expander("Source Details"):
-                        st.markdown(f"- **Document**: {sentence['source']}")
-                        st.markdown(f"- **Date**: {sentence['date']}")
-                        st.markdown(f"- **Relevance Score**: {sentence['score']:.3f}")
-            
-            # Display document list with formatted dates
-            st.subheader("Source Documents")
-            docs_df = pd.DataFrame([
-                {'Title': doc['title'],
-                 'Date': format_date_uk(doc['date']),
-                 'Similarity': f"{doc['similarity']:.2f}"}
-                for doc in cluster['documents']
-            ])
-            st.dataframe(docs_df, hide_index=True)
+                    st.markdown(f"**{doc['title']}**")
+                    st.markdown(f"Date: {doc['date'].strftime('%d/%m/%Y')}")
+                    st.markdown(f"Similarity to topic: {doc['similarity']:.2%}")
+                    st.markdown(f"Excerpt: {doc['summary']}")
+                    st.markdown("---")
 
-
+def render_summary_tab(cluster_results: Dict) -> None:
+    st.header("Topic Summaries")
     
+    for cluster in cluster_results['clusters']:
+        with st.expander(f"Topic {cluster['id']+1} Summary", expanded=True):
+            # Generate topic description from top terms
+            top_terms = [term['term'] for term in cluster['terms'][:5]]
+            st.markdown(f"### Main Theme")
+            st.markdown(f"This topic focuses on: {', '.join(top_terms)}")
+            
+            # Key statistics
+            st.markdown("### Key Statistics")
+            st.markdown(f"- Documents in topic: {cluster['size']}")
+            st.markdown(f"- Topic cohesion: {cluster['cohesion']:.3f}")
+            
+            # Document examples
+            st.markdown("### Key Examples")
+            for doc in cluster['documents'][:3]:
+                with st.container():
+                    st.markdown(f"**{doc['title']}** ({doc['date'].strftime('%d/%m/%Y')})")
+                    st.markdown(doc['summary'][:200] + "...")
+            
+            # Term distribution
+            st.markdown("### Term Distribution")
+            terms_df = pd.DataFrame(cluster['terms'][:10])
+            fig = px.bar(
+                terms_df,
+                x='term',
+                y='cluster_frequency',
+                title='Top Terms Distribution',
+                labels={'cluster_frequency': 'Frequency', 'term': 'Term'}
+            )
+            fig.update_layout(xaxis_tickangle=45)
+            st.plotly_chart(fig, use_container_width=True)
 
 
 def export_cluster_results(cluster_results: Dict) -> bytes:
