@@ -2393,46 +2393,20 @@ def generate_extractive_summary(documents, max_length=500):
         # Combine all document texts with source tracking
         all_sentences = []
         for doc in documents:
-            sentences = sent_tokenize(doc['summary'])
-            for sent in sentences:
-                all_sentences.append({
-                    'text': sent,
-                    'source': doc['title'],
-                    'date': format_date_uk(doc['date'])  # Format date here
-                })
-        
-        # Calculate sentence importance using TF-IDF
-        vectorizer = TfidfVectorizer(stop_words='english')
-        tfidf_matrix = vectorizer.fit_transform([s['text'] for s in all_sentences])
-        
-        # Calculate sentence scores
-        sentence_scores = []
-        for idx, sentence in enumerate(all_sentences):
-            score = np.mean(tfidf_matrix[idx].toarray())
-            sentence_scores.append((score, sentence))
-        
-        # Sort by importance and select top sentences
-        sentence_scores.sort(reverse=True)
-        summary_length = 0
-        summary_sentences = []
-        
-        for score, sentence in sentence_scores:
-            if summary_length + len(sentence['text']) <= max_length:
-                summary_sentences.append({
-                    'text': sentence['text'],
-                    'source': sentence['source'],
-                    'date': sentence['date'],
-                    'score': float(score)
-                })
-                summary_length += len(sentence['text'])
-            else:
-                break
-                
-        return summary_sentences
-        
-    except Exception as e:
-        logging.error(f"Error in extractive summarization: {e}")
-        return []
+            if not isinstance(doc.get('summary', ''), str):
+                continue
+            try:
+                sentences = sent_tokenize(doc['summary'])
+                for sent in sentences:
+                    if len(sent.strip()) > 10:  # Only include meaningful sentences
+                        all_sentences.append({
+                            'text': sent.strip(),
+                            'source': doc.get('title', 'Unknown'),
+                            'date': format_date_uk(doc.get('date', ''))
+                        })
+            except Exception as e:
+                logging.warning(f"Error processing document: {e}")
+
 
 def generate_abstractive_summary(cluster_terms, documents, max_length=500):
     """Generate abstractive summary from cluster information"""
