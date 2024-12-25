@@ -2393,6 +2393,61 @@ def generate_extractive_summary(documents, max_length=500):
         # Combine all document texts with source tracking
         all_sentences = []
         for doc in documents:
+            # Handle potentially missing or malformed content
+            text = doc.get('summary', '')
+            if not isinstance(text, str) or len(text.strip()) < 10:
+                continue
+                
+            # Clean and normalize text
+            text = re.sub(r'\s+', ' ', text.strip())
+            sentences = [s.strip() for s in sent_tokenize(text) if len(s.strip()) > 20]
+            
+            # Add valid sentences with metadata
+            for sent in sentences:
+                all_sentences.append({
+                    'text': sent,
+                    'source': doc.get('title', 'Unknown Document'),
+                    'date': format_date_uk(doc.get('date', '')),
+                    'length': len(sent)
+                })
+                
+        # Calculate sentence importance using TF-IDF
+        vectorizer = TfidfVectorizer(stop_words='english')
+        tfidf_matrix = vectorizer.fit_transform([s['text'] for s in all_sentences])
+        
+        # Calculate sentence scores
+        sentence_scores = []
+        for idx, sentence in enumerate(all_sentences):
+            score = np.mean(tfidf_matrix[idx].toarray())
+            sentence_scores.append((score, sentence))
+        
+        # Sort by importance and select top sentences
+        sentence_scores.sort(reverse=True)
+        summary_length = 0
+        summary_sentences = []
+        
+        for score, sentence in sentence_scores:
+            if summary_length + len(sentence['text']) <= max_length:
+                summary_sentences.append({
+                    'text': sentence['text'],
+                    'source': sentence['source'],
+                    'date': sentence['date'],
+                    'score': float(score)
+                })
+                summary_length += len(sentence['text'])
+            else:
+                break
+                
+        return summary_sentences
+        
+    except Exception as e:
+        logging.error(f"Error in extractive summarization: {e}")
+        return []def generate_extractive_summary(documents, max_length=500):
+    """Generate extractive summary from cluster documents with traceability"""
+    try:
+        # Combine all document texts with source tracking
+        all_sentences = []
+        for doc in documents:
             if not isinstance(doc.get('summary', ''), str):
                 continue
             try:
@@ -2406,7 +2461,6 @@ def generate_extractive_summary(documents, max_length=500):
                         })
             except Exception as e:
                 logging.warning(f"Error processing document: {e}")
-
 
 def generate_abstractive_summary(cluster_terms, documents, max_length=500):
     """Generate abstractive summary from cluster information"""
