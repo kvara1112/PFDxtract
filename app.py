@@ -2521,14 +2521,13 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
         logging.error(f"Display error: {str(e)}", exc_info=True)
 
 def render_summary_tab(cluster_results: Dict) -> None:
-    """Render the cluster summaries tab with improved formatting and traceability"""
+    """Render the cluster summaries tab with per-document summaries"""
     st.header("Cluster Summaries")
     
     if not cluster_results or 'clusters' not in cluster_results:
         st.warning("No cluster results available. Please run the clustering analysis first.")
         return
         
-    # Add metrics overview
     col1, col2 = st.columns(2)
     with col1:
         st.metric("Total Clusters", cluster_results['n_clusters'])
@@ -2537,18 +2536,15 @@ def render_summary_tab(cluster_results: Dict) -> None:
         
     for cluster in cluster_results['clusters']:
         with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
-            # Generate summaries
-            extractive_summary = generate_extractive_summary(cluster['documents'])
+            # Display cluster overview
+            st.subheader("Overview")
             abstractive_summary = generate_abstractive_summary(
                 cluster['terms'],
                 cluster['documents']
             )
-            
-            # Display abstractive summary
-            st.subheader("Overview")
             st.write(abstractive_summary)
             
-            # Display key terms in a table
+            # Display key terms
             st.subheader("Key Terms")
             terms_df = pd.DataFrame([
                 {
@@ -2560,27 +2556,14 @@ def render_summary_tab(cluster_results: Dict) -> None:
             ])
             st.dataframe(terms_df, hide_index=True)
             
-            # Display extractive summary with sources
-            st.subheader("Key Excerpts")
-            for idx, sentence in enumerate(extractive_summary, 1):
-                st.markdown(f"**Excerpt {idx}:**")
-                st.markdown(f"*{sentence['text']}*")
-                st.markdown(f"Source: {sentence['source']} ({sentence['date']}) - Relevance: {sentence['score']:.3f}")
-                st.markdown("---")
-            
-            # Display document list
-            st.subheader("Source Documents")
-            docs_df = pd.DataFrame([
-                {
-                    'Title': doc['title'],
-                    'Date': format_date_uk(doc['date']),
-                    'Similarity': f"{doc['similarity']:.3f}"
-                }
-                for doc in sorted(cluster['documents'], 
-                                key=lambda x: pd.to_datetime(x['date'], format='%d/%m/%Y', errors='coerce'),
-                                reverse=True)
-            ])
-            st.dataframe(docs_df, hide_index=True)
+            # Display document summaries
+            st.subheader("Document Summaries")
+            for doc in sorted(cluster['documents'], 
+                            key=lambda x: pd.to_datetime(x['date'], format='%d/%m/%Y', errors='coerce'),
+                            reverse=True):
+                with st.expander(f"{doc['title']} ({format_date_uk(doc['date'])})"):
+                    st.markdown(f"**Similarity Score:** {doc['similarity']:.3f}")
+                    st.markdown(f"**Summary:** {doc.get('summary', '')[:500]}...")
 
     
 
