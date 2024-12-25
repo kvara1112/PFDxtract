@@ -2543,34 +2543,51 @@ def render_summary_tab(cluster_results: Dict) -> None:
         
         # Key terms table
         st.markdown("#### Key Terms")
+        # Create a DataFrame for terms
         terms_df = pd.DataFrame([
             {'Term': term['term'], 
              'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
             for term in cluster['terms'][:10]
         ])
-        st.dataframe(terms_df, hide_index=True)
+        # Display terms in a styled table
+        st.dataframe(
+            terms_df,
+            hide_index=True,
+            column_config={
+                "Term": st.column_config.TextColumn("Term", width="medium"),
+                "Frequency": st.column_config.TextColumn("Frequency", width="small")
+            }
+        )
         
         # Records table with metadata only
         st.markdown("#### Records")
-        docs_df = pd.DataFrame([{
-            'Date': format_date_uk(doc.get('date', '')),
-            'Reference': doc.get('ref', ''),
-            'Deceased Name': doc.get('deceased_name', ''),
-            'Coroner Name': doc.get('coroner_name', ''),
-            'Coroner Area': doc.get('coroner_area', ''),
-            'Categories': ', '.join(doc.get('categories', [])) if isinstance(doc.get('categories', []), list) else ''
-        } for doc in cluster['documents']])
         
+        # Create DataFrame with metadata
+        metadata_records = []
+        for doc in cluster['documents']:
+            record = {
+                'Date': format_date_uk(doc.get('date_of_report', doc.get('date', ''))),
+                'Reference': doc.get('ref', ''),
+                'Deceased Name': doc.get('deceased_name', ''),
+                'Coroner Name': doc.get('coroner_name', ''),
+                'Coroner Area': doc.get('coroner_area', ''),
+                'Categories': doc.get('categories', [])
+            }
+            metadata_records.append(record)
+        
+        docs_df = pd.DataFrame(metadata_records)
+        
+        # Display metadata in a styled table
         st.dataframe(
             docs_df,
             hide_index=True,
             column_config={
-                "Date": st.column_config.TextColumn("Date"),
-                "Reference": st.column_config.TextColumn("Reference"),
-                "Deceased Name": st.column_config.TextColumn("Deceased Name"),
-                "Coroner Name": st.column_config.TextColumn("Coroner Name"),
-                "Coroner Area": st.column_config.TextColumn("Coroner Area"),
-                "Categories": st.column_config.TextColumn("Categories")
+                "Date": st.column_config.TextColumn("Date", width="small"),
+                "Reference": st.column_config.TextColumn("Reference", width="small"),
+                "Deceased Name": st.column_config.TextColumn("Deceased Name", width="medium"),
+                "Coroner Name": st.column_config.TextColumn("Coroner Name", width="medium"),
+                "Coroner Area": st.column_config.TextColumn("Coroner Area", width="medium"),
+                "Categories": st.column_config.ListColumn("Categories", width="large")
             }
         )
         
