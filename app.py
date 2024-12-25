@@ -2518,48 +2518,51 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
         logging.error(f"Display error: {str(e)}", exc_info=True)
 
 def render_summary_tab(cluster_results: Dict) -> None:
-   st.header("Cluster Summaries")
-   
-   if not cluster_results or 'clusters' not in cluster_results:
-       st.warning("No cluster results available. Please run the clustering analysis first.")
-       return
-   
-   col1, col2 = st.columns(2)
-   with col1:
-       st.metric("Total Clusters", cluster_results['n_clusters'])
-   with col2:
-       st.metric("Total Documents", cluster_results['total_documents'])
-   
-   for cluster in cluster_results['clusters']:
-       st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
-       
-       # Display abstractive summary
-       st.markdown("#### Overview") 
-       abstractive_summary = generate_abstractive_summary(
-           cluster['terms'],
-           cluster['documents']
-       )
-       st.write(abstractive_summary)
-       
-       # Display key terms table
-       st.markdown("#### Key Terms")
-       terms_df = pd.DataFrame([
-           {'Term': term['term'], 
-            'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
-           for term in cluster['terms'][:10]
-       ])
-       st.dataframe(terms_df, hide_index=True)
-       
-       # Display documents table with full record metadata
-       st.markdown("#### Records")
-       for doc in cluster['documents']:
-           # Get content field from 3rd column
-           content = doc.get('Content', 'No content available')
-           
-           with st.expander(f"📄 {doc['title']} ({format_date_uk(doc['date'])})"):
-               st.markdown(content)
-       
-       st.markdown("---")
+    st.header("Cluster Summaries")
+    
+    if not cluster_results or 'clusters' not in cluster_results:
+        st.warning("No cluster results available.")
+        return
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Clusters", cluster_results['n_clusters'])
+    with col2:
+        st.metric("Total Documents", cluster_results['total_documents'])
+    
+    for cluster in cluster_results['clusters']:
+        st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
+        
+        # Overview
+        st.markdown("#### Overview") 
+        abstractive_summary = generate_abstractive_summary(
+            cluster['terms'],
+            cluster['documents']
+        )
+        st.write(abstractive_summary)
+        
+        # Key terms table
+        st.markdown("#### Key Terms")
+        terms_df = pd.DataFrame([
+            {'Term': term['term'], 
+             'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
+            for term in cluster['terms'][:10]
+        ])
+        st.dataframe(terms_df, hide_index=True)
+        
+        # Records with Content field
+        st.markdown("#### Records")
+        docs_df = pd.DataFrame([{
+            'Title': doc.get('title', ''),
+            'Date': format_date_uk(doc.get('date', '')),
+            'Content': doc.get('Content', doc.get('summary', 'No content available'))
+        } for doc in cluster['documents']])
+        
+        for _, row in docs_df.iterrows():
+            with st.expander(f"📄 {row['Title']} ({row['Date']})"):
+                st.write(row['Content'])
+        
+        st.markdown("---")
 
 def export_cluster_results(cluster_results: Dict) -> bytes:
     """Export cluster results with proper timestamp handling"""
