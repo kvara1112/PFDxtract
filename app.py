@@ -2478,11 +2478,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             help="Minimum number of documents needed to form a thematic group"
         )
         
-        max_features = st.slider(
-            "Maximum Terms ❓", 
-            1000, 10000, 3000,
-            help="Maximum number of unique terms to consider"
-        )
+
         
         # Document frequency parameters
         total_docs = len(data)
@@ -2618,7 +2614,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             cluster_results = perform_semantic_clustering(
                 processed_df,
                 min_cluster_size=min_cluster_size,
-                max_features=max_features,
+                max_features=None,  # Consider all terms
                 min_df=min_df,
                 max_df=max_df
             )
@@ -2656,6 +2652,66 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Analysis error: {e}", exc_info=True)
 
+def main():
+    """Updated main application entry point."""
+    initialize_session_state()
+    
+    st.title("UK Judiciary PFD Reports Analysis")
+    st.markdown("""
+    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can scrape new reports, analyze existing data, and explore thematic patterns.
+    """)
+    
+    # Updated tab selection without topic modeling tab
+    current_tab = st.radio(
+        "Select section:",
+        [
+            "🔍 Scrape Reports",
+            "📊 Analysis",
+            "📝 Topic Analysis & Summaries"
+        ],
+        label_visibility="collapsed",
+        horizontal=True,
+        key="main_tab_selector"
+    )
+    
+    st.markdown("---")
+    
+    try:
+        if current_tab == "🔍 Scrape Reports":
+            render_scraping_tab()
+            
+        elif current_tab == "📊 Analysis":
+            if not validate_data_state():
+                handle_no_data_state("analysis")
+            else:
+                render_analysis_tab(st.session_state.current_data)
+        
+        elif current_tab == "📝 Topic Analysis & Summaries":
+            if not validate_data_state():
+                handle_no_data_state("topic_summary")
+            else:
+                render_topic_summary_tab(st.session_state.current_data)
+        
+        # Sidebar data management
+        with st.sidebar:
+            st.header("Data Management")
+            
+            if hasattr(st.session_state, 'data_source'):
+                st.info(f"Current data: {st.session_state.data_source}")
+            
+            if st.button("Clear All Data"):
+                for key in ['current_data', 'scraped_data', 'uploaded_data', 
+                          'topic_model', 'data_source']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.success("All data cleared")
+                st.experimental_rerun()
+        
+        render_footer()
+        
+    except Exception as e:
+        handle_error(e)
 def main():
     """Updated main application entry point."""
     initialize_session_state()
