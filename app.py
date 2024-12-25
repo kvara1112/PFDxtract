@@ -2243,13 +2243,8 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         if 'processed_content' not in data.columns:
             raise ValueError("Input data must contain 'processed_content' column")
             
-        if len(data) < 2:
-            raise ValueError(f"Need at least 2 documents for clustering, got {len(data)}")
-        
-        # Adjust minimum cluster size for small datasets    
         if len(data) < min_cluster_size * 2:
-            min_cluster_size = max(2, len(data) // 2)
-            logging.warning(f"Adjusting minimum cluster size to {min_cluster_size} due to small dataset")
+            raise ValueError(f"Not enough documents for clustering. Need at least {min_cluster_size * 2}, got {len(data)}")
             
         # Only use the processed content for the actual analysis
         texts = data['processed_content'].dropna().tolist()
@@ -2259,55 +2254,41 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         # Keep the original content and metadata only for display purposes
         display_data = data[['Title', 'date_of_report', 'Content']]
             
-        # Enhanced vectorization with error catching
-        try:
-            vectorizer = TfidfVectorizer(
-                max_features=max_features,
-                min_df=min_df,
-                max_df=max_df,
-                stop_words='english',
-                ngram_range=(1, 2)
-            )
-            
-            tfidf_matrix = vectorizer.fit_transform(texts)
-            feature_names = vectorizer.get_feature_names_out()
-            
-            if tfidf_matrix.shape[1] < 2:
-                raise ValueError("Not enough unique terms found in documents")
-                
-        except ValueError as ve:
-            if "empty vocabulary" in str(ve):
-                raise ValueError("No valid terms found after preprocessing. Try adjusting document frequency parameters.")
-            raise
+        # Enhanced vectorization
+        vectorizer = TfidfVectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=max_df,
+            stop_words='english',
+            ngram_range=(1, 2)
+        )
         
-        # Calculate optimal number of clusters based on dataset size
-        max_clusters = min(int(len(texts) * 0.4), 20, len(texts) - 1)
-        min_clusters = min(2, len(texts) - 1)
-        best_n_clusters = min_clusters
+        tfidf_matrix = vectorizer.fit_transform(texts)
+        feature_names = vectorizer.get_feature_names_out()
+        
+        # Calculate optimal number of clusters
+        max_clusters = min(int(len(texts) * 0.4), 20)
+        best_n_clusters = 2
         best_score = -1
         
-        for n_clusters in range(min_clusters, max_clusters + 1):
+        for n_clusters in range(2, max_clusters + 1):
             if len(texts) < n_clusters * min_cluster_size:
                 break
                 
-            try:
-                clustering = AgglomerativeClustering(
-                    n_clusters=n_clusters,
-                    metric='euclidean',
-                    linkage='average'
-                )
-                
-                tfidf_dense = tfidf_matrix.toarray()
-                cluster_labels = clustering.fit_predict(tfidf_dense)
-                
-                if len(set(cluster_labels)) > 1:
-                    score = silhouette_score(tfidf_dense, cluster_labels, metric='euclidean')
-                    if score > best_score:
-                        best_score = score
-                        best_n_clusters = n_clusters
-            except Exception as cluster_error:
-                logging.warning(f"Error trying {n_clusters} clusters: {cluster_error}")
-                continue
+            clustering = AgglomerativeClustering(
+                n_clusters=n_clusters,
+                metric='euclidean',
+                linkage='average'
+            )
+            
+            tfidf_dense = tfidf_matrix.toarray()
+            cluster_labels = clustering.fit_predict(tfidf_dense)
+            
+            if len(set(cluster_labels)) > 1:
+                score = silhouette_score(tfidf_dense, cluster_labels, metric='euclidean')
+                if score > best_score:
+                    best_score = score
+                    best_n_clusters = n_clusters
 
         # Final clustering
         final_clustering = AgglomerativeClustering(
@@ -2382,9 +2363,6 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                 'documents': representative_docs
             })
 
-        if not clusters:
-            raise ValueError("No valid clusters could be formed with the current parameters")
-
         return {
             'n_clusters': len(clusters),
             'total_documents': len(texts),
@@ -2394,20 +2372,8 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
-        
-        # Handle specific error cases with user-friendly messages
-        if "Need at least 2 documents" in str(e):
-            raise ValueError("Not enough valid documents to perform analysis. Please ensure you have at least 2 documents with sufficient content.")
-        elif "no valid text content" in str(e).lower():
-            raise ValueError("No valid text content found in the documents. Please check if the documents contain readable text.")
-        elif "dimension" in str(e).lower() or "unique terms" in str(e):
-            raise ValueError("The documents don't contain enough unique terms for analysis. Try adjusting the minimum document frequency or using documents with more content.")
-        elif "empty vocabulary" in str(e):
-            raise ValueError("No valid terms found after preprocessing. Try adjusting the document frequency parameters or check if the documents contain enough text.")
-        elif "No valid clusters" in str(e):
-            raise ValueError("Could not form meaningful document groups. Try adjusting the clustering parameters or using documents with more similar content.")
-        else:
-            raise ValueError(f"Analysis failed: {str(e)}\nTry adjusting the analysis parameters or using a different set of documents.")
+        raise ValueError(f"Clustering failed: {str(e)}")
+
 
 def format_date_uk(date_obj):
     """Convert datetime object to UK date format string"""
