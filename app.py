@@ -2277,12 +2277,15 @@ def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd
     return df[df['categories'].apply(matches_categories)]
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    """Topic modeling and summarization analysis using only Content column"""
     st.header("Topic Analysis & Summaries")
     
     if not isinstance(data, pd.DataFrame) or len(data) == 0:
         st.warning("No data available for analysis")
         return
+
+    # Convert date_of_report to datetime if it's not already
+    if 'date_of_report' in data.columns:
+        data['date_of_report'] = pd.to_datetime(data['date_of_report'])
         
     with st.sidebar:
         st.header("Analysis Parameters")
@@ -2293,32 +2296,43 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
         max_docs = st.slider("Maximum Document Frequency", min_docs, total_docs, int(total_docs * 0.9))
         max_df = max_docs / total_docs
 
-    # Date range selection
+    # Date range selection with proper datetime handling
+    min_date = data['date_of_report'].min()
+    max_date = data['date_of_report'].max()
+    
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input(
             "From",
-            value=data['date_of_report'].min().date(),
-            min_value=data['date_of_report'].min().date(),
-            max_value=data['date_of_report'].max().date(),
+            value=min_date.date(),
+            min_value=min_date.date(),
+            max_value=max_date.date(),
             key="analysis_start_date",
             format="DD/MM/YYYY"
         )
     with col2:
         end_date = st.date_input(
             "To",
-            value=data['date_of_report'].max().date(),
-            min_value=data['date_of_report'].min().date(),
-            max_value=data['date_of_report'].max().date(),
+            value=max_date.date(),
+            min_value=min_date.date(),
+            max_value=max_date.date(),
             key="analysis_end_date",
             format="DD/MM/YYYY"
         )
 
-    # Category selection with improved handling
+    # Category selection with proper list handling
     all_categories = set()
     for cats in data['categories'].dropna():
-        normalized = normalize_categories(cats)
-        all_categories.update(normalized)
+        try:
+            if isinstance(cats, str):
+                cat_list = eval(cats) if cats.startswith('[') else [cats]
+            elif isinstance(cats, list):
+                cat_list = cats
+            else:
+                continue
+            all_categories.update(cat_list)
+        except:
+            continue
     
     categories = st.multiselect(
         "Categories",
@@ -2329,17 +2343,23 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     if st.button("🔍 Analyze Documents", type="primary"):
         try:
             with st.spinner("Processing documents..."):
-                # Filter by date
+                # Filter by date using datetime objects
+                start_datetime = pd.Timestamp(start_date)
+                end_datetime = pd.Timestamp(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
+                
                 filtered_df = data[
-                    (data['date_of_report'].dt.date >= start_date) &
-                    (data['date_of_report'].dt.date <= end_date)
+                    (data['date_of_report'] >= start_datetime) &
+                    (data['date_of_report'] <= end_datetime)
                 ].copy()
                 
-                # Apply category filter
+                # Category filtering with proper list handling
                 if categories:
-                    filtered_df = filter_by_categories(filtered_df, categories)
+                    filtered_df = filtered_df[filtered_df['categories'].apply(
+                        lambda x: any(cat in eval(x) if isinstance(x, str) else x 
+                                    for cat in categories)
+                    )]
                 
-                # Process only Content column
+                # Process Content column
                 filtered_df['processed_content'] = filtered_df['Content'].apply(clean_text_for_modeling)
                 
                 # Remove empty content
@@ -2360,10 +2380,8 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                     max_df=max_df
                 )
                 
-                # Store results
+                # Store and display results
                 st.session_state.topic_model = cluster_results
-                
-                # Display results
                 display_cluster_analysis(cluster_results)
                 render_summary_tab(cluster_results)
                 
