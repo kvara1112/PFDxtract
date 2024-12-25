@@ -6,7 +6,7 @@ import numpy as np
 from datetime import datetime, timedelta
 import re
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup 
 import time
 import urllib3
 import io
@@ -40,6 +40,7 @@ import random
 import string
 import traceback
 from datetime import datetime
+from openpyxl.utils import get_column_letter
 
 # Configure logging
 logging.basicConfig(
@@ -1516,7 +1517,7 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
                     len(str(col))
                 )
                 adjusted_width = min(max_length + 2, 50)
-                column_letter = chr(64 + idx)
+                column_letter = get_column_letter(idx)  # Use openpyxl's get_column_letter
                 worksheet.column_dimensions[column_letter].width = adjusted_width
             
             # Add filters to header row
