@@ -2222,41 +2222,169 @@ def deduplicate_documents(data: pd.DataFrame) -> pd.DataFrame:
     
     return deduped_data
 
-def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3, 
-                             max_features: int = 5000, min_df: float = 0.01,
-                             max_df: float = 0.95) -> Dict:
-    """
-    Perform advanced semantic clustering with focus on document content
+def combine_all_content(row: pd.Series) -> str:
+    """Combine all text content from a document including PDFs"""
+    content_parts = []
     
-    Args:
-        data: DataFrame containing at least 'processed_content' column
-        min_cluster_size: Minimum number of documents per cluster
-        max_features: Maximum number of terms to consider
-        min_df: Minimum document frequency (as fraction)
-        max_df: Maximum document frequency (as fraction)
-    """
-    try:
-        # Initialize NLTK resources
-        initialize_nltk()
+    # Add main content
+    if pd.notna(row.get('Content')):
+        content_parts.append(str(row['Content']))
+    
+    # Add title for context
+    if pd.notna(row.get('Title')):
+        content_parts.append(str(row['Title']))
+    
+    # Add PDF contents
+    pdf_columns = [col for col in row.index if col.startswith('PDF_') and col.endswith('_Content')]
+    for pdf_col in pdf_columns:
+        if pd.notna(row[pdf_col]):
+            content_parts.append(str(row[pdf_col]))
+    
+    return ' '.join(content_parts)
+
+def normalize_categories(categories) -> List[str]:
+    """Normalize category strings to standardized format"""
+    if pd.isna(categories):
+        return []
         
-        # Validate input data
+    if isinstance(categories, str):
+        # Handle string representation of list
+        if categories.startswith('[') and categories.endswith(']'):
+            try:
+                categories = eval(categories)
+            except:
+                return []
+    
+    if isinstance(categories, list):
+        return [str(cat).lower().strip() for cat in categories]
+    
+    return []
+
+def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd.DataFrame:
+    """Filter DataFrame based on normalized categories"""
+    if not selected_categories:
+        return df
+        
+    selected_categories = [cat.lower().strip() for cat in selected_categories]
+    
+    def matches_categories(row_categories):
+        normalized = normalize_categories(row_categories)
+        return any(
+            any(selected.lower() in cat.lower() for cat in normalized)
+            for selected in selected_categories
+        )
+    
+    return df[df['categories'].apply(matches_categories)]
+
+def render_topic_summary_tab(data: pd.DataFrame) -> None:
+    """Topic modeling and summarization analysis using only Content column"""
+    st.header("Topic Analysis & Summaries")
+    
+    if not isinstance(data, pd.DataFrame) or len(data) == 0:
+        st.warning("No data available for analysis")
+        return
+        
+    with st.sidebar:
+        st.header("Analysis Parameters")
+        min_cluster_size = st.slider("Minimum Group Size", 2, 5, 2)
+        total_docs = len(data)
+        min_docs = st.slider("Minimum Document Frequency", 2, max(2, total_docs//2), 5)
+        min_df = min_docs / total_docs
+        max_docs = st.slider("Maximum Document Frequency", min_docs, total_docs, int(total_docs * 0.9))
+        max_df = max_docs / total_docs
+
+    # Date range selection
+    col1, col2 = st.columns(2)
+    with col1:
+        start_date = st.date_input(
+            "From",
+            value=data['date_of_report'].min().date(),
+            min_value=data['date_of_report'].min().date(),
+            max_value=data['date_of_report'].max().date(),
+            key="analysis_start_date",
+            format="DD/MM/YYYY"
+        )
+    with col2:
+        end_date = st.date_input(
+            "To",
+            value=data['date_of_report'].max().date(),
+            min_value=data['date_of_report'].min().date(),
+            max_value=data['date_of_report'].max().date(),
+            key="analysis_end_date",
+            format="DD/MM/YYYY"
+        )
+
+    # Category selection with improved handling
+    all_categories = set()
+    for cats in data['categories'].dropna():
+        normalized = normalize_categories(cats)
+        all_categories.update(normalized)
+    
+    categories = st.multiselect(
+        "Categories",
+        options=sorted(all_categories),
+        key="analysis_categories"
+    )
+
+    if st.button("🔍 Analyze Documents", type="primary"):
+        try:
+            with st.spinner("Processing documents..."):
+                # Filter by date
+                filtered_df = data[
+                    (data['date_of_report'].dt.date >= start_date) &
+                    (data['date_of_report'].dt.date <= end_date)
+                ].copy()
+                
+                # Apply category filter
+                if categories:
+                    filtered_df = filter_by_categories(filtered_df, categories)
+                
+                # Process only Content column
+                filtered_df['processed_content'] = filtered_df['Content'].apply(clean_text_for_modeling)
+                
+                # Remove empty content
+                filtered_df = filtered_df[
+                    filtered_df['processed_content'].notna() & 
+                    (filtered_df['processed_content'].str.strip() != '')
+                ]
+                
+                if len(filtered_df) < min_cluster_size:
+                    st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
+                    return
+                
+                # Perform clustering
+                cluster_results = perform_semantic_clustering(
+                    filtered_df,
+                    min_cluster_size=min_cluster_size,
+                    min_df=min_df,
+                    max_df=max_df
+                )
+                
+                # Store results
+                st.session_state.topic_model = cluster_results
+                
+                # Display results
+                display_cluster_analysis(cluster_results)
+                render_summary_tab(cluster_results)
+                
+        except Exception as e:
+            st.error(f"Analysis error: {str(e)}")
+            logging.error(f"Analysis error: {e}", exc_info=True)
+
+def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
+                             min_df: float = 0.01, max_df: float = 0.95) -> Dict:
+    """Perform semantic clustering on document content"""
+    try:
+        # Validate input
         if 'processed_content' not in data.columns:
             raise ValueError("Input data must contain 'processed_content' column")
-            
-        if len(data) < min_cluster_size * 2:
-            raise ValueError(f"Not enough documents for clustering. Need at least {min_cluster_size * 2}, got {len(data)}")
-            
-        # Only use the processed content for the actual analysis
-        texts = data['processed_content'].dropna().tolist()
-        if not texts:
-            raise ValueError("No valid text content found after preprocessing")
         
-        # Keep the original content and metadata only for display purposes
-        display_data = data[['Title', 'date_of_report', 'Content']]
-            
-        # Enhanced vectorization
+        texts = data['processed_content'].dropna().tolist()
+        if len(texts) < min_cluster_size * 2:
+            raise ValueError(f"Not enough documents for clustering")
+        
+        # Vectorization
         vectorizer = TfidfVectorizer(
-            max_features=max_features,
             min_df=min_df,
             max_df=max_df,
             stop_words='english',
@@ -2266,7 +2394,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         tfidf_matrix = vectorizer.fit_transform(texts)
         feature_names = vectorizer.get_feature_names_out()
         
-        # Calculate optimal number of clusters
+        # Calculate optimal clusters
         max_clusters = min(int(len(texts) * 0.4), 20)
         best_n_clusters = 2
         best_score = -1
@@ -2281,15 +2409,14 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                 linkage='average'
             )
             
-            tfidf_dense = tfidf_matrix.toarray()
-            cluster_labels = clustering.fit_predict(tfidf_dense)
+            cluster_labels = clustering.fit_predict(tfidf_matrix.toarray())
             
             if len(set(cluster_labels)) > 1:
-                score = silhouette_score(tfidf_dense, cluster_labels, metric='euclidean')
+                score = silhouette_score(tfidf_matrix.toarray(), cluster_labels)
                 if score > best_score:
                     best_score = score
                     best_n_clusters = n_clusters
-
+        
         # Final clustering
         final_clustering = AgglomerativeClustering(
             n_clusters=best_n_clusters,
@@ -2299,70 +2426,61 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         
         final_labels = final_clustering.fit_predict(tfidf_matrix.toarray())
         similarity_matrix = cosine_similarity(tfidf_matrix)
-
-        # Extract cluster information
+        
+        # Extract clusters
         clusters = []
         for cluster_id in range(best_n_clusters):
-            cluster_doc_indices = np.where(final_labels == cluster_id)[0]
+            cluster_indices = np.where(final_labels == cluster_id)[0]
             
-            if len(cluster_doc_indices) < min_cluster_size:
+            if len(cluster_indices) < min_cluster_size:
                 continue
-            
-            # Calculate cluster terms
-            cluster_tfidf = tfidf_matrix[cluster_doc_indices].toarray()
+                
+            cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
             centroid = cluster_tfidf.mean(axis=0)
             
-            # Get top terms
-            top_term_indices = centroid.argsort()[-20:][::-1]
-            cluster_terms = []
-            
-            for idx in top_term_indices:
+            # Get terms
+            top_terms = []
+            for idx in centroid.argsort()[:-20-1:-1]:
                 if centroid[idx] > 0:
                     term = feature_names[idx]
-                    cluster_freq = np.mean(cluster_tfidf[:, idx] > 0)
+                    freq = np.mean(cluster_tfidf[:, idx] > 0)
                     total_freq = np.mean(tfidf_matrix[:, idx].toarray() > 0)
-                    relevance = cluster_freq * np.log2(cluster_freq / total_freq + 1)
+                    relevance = freq * np.log2(freq / total_freq + 1)
                     
-                    cluster_terms.append({
+                    top_terms.append({
                         'term': term,
                         'relevance': float(relevance),
-                        'cluster_frequency': float(cluster_freq),
+                        'cluster_frequency': float(freq),
                         'total_frequency': float(total_freq)
                     })
-
+            
             # Get representative documents
-            doc_similarities = []
-            for doc_idx in cluster_doc_indices:
-                doc_vector = tfidf_matrix[doc_idx].toarray().flatten()
-                sim_to_centroid = cosine_similarity(
-                    doc_vector.reshape(1, -1),
-                    centroid.reshape(1, -1)
+            docs = []
+            for idx in cluster_indices:
+                similarity = cosine_similarity(
+                    tfidf_matrix[idx:idx+1],
+                    tfidf_matrix[cluster_indices].mean(axis=0).reshape(1, -1)
                 )[0][0]
                 
-                doc_info = {
-                    'title': data.iloc[doc_idx].get('Title', ''),
-                    'date': data.iloc[doc_idx].get('date_of_report', ''),
-                    'similarity': float(sim_to_centroid),
-                    'summary': texts[doc_idx][:500]  # Using preprocessed text for summary
-                }
-                doc_similarities.append((doc_idx, sim_to_centroid, doc_info))
-
-            # Sort by similarity and get top documents
-            doc_similarities.sort(key=lambda x: x[1], reverse=True)
-            representative_docs = [item[2] for item in doc_similarities[:5]]
-
-            # Calculate cluster cohesion
-            cluster_similarities = similarity_matrix[cluster_doc_indices][:, cluster_doc_indices]
-            cohesion = float(np.mean(cluster_similarities))
-
+                docs.append({
+                    'title': data.iloc[idx]['Title'],
+                    'date': data.iloc[idx]['date_of_report'],
+                    'similarity': float(similarity),
+                    'summary': texts[idx][:500]
+                })
+            
+            # Sort docs by similarity
+            docs.sort(key=lambda x: x['similarity'], reverse=True)
+            docs = docs[:5]  # Keep top 5
+            
             clusters.append({
                 'id': cluster_id,
-                'size': len(cluster_doc_indices),
-                'cohesion': cohesion,
-                'terms': cluster_terms,
-                'documents': representative_docs
+                'size': len(cluster_indices),
+                'cohesion': float(similarity_matrix[cluster_indices][:, cluster_indices].mean()),
+                'terms': top_terms,
+                'documents': docs
             })
-
+        
         return {
             'n_clusters': len(clusters),
             'total_documents': len(texts),
@@ -2371,9 +2489,8 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         }
         
     except Exception as e:
-        logging.error(f"Error in semantic clustering: {e}", exc_info=True)
-        raise ValueError(f"Clustering failed: {str(e)}")
-
+        logging.error(f"Clustering error: {e}", exc_info=True)
+        raise
 
 def format_date_uk(date_obj):
     """Convert datetime object to UK date format string"""
@@ -2671,213 +2788,7 @@ def render_footer():
     )
 
 
-def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    """Combined topic modeling and summarization analysis focusing only on content."""
-    st.header("Topic Analysis & Summaries")
-    st.markdown("""
-    This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
-    and generating summaries for each thematic group.
-    """)
 
-    if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
-        st.sidebar.success("Previous analysis results available")
-        
-        if st.sidebar.button("View Previous Results"):
-            display_cluster_analysis(st.session_state.topic_model)
-            render_summary_tab(st.session_state.topic_model)
-            return
-
-    with st.sidebar:
-        st.header("Analysis Parameters")
-        
-        # Clustering parameters
-        min_cluster_size = st.slider(
-            "Minimum Group Size ❓", 
-            2, 5, 2,
-            help="Minimum number of documents needed to form a thematic group"
-        )
-        
-
-        
-        # Document frequency parameters
-        total_docs = len(data)
-        min_docs = st.slider(
-            "Minimum Document Frequency ❓", 
-            2, max(2, total_docs//2), 5,
-            help="How many documents a term must appear in"
-        )
-        min_df = min_docs / total_docs
-        
-        max_docs = st.slider(
-            "Maximum Document Frequency ❓", 
-            min_docs, total_docs, int(total_docs * 0.9),
-            help="Maximum number of documents a term can appear in"
-        )
-        max_df = max_docs / total_docs
-
-    # Date range selection
-    col1, col2 = st.columns(2)
-    with col1:
-        start_date = st.date_input(
-            "From",
-            value=data['date_of_report'].min().date(),
-            min_value=data['date_of_report'].min().date(),
-            max_value=data['date_of_report'].max().date(),
-            key="analysis_start_date",
-            format="DD/MM/YYYY"
-        )
-
-    with col2:
-        end_date = st.date_input(
-            "To",
-            value=data['date_of_report'].max().date(),
-            min_value=data['date_of_report'].min().date(),
-            max_value=data['date_of_report'].max().date(),
-            key="analysis_end_date",
-            format="DD/MM/YYYY"
-        )
-        
-        # Get unique categories
-        all_categories = set()
-        for cats in data['categories'].dropna():
-            if isinstance(cats, list):
-                all_categories.update(cats)
-        
-        categories = st.multiselect(
-            "Categories ❓",
-            options=sorted(all_categories),
-            key="analysis_categories",
-            help="Specific categories to analyze"
-        )
-
-    analyze_col1, analyze_col2 = st.columns([3, 1])
-    with analyze_col1:
-        analyze_clicked = st.button("🔍 Analyze Documents", type="primary", use_container_width=True)
-    with analyze_col2:
-        show_details = st.checkbox(
-            "Show Process Details ❓", 
-            value=False,
-            help="Show additional information about the analysis process"
-        )
-
-    if analyze_clicked:
-        try:
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            
-            with st.spinner("Initializing..."):
-                initialize_nltk()
-                progress_bar.progress(0.1)
-                status_text.text("Initialized resources...")
-
-            # Filter data - only keep essential columns
-            filtered_df = data[['Content', 'date_of_report', 'Title', 'categories']].copy()
-            status_text.text("Applying filters...")
-            progress_bar.progress(0.2)
-            
-            # Apply date filter
-            filtered_df = filtered_df[
-                (filtered_df['date_of_report'].dt.date >= start_date) &
-                (filtered_df['date_of_report'].dt.date <= end_date)
-            ]
-            
-            progress_bar.progress(0.4)
-            status_text.text("Processing categories...")
-
-            # Apply category filter
-            if categories:
-                filtered_df = filtered_df[
-                    filtered_df['categories'].apply(
-                        lambda x: bool(x) and any(cat in x for cat in categories)
-                    )
-                ]
-            
-            # Remove any rows where Content is empty or NaN
-            filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
-            
-            if len(filtered_df) < min_cluster_size:
-                progress_bar.empty()
-                status_text.empty()
-                st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
-                return
-            
-            # Remove the analyzing message
-            
-            if show_details:
-                st.write("Documents being analyzed:")
-                st.dataframe(
-                    filtered_df[['Title', 'date_of_report', 'categories']],
-                    column_config={
-                        "date_of_report": st.column_config.DateColumn("Date", format="DD/MM/YYYY"),
-                        "categories": st.column_config.ListColumn("Categories")
-                    },
-                    hide_index=True
-                )
-            
-            progress_bar.progress(0.6)
-            status_text.text("Starting thematic analysis...")
-            
-            # Process content for analysis
-            processed_texts = filtered_df['Content'].apply(clean_text_for_modeling)
-            valid_indices = processed_texts[processed_texts.notna() & (processed_texts != '')].index
-            
-            processed_df = pd.DataFrame({
-                'Content': filtered_df.loc[valid_indices, 'Content'],
-                'processed_content': processed_texts[valid_indices],
-                'Title': filtered_df.loc[valid_indices, 'Title'],
-                'date_of_report': filtered_df.loc[valid_indices, 'date_of_report']
-            })
-            
-            # Perform clustering
-            cluster_results = perform_semantic_clustering(
-                processed_df,
-                min_cluster_size=min_cluster_size,
-                max_features=None,  # Consider all terms
-                min_df=min_df,
-                max_df=max_df
-            )
-            
-            # Store results
-            st.session_state.topic_model = cluster_results
-            
-            progress_bar.progress(0.8)
-            status_text.text("Generating summaries...")
-            
-            # Display results
-            st.markdown("## Analysis Results")
-            
-            # Overview metrics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Thematic Groups", cluster_results['n_clusters'])
-            with col2:
-                st.metric("Total Documents", cluster_results['total_documents'])
-            with col3:
-                st.metric("Analysis Quality", f"{cluster_results['silhouette_score']:.3f}")
-
-            # Add explanation of similarity score
-            st.info("""
-            **Understanding Similarity Scores:**
-            - Similarity percentage shows how closely a document matches the overall theme of its group
-            - 100% would mean perfect alignment with the theme
-            - Higher percentages (>70%) indicate strong thematic alignment
-            - Lower percentages suggest the document shares some but not all aspects of the theme
-            """)
-            
-            # Display summaries
-            render_summary_tab(cluster_results)
-            
-            progress_bar.progress(1.0)
-            status_text.empty()
-            progress_bar.empty()
-            
-        except Exception as e:
-            progress_bar.empty()
-            status_text.empty()
-            st.error(f"Analysis error: {str(e)}")
-            if show_details:
-                st.error(f"Detailed error: {traceback.format_exc()}")
-            logging.error(f"Analysis error: {e}", exc_info=True)
 
 def main():
     """Updated main application entry point."""
