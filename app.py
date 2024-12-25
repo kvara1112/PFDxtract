@@ -2535,36 +2535,48 @@ def render_summary_tab(cluster_results: Dict) -> None:
         st.metric("Total Documents", cluster_results['total_documents'])
         
     for cluster in cluster_results['clusters']:
-        with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
-            # Display cluster overview
-            st.subheader("Overview")
-            abstractive_summary = generate_abstractive_summary(
-                cluster['terms'],
-                cluster['documents']
-            )
-            st.write(abstractive_summary)
-            
-            # Display key terms
-            st.subheader("Key Terms")
-            terms_df = pd.DataFrame([
-                {
-                    'Term': term['term'],
-                    'Frequency': f"{term['cluster_frequency']*100:.1f}%",
-                    'Relevance Score': f"{term['relevance']:.3f}"
-                }
-                for term in cluster['terms'][:10]
-            ])
-            st.dataframe(terms_df, hide_index=True)
-            
-            # Display document summaries
-            st.subheader("Document Summaries")
+        st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
+        
+        # Display cluster overview
+        st.subheader("Overview")
+        abstractive_summary = generate_abstractive_summary(
+            cluster['terms'],
+            cluster['documents']
+        )
+        st.write(abstractive_summary)
+        
+        # Display key terms
+        st.subheader("Key Terms")
+        terms_df = pd.DataFrame([
+            {
+                'Term': term['term'],
+                'Frequency': f"{term['cluster_frequency']*100:.1f}%",
+                'Relevance Score': f"{term['relevance']:.3f}"
+            }
+            for term in cluster['terms'][:10]
+        ])
+        st.dataframe(terms_df, hide_index=True)
+        
+        # Display document summaries
+        st.subheader("Document Summaries")
+        docs_df = pd.DataFrame([
+            {
+                'Title': doc['title'],
+                'Date': format_date_uk(doc['date']),
+                'Similarity': f"{doc['similarity']:.3f}",
+                'Summary': doc.get('summary', '')[:500]
+            }
             for doc in sorted(cluster['documents'], 
                             key=lambda x: pd.to_datetime(x['date'], format='%d/%m/%Y', errors='coerce'),
-                            reverse=True):
-                with st.expander(f"{doc['title']} ({format_date_uk(doc['date'])})"):
-                    st.markdown(f"**Similarity Score:** {doc['similarity']:.3f}")
-                    st.markdown(f"**Summary:** {doc.get('summary', '')[:500]}...")
-
+                            reverse=True)
+        ])
+        st.dataframe(docs_df, hide_index=True, column_config={
+            'Date': st.column_config.TextColumn('Date'),
+            'Similarity': st.column_config.TextColumn('Similarity Score'),
+            'Summary': st.column_config.TextColumn('Summary', width='large')
+        })
+        
+        st.markdown("---")
     
 
 
