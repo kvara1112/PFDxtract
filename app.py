@@ -232,11 +232,29 @@ def extract_metadata(content: str) -> dict:
         if area_match:
             metadata['coroner_area'] = clean_text(area_match.group(1)).strip()
         
-        # Extract categories
+        # Extract categories with exact matching
+        valid_categories = set(get_pfd_categories())
         cat_match = re.search(r'Category:?\s*([^\n]+)', content)
         if cat_match:
-            categories = cat_match.group(1).split('|')
-            metadata['categories'] = [clean_text(cat).strip() for cat in categories if clean_text(cat).strip()]
+            raw_categories = cat_match.group(1).split('|')
+            processed_categories = []
+            
+            for cat in raw_categories:
+                # Clean the category text
+                cleaned_cat = clean_text(cat).strip()
+                
+                # Try exact match first
+                if cleaned_cat in valid_categories:
+                    processed_categories.append(cleaned_cat)
+                    continue
+                    
+                # If no exact match, try to find the category without extra text
+                for valid_cat in valid_categories:
+                    if cleaned_cat.startswith(valid_cat):
+                        processed_categories.append(valid_cat)
+                        break
+                        
+            metadata['categories'] = list(set(processed_categories))  # Remove duplicates
         
         return metadata
         
