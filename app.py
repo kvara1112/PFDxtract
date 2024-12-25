@@ -2518,7 +2518,6 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
         logging.error(f"Display error: {str(e)}", exc_info=True)
 
 def render_summary_tab(cluster_results: Dict) -> None:
-    """Render the cluster summaries tab with improved document display"""
     st.header("Cluster Summaries")
     
     if not cluster_results or 'clusters' not in cluster_results:
@@ -2532,38 +2531,54 @@ def render_summary_tab(cluster_results: Dict) -> None:
         st.metric("Total Documents", cluster_results['total_documents'])
         
     for cluster in cluster_results['clusters']:
-        with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
-            # Display abstractive summary
-            st.subheader("Overview")
-            abstractive_summary = generate_abstractive_summary(
-                cluster['terms'],
-                cluster['documents']
-            )
-            st.write(abstractive_summary)
-            
-            # Display key terms
-            st.subheader("Key Terms")
-            terms_df = pd.DataFrame([
-                {'Term': term['term'], 
-                 'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
-                for term in cluster['terms'][:10]
-            ])
-            st.dataframe(terms_df, hide_index=True)
-            
-            # Display documents in a more readable format
-            st.subheader("Documents in this Cluster")
-            for doc in cluster['documents']:
-                with st.expander(f"📄 {doc['title']} ({format_date_uk(doc['date'])})", expanded=False):
-                    st.markdown("**Similarity Score**: {:.1%}".format(doc['similarity']))
-                    st.markdown("**Document Content:**")
-                    
-                    # Split content into paragraphs for better readability
-                    paragraphs = doc['summary'].split('\n')
-                    for para in paragraphs:
-                        if para.strip():
-                            st.write(para.strip())
-
-    
+        st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
+        
+        # Display abstractive summary
+        st.markdown("#### Overview")
+        abstractive_summary = generate_abstractive_summary(
+            cluster['terms'],
+            cluster['documents']
+        )
+        st.write(abstractive_summary)
+        
+        # Display key terms in columns
+        st.markdown("#### Key Terms")
+        term_cols = st.columns(2)
+        terms_data = [
+            {'Term': term['term'], 
+             'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
+            for term in cluster['terms'][:10]
+        ]
+        with term_cols[0]:
+            st.markdown("**Term**")
+            for term in terms_data:
+                st.write(term['Term'])
+        with term_cols[1]:
+            st.markdown("**Frequency**")
+            for term in terms_data:
+                st.write(term['Frequency'])
+        
+        # Display documents in a tabbed interface
+        st.markdown("#### Documents")
+        doc_tabs = st.tabs([f"Document {i+1}" for i in range(len(cluster['documents']))])
+        
+        for doc, tab in zip(cluster['documents'], doc_tabs):
+            with tab:
+                st.markdown(f"**{doc['title']}**")
+                st.markdown(f"**Date:** {format_date_uk(doc['date'])}")
+                st.markdown(f"**Similarity Score:** {doc['similarity']:.1%}")
+                st.markdown("**Content:**")
+                
+                # Split and display content in a scrollable container
+                paragraphs = doc['summary'].split('\n')
+                content_html = "<div style='max-height: 300px; overflow-y: auto; padding: 10px; border: 1px solid #ccc; border-radius: 5px;'>"
+                for para in paragraphs:
+                    if para.strip():
+                        content_html += f"<p>{para.strip()}</p>"
+                content_html += "</div>"
+                st.markdown(content_html, unsafe_allow_html=True)
+        
+        st.markdown("---")
 
 
 def export_cluster_results(cluster_results: Dict) -> bytes:
