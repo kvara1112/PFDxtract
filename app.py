@@ -2545,35 +2545,39 @@ def render_summary_tab(cluster_results: Dict) -> None:
             st.subheader("Overview")
             st.write(abstractive_summary)
             
-            # Display key terms
+            # Display key terms in a table
             st.subheader("Key Terms")
             terms_df = pd.DataFrame([
-                {'Term': term['term'], 
-                 'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
+                {
+                    'Term': term['term'],
+                    'Frequency': f"{term['cluster_frequency']*100:.1f}%",
+                    'Relevance Score': f"{term['relevance']:.3f}"
+                }
                 for term in cluster['terms'][:10]
             ])
             st.dataframe(terms_df, hide_index=True)
             
-            # Display extractive summary with traceability
+            # Display extractive summary with sources
             st.subheader("Key Excerpts")
             for idx, sentence in enumerate(extractive_summary, 1):
-                with st.container():
-                    st.markdown(f"{idx}. {sentence['text']}")
-                    with st.expander("Source Details"):
-                        st.markdown(f"- **Document**: {sentence['source']}")
-                        st.markdown(f"- **Date**: {sentence['date']}")
-                        st.markdown(f"- **Relevance Score**: {sentence['score']:.3f}")
+                st.markdown(f"**Excerpt {idx}:**")
+                st.markdown(f"*{sentence['text']}*")
+                st.markdown(f"Source: {sentence['source']} ({sentence['date']}) - Relevance: {sentence['score']:.3f}")
+                st.markdown("---")
             
-            # Display document list with formatted dates
+            # Display document list
             st.subheader("Source Documents")
             docs_df = pd.DataFrame([
-                {'Title': doc['title'],
-                 'Date': format_date_uk(doc['date']),
-                 'Similarity': f"{doc['similarity']:.2f}"}
-                for doc in cluster['documents']
+                {
+                    'Title': doc['title'],
+                    'Date': format_date_uk(doc['date']),
+                    'Similarity': f"{doc['similarity']:.3f}"
+                }
+                for doc in sorted(cluster['documents'], 
+                                key=lambda x: pd.to_datetime(x['date'], format='%d/%m/%Y', errors='coerce'),
+                                reverse=True)
             ])
             st.dataframe(docs_df, hide_index=True)
-
 
     
 
