@@ -2524,11 +2524,8 @@ def render_summary_tab(cluster_results: Dict) -> None:
         st.warning("No cluster results available.")
         return
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Total Clusters", cluster_results['n_clusters'])
-    with col2:
-        st.metric("Total Documents", cluster_results['total_documents'])
+    # Metrics
+    st.write(f"Found {cluster_results['total_documents']} total documents in {cluster_results['n_clusters']} clusters")
     
     for cluster in cluster_results['clusters']:
         st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
@@ -2552,28 +2549,28 @@ def render_summary_tab(cluster_results: Dict) -> None:
         
         # Records table
         st.markdown("#### Records")
-        
-        # Convert document data to DataFrame, preserving all fields
+        st.success(f"Showing {len(cluster['documents'])} matching documents")
+
+        # Create DataFrame with all documents in cluster
         cluster_docs = []
         for doc in cluster['documents']:
-            # Extract all available fields from the original data
-            cluster_docs.append({
-                'Title': doc.get('title', ''),
-                'URL': doc.get('url', ''),
-                'date_of_report': doc.get('date', pd.NaT),  # Handle missing dates
+            record = {
+                'URL': doc.get('URL', ''),
+                'Title': doc.get('Title', ''),
+                'date_of_report': doc.get('date_of_report', pd.NaT),
                 'ref': doc.get('ref', ''),
                 'deceased_name': doc.get('deceased_name', ''),
                 'coroner_name': doc.get('coroner_name', ''),
                 'coroner_area': doc.get('coroner_area', ''),
                 'categories': doc.get('categories', [])
-            })
+            }
+            cluster_docs.append(record)
         
-        # Create DataFrame and ensure datetime format for date
         docs_df = pd.DataFrame(cluster_docs)
         if 'date_of_report' in docs_df.columns:
             docs_df['date_of_report'] = pd.to_datetime(docs_df['date_of_report'])
-        
-        # Display with analysis tab configuration
+
+        # Display the dataframe exactly as in analysis tab
         st.dataframe(
             docs_df,
             column_config={
@@ -2588,10 +2585,9 @@ def render_summary_tab(cluster_results: Dict) -> None:
                 "coroner_area": st.column_config.TextColumn("Coroner Area"),
                 "categories": st.column_config.ListColumn("Categories")
             },
-            hide_index=True
+            hide_index=True,
+            use_container_width=True
         )
-        
-        st.markdown("---")
 
 def export_cluster_results(cluster_results: Dict) -> bytes:
     """Export cluster results with proper timestamp handling"""
