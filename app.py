@@ -171,7 +171,7 @@ def clean_text(text: str) -> str:
         return ""
 
 def extract_metadata(content: str) -> dict:
-    """Extract structured metadata from report content with improved category handling"""
+    """Extract structured metadata from report content"""
     metadata = {
         'date_of_report': None,
         'ref': None,
@@ -185,46 +185,7 @@ def extract_metadata(content: str) -> dict:
         return metadata
         
     try:
-        # Get valid categories for exact matching
-        valid_categories = set(get_pfd_categories())
-        
-        # Extract categories with multiple approaches
-        categories = set()
-        
-        # Pattern 1: Standard category format
-        cat_matches = re.finditer(r'Category:?\s*([^|\n]+)(?:\||$)', content, re.IGNORECASE)
-        for match in cat_matches:
-            raw_category = clean_text(match.group(1)).strip()
-            categories.update(process_raw_category(raw_category, valid_categories))
-        
-        # Pattern 2: Categories in list format
-        list_matches = re.finditer(r'Categories?:?\s*(?:\n|\s)*(?:[-•*]\s*([^\n]+))+', content, re.IGNORECASE)
-        for match in list_matches:
-            list_section = match.group(0)
-            list_items = re.findall(r'[-•*]\s*([^\n]+)', list_section)
-            for item in list_items:
-                raw_category = clean_text(item).strip()
-                categories.update(process_raw_category(raw_category, valid_categories))
-        
-        # Pattern 3: Categories with line breaks
-        line_matches = re.finditer(r'Categories?:?\s*\n\s*([^\n]+)', content, re.IGNORECASE)
-        for match in line_matches:
-            raw_category = clean_text(match.group(1)).strip()
-            categories.update(process_raw_category(raw_category, valid_categories))
-        
-        # Pattern 4: Inline categories with different separators
-        inline_matches = re.finditer(r'Categories?:?\s*([^|\n]+(?:\||,|\sand\s)[^|\n]+)', content, re.IGNORECASE)
-        for match in inline_matches:
-            raw_categories = re.split(r'\||,|\sand\s', match.group(1))
-            for raw_cat in raw_categories:
-                raw_category = clean_text(raw_cat).strip()
-                categories.update(process_raw_category(raw_category, valid_categories))
-        
-        # Store unique valid categories
-        metadata['categories'] = list(categories)
-        
-        # Extract other metadata (keeping existing extraction logic)
-        # Date patterns
+        # Extract date patterns
         date_patterns = [
             r'Date of report:\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]+\s+\d{4})',
             r'Date of report:\s*(\d{1,2}/\d{1,2}/\d{4})',
@@ -252,17 +213,17 @@ def extract_metadata(content: str) -> dict:
                 except ValueError as e:
                     logging.warning(f"Invalid date format found: {date_str} - {e}")
         
-        # Reference number
+        # Extract reference number
         ref_match = re.search(r'Ref(?:erence)?:?\s*([-\d]+)', content)
         if ref_match:
             metadata['ref'] = ref_match.group(1).strip()
         
-        # Deceased name
+        # Extract deceased name
         name_match = re.search(r'Deceased name:?\s*([^\n]+)', content)
         if name_match:
             metadata['deceased_name'] = clean_text(name_match.group(1)).strip()
         
-        # Coroner details
+        # Extract coroner details
         coroner_match = re.search(r'Coroner(?:\'?s)? name:?\s*([^\n]+)', content)
         if coroner_match:
             metadata['coroner_name'] = clean_text(coroner_match.group(1)).strip()
@@ -271,41 +232,17 @@ def extract_metadata(content: str) -> dict:
         if area_match:
             metadata['coroner_area'] = clean_text(area_match.group(1)).strip()
         
+        # Extract categories
+        cat_match = re.search(r'Category:?\s*([^\n]+)', content)
+        if cat_match:
+            categories = cat_match.group(1).split('|')
+            metadata['categories'] = [clean_text(cat).strip() for cat in categories if clean_text(cat).strip()]
+        
         return metadata
         
     except Exception as e:
         logging.error(f"Error extracting metadata: {e}")
         return metadata
-
-def process_raw_category(raw_category: str, valid_categories: set) -> set:
-    """Process a raw category string and return matching valid categories"""
-    processed_categories = set()
-    
-    if not raw_category:
-        return processed_categories
-    
-    # Clean the category text
-    cleaned_cat = raw_category.strip()
-    
-    # Try exact match first
-    if cleaned_cat in valid_categories:
-        processed_categories.add(cleaned_cat)
-        return processed_categories
-    
-    # Try fuzzy matching for each valid category
-    for valid_cat in valid_categories:
-        # Check if the valid category is contained within the raw text
-        if valid_cat.lower() in cleaned_cat.lower():
-            processed_categories.add(valid_cat)
-            continue
-            
-        # Check if key words from the valid category appear in the raw text
-        valid_words = set(valid_cat.lower().split())
-        raw_words = set(cleaned_cat.lower().split())
-        if len(valid_words.intersection(raw_words)) >= len(valid_words) // 2:
-            processed_categories.add(valid_cat)
-    
-    return processed_categories
 
 def get_pfd_categories() -> List[str]:
     """Get all available PFD report categories"""
