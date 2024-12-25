@@ -2550,17 +2550,29 @@ def render_summary_tab(cluster_results: Dict) -> None:
         ])
         st.dataframe(terms_df, hide_index=True)
         
-        # Records with Content field
+        # Records table with metadata only
         st.markdown("#### Records")
         docs_df = pd.DataFrame([{
-            'Title': doc.get('title', ''),
             'Date': format_date_uk(doc.get('date', '')),
-            'Content': doc.get('Content', doc.get('summary', 'No content available'))
+            'Reference': doc.get('ref', ''),
+            'Deceased Name': doc.get('deceased_name', ''),
+            'Coroner Name': doc.get('coroner_name', ''),
+            'Coroner Area': doc.get('coroner_area', ''),
+            'Categories': ', '.join(doc.get('categories', [])) if isinstance(doc.get('categories', []), list) else ''
         } for doc in cluster['documents']])
         
-        for _, row in docs_df.iterrows():
-            with st.expander(f"📄 {row['Title']} ({row['Date']})"):
-                st.write(row['Content'])
+        st.dataframe(
+            docs_df,
+            hide_index=True,
+            column_config={
+                "Date": st.column_config.TextColumn("Date"),
+                "Reference": st.column_config.TextColumn("Reference"),
+                "Deceased Name": st.column_config.TextColumn("Deceased Name"),
+                "Coroner Name": st.column_config.TextColumn("Coroner Name"),
+                "Coroner Area": st.column_config.TextColumn("Coroner Area"),
+                "Categories": st.column_config.TextColumn("Categories")
+            }
+        )
         
         st.markdown("---")
 
