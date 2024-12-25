@@ -2453,10 +2453,10 @@ def generate_abstractive_summary(cluster_terms, documents, max_length=500):
         return "Error generating summary"
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    """Combined topic modeling and summarization analysis."""
+    """Combined topic modeling and summarization analysis focusing only on content."""
     st.header("Topic Analysis & Summaries")
     st.markdown("""
-    This analysis identifies key themes and patterns in the reports, automatically clustering similar documents
+    This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
     and generating summaries for each thematic group.
     """)
 
@@ -2511,14 +2511,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             key="analysis_start_date",
             format="DD/MM/YYYY"
         )
-        
-        doc_type = st.multiselect(
-            "Document Type ❓",
-            ["Report", "Response"],
-            default=["Report"],
-            key="analysis_doc_type",
-            help="Types of documents to analyze"
-        )
 
     with col2:
         end_date = st.date_input(
@@ -2563,8 +2555,8 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 progress_bar.progress(0.1)
                 status_text.text("Initialized resources...")
 
-            # Filter data
-            filtered_df = data[['Content', 'date_of_report', 'Title', 'ref', 'categories']].copy()
+            # Filter data - only keep essential columns
+            filtered_df = data[['Content', 'date_of_report', 'Title', 'categories']].copy()
             status_text.text("Applying filters...")
             progress_bar.progress(0.2)
             
@@ -2574,16 +2566,9 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 (filtered_df['date_of_report'].dt.date <= end_date)
             ]
             
-            # Apply document type filter
-            if doc_type:
-                if "Report" in doc_type and "Response" not in doc_type:
-                    filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
-                elif "Response" in doc_type and "Report" not in doc_type:
-                    filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
-            
-            progress_bar.progress(0.3)
-            status_text.text("Processing document types...")
-            
+            progress_bar.progress(0.4)
+            status_text.text("Processing categories...")
+
             # Apply category filter
             if categories:
                 filtered_df = filtered_df[
@@ -2592,15 +2577,8 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                     )
                 ]
             
-            progress_bar.progress(0.4)
-            status_text.text("Processing categories...")
-
-            # Deduplicate documents
-            filtered_df['doc_id'] = filtered_df.apply(
-                lambda x: f"{x['Title']}_{x['ref']}_{x['date_of_report'].strftime('%Y-%m-%d')}", 
-                axis=1
-            )
-            filtered_df = filtered_df.drop_duplicates(subset=['doc_id'])
+            # Remove any rows where Content is empty or NaN
+            filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
             
             if len(filtered_df) < min_cluster_size:
                 progress_bar.empty()
@@ -2677,6 +2655,68 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Analysis error: {e}", exc_info=True)
+
+def main():
+    """Updated main application entry point."""
+    initialize_session_state()
+    
+    st.title("UK Judiciary PFD Reports Analysis")
+    st.markdown("""
+    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can scrape new reports, analyze existing data, and explore thematic patterns.
+    """)
+    
+    # Updated tab selection without topic modeling tab
+    current_tab = st.radio(
+        "Select section:",
+        [
+            "🔍 Scrape Reports",
+            "📊 Analysis",
+            "📝 Topic Analysis & Summaries"
+        ],
+        label_visibility="collapsed",
+        horizontal=True,
+        key="main_tab_selector"
+    )
+    
+    st.markdown("---")
+    
+    try:
+        if current_tab == "🔍 Scrape Reports":
+            render_scraping_tab()
+            
+        elif current_tab == "📊 Analysis":
+            if not validate_data_state():
+                handle_no_data_state("analysis")
+            else:
+                render_analysis_tab(st.session_state.current_data)
+        
+        elif current_tab == "📝 Topic Analysis & Summaries":
+            if not validate_data_state():
+                handle_no_data_state("topic_summary")
+            else:
+                render_topic_summary_tab(st.session_state.current_data)
+        
+        # Sidebar data management
+        with st.sidebar:
+            st.header("Data Management")
+            
+            if hasattr(st.session_state, 'data_source'):
+                st.info(f"Current data: {st.session_state.data_source}")
+            
+            if st.button("Clear All Data"):
+                for key in ['current_data', 'scraped_data', 'uploaded_data', 
+                          'topic_model', 'data_source']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.success("All data cleared")
+                st.experimental_rerun()
+        
+        render_footer()
+        
+    except Exception as e:
+        handle_error(e)
+        
 
 
            
