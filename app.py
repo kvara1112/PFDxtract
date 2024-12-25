@@ -2543,26 +2543,35 @@ def render_summary_tab(cluster_results: Dict) -> None:
         
         # Key terms table
         st.markdown("#### Key Terms")
-        # Create a DataFrame for terms
         terms_df = pd.DataFrame([
             {'Term': term['term'], 
              'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
             for term in cluster['terms'][:10]
         ])
-        # Display terms in a styled table
+        
+        # Use custom styling for terms table
         st.dataframe(
             terms_df,
             hide_index=True,
             column_config={
-                "Term": st.column_config.TextColumn("Term", width="medium"),
-                "Frequency": st.column_config.TextColumn("Frequency", width="small")
-            }
+                "Term": st.column_config.TextColumn(
+                    "Term",
+                    width="medium",
+                    help="Keywords found in the cluster"
+                ),
+                "Frequency": st.column_config.TextColumn(
+                    "Frequency",
+                    width="small",
+                    help="Percentage of documents containing this term"
+                )
+            },
+            use_container_width=True
         )
         
         # Records table with metadata only
         st.markdown("#### Records")
         
-        # Create DataFrame with metadata
+        # Create DataFrame with only the columns shown in the image
         metadata_records = []
         for doc in cluster['documents']:
             record = {
@@ -2570,25 +2579,39 @@ def render_summary_tab(cluster_results: Dict) -> None:
                 'Reference': doc.get('ref', ''),
                 'Deceased Name': doc.get('deceased_name', ''),
                 'Coroner Name': doc.get('coroner_name', ''),
-                'Coroner Area': doc.get('coroner_area', ''),
-                'Categories': doc.get('categories', [])
+                'Coroner Area': doc.get('coroner_area', '')
             }
             metadata_records.append(record)
         
         docs_df = pd.DataFrame(metadata_records)
         
-        # Display metadata in a styled table
+        # Display metadata table with custom styling to match the image
         st.dataframe(
             docs_df,
             hide_index=True,
             column_config={
-                "Date": st.column_config.TextColumn("Date", width="small"),
-                "Reference": st.column_config.TextColumn("Reference", width="small"),
-                "Deceased Name": st.column_config.TextColumn("Deceased Name", width="medium"),
-                "Coroner Name": st.column_config.TextColumn("Coroner Name", width="medium"),
-                "Coroner Area": st.column_config.TextColumn("Coroner Area", width="medium"),
-                "Categories": st.column_config.ListColumn("Categories", width="large")
-            }
+                "Date": st.column_config.TextColumn(
+                    "Date",
+                    help="Date of report"
+                ),
+                "Reference": st.column_config.TextColumn(
+                    "Reference",
+                    help="Reference number"
+                ),
+                "Deceased Name": st.column_config.TextColumn(
+                    "Deceased Name",
+                    help="Name of the deceased"
+                ),
+                "Coroner Name": st.column_config.TextColumn(
+                    "Coroner Name",
+                    help="Name of the coroner"
+                ),
+                "Coroner Area": st.column_config.TextColumn(
+                    "Coroner Area",
+                    help="Coroner's jurisdiction area"
+                )
+            },
+            use_container_width=True
         )
         
         st.markdown("---")
