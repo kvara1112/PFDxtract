@@ -2451,6 +2451,213 @@ def generate_abstractive_summary(cluster_terms, documents, max_length=500):
     except Exception as e:
         logging.error(f"Error in abstractive summarization: {e}")
         return "Error generating summary"
+
+           
+def render_summary_tab(cluster_results: Dict) -> None:
+    """Render the cluster summaries tab with improved formatting and traceability"""
+    st.header("Cluster Summaries")
+    
+    if not cluster_results or 'clusters' not in cluster_results:
+        st.warning("No cluster results available. Please run the clustering analysis first.")
+        return
+        
+    # Add metrics overview
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total Clusters", cluster_results['n_clusters'])
+    with col2:
+        st.metric("Total Documents", cluster_results['total_documents'])
+        
+    for cluster in cluster_results['clusters']:
+        with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
+            # Generate summaries
+            extractive_summary = generate_extractive_summary(cluster['documents'])
+            abstractive_summary = generate_abstractive_summary(
+                cluster['terms'],
+                cluster['documents']
+            )
+            
+            # Display abstractive summary
+            st.subheader("Overview")
+            st.write(abstractive_summary)
+            
+            # Display key terms
+            st.subheader("Key Terms")
+            terms_df = pd.DataFrame([
+                {'Term': term['term'], 
+                 'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
+                for term in cluster['terms'][:10]
+            ])
+            st.dataframe(terms_df, hide_index=True)
+            
+            # Display extractive summary with traceability
+            st.subheader("Key Excerpts")
+            for idx, sentence in enumerate(extractive_summary, 1):
+                with st.container():
+                    st.markdown(f"{idx}. {sentence['text']}")
+                    with st.expander("Source Details"):
+                        st.markdown(f"- **Document**: {sentence['source']}")
+                        st.markdown(f"- **Date**: {sentence['date']}")
+                        st.markdown(f"- **Relevance Score**: {sentence['score']:.3f}")
+            
+            # Display document list
+            st.subheader("Source Documents")
+            docs_df = pd.DataFrame([
+                {'Title': doc['title'],
+                 'Date': doc['date'],
+                 'Similarity': f"{doc['similarity']:.2f}"}
+                for doc in cluster['documents']
+            ])
+            st.dataframe(docs_df, hide_index=True)
+
+
+def display_cluster_analysis(cluster_results: Dict) -> None:
+    """
+    Display comprehensive cluster analysis results
+    """
+    try:
+        st.subheader("Document Clustering Analysis")
+        
+        # Overview metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Number of Clusters", cluster_results['n_clusters'])
+        with col2:
+            st.metric("Total Documents", cluster_results['total_documents'])
+        with col3:
+            st.metric("Clustering Quality", 
+                     f"{cluster_results['silhouette_score']:.3f}",
+                     help="Silhouette score (ranges from -1 to 1, higher is better)")
+        
+        # Display each cluster
+        for cluster in cluster_results['clusters']:
+            with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", 
+                           expanded=True):
+                
+                # Cluster metrics
+                st.markdown(f"**Cohesion Score**: {cluster['cohesion']:.3f}")
+                
+                # Terms analysis
+                st.markdown("#### Key Terms")
+                terms_df = pd.DataFrame(cluster['terms'])
+                
+                # Create term importance visualization
+                fig = px.bar(
+                    terms_df.head(10),
+                    x='relevance',
+                    y='term',
+                    orientation='h',
+                    title='Top Terms by Relevance',
+                    labels={'relevance': 'Relevance Score', 'term': 'Term'}
+                )
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Representative documents
+                st.markdown("#### Representative Documents")
+                for doc in cluster['documents']:
+                    st.markdown(f"**{doc['title']}** (Similarity: {doc['similarity']:.2f})")
+                    st.markdown(f"**Date**: {doc['date']}")
+                    st.markdown(f"**Summary**: {doc['summary'][:300]}...")
+                    st.markdown("---")  # Separator between documents
+
+    except Exception as e:
+        st.error(f"Error displaying cluster analysis: {str(e)}")
+        logging.error(f"Display error: {str(e)}", exc_info=True)
+
+def export_cluster_results(cluster_results: Dict) -> bytes:
+    """Export cluster results with proper timestamp handling"""
+    output = io.BytesIO()
+    
+    # Prepare export data with timestamp conversion
+    export_data = {
+        'metadata': {
+            'total_documents': cluster_results['total_documents'],
+            'number_of_clusters': cluster_results['n_clusters'],
+            'silhouette_score': cluster_results['silhouette_score'],
+        },
+        'clusters': []
+    }
+    
+    # Convert cluster data
+    for cluster in cluster_results['clusters']:
+        # Create a copy of cluster with converted documents
+        cluster_export = cluster.copy()
+        for doc in cluster_export['documents']:
+            # Ensure date is a string
+            doc['date'] = str(doc['date'])
+        
+        export_data['clusters'].append(cluster_export)
+    
+    # Write JSON to BytesIO
+    json.dump(export_data, io.TextIOWrapper(output, encoding='utf-8'), indent=2)
+    output.seek(0)
+    
+    return output.getvalue()
+
+def validate_data_state():
+    """Check if valid data exists in session state"""
+    return ('current_data' in st.session_state and 
+            st.session_state.current_data is not None and 
+            not st.session_state.current_data.empty)
+
+def validate_model_state():
+    """Check if valid topic model exists in session state"""
+    return ('topic_model' in st.session_state and 
+            st.session_state.topic_model is not None)
+
+def handle_no_data_state(section):
+    """Handle state when no data is available"""
+    st.warning("No data available. Please scrape reports or upload a file first.")
+    uploaded_file = st.file_uploader(
+        "Upload existing data file",
+        type=['csv', 'xlsx'],
+        key=f"{section}_uploader"
+    )
+    
+    if uploaded_file:
+        try:
+            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
+            df = process_scraped_data(df)
+            st.session_state.current_data = df
+            st.rerun()
+        except Exception as e:
+            st.error(f"Error loading file: {str(e)}")
+
+def handle_no_model_state():
+    """Handle state when no topic model is available"""
+    st.warning("Please run the clustering analysis first to view summaries.")
+    if st.button("Go to Topic Modeling"):
+        st.session_state.current_tab = "🔬 Topic Modeling"
+        st.rerun()
+
+def handle_error(error):
+    """Handle application errors"""
+    st.error("An error occurred")
+    st.error(str(error))
+    logging.error(f"Application error: {error}", exc_info=True)
+    
+    with st.expander("Error Details"):
+        st.code(traceback.format_exc())
+    
+    st.warning("Recovery options:")
+    st.markdown("""
+    1. Clear data and restart
+    2. Upload different data
+    3. Check filter settings
+    """)
+
+def render_footer():
+    """Render application footer"""
+    st.markdown("---")
+    st.markdown(
+        """<div style='text-align: center'>
+        <p>Built with Streamlit • Data from UK Judiciary</p>
+        </div>""",
+        unsafe_allow_html=True
+    )
+
+
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
     """Combined topic modeling and summarization analysis focusing only on content."""
     st.header("Topic Analysis & Summaries")
@@ -2658,459 +2865,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Analysis error: {e}", exc_info=True)
-
-def main():
-    """Updated main application entry point."""
-    initialize_session_state()
-    
-    st.title("UK Judiciary PFD Reports Analysis")
-    st.markdown("""
-    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can scrape new reports, analyze existing data, and explore thematic patterns.
-    """)
-    
-    # Updated tab selection without topic modeling tab
-    current_tab = st.radio(
-        "Select section:",
-        [
-            "🔍 Scrape Reports",
-            "📊 Analysis",
-            "📝 Topic Analysis & Summaries"
-        ],
-        label_visibility="collapsed",
-        horizontal=True,
-        key="main_tab_selector"
-    )
-    
-    st.markdown("---")
-    
-    try:
-        if current_tab == "🔍 Scrape Reports":
-            render_scraping_tab()
-            
-        elif current_tab == "📊 Analysis":
-            if not validate_data_state():
-                handle_no_data_state("analysis")
-            else:
-                render_analysis_tab(st.session_state.current_data)
-        
-        elif current_tab == "📝 Topic Analysis & Summaries":
-            if not validate_data_state():
-                handle_no_data_state("topic_summary")
-            else:
-                render_topic_summary_tab(st.session_state.current_data)
-        
-        # Sidebar data management
-        with st.sidebar:
-            st.header("Data Management")
-            
-            if hasattr(st.session_state, 'data_source'):
-                st.info(f"Current data: {st.session_state.data_source}")
-            
-            if st.button("Clear All Data"):
-                for key in ['current_data', 'scraped_data', 'uploaded_data', 
-                          'topic_model', 'data_source']:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.success("All data cleared")
-                st.experimental_rerun()
-        
-        render_footer()
-        
-    except Exception as e:
-        handle_error(e)
-
-def main():
-    """Updated main application entry point."""
-    initialize_session_state()
-    
-    st.title("UK Judiciary PFD Reports Analysis")
-    st.markdown("""
-    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can scrape new reports, analyze existing data, and explore thematic patterns.
-    """)
-    
-    # Updated tab selection without topic modeling tab
-    current_tab = st.radio(
-        "Select section:",
-        [
-            "🔍 Scrape Reports",
-            "📊 Analysis",
-            "📝 Topic Analysis & Summaries"
-        ],
-        label_visibility="collapsed",
-        horizontal=True,
-        key="main_tab_selector"
-    )
-    
-    st.markdown("---")
-    
-    try:
-        if current_tab == "🔍 Scrape Reports":
-            render_scraping_tab()
-            
-        elif current_tab == "📊 Analysis":
-            if not validate_data_state():
-                handle_no_data_state("analysis")
-            else:
-                render_analysis_tab(st.session_state.current_data)
-        
-        elif current_tab == "📝 Topic Analysis & Summaries":
-            if not validate_data_state():
-                handle_no_data_state("topic_summary")
-            else:
-                render_topic_summary_tab(st.session_state.current_data)
-        
-        # Sidebar data management
-        with st.sidebar:
-            st.header("Data Management")
-            
-            if hasattr(st.session_state, 'data_source'):
-                st.info(f"Current data: {st.session_state.data_source}")
-            
-            if st.button("Clear All Data"):
-                for key in ['current_data', 'scraped_data', 'uploaded_data', 
-                          'topic_model', 'data_source']:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.success("All data cleared")
-                st.experimental_rerun()
-        
-        render_footer()
-        
-    except Exception as e:
-        handle_error(e)
-
-def main():
-    """Updated main application entry point."""
-    initialize_session_state()
-    
-    st.title("UK Judiciary PFD Reports Analysis")
-    st.markdown("""
-    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can scrape new reports, analyze existing data, and explore thematic patterns.
-    """)
-    
-    # Updated tab selection without topic modeling tab
-    current_tab = st.radio(
-        "Select section:",
-        [
-            "🔍 Scrape Reports",
-            "📊 Analysis",
-            "📝 Topic Analysis & Summaries"
-        ],
-        label_visibility="collapsed",
-        horizontal=True,
-        key="main_tab_selector"
-    )
-    
-    st.markdown("---")
-    
-    try:
-        if current_tab == "🔍 Scrape Reports":
-            render_scraping_tab()
-            
-        elif current_tab == "📊 Analysis":
-            if not validate_data_state():
-                handle_no_data_state("analysis")
-            else:
-                render_analysis_tab(st.session_state.current_data)
-        
-        elif current_tab == "📝 Topic Analysis & Summaries":
-            if not validate_data_state():
-                handle_no_data_state("topic_summary")
-            else:
-                render_topic_summary_tab(st.session_state.current_data)
-        
-        # Sidebar data management
-        with st.sidebar:
-            st.header("Data Management")
-            
-            if hasattr(st.session_state, 'data_source'):
-                st.info(f"Current data: {st.session_state.data_source}")
-            
-            if st.button("Clear All Data"):
-                for key in ['current_data', 'scraped_data', 'uploaded_data', 
-                          'topic_model', 'data_source']:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.success("All data cleared")
-                st.experimental_rerun()
-        
-        render_footer()
-        
-    except Exception as e:
-        handle_error(e)
-def main():
-    """Updated main application entry point."""
-    initialize_session_state()
-    
-    st.title("UK Judiciary PFD Reports Analysis")
-    st.markdown("""
-    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can scrape new reports, analyze existing data, and explore thematic patterns.
-    """)
-    
-    # Updated tab selection without topic modeling tab
-    current_tab = st.radio(
-        "Select section:",
-        [
-            "🔍 Scrape Reports",
-            "📊 Analysis",
-            "📝 Topic Analysis & Summaries"
-        ],
-        label_visibility="collapsed",
-        horizontal=True,
-        key="main_tab_selector"
-    )
-    
-    st.markdown("---")
-    
-    try:
-        if current_tab == "🔍 Scrape Reports":
-            render_scraping_tab()
-            
-        elif current_tab == "📊 Analysis":
-            if not validate_data_state():
-                handle_no_data_state("analysis")
-            else:
-                render_analysis_tab(st.session_state.current_data)
-        
-        elif current_tab == "📝 Topic Analysis & Summaries":
-            if not validate_data_state():
-                handle_no_data_state("topic_summary")
-            else:
-                render_topic_summary_tab(st.session_state.current_data)
-        
-        # Sidebar data management
-        with st.sidebar:
-            st.header("Data Management")
-            
-            if hasattr(st.session_state, 'data_source'):
-                st.info(f"Current data: {st.session_state.data_source}")
-            
-            if st.button("Clear All Data"):
-                for key in ['current_data', 'scraped_data', 'uploaded_data', 
-                          'topic_model', 'data_source']:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                st.success("All data cleared")
-                st.experimental_rerun()
-        
-        render_footer()
-        
-    except Exception as e:
-        handle_error(e)
-        
-
-
-           
-def render_summary_tab(cluster_results: Dict) -> None:
-    """Render the cluster summaries tab with improved formatting and traceability"""
-    st.header("Cluster Summaries")
-    
-    if not cluster_results or 'clusters' not in cluster_results:
-        st.warning("No cluster results available. Please run the clustering analysis first.")
-        return
-        
-    # Add metrics overview
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Total Clusters", cluster_results['n_clusters'])
-    with col2:
-        st.metric("Total Documents", cluster_results['total_documents'])
-        
-    for cluster in cluster_results['clusters']:
-        with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", expanded=True):
-            # Generate summaries
-            extractive_summary = generate_extractive_summary(cluster['documents'])
-            abstractive_summary = generate_abstractive_summary(
-                cluster['terms'],
-                cluster['documents']
-            )
-            
-            # Display abstractive summary
-            st.subheader("Overview")
-            st.write(abstractive_summary)
-            
-            # Display key terms
-            st.subheader("Key Terms")
-            terms_df = pd.DataFrame([
-                {'Term': term['term'], 
-                 'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
-                for term in cluster['terms'][:10]
-            ])
-            st.dataframe(terms_df, hide_index=True)
-            
-            # Display extractive summary with traceability
-            st.subheader("Key Excerpts")
-            for idx, sentence in enumerate(extractive_summary, 1):
-                with st.container():
-                    st.markdown(f"{idx}. {sentence['text']}")
-                    with st.expander("Source Details"):
-                        st.markdown(f"- **Document**: {sentence['source']}")
-                        st.markdown(f"- **Date**: {sentence['date']}")
-                        st.markdown(f"- **Relevance Score**: {sentence['score']:.3f}")
-            
-            # Display document list
-            st.subheader("Source Documents")
-            docs_df = pd.DataFrame([
-                {'Title': doc['title'],
-                 'Date': doc['date'],
-                 'Similarity': f"{doc['similarity']:.2f}"}
-                for doc in cluster['documents']
-            ])
-            st.dataframe(docs_df, hide_index=True)
-
-
-
-def display_cluster_analysis(cluster_results: Dict) -> None:
-    """
-    Display comprehensive cluster analysis results
-    """
-    try:
-        st.subheader("Document Clustering Analysis")
-        
-        # Overview metrics
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Number of Clusters", cluster_results['n_clusters'])
-        with col2:
-            st.metric("Total Documents", cluster_results['total_documents'])
-        with col3:
-            st.metric("Clustering Quality", 
-                     f"{cluster_results['silhouette_score']:.3f}",
-                     help="Silhouette score (ranges from -1 to 1, higher is better)")
-        
-        # Display each cluster
-        for cluster in cluster_results['clusters']:
-            with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", 
-                           expanded=True):
-                
-                # Cluster metrics
-                st.markdown(f"**Cohesion Score**: {cluster['cohesion']:.3f}")
-                
-                # Terms analysis
-                st.markdown("#### Key Terms")
-                terms_df = pd.DataFrame(cluster['terms'])
-                
-                # Create term importance visualization
-                fig = px.bar(
-                    terms_df.head(10),
-                    x='relevance',
-                    y='term',
-                    orientation='h',
-                    title='Top Terms by Relevance',
-                    labels={'relevance': 'Relevance Score', 'term': 'Term'}
-                )
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # Representative documents
-                st.markdown("#### Representative Documents")
-                for doc in cluster['documents']:
-                    st.markdown(f"**{doc['title']}** (Similarity: {doc['similarity']:.2f})")
-                    st.markdown(f"**Date**: {doc['date']}")
-                    st.markdown(f"**Summary**: {doc['summary'][:300]}...")
-                    st.markdown("---")  # Separator between documents
-
-    except Exception as e:
-        st.error(f"Error displaying cluster analysis: {str(e)}")
-        logging.error(f"Display error: {str(e)}", exc_info=True)
-
-def export_cluster_results(cluster_results: Dict) -> bytes:
-    """Export cluster results with proper timestamp handling"""
-    output = io.BytesIO()
-    
-    # Prepare export data with timestamp conversion
-    export_data = {
-        'metadata': {
-            'total_documents': cluster_results['total_documents'],
-            'number_of_clusters': cluster_results['n_clusters'],
-            'silhouette_score': cluster_results['silhouette_score'],
-        },
-        'clusters': []
-    }
-    
-    # Convert cluster data
-    for cluster in cluster_results['clusters']:
-        # Create a copy of cluster with converted documents
-        cluster_export = cluster.copy()
-        for doc in cluster_export['documents']:
-            # Ensure date is a string
-            doc['date'] = str(doc['date'])
-        
-        export_data['clusters'].append(cluster_export)
-    
-    # Write JSON to BytesIO
-    json.dump(export_data, io.TextIOWrapper(output, encoding='utf-8'), indent=2)
-    output.seek(0)
-    
-    return output.getvalue()
-
-def validate_data_state():
-    """Check if valid data exists in session state"""
-    return ('current_data' in st.session_state and 
-            st.session_state.current_data is not None and 
-            not st.session_state.current_data.empty)
-
-def validate_model_state():
-    """Check if valid topic model exists in session state"""
-    return ('topic_model' in st.session_state and 
-            st.session_state.topic_model is not None)
-
-def handle_no_data_state(section):
-    """Handle state when no data is available"""
-    st.warning("No data available. Please scrape reports or upload a file first.")
-    uploaded_file = st.file_uploader(
-        "Upload existing data file",
-        type=['csv', 'xlsx'],
-        key=f"{section}_uploader"
-    )
-    
-    if uploaded_file:
-        try:
-            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
-            df = process_scraped_data(df)
-            st.session_state.current_data = df
-            st.rerun()
-        except Exception as e:
-            st.error(f"Error loading file: {str(e)}")
-
-def handle_no_model_state():
-    """Handle state when no topic model is available"""
-    st.warning("Please run the clustering analysis first to view summaries.")
-    if st.button("Go to Topic Modeling"):
-        st.session_state.current_tab = "🔬 Topic Modeling"
-        st.rerun()
-
-def handle_error(error):
-    """Handle application errors"""
-    st.error("An error occurred")
-    st.error(str(error))
-    logging.error(f"Application error: {error}", exc_info=True)
-    
-    with st.expander("Error Details"):
-        st.code(traceback.format_exc())
-    
-    st.warning("Recovery options:")
-    st.markdown("""
-    1. Clear data and restart
-    2. Upload different data
-    3. Check filter settings
-    """)
-
-def render_footer():
-    """Render application footer"""
-    st.markdown("---")
-    st.markdown(
-        """<div style='text-align: center'>
-        <p>Built with Streamlit • Data from UK Judiciary</p>
-        </div>""",
-        unsafe_allow_html=True
-    )
-
-
 
 def main():
     """Updated main application entry point."""
