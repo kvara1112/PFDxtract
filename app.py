@@ -2582,8 +2582,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
             
-            doc_count = len(filtered_df)
-            st.info(f"Analyzing {doc_count} unique documents...")
+            # Remove the analyzing message
             
             if show_details:
                 st.write("Documents being analyzed:")
@@ -2625,20 +2624,36 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.8)
             status_text.text("Generating summaries...")
             
-            # Display results
-            st.markdown("## Analysis Results")
+            # Display results without redundant info
+            st.markdown("## Thematic Groups")
             
-            # Overview metrics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Thematic Groups", cluster_results['n_clusters'])
-            with col2:
-                st.metric("Total Documents", cluster_results['total_documents'])
-            with col3:
-                st.metric("Analysis Quality", f"{cluster_results['silhouette_score']:.3f}")
+            # Add explanation of similarity score
+            st.info("""
+            **Understanding Similarity Scores:**
+            - Similarity percentage shows how closely a document matches the overall theme of its group
+            - 100% would mean perfect alignment with the theme
+            - Higher percentages (>70%) indicate strong thematic alignment
+            - Lower percentages suggest the document shares some but not all aspects of the theme
+            """)
             
-            # Display summaries
-            render_summary_tab(cluster_results)
+            # Display each cluster's content
+            for cluster in cluster_results['clusters']:
+                with st.expander(f"Theme {cluster['id']+1}: {', '.join([term['term'] for term in cluster['terms'][:3]])}"):
+                    # Display key patterns
+                    terms_list = [f"{term['term']} ({term['cluster_frequency']*100:.0f}%)" 
+                                for term in cluster['terms'][:5]]
+                    st.markdown("**Key patterns:** " + ", ".join(terms_list))
+                    
+                    # Display representative documents
+                    st.markdown("**Representative Documents:**")
+                    for doc in cluster['documents'][:3]:  # Show top 3 documents
+                        # Convert date to UK format and similarity to percentage
+                        uk_date = pd.to_datetime(doc['date']).strftime('%d/%m/%Y') if pd.notna(doc['date']) else 'Date not available'
+                        similarity_pct = doc['similarity'] * 100
+                        
+                        st.markdown(f"- {doc['title']} (Date: {uk_date}, Theme similarity: {similarity_pct:.1f}%)")
+                        if doc.get('summary'):
+                            st.markdown(f"  {doc['summary'][:200]}...")
             
             progress_bar.progress(1.0)
             status_text.empty()
@@ -2651,6 +2666,67 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Analysis error: {e}", exc_info=True)
+
+def main():
+    """Updated main application entry point."""
+    initialize_session_state()
+    
+    st.title("UK Judiciary PFD Reports Analysis")
+    st.markdown("""
+    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can scrape new reports, analyze existing data, and explore thematic patterns.
+    """)
+    
+    # Updated tab selection without topic modeling tab
+    current_tab = st.radio(
+        "Select section:",
+        [
+            "🔍 Scrape Reports",
+            "📊 Analysis",
+            "📝 Topic Analysis & Summaries"
+        ],
+        label_visibility="collapsed",
+        horizontal=True,
+        key="main_tab_selector"
+    )
+    
+    st.markdown("---")
+    
+    try:
+        if current_tab == "🔍 Scrape Reports":
+            render_scraping_tab()
+            
+        elif current_tab == "📊 Analysis":
+            if not validate_data_state():
+                handle_no_data_state("analysis")
+            else:
+                render_analysis_tab(st.session_state.current_data)
+        
+        elif current_tab == "📝 Topic Analysis & Summaries":
+            if not validate_data_state():
+                handle_no_data_state("topic_summary")
+            else:
+                render_topic_summary_tab(st.session_state.current_data)
+        
+        # Sidebar data management
+        with st.sidebar:
+            st.header("Data Management")
+            
+            if hasattr(st.session_state, 'data_source'):
+                st.info(f"Current data: {st.session_state.data_source}")
+            
+            if st.button("Clear All Data"):
+                for key in ['current_data', 'scraped_data', 'uploaded_data', 
+                          'topic_model', 'data_source']:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.success("All data cleared")
+                st.experimental_rerun()
+        
+        render_footer()
+        
+    except Exception as e:
+        handle_error(e)
 
 def main():
     """Updated main application entry point."""
