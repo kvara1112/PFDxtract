@@ -2688,30 +2688,22 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     )
 
     # Analysis button
-    analyze_col1, analyze_col2 = st.columns([3, 1])
-    with analyze_col1:
-        analyze_clicked = st.button("🔍 Analyze Documents", type="primary", use_container_width=True)
-    with analyze_col2:
-        show_details = st.checkbox(
-            "Show Process Details ❓", 
-            value=False,
-            help="Show additional information about the analysis process"
-        )
+    analyze_clicked = st.button("🔍 Analyze Documents", type="primary", use_container_width=True)
 
     if analyze_clicked:
         try:
             progress_bar = st.progress(0)
             status_text = st.empty()
-            
-            with st.spinner("Initializing..."):
-                initialize_nltk()
-                progress_bar.progress(0.1)
-                status_text.text("Initialized resources...")
+
+            # Initialize
+            progress_bar.progress(0.1)
+            status_text.text("Initializing analysis...")
+            initialize_nltk()
 
             # Filter data
             filtered_df = data.copy()
-            status_text.text("Applying filters...")
             progress_bar.progress(0.2)
+            status_text.text("Applying filters...")
             
             # Apply date filter
             filtered_df = filtered_df[
@@ -2727,6 +2719,9 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                     )
                 ]
             
+            progress_bar.progress(0.3)
+            status_text.text("Preprocessing documents...")
+            
             # Remove empty content
             filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
             
@@ -2736,10 +2731,9 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
             
-            progress_bar.progress(0.6)
-            status_text.text("Starting thematic analysis...")
-            
-            # Process content for analysis
+            # Process content
+            progress_bar.progress(0.4)
+            status_text.text("Processing document content...")
             processed_texts = filtered_df['Content'].apply(clean_text_for_modeling)
             valid_indices = processed_texts[processed_texts.notna() & (processed_texts != '')].index
             
@@ -2756,6 +2750,9 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 'categories': filtered_df.loc[valid_indices, 'categories']
             })
             
+            progress_bar.progress(0.6)
+            status_text.text("Performing clustering analysis...")
+            
             # Perform clustering
             cluster_results = perform_semantic_clustering(
                 processed_df,
@@ -2765,12 +2762,17 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 max_df=max_df
             )
             
+            progress_bar.progress(0.8)
+            status_text.text("Analyzing cluster results...")
+            
             # Store results
             st.session_state.topic_model = cluster_results
             
             progress_bar.progress(1.0)
-            status_text.empty()
+            status_text.text("Analysis complete!")
+            
             progress_bar.empty()
+            status_text.empty()
             
             # Display results
             render_summary_tab(cluster_results, filtered_df)
@@ -2779,8 +2781,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.empty()
             status_text.empty()
             st.error(f"Analysis error: {str(e)}")
-            if show_details:
-                st.error(f"Detailed error: {traceback.format_exc()}")
             logging.error(f"Analysis error: {e}", exc_info=True)
 
 def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
@@ -2846,7 +2846,7 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
         )
         
         st.markdown("---")
-
+        
 def main():
     """Updated main application entry point."""
     initialize_session_state()
