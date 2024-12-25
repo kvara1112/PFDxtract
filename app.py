@@ -2226,14 +2226,14 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                              max_features: int = 5000, min_df: float = 0.01,
                              max_df: float = 0.95) -> Dict:
     """
-    Perform advanced semantic clustering with focus on document content
+    Perform semantic clustering with adaptive handling for small document sets
     
     Args:
-        data: DataFrame containing at least 'processed_content' column
-        min_cluster_size: Minimum number of documents per cluster
-        max_features: Maximum number of terms to consider
-        min_df: Minimum document frequency (as fraction)
-        max_df: Maximum document frequency (as fraction)
+        data: DataFrame containing 'processed_content' column
+        min_cluster_size: Target minimum documents per cluster
+        max_features: Maximum terms to consider
+        min_df: Minimum document frequency
+        max_df: Maximum document frequency
     """
     try:
         # Initialize NLTK resources
@@ -2243,36 +2243,45 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         if 'processed_content' not in data.columns:
             raise ValueError("Input data must contain 'processed_content' column")
             
-        if len(data) < min_cluster_size * 2:
-            raise ValueError(f"Not enough documents for clustering. Need at least {min_cluster_size * 2}, got {len(data)}")
-            
-        # Only use the processed content for the actual analysis
+        # Get valid texts
         texts = data['processed_content'].dropna().tolist()
-        if not texts:
-            raise ValueError("No valid text content found after preprocessing")
+        texts = [t for t in texts if isinstance(t, str) and len(t.strip()) > 0]
         
-        # Keep the original content and metadata only for display purposes
-        display_data = data[['Title', 'date_of_report', 'Content']]
+        if len(texts) < 2:
+            raise ValueError(f"Need at least 2 documents, found {len(texts)}")
+            
+        # Adjust parameters for small document sets
+        if len(texts) < min_cluster_size * 2:
+            min_cluster_size = max(2, len(texts) // 2)
+            logging.info(f"Adjusted min_cluster_size to {min_cluster_size} for small document set")
+        
+        # Keep display data
+        display_data = data[['Title', 'date_of_report', 'Content']].copy()
             
         # Enhanced vectorization
         vectorizer = TfidfVectorizer(
-            max_features=max_features,
-            min_df=min_df,
-            max_df=max_df,
+            max_features=min(max_features, len(texts) * 100),
+            min_df=max(2, int(min_df * len(texts))),
+            max_df=min(len(texts) - 1, int(max_df * len(texts))),
             stop_words='english',
             ngram_range=(1, 2)
         )
         
+        # Create TF-IDF matrix
         tfidf_matrix = vectorizer.fit_transform(texts)
         feature_names = vectorizer.get_feature_names_out()
         
-        # Calculate optimal number of clusters
+        if tfidf_matrix.shape[1] < 2:
+            raise ValueError("Not enough unique terms found after preprocessing")
+        
+        # Calculate optimal clusters
         max_clusters = min(int(len(texts) * 0.4), 20)
         best_n_clusters = 2
         best_score = -1
         
+        # Try different cluster counts
         for n_clusters in range(2, max_clusters + 1):
-            if len(texts) < n_clusters * min_cluster_size:
+            if n_clusters >= len(texts):
                 break
                 
             clustering = AgglomerativeClustering(
@@ -2289,7 +2298,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                 if score > best_score:
                     best_score = score
                     best_n_clusters = n_clusters
-
+        
         # Final clustering
         final_clustering = AgglomerativeClustering(
             n_clusters=best_n_clusters,
@@ -2299,15 +2308,15 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         
         final_labels = final_clustering.fit_predict(tfidf_matrix.toarray())
         similarity_matrix = cosine_similarity(tfidf_matrix)
-
-        # Extract cluster information
+        
+        # Extract clusters
         clusters = []
         for cluster_id in range(best_n_clusters):
             cluster_doc_indices = np.where(final_labels == cluster_id)[0]
             
-            if len(cluster_doc_indices) < min_cluster_size:
+            if len(cluster_doc_indices) < 2:
                 continue
-            
+                
             # Calculate cluster terms
             cluster_tfidf = tfidf_matrix[cluster_doc_indices].toarray()
             centroid = cluster_tfidf.mean(axis=0)
@@ -2329,7 +2338,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                         'cluster_frequency': float(cluster_freq),
                         'total_frequency': float(total_freq)
                     })
-
+            
             # Get representative documents
             doc_similarities = []
             for doc_idx in cluster_doc_indices:
@@ -2343,18 +2352,18 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                     'title': data.iloc[doc_idx].get('Title', ''),
                     'date': data.iloc[doc_idx].get('date_of_report', ''),
                     'similarity': float(sim_to_centroid),
-                    'summary': texts[doc_idx][:500]  # Using preprocessed text for summary
+                    'summary': texts[doc_idx][:500]
                 }
                 doc_similarities.append((doc_idx, sim_to_centroid, doc_info))
-
-            # Sort by similarity and get top documents
+            
+            # Sort and get top documents
             doc_similarities.sort(key=lambda x: x[1], reverse=True)
             representative_docs = [item[2] for item in doc_similarities[:5]]
-
-            # Calculate cluster cohesion
+            
+            # Calculate cohesion
             cluster_similarities = similarity_matrix[cluster_doc_indices][:, cluster_doc_indices]
             cohesion = float(np.mean(cluster_similarities))
-
+            
             clusters.append({
                 'id': cluster_id,
                 'size': len(cluster_doc_indices),
@@ -2362,7 +2371,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                 'terms': cluster_terms,
                 'documents': representative_docs
             })
-
+        
         return {
             'n_clusters': len(clusters),
             'total_documents': len(texts),
@@ -2672,7 +2681,7 @@ def render_footer():
 
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    """Combined topic modeling and summarization analysis focusing only on content."""
+    """Topic modeling and summarization analysis with improved small dataset handling"""
     st.header("Topic Analysis & Summaries")
     st.markdown("""
     This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
@@ -2681,7 +2690,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
 
     if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
         st.sidebar.success("Previous analysis results available")
-        
         if st.sidebar.button("View Previous Results"):
             display_cluster_analysis(st.session_state.topic_model)
             render_summary_tab(st.session_state.topic_model)
@@ -2690,27 +2698,24 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     with st.sidebar:
         st.header("Analysis Parameters")
         
-        # Clustering parameters
         min_cluster_size = st.slider(
             "Minimum Group Size ❓", 
             2, 5, 2,
             help="Minimum number of documents needed to form a thematic group"
         )
         
-
-        
         # Document frequency parameters
         total_docs = len(data)
         min_docs = st.slider(
             "Minimum Document Frequency ❓", 
-            2, max(2, total_docs//2), 5,
+            2, max(2, total_docs//2), 2,
             help="How many documents a term must appear in"
         )
         min_df = min_docs / total_docs
         
         max_docs = st.slider(
             "Maximum Document Frequency ❓", 
-            min_docs, total_docs, int(total_docs * 0.9),
+            min_docs, total_docs, int(total_docs * 0.95),
             help="Maximum number of documents a term can appear in"
         )
         max_df = max_docs / total_docs
@@ -2736,19 +2741,19 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             key="analysis_end_date",
             format="DD/MM/YYYY"
         )
-        
-        # Get unique categories
-        all_categories = set()
-        for cats in data['categories'].dropna():
-            if isinstance(cats, list):
-                all_categories.update(cats)
-        
-        categories = st.multiselect(
-            "Categories ❓",
-            options=sorted(all_categories),
-            key="analysis_categories",
-            help="Specific categories to analyze"
-        )
+
+    # Get unique categories
+    all_categories = set()
+    for cats in data['categories'].dropna():
+        if isinstance(cats, list):
+            all_categories.update(cats)
+    
+    categories = st.multiselect(
+        "Categories ❓",
+        options=sorted(all_categories),
+        key="analysis_categories",
+        help="Specific categories to analyze"
+    )
 
     analyze_col1, analyze_col2 = st.columns([3, 1])
     with analyze_col1:
@@ -2770,12 +2775,11 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 progress_bar.progress(0.1)
                 status_text.text("Initialized resources...")
 
-            # Filter data - only keep essential columns
             filtered_df = data[['Content', 'date_of_report', 'Title', 'categories']].copy()
             status_text.text("Applying filters...")
             progress_bar.progress(0.2)
             
-            # Apply date filter
+            # Date filter
             filtered_df = filtered_df[
                 (filtered_df['date_of_report'].dt.date >= start_date) &
                 (filtered_df['date_of_report'].dt.date <= end_date)
@@ -2784,7 +2788,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.4)
             status_text.text("Processing categories...")
 
-            # Apply category filter
+            # Category filter
             if categories:
                 filtered_df = filtered_df[
                     filtered_df['categories'].apply(
@@ -2792,16 +2796,17 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                     )
                 ]
             
-            # Remove any rows where Content is empty or NaN
+            # Clean data
             filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
             
-            if len(filtered_df) < min_cluster_size:
+            if len(filtered_df) < 2:
                 progress_bar.empty()
                 status_text.empty()
-                st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
+                st.warning("At least 2 documents are required. Please adjust your filters.")
                 return
             
-            # Remove the analyzing message
+            if len(filtered_df) < min_cluster_size:
+                st.info(f"Small document set detected ({len(filtered_df)} documents). Adjusting analysis parameters.")
             
             if show_details:
                 st.write("Documents being analyzed:")
@@ -2817,7 +2822,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.6)
             status_text.text("Starting thematic analysis...")
             
-            # Process content for analysis
+            # Process content
             processed_texts = filtered_df['Content'].apply(clean_text_for_modeling)
             valid_indices = processed_texts[processed_texts.notna() & (processed_texts != '')].index
             
@@ -2828,25 +2833,22 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 'date_of_report': filtered_df.loc[valid_indices, 'date_of_report']
             })
             
-            # Perform clustering
+            # Clustering
             cluster_results = perform_semantic_clustering(
                 processed_df,
                 min_cluster_size=min_cluster_size,
-                max_features=None,  # Consider all terms
+                max_features=None,
                 min_df=min_df,
                 max_df=max_df
             )
             
-            # Store results
             st.session_state.topic_model = cluster_results
             
             progress_bar.progress(0.8)
             status_text.text("Generating summaries...")
             
-            # Display results
             st.markdown("## Analysis Results")
             
-            # Overview metrics
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.metric("Thematic Groups", cluster_results['n_clusters'])
@@ -2855,16 +2857,14 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             with col3:
                 st.metric("Analysis Quality", f"{cluster_results['silhouette_score']:.3f}")
 
-            # Add explanation of similarity score
             st.info("""
             **Understanding Similarity Scores:**
-            - Similarity percentage shows how closely a document matches the overall theme of its group
-            - 100% would mean perfect alignment with the theme
-            - Higher percentages (>70%) indicate strong thematic alignment
-            - Lower percentages suggest the document shares some but not all aspects of the theme
+            - Similarity percentage shows how closely a document matches the group theme
+            - 100% means perfect thematic alignment
+            - Higher percentages (>70%) indicate strong thematic relevance
+            - Lower percentages indicate partial thematic overlap
             """)
             
-            # Display summaries
             render_summary_tab(cluster_results)
             
             progress_bar.progress(1.0)
