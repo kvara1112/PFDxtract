@@ -2451,68 +2451,56 @@ def generate_abstractive_summary(cluster_terms, documents, max_length=500):
     except Exception as e:
         logging.error(f"Error in abstractive summarization: {e}")
         return "Error generating summary"
-def render_topic_modeling_tab(data: pd.DataFrame) -> None:
-    """Enhanced semantic analysis for PFD reports using advanced clustering."""
-    st.header("Semantic Document Clustering")
+
+def render_topic_summary_tab(data: pd.DataFrame) -> None:
+    """Combined topic modeling and summarization analysis."""
+    st.header("Topic Analysis & Summaries")
     st.markdown("""
-    This analysis uses advanced semantic clustering to group similar documents together,
-    identifying key themes and patterns in the reports. The algorithm automatically 
-    determines the optimal number of clusters based on document similarity.
+    This analysis identifies key themes and patterns in the reports, automatically clustering similar documents
+    and generating summaries for each thematic group.
     """)
 
     if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
-        st.sidebar.success("Previous topic model results are available.")
+        st.sidebar.success("Previous analysis results available")
         
-        col1, col2 = st.sidebar.columns(2)
-        with col1:
-            if st.button("View Previous Results", key="view_prev_topic_model"):
-                display_cluster_analysis(st.session_state.topic_model)
-        with col2:
-            if st.button("Export Previous Results", key="export_prev_topic_model"):
-                try:
-                    json_str = json.dumps(st.session_state.topic_model, indent=2)
-                    st.download_button(
-                        "📥 Download Previous Analysis (JSON)",
-                        json_str,
-                        f"cluster_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                        "application/json",
-                        key="download_prev_topic_model"
-                    )
-                except Exception as e:
-                    st.error(f"Error exporting previous results: {str(e)}")
+        if st.sidebar.button("View Previous Results"):
+            display_cluster_analysis(st.session_state.topic_model)
+            render_summary_tab(st.session_state.topic_model)
+            return
 
     with st.sidebar:
-        st.header("Clustering Parameters")
+        st.header("Analysis Parameters")
         
-        # Updated sliders with help text
+        # Clustering parameters
         min_cluster_size = st.slider(
-            "Minimum Cluster Size ❓", 
+            "Minimum Group Size ❓", 
             2, 5, 2,
-            help="The minimum number of documents required to form a cluster. Lower values create more clusters but may be less meaningful."
+            help="Minimum number of documents needed to form a thematic group"
         )
         
         max_features = st.slider(
-            "Maximum Features ❓", 
+            "Maximum Terms ❓", 
             1000, 10000, 3000,
-            help="The maximum number of words to consider in the analysis. Higher values capture more detail but increase processing time."
+            help="Maximum number of unique terms to consider"
         )
         
-        # Changed to use whole numbers for document frequency
+        # Document frequency parameters
         total_docs = len(data)
         min_docs = st.slider(
-            "Minimum Documents ❓", 
+            "Minimum Document Frequency ❓", 
             2, max(2, total_docs//2), 5,
-            help="The minimum number of documents a term must appear in to be considered. Higher values focus on more common terms."
+            help="How many documents a term must appear in"
         )
         min_df = min_docs / total_docs
         
         max_docs = st.slider(
-            "Maximum Documents ❓", 
+            "Maximum Document Frequency ❓", 
             min_docs, total_docs, int(total_docs * 0.9),
-            help="The maximum number of documents a term can appear in. Lower values filter out very common terms."
+            help="Maximum number of documents a term can appear in"
         )
         max_df = max_docs / total_docs
 
+    # Date range selection
     col1, col2 = st.columns(2)
     with col1:
         start_date = st.date_input(
@@ -2520,7 +2508,7 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             value=data['date_of_report'].min().date(),
             min_value=data['date_of_report'].min().date(),
             max_value=data['date_of_report'].max().date(),
-            key="tm_start_date",
+            key="analysis_start_date",
             format="DD/MM/YYYY"
         )
         
@@ -2528,8 +2516,8 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             "Document Type ❓",
             ["Report", "Response"],
             default=["Report"],
-            key="tm_doc_type",
-            help="Select the types of documents to include in the analysis"
+            key="analysis_doc_type",
+            help="Types of documents to analyze"
         )
 
     with col2:
@@ -2538,10 +2526,11 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             value=data['date_of_report'].max().date(),
             min_value=data['date_of_report'].min().date(),
             max_value=data['date_of_report'].max().date(),
-            key="tm_end_date",
+            key="analysis_end_date",
             format="DD/MM/YYYY"
         )
         
+        # Get unique categories
         all_categories = set()
         for cats in data['categories'].dropna():
             if isinstance(cats, list):
@@ -2550,18 +2539,18 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
         categories = st.multiselect(
             "Categories ❓",
             options=sorted(all_categories),
-            key="tm_categories",
-            help="Select specific categories of reports to analyze"
+            key="analysis_categories",
+            help="Specific categories to analyze"
         )
 
     analyze_col1, analyze_col2 = st.columns([3, 1])
     with analyze_col1:
-        analyze_clicked = st.button("🔍 Perform Clustering Analysis", type="primary", use_container_width=True)
+        analyze_clicked = st.button("🔍 Analyze Documents", type="primary", use_container_width=True)
     with analyze_col2:
         show_details = st.checkbox(
-            "Show Details ❓", 
+            "Show Process Details ❓", 
             value=False,
-            help="When enabled, shows the list of documents being analyzed and additional processing information"
+            help="Show additional information about the analysis process"
         )
 
     if analyze_clicked:
@@ -2569,36 +2558,33 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
             progress_bar = st.progress(0)
             status_text = st.empty()
             
-            with st.spinner("Initializing resources..."):
+            with st.spinner("Initializing..."):
                 initialize_nltk()
                 progress_bar.progress(0.1)
                 status_text.text("Initialized resources...")
 
-            # Start with a fresh copy of the data, using only the 'Content' column
+            # Filter data
             filtered_df = data[['Content', 'date_of_report', 'Title', 'ref', 'categories']].copy()
             status_text.text("Applying filters...")
             progress_bar.progress(0.2)
             
-            # Date filter
+            # Apply date filter
             filtered_df = filtered_df[
                 (filtered_df['date_of_report'].dt.date >= start_date) &
                 (filtered_df['date_of_report'].dt.date <= end_date)
             ]
             
-            # Document type filter
+            # Apply document type filter
             if doc_type:
                 if "Report" in doc_type and "Response" not in doc_type:
-                    # Keep only reports (non-responses)
                     filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
                 elif "Response" in doc_type and "Report" not in doc_type:
-                    # Keep only responses
                     filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
-                # If both are selected or neither is selected, keep all documents
             
             progress_bar.progress(0.3)
             status_text.text("Processing document types...")
             
-            # Category filter
+            # Apply category filter
             if categories:
                 filtered_df = filtered_df[
                     filtered_df['categories'].apply(
@@ -2607,30 +2593,19 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                 ]
             
             progress_bar.progress(0.4)
-            status_text.text("Filtering by categories...")
+            status_text.text("Processing categories...")
 
-            # Create document identifier and deduplicate
-            try:
-                filtered_df['doc_id'] = [
-                    f"{str(title)}_{str(ref)}_{date.strftime('%Y-%m-%d')}"
-                    for title, ref, date in zip(
-                        filtered_df['Title'].fillna(''),
-                        filtered_df['ref'].fillna(''),
-                        filtered_df['date_of_report']
-                    )
-                ]
-                filtered_df = filtered_df.drop_duplicates(subset=['doc_id'])
-            except Exception as e:
-                logging.error(f"Error creating document IDs: {e}")
-                raise
-            
-            progress_bar.progress(0.5)
-            status_text.text("Removing duplicates...")
+            # Deduplicate documents
+            filtered_df['doc_id'] = filtered_df.apply(
+                lambda x: f"{x['Title']}_{x['ref']}_{x['date_of_report'].strftime('%Y-%m-%d')}", 
+                axis=1
+            )
+            filtered_df = filtered_df.drop_duplicates(subset=['doc_id'])
             
             if len(filtered_df) < min_cluster_size:
                 progress_bar.empty()
                 status_text.empty()
-                st.warning(f"Not enough documents match the selected filters. Found {len(filtered_df)}, need at least {min_cluster_size}.")
+                st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
             
             doc_count = len(filtered_df)
@@ -2646,136 +2621,65 @@ def render_topic_modeling_tab(data: pd.DataFrame) -> None:
                     },
                     hide_index=True
                 )
-                
-                st.write("Processing parameters:")
-                st.json({
-                    "Document count": doc_count,
-                    "Minimum documents per term": min_docs,
-                    "Maximum documents per term": max_docs,
-                    "Maximum features": max_features,
-                    "Minimum cluster size": min_cluster_size
-                })
             
             progress_bar.progress(0.6)
-            status_text.text("Starting clustering analysis...")
+            status_text.text("Starting thematic analysis...")
             
-            # Update cluster analysis to use only Content field
-            # Process only the Content column for clustering
-            text_data = filtered_df['Content'].copy()
-            processed_texts = text_data.apply(clean_text_for_modeling)
-            
-            # Remove any empty processed texts
+            # Process content for analysis
+            processed_texts = filtered_df['Content'].apply(clean_text_for_modeling)
             valid_indices = processed_texts[processed_texts.notna() & (processed_texts != '')].index
+            
             processed_df = pd.DataFrame({
-                'Content': text_data[valid_indices],
+                'Content': filtered_df.loc[valid_indices, 'Content'],
                 'processed_content': processed_texts[valid_indices],
                 'Title': filtered_df.loc[valid_indices, 'Title'],
                 'date_of_report': filtered_df.loc[valid_indices, 'date_of_report']
             })
             
+            # Perform clustering
             cluster_results = perform_semantic_clustering(
-                processed_df,  # Only passing the necessary data
+                processed_df,
                 min_cluster_size=min_cluster_size,
                 max_features=max_features,
                 min_df=min_df,
                 max_df=max_df
             )
             
-            # Process cluster results for storage
-            final_results = {
-                'n_clusters': cluster_results['n_clusters'],
-                'total_documents': cluster_results['total_documents'],
-                'silhouette_score': cluster_results['silhouette_score'],
-                'clusters': []
-            }
-
-            # Convert timestamps and prepare clusters for storage
-            for cluster in cluster_results['clusters']:
-                processed_cluster = cluster.copy()
-                processed_docs = []
-                for doc in cluster['documents']:
-                    processed_doc = doc.copy()
-                    if isinstance(doc['date'], pd.Timestamp):
-                        processed_doc['date'] = doc['date'].strftime('%Y-%m-%d')
-                    processed_docs.append(processed_doc)
-                processed_cluster['documents'] = processed_docs
-                final_results['clusters'].append(processed_cluster)
-
-            # Store in session state
-            st.session_state.topic_model = final_results
+            # Store results
+            st.session_state.topic_model = cluster_results
             
             progress_bar.progress(0.8)
-            status_text.text("Generating visualizations...")
+            status_text.text("Generating summaries...")
             
-            # Show clustering quality metrics
-            if show_details:
-                st.subheader("Clustering Quality Metrics")
-                quality_metrics = {
-                    "Silhouette Score": cluster_results['silhouette_score'],
-                    "Average Cluster Size": sum(c['size'] for c in cluster_results['clusters']) / len(cluster_results['clusters']),
-                    "Number of Clusters": len(cluster_results['clusters']),
-                    "Documents Clustered": sum(c['size'] for c in cluster_results['clusters'])
-                }
-                
-                metrics_df = pd.DataFrame([quality_metrics]).T
-                metrics_df.columns = ['Value']
-                st.dataframe(metrics_df)
+            # Display results
+            st.markdown("## Analysis Results")
             
-            display_cluster_analysis(cluster_results)
+            # Overview metrics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Thematic Groups", cluster_results['n_clusters'])
+            with col2:
+                st.metric("Total Documents", cluster_results['total_documents'])
+            with col3:
+                st.metric("Analysis Quality", f"{cluster_results['silhouette_score']:.3f}")
             
-            progress_bar.progress(0.9)
-            status_text.text("Preparing export...")
-            
-            st.markdown("---")
-            st.subheader("Export Results")
-            
-            # Convert timestamps to strings for JSON serialization
-            def json_serialize(obj):
-                if isinstance(obj, pd.Timestamp):
-                    return obj.strftime('%Y-%m-%d')
-                return str(obj)
-
-            # Add clustering parameters to export
-            export_data = cluster_results.copy()
-            export_data['parameters'] = {
-                'min_cluster_size': min_cluster_size,
-                'max_features': max_features,
-                'min_documents': min_docs,
-                'max_documents': max_docs,
-                'total_documents': doc_count,
-                'date_range': {
-                    'start': start_date.strftime('%Y-%m-%d'),
-                    'end': end_date.strftime('%Y-%m-%d')
-                },
-                'document_types': doc_type,
-                'categories': categories if categories else []
-            }
-            
-            export_json = json.dumps(export_data, default=json_serialize, indent=2)
-            
-            st.download_button(
-                "📥 Download Analysis (JSON)",
-                export_json,
-                f"cluster_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-                "application/json",
-                key="download_cluster_analysis"
-            )
+            # Display summaries
+            render_summary_tab(cluster_results)
             
             progress_bar.progress(1.0)
             status_text.empty()
             progress_bar.empty()
             
         except Exception as e:
-            if 'topic_model' in st.session_state:
-                del st.session_state.topic_model
-            
             progress_bar.empty()
             status_text.empty()
-            st.error(f"Error during clustering analysis: {str(e)}")
+            st.error(f"Analysis error: {str(e)}")
             if show_details:
                 st.error(f"Detailed error: {traceback.format_exc()}")
-            logging.error(f"Clustering error: {e}", exc_info=True)
-            
+            logging.error(f"Analysis error: {e}", exc_info=True)
+
+
+           
 def render_summary_tab(cluster_results: Dict) -> None:
     """Render the cluster summaries tab with improved formatting and traceability"""
     st.header("Cluster Summaries")
@@ -2984,23 +2888,22 @@ def render_footer():
 
 
 def main():
-    """Main application entry point with integrated summaries functionality"""
+    """Updated main application entry point."""
     initialize_session_state()
     
     st.title("UK Judiciary PFD Reports Analysis")
     st.markdown("""
     This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can scrape new reports, analyze existing data, explore topics, and view summaries.
+    You can scrape new reports, analyze existing data, and explore thematic patterns.
     """)
     
-    # Create tab selection with summaries tab
+    # Updated tab selection without topic modeling tab
     current_tab = st.radio(
         "Select section:",
         [
             "🔍 Scrape Reports",
             "📊 Analysis",
-            "🔬 Topic Modeling",
-            "📝 Summaries"
+            "📝 Topic Analysis & Summaries"
         ],
         label_visibility="collapsed",
         horizontal=True,
@@ -3010,86 +2913,28 @@ def main():
     st.markdown("---")
     
     try:
-        # Handle tab content
         if current_tab == "🔍 Scrape Reports":
             render_scraping_tab()
             
-            # Show data preview if available
-            if hasattr(st.session_state, 'scraped_data') and st.session_state.scraped_data is not None:
-                st.success(f"Found {len(st.session_state.scraped_data)} reports")
-                st.dataframe(
-                    st.session_state.scraped_data,
-                    column_config={
-                        "URL": st.column_config.LinkColumn("Report Link"),
-                        "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY"),
-                        "categories": st.column_config.ListColumn("Categories")
-                    },
-                    hide_index=True
-                )
-                show_export_options(st.session_state.scraped_data, "scraped")
-        
         elif current_tab == "📊 Analysis":
-            if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
-                st.warning("No data available. Please scrape reports or upload a file first.")
-                
-                # Add file upload option
-                uploaded_file = st.file_uploader(
-                    "Upload existing data file",
-                    type=['csv', 'xlsx'],
-                    key="analysis_uploader"
-                )
-                
-                if uploaded_file:
-                    try:
-                        if uploaded_file.name.endswith('.csv'):
-                            data = pd.read_csv(uploaded_file)
-                        else:
-                            data = pd.read_excel(uploaded_file)
-                        
-                        # Process uploaded data
-                        data = process_scraped_data(data)
-                        st.session_state.current_data = data
-                        st.experimental_rerun()
-                    except Exception as e:
-                        st.error(f"Error loading file: {str(e)}")
+            if not validate_data_state():
+                handle_no_data_state("analysis")
             else:
                 render_analysis_tab(st.session_state.current_data)
         
-        elif current_tab == "🔬 Topic Modeling":
-            if not hasattr(st.session_state, 'current_data') or st.session_state.current_data is None:
-                st.warning("No data available. Please scrape reports or upload a file first.")
-                return
-                
-            try:
-                is_valid, message = validate_data(st.session_state.current_data, "topic_modeling")
-                if is_valid:
-                    render_topic_modeling_tab(st.session_state.current_data)
-                else:
-                    st.error(message)
-            except Exception as e:
-                st.error(f"Error in topic modeling: {str(e)}")
-                logging.error(f"Topic modeling error: {e}", exc_info=True)
-        
-        elif current_tab == "📝 Summaries":
-            if 'topic_model' not in st.session_state or not st.session_state.topic_model:
-                st.warning("Please run the clustering analysis first to view summaries.")
-                
-                # Add quick link to clustering
-                if st.button("Go to Topic Modeling"):
-                    st.session_state.main_tab_selector = "🔬 Topic Modeling"
-                    st.experimental_rerun()
+        elif current_tab == "📝 Topic Analysis & Summaries":
+            if not validate_data_state():
+                handle_no_data_state("topic_summary")
             else:
-                render_summary_tab(st.session_state.topic_model)
+                render_topic_summary_tab(st.session_state.current_data)
         
-        # Add data management section in sidebar
+        # Sidebar data management
         with st.sidebar:
             st.header("Data Management")
             
-            # Show current data source
             if hasattr(st.session_state, 'data_source'):
                 st.info(f"Current data: {st.session_state.data_source}")
             
-            # Add clear data option
             if st.button("Clear All Data"):
                 for key in ['current_data', 'scraped_data', 'uploaded_data', 
                           'topic_model', 'data_source']:
@@ -3098,29 +2943,10 @@ def main():
                 st.success("All data cleared")
                 st.experimental_rerun()
         
-        # Add footer
-        st.markdown("---")
-        st.markdown(
-            """<div style='text-align: center'>
-            <p>Built with Streamlit • Data from UK Judiciary</p>
-            </div>""",
-            unsafe_allow_html=True
-        )
-    
+        render_footer()
+        
     except Exception as e:
-        st.error("An unexpected error occurred")
-        st.error(str(e))
-        logging.error(f"Main application error: {e}", exc_info=True)
-        
-        # Add error details in expander
-        with st.expander("Error Details"):
-            st.code(traceback.format_exc())
-        
-        # Add recovery options
-        st.warning("You can:")
-        st.markdown("1. Try clearing the data and starting fresh")
-        st.markdown("2. Upload a different data file")
-        st.markdown("3. Adjust any filter settings that might be causing issues")
+        handle_error(e)
 
 
 if __name__ == "__main__":
