@@ -3030,8 +3030,10 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             status_text.empty()
             st.error(f"Analysis error: {str(e)}")
             logging.error(f"Analysis error: {e}", exc_info=True)
+
+
 def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
-    """Render cluster summaries and records"""
+    """Render cluster summaries and records with flexible column handling"""
     if not cluster_results or 'clusters' not in cluster_results:
         st.warning("No cluster results available.")
         return
@@ -3071,26 +3073,47 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
         cluster_docs['sort_order'] = cluster_docs['Title'].map(title_to_position)
         cluster_docs = cluster_docs.sort_values('sort_order').drop('sort_order', axis=1)
         
-        # Display using analysis tab format
-        st.dataframe(
-            cluster_docs[['URL', 'Title', 'date_of_report', 'ref', 'deceased_name', 
-                         'coroner_name', 'coroner_area', 'categories']],
-            column_config={
-                "URL": st.column_config.LinkColumn("Report Link"),
-                "Title": st.column_config.TextColumn("Title"),
-                "date_of_report": st.column_config.DateColumn(
-                    "Date of Report",
-                    format="DD/MM/YYYY"
-                ),
-                "ref": st.column_config.TextColumn("Reference"),
-                "deceased_name": st.column_config.TextColumn("Deceased Name"),
-                "coroner_name": st.column_config.TextColumn("Coroner Name"),
-                "coroner_area": st.column_config.TextColumn("Coroner Area"),
-                "categories": st.column_config.ListColumn("Categories")
-            },
-            hide_index=True,
-            use_container_width=True
-        )
+        # Determine available columns
+        available_columns = []
+        column_config = {}
+        
+        # Always include URL and Title if available
+        if 'URL' in cluster_docs.columns:
+            available_columns.append('URL')
+            column_config['URL'] = st.column_config.LinkColumn("Report Link")
+        
+        if 'Title' in cluster_docs.columns:
+            available_columns.append('Title')
+            column_config['Title'] = st.column_config.TextColumn("Title")
+        
+        # Add date if available
+        if 'date_of_report' in cluster_docs.columns:
+            available_columns.append('date_of_report')
+            column_config['date_of_report'] = st.column_config.DateColumn(
+                "Date of Report",
+                format="DD/MM/YYYY"
+            )
+        
+        # Add optional columns if available
+        optional_columns = ['ref', 'deceased_name', 'coroner_name', 'coroner_area', 'categories']
+        for col in optional_columns:
+            if col in cluster_docs.columns:
+                available_columns.append(col)
+                if col == 'categories':
+                    column_config[col] = st.column_config.ListColumn("Categories")
+                else:
+                    column_config[col] = st.column_config.TextColumn(col.replace('_', ' ').title())
+        
+        # Display the dataframe with available columns
+        if available_columns:
+            st.dataframe(
+                cluster_docs[available_columns],
+                column_config=column_config,
+                hide_index=True,
+                use_container_width=True
+            )
+        else:
+            st.warning("No displayable columns found in the data")
         
         st.markdown("---")
         
