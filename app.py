@@ -2687,11 +2687,14 @@ def initialize_nltk():
         logging.error(f"Error initializing NLTK resources: {e}")
         raise
 
-def perform_semantic_clustering(data: pd.DataFrame, 
-                             min_cluster_size: int = 2,
-                             max_features: int = 5000,
-                             min_df: float = 0.01,
-                             max_df: float = 0.95) -> Dict:
+def perform_semantic_clustering(
+    data: pd.DataFrame, 
+    min_cluster_size: int = 2,
+    max_features: int = 5000,
+    min_df: float = 0.01,
+    max_df: float = 0.95,
+    similarity_threshold: float = 0.3
+) -> Dict:
     """
     Perform semantic clustering with enhanced balance and distribution
     """
@@ -2794,8 +2797,9 @@ def perform_semantic_clustering(data: pd.DataFrame,
             )
             best_labels = clustering.fit_predict(tfidf_matrix.toarray())
 
-        # Calculate similarities
+        # Calculate similarities using similarity threshold
         similarity_matrix = cosine_similarity(tfidf_matrix)
+        similarity_matrix[similarity_matrix < similarity_threshold] = 0
 
         # Extract cluster information
         clusters = []
@@ -2872,7 +2876,7 @@ def perform_semantic_clustering(data: pd.DataFrame,
         
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
-        raise ValueError(f"Clustering failed: {str(e)}")
+        raise
         
 def create_document_identifier(row: pd.Series) -> str:
     """Create a unique identifier for a document based on its title and reference number"""
@@ -3409,7 +3413,7 @@ def export_topic_results(
         })
     
     return json.dumps(results, indent=2)
-    
+
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
     """Main topic analysis and summary tab with enhanced options"""
     st.header("Topic Analysis & Summaries")
@@ -3425,12 +3429,124 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             render_summary_tab(st.session_state.topic_model, data)
             return
 
-    # Get all analysis options
-    options = render_topic_options()
+    st.subheader("Analysis Settings")
+
+    # Create two columns for main settings
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("##### Text Processing")
+        vectorizer_type = st.selectbox(
+            "Vectorization Method",
+            options=["tfidf", "bm25", "weighted"],
+            help="Choose how to convert text to numerical features"
+        )
+        
+        # Weighting Schemes section
+        st.markdown("##### Weighting Schemes")
+        if vectorizer_type == "bm25":
+            k1 = st.slider("Term Saturation (k1)", 
+                          min_value=0.5, 
+                          max_value=3.0, 
+                          value=1.5,
+                          step=0.1,
+                          help="Controls how quickly term frequency saturates")
+            b = st.slider("Length Normalization (b)",
+                         min_value=0.0,
+                         max_value=1.0,
+                         value=0.75,
+                         step=0.05,
+                         help="How much to penalize long documents")
+            tf_scheme = "standard"
+            idf_scheme = "standard"
+        elif vectorizer_type == "weighted":
+            tf_scheme = st.selectbox(
+                "Term Frequency Scheme",
+                options=["raw", "log", "binary", "augmented"],
+                help="How to weight term frequencies"
+            )
+            idf_scheme = st.selectbox(
+                "Document Frequency Scheme",
+                options=["smooth", "standard", "probabilistic"],
+                help="How to weight document frequencies"
+            )
+            k1 = 1.5
+            b = 0.75
+        else:  # tfidf
+            tf_scheme = "standard"
+            idf_scheme = "standard"
+            k1 = 1.5
+            b = 0.75
+
+    with col2:
+        st.markdown("##### Clustering Parameters")
+        min_cluster_size = st.slider(
+            "Minimum Cluster Size",
+            min_value=2,
+            max_value=10,
+            value=3,
+            help="Smallest allowed group of similar documents"
+        )
+        
+        max_features = st.slider(
+            "Maximum Features",
+            min_value=1000,
+            max_value=10000,
+            value=5000,
+            step=500,
+            help="Maximum number of terms to consider"
+        )
+        
+        min_similarity = st.slider(
+            "Minimum Similarity",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.3,
+            step=0.05,
+            help="How similar documents must be to be grouped together"
+        )
+
+    # Advanced settings in expander
+    with st.expander("Advanced Settings", expanded=False):
+        st.markdown("##### Document Frequency Bounds")
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            min_docs = st.number_input(
+                "Minimum Document Count",
+                min_value=1,
+                value=2,
+                help="Minimum number of documents a term must appear in"
+            )
+            min_df = min_docs / len(data) if len(data) > 0 else 0.01
+        
+        with col4:
+            max_df = st.slider(
+                "Maximum Document %",
+                min_value=0.1,
+                max_value=1.0,
+                value=0.95,
+                step=0.05,
+                help="Maximum % of documents a term can appear in"
+            )
+
+        st.markdown("##### Visualization Settings")
+        network_layout = st.selectbox(
+            "Network Layout",
+            options=["force", "circular", "random"],
+            help="How to arrange nodes in topic networks"
+        )
+        
+        show_weights = st.checkbox(
+            "Show Edge Weights",
+            value=True,
+            help="Display connection strengths between terms"
+        )
 
     # Date range selection
-    col1, col2 = st.columns(2)
-    with col1:
+    st.markdown("##### Date Range")
+    date_col1, date_col2 = st.columns(2)
+    with date_col1:
         start_date = st.date_input(
             "From",
             value=data['date_of_report'].min().date(),
@@ -3440,7 +3556,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             format="DD/MM/YYYY"
         )
 
-    with col2:
+    with date_col2:
         end_date = st.date_input(
             "To",
             value=data['date_of_report'].max().date(),
@@ -3451,13 +3567,14 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
         )
 
     # Category selection
+    st.markdown("##### Categories")
     all_categories = set()
     for cats in data['categories'].dropna():
         if isinstance(cats, list):
             all_categories.update(cats)
     
     categories = st.multiselect(
-        "Categories ❓",
+        "Select Categories",
         options=sorted(all_categories),
         key="analysis_categories",
         help="Specific categories to analyze"
@@ -3502,7 +3619,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             # Remove empty content
             filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
             
-            min_cluster_size = options["cluster_params"]["min_cluster_size"]
             if len(filtered_df) < min_cluster_size:
                 progress_bar.empty()
                 status_text.empty()
@@ -3525,31 +3641,35 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.6)
             status_text.text("Performing clustering analysis...")
             
-            # Create vectorizer with selected options
-            vectorizer = get_vectorizer(
-                vectorizer_type=options["vectorizer_type"],
-                max_features=options["cluster_params"]["max_features"],
-                min_df=options["cluster_params"]["min_df"],
-                max_df=options["cluster_params"]["max_df"],
-                **options["vectorizer_params"]
-            )
+            # Store vectorization settings in session state
+            st.session_state.vectorizer_type = vectorizer_type
+            if vectorizer_type == "bm25":
+                st.session_state.bm25_k1 = k1
+                st.session_state.bm25_b = b
+            elif vectorizer_type == "weighted":
+                st.session_state.tf_scheme = tf_scheme
+                st.session_state.idf_scheme = idf_scheme
             
             # Perform clustering with selected parameters
             cluster_results = perform_semantic_clustering(
                 processed_df,
-                min_cluster_size=options["cluster_params"]["min_cluster_size"],
-                max_features=options["cluster_params"]["max_features"],
-                min_df=options["cluster_params"]["min_df"],
-                max_df=options["cluster_params"]["max_df"],
-                vectorizer=vectorizer,
-                similarity_threshold=options["cluster_params"]["min_similarity"]
+                min_cluster_size=min_cluster_size,
+                max_features=max_features,
+                min_df=min_df,
+                max_df=max_df,
+                similarity_threshold=min_similarity
             )
             
             progress_bar.progress(0.8)
             status_text.text("Analyzing cluster results...")
             
-            # Store results along with visualization parameters
-            cluster_results['viz_params'] = options["viz_params"]
+            # Add visualization parameters to results
+            cluster_results['viz_params'] = {
+                'network_layout': network_layout,
+                'show_weights': show_weights
+            }
+            
+            # Store complete results
             st.session_state.topic_model = cluster_results
             
             progress_bar.progress(1.0)
@@ -3558,7 +3678,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.empty()
             status_text.empty()
             
-            # Display results with selected visualization options
+            # Display results
             render_summary_tab(cluster_results, processed_df)
             
         except Exception as e:
@@ -3566,6 +3686,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             status_text.empty()
             st.error(f"Analysis error: {str(e)}")
             logging.error(f"Analysis error: {e}", exc_info=True)
+
 
 def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
     """Render cluster summaries and records with flexible column handling"""
