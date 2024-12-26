@@ -1092,6 +1092,160 @@ def render_scraping_tab():
             logging.error(f"Scraping error: {e}")
             return False                           
 
+
+def render_topic_summary_tab(data: pd.DataFrame) -> None:
+    """Main topic analysis and summary tab with simplified options"""
+    st.header("Topic Analysis & Summaries")
+    st.markdown("""
+    This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
+    and generating summaries for each thematic group.
+    """)
+
+    # Show previous results if available
+    if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
+        st.sidebar.success("Previous analysis results available")
+        if st.sidebar.button("View Previous Results"):
+            render_summary_tab(st.session_state.topic_model, data)
+            return
+
+    st.subheader("Analysis Settings")
+
+    # Core analysis parameters
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        # Simplified clustering parameters
+        min_cluster_size = st.slider(
+            "Minimum Group Size",
+            min_value=2,
+            max_value=10,
+            value=3,
+            help="Minimum number of documents in each theme group"
+        )
+        
+        max_features = st.slider(
+            "Topic Detail Level",
+            min_value=1000,
+            max_value=10000,
+            value=5000,
+            step=1000,
+            help="Higher values capture more detailed topics"
+        )
+
+    with col2:
+        # Date range selection
+        start_date = st.date_input(
+            "From",
+            value=data['date_of_report'].min().date(),
+            min_value=data['date_of_report'].min().date(),
+            max_value=data['date_of_report'].max().date()
+        )
+
+        end_date = st.date_input(
+            "To",
+            value=data['date_of_report'].max().date(),
+            min_value=data['date_of_report'].min().date(),
+            max_value=data['date_of_report'].max().date()
+        )
+
+    # Category selection
+    all_categories = set()
+    for cats in data['categories'].dropna():
+        if isinstance(cats, list):
+            all_categories.update(cats)
+    
+    categories = st.multiselect(
+        "Filter by Categories (Optional)",
+        options=sorted(all_categories),
+        help="Select specific categories to analyze"
+    )
+
+    # Analysis button
+    analyze_clicked = st.button(
+        "🔍 Analyze Documents",
+        type="primary",
+        use_container_width=True
+    )
+
+    if analyze_clicked:
+        try:
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            # Initialize
+            progress_bar.progress(0.2)
+            status_text.text("Processing documents...")
+            initialize_nltk()
+
+            # Filter data
+            filtered_df = data.copy()
+            
+            # Apply date filter
+            filtered_df = filtered_df[
+                (filtered_df['date_of_report'].dt.date >= start_date) &
+                (filtered_df['date_of_report'].dt.date <= end_date)
+            ]
+            
+            # Apply category filter
+            if categories:
+                filtered_df = filter_by_categories(filtered_df, categories)
+            
+            # Remove empty content
+            filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
+            
+            if len(filtered_df) < min_cluster_size:
+                progress_bar.empty()
+                status_text.empty()
+                st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
+                return
+
+            # Process content
+            progress_bar.progress(0.4)
+            status_text.text("Identifying themes...")
+            
+            processed_df = pd.DataFrame({
+                'Content': filtered_df['Content'],
+                'Title': filtered_df['Title'],
+                'date_of_report': filtered_df['date_of_report'],
+                'URL': filtered_df['URL'],
+                'categories': filtered_df['categories']
+            })
+            
+            progress_bar.progress(0.6)
+            status_text.text("Analyzing patterns...")
+            
+            # Perform clustering with simplified parameters
+            cluster_results = perform_semantic_clustering(
+                processed_df,
+                min_cluster_size=min_cluster_size,
+                max_features=max_features,
+                min_df=2/len(processed_df),
+                max_df=0.95,
+                similarity_threshold=0.3
+            )
+            
+            progress_bar.progress(0.8)
+            status_text.text("Generating summaries...")
+            
+            # Store results
+            st.session_state.topic_model = cluster_results
+            
+            progress_bar.progress(1.0)
+            status_text.text("Analysis complete!")
+            
+            progress_bar.empty()
+            status_text.empty()
+            
+            # Display results
+            render_summary_tab(cluster_results, processed_df)
+            
+        except Exception as e:
+            progress_bar.empty()
+            status_text.empty()
+            st.error(f"Analysis error: {str(e)}")
+            logging.error(f"Analysis error: {e}", exc_info=True)
+
+
 def render_topic_options():
     """Render enhanced topic analysis options in a clear layout"""
     
@@ -3414,278 +3568,6 @@ def export_topic_results(
     
     return json.dumps(results, indent=2)
 
-def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    """Main topic analysis and summary tab with enhanced options"""
-    st.header("Topic Analysis & Summaries")
-    st.markdown("""
-    This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
-    and generating summaries for each thematic group.
-    """)
-
-    # Show previous results if available
-    if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
-        st.sidebar.success("Previous analysis results available")
-        if st.sidebar.button("View Previous Results"):
-            render_summary_tab(st.session_state.topic_model, data)
-            return
-
-    st.subheader("Analysis Settings")
-
-    # Create two columns for main settings
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("##### Text Processing")
-        vectorizer_type = st.selectbox(
-            "Vectorization Method",
-            options=["tfidf", "bm25", "weighted"],
-            help="Choose how to convert text to numerical features"
-        )
-        
-        # Weighting Schemes section
-        st.markdown("##### Weighting Schemes")
-        if vectorizer_type == "bm25":
-            k1 = st.slider("Term Saturation (k1)", 
-                          min_value=0.5, 
-                          max_value=3.0, 
-                          value=1.5,
-                          step=0.1,
-                          help="Controls how quickly term frequency saturates")
-            b = st.slider("Length Normalization (b)",
-                         min_value=0.0,
-                         max_value=1.0,
-                         value=0.75,
-                         step=0.05,
-                         help="How much to penalize long documents")
-            tf_scheme = "standard"
-            idf_scheme = "standard"
-        elif vectorizer_type == "weighted":
-            tf_scheme = st.selectbox(
-                "Term Frequency Scheme",
-                options=["raw", "log", "binary", "augmented"],
-                help="How to weight term frequencies"
-            )
-            idf_scheme = st.selectbox(
-                "Document Frequency Scheme",
-                options=["smooth", "standard", "probabilistic"],
-                help="How to weight document frequencies"
-            )
-            k1 = 1.5
-            b = 0.75
-        else:  # tfidf
-            tf_scheme = "standard"
-            idf_scheme = "standard"
-            k1 = 1.5
-            b = 0.75
-
-    with col2:
-        st.markdown("##### Clustering Parameters")
-        min_cluster_size = st.slider(
-            "Minimum Cluster Size",
-            min_value=2,
-            max_value=10,
-            value=3,
-            help="Smallest allowed group of similar documents"
-        )
-        
-        max_features = st.slider(
-            "Maximum Features",
-            min_value=1000,
-            max_value=10000,
-            value=5000,
-            step=500,
-            help="Maximum number of terms to consider"
-        )
-        
-        min_similarity = st.slider(
-            "Minimum Similarity",
-            min_value=0.0,
-            max_value=1.0,
-            value=0.3,
-            step=0.05,
-            help="How similar documents must be to be grouped together"
-        )
-
-    # Advanced settings in expander
-    with st.expander("Advanced Settings", expanded=False):
-        st.markdown("##### Document Frequency Bounds")
-        col3, col4 = st.columns(2)
-        
-        with col3:
-            min_docs = st.number_input(
-                "Minimum Document Count",
-                min_value=1,
-                value=2,
-                help="Minimum number of documents a term must appear in"
-            )
-            min_df = min_docs / len(data) if len(data) > 0 else 0.01
-        
-        with col4:
-            max_df = st.slider(
-                "Maximum Document %",
-                min_value=0.1,
-                max_value=1.0,
-                value=0.95,
-                step=0.05,
-                help="Maximum % of documents a term can appear in"
-            )
-
-        st.markdown("##### Visualization Settings")
-        network_layout = st.selectbox(
-            "Network Layout",
-            options=["force", "circular", "random"],
-            help="How to arrange nodes in topic networks"
-        )
-        
-        show_weights = st.checkbox(
-            "Show Edge Weights",
-            value=True,
-            help="Display connection strengths between terms"
-        )
-
-    # Date range selection
-    st.markdown("##### Date Range")
-    date_col1, date_col2 = st.columns(2)
-    with date_col1:
-        start_date = st.date_input(
-            "From",
-            value=data['date_of_report'].min().date(),
-            min_value=data['date_of_report'].min().date(),
-            max_value=data['date_of_report'].max().date(),
-            key="analysis_start_date",
-            format="DD/MM/YYYY"
-        )
-
-    with date_col2:
-        end_date = st.date_input(
-            "To",
-            value=data['date_of_report'].max().date(),
-            min_value=data['date_of_report'].min().date(),
-            max_value=data['date_of_report'].max().date(),
-            key="analysis_end_date",
-            format="DD/MM/YYYY"
-        )
-
-    # Category selection
-    st.markdown("##### Categories")
-    all_categories = set()
-    for cats in data['categories'].dropna():
-        if isinstance(cats, list):
-            all_categories.update(cats)
-    
-    categories = st.multiselect(
-        "Select Categories",
-        options=sorted(all_categories),
-        key="analysis_categories",
-        help="Specific categories to analyze"
-    )
-
-    # Analysis button
-    analyze_clicked = st.button(
-        "🔍 Analyze Documents",
-        type="primary",
-        use_container_width=True,
-        help="Start the analysis with current settings"
-    )
-
-    if analyze_clicked:
-        try:
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-
-            # Initialize
-            progress_bar.progress(0.1)
-            status_text.text("Initializing analysis...")
-            initialize_nltk()
-
-            # Filter data
-            filtered_df = data.copy()
-            progress_bar.progress(0.2)
-            status_text.text("Applying filters...")
-            
-            # Apply date filter
-            filtered_df = filtered_df[
-                (filtered_df['date_of_report'].dt.date >= start_date) &
-                (filtered_df['date_of_report'].dt.date <= end_date)
-            ]
-            
-            # Apply category filter
-            if categories:
-                filtered_df = filter_by_categories(filtered_df, categories)
-            
-            progress_bar.progress(0.3)
-            status_text.text("Preprocessing documents...")
-            
-            # Remove empty content
-            filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
-            
-            if len(filtered_df) < min_cluster_size:
-                progress_bar.empty()
-                status_text.empty()
-                st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
-                return
-            
-            # Process content
-            progress_bar.progress(0.4)
-            status_text.text("Processing document content...")
-            
-            # Prepare the DataFrame with only required columns
-            processed_df = pd.DataFrame({
-                'Content': filtered_df['Content'],
-                'Title': filtered_df['Title'],
-                'date_of_report': filtered_df['date_of_report'],
-                'URL': filtered_df['URL'],
-                'categories': filtered_df['categories']
-            })
-            
-            progress_bar.progress(0.6)
-            status_text.text("Performing clustering analysis...")
-            
-            # Store vectorization settings in session state
-            st.session_state.vectorizer_type = vectorizer_type
-            if vectorizer_type == "bm25":
-                st.session_state.bm25_k1 = k1
-                st.session_state.bm25_b = b
-            elif vectorizer_type == "weighted":
-                st.session_state.tf_scheme = tf_scheme
-                st.session_state.idf_scheme = idf_scheme
-            
-            # Perform clustering with selected parameters
-            cluster_results = perform_semantic_clustering(
-                processed_df,
-                min_cluster_size=min_cluster_size,
-                max_features=max_features,
-                min_df=min_df,
-                max_df=max_df,
-                similarity_threshold=min_similarity
-            )
-            
-            progress_bar.progress(0.8)
-            status_text.text("Analyzing cluster results...")
-            
-            # Add visualization parameters to results
-            cluster_results['viz_params'] = {
-                'network_layout': network_layout,
-                'show_weights': show_weights
-            }
-            
-            # Store complete results
-            st.session_state.topic_model = cluster_results
-            
-            progress_bar.progress(1.0)
-            status_text.text("Analysis complete!")
-            
-            progress_bar.empty()
-            status_text.empty()
-            
-            # Display results
-            render_summary_tab(cluster_results, processed_df)
-            
-        except Exception as e:
-            progress_bar.empty()
-            status_text.empty()
-            st.error(f"Analysis error: {str(e)}")
-            logging.error(f"Analysis error: {e}", exc_info=True)
 
 
 def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
