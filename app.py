@@ -3097,10 +3097,60 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
 
     with st.sidebar:
         st.header("Analysis Parameters")
+
+        # Add vectorizer selection
+        vectorizer_type = st.selectbox(
+            "Vectorization Method",
+            options=['tfidf', 'bm25', 'weighted'],
+            format_func=lambda x: {
+                'tfidf': 'Standard TF-IDF',
+                'bm25': 'BM25 Ranking',
+                'weighted': 'Weighted TF-IDF'
+            }[x],
+            help="Choose the method for converting text to vectors"
+        )
+
+        # Store in session state
+        st.session_state.vectorizer_type = vectorizer_type
+
+        # Show parameters specific to the chosen vectorizer
+        if vectorizer_type == 'bm25':
+            st.session_state.bm25_k1 = st.slider(
+                "BM25 k1 Parameter",
+                0.5, 3.0, 1.5, 0.1,
+                help="Controls term frequency scaling"
+            )
+            st.session_state.bm25_b = st.slider(
+                "BM25 b Parameter",
+                0.0, 1.0, 0.75, 0.05,
+                help="Controls document length normalization"
+            )
+        elif vectorizer_type == 'weighted':
+            st.session_state.tf_scheme = st.selectbox(
+                "Term Frequency Scheme",
+                options=['raw', 'log', 'binary', 'augmented'],
+                format_func=lambda x: {
+                    'raw': 'Raw Count',
+                    'log': 'Logarithmic',
+                    'binary': 'Binary',
+                    'augmented': 'Augmented'
+                }[x],
+                help="How to weight term frequencies"
+            )
+            st.session_state.idf_scheme = st.selectbox(
+                "IDF Scheme",
+                options=['smooth', 'standard', 'probabilistic'],
+                format_func=lambda x: {
+                    'smooth': 'Smoothed',
+                    'standard': 'Standard',
+                    'probabilistic': 'Probabilistic'
+                }[x],
+                help="How to weight inverse document frequencies"
+            )
         
         # Basic clustering parameters
         min_cluster_size = st.slider(
-            "Minimum Group Size ❓", 
+            "Minimum Group Size",
             2, 5, 2,
             help="Minimum number of documents needed to form a thematic group"
         )
@@ -3108,18 +3158,24 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
         # Document frequency parameters
         total_docs = len(data)
         min_docs = st.slider(
-            "Minimum Document Frequency ❓", 
+            "Minimum Document Frequency",
             2, max(2, total_docs//2), 5,
             help="How many documents a term must appear in"
         )
         min_df = min_docs / total_docs
         
         max_docs = st.slider(
-            "Maximum Document Frequency ❓", 
+            "Maximum Document Frequency",
             min_docs, total_docs, int(total_docs * 0.9),
             help="Maximum number of documents a term can appear in"
         )
         max_df = max_docs / total_docs
+        
+        max_features = st.slider(
+            "Maximum Features",
+            1000, 10000, 5000, 500,
+            help="Maximum number of terms to include in the analysis"
+        )
 
     # Date range selection
     col1, col2 = st.columns(2)
@@ -3150,7 +3206,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             all_categories.update(cats)
     
     categories = st.multiselect(
-        "Categories ❓",
+        "Categories",
         options=sorted(all_categories),
         key="analysis_categories",
         help="Specific categories to analyze"
@@ -3201,7 +3257,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
             
-            # Process content
             progress_bar.progress(0.4)
             status_text.text("Processing document content...")
             
@@ -3217,11 +3272,11 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.6)
             status_text.text("Performing clustering analysis...")
             
-            # Perform clustering
+            # Perform clustering with selected vectorizer
             cluster_results = perform_semantic_clustering(
                 processed_df,
                 min_cluster_size=min_cluster_size,
-                max_features=5000,
+                max_features=max_features,
                 min_df=min_df,
                 max_df=max_df
             )
@@ -3231,22 +3286,39 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             
             # Store results
             st.session_state.topic_model = cluster_results
+            st.session_state.current_data = filtered_df
             
             progress_bar.progress(1.0)
             status_text.text("Analysis complete!")
             
+            # Clear progress indicators
             progress_bar.empty()
             status_text.empty()
             
             # Display results
-            render_summary_tab(cluster_results, processed_df)
+            display_cluster_analysis(cluster_results)
             
+            # Add export options
+            st.markdown("---")
+            st.subheader("Export Results")
+            
+            # Export cluster results as JSON
+            if st.download_button(
+                "📥 Download Analysis Results (JSON)",
+                data=json.dumps(cluster_results, indent=2),
+                file_name="cluster_analysis.json",
+                mime="application/json"
+            ):
+                st.success("Analysis results downloaded successfully!")
+                
         except Exception as e:
             progress_bar.empty()
             status_text.empty()
             st.error(f"Analysis error: {str(e)}")
             logging.error(f"Analysis error: {e}", exc_info=True)
-
+            
+            with st.expander("Error Details"):
+                st.code(traceback.format_exc())
 
 def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
     """Render cluster summaries and records with flexible column handling"""
