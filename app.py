@@ -189,33 +189,76 @@ def get_vectorizer(
     max_df: float,
     **kwargs
 ) -> Union[TfidfVectorizer, BM25Vectorizer, WeightedTfidfVectorizer]:
-    """Create and configure the specified vectorizer type"""
+    """Create and configure the specified vectorizer type with enhanced filtering"""
+    
+    # Common stopwords to exclude
+    additional_stops = {
+        'report', 'dated', 'concern', 'concerns', 'concerned',
+        'paragraph', 'section', 'regulation', 'reference', 'ref',
+        'page', 'copy', 'copies', 'letter', 'letters',
+        'information', 'email', 'telephone', 'address',
+        'dear', 'regards', 'sincerely', 'yours',
+        'mr', 'mrs', 'ms', 'dr', 'prof', 'sir', 'madam',
+        'monday', 'tuesday', 'wednesday', 'thursday', 'friday',
+        'january', 'february', 'march', 'april', 'may', 'june',
+        'july', 'august', 'september', 'october', 'november', 'december',
+        'inquest', 'investigation', 'evidence', 'witness',
+        'statement', 'statements', 'review', 'reviewed',
+        'provided', 'received', 'sent', 'following',
+        'identified', 'found', 'noted', 'stated',
+        'concluded', 'conclusion', 'conclusions'
+    }
+    
+    # Get default English stopwords and add custom ones
+    stop_words = set(stopwords.words('english'))
+    stop_words.update(additional_stops)
+    
+    # Function to filter out noisy terms
+    def token_filter(text):
+        return (
+            # Remove common legal/document terms
+            not any(word in text.lower() for word in ['regulation', 'paragraph', 'section']) and
+            # Remove short terms
+            len(text) > 2 and
+            # Remove terms with numbers or special characters
+            text.isalpha() and
+            # Remove single character repeats (e.g., 'aaa')
+            not (len(set(text)) == 1 and len(text) > 2)
+        )
+    
+    common_params = {
+        'max_features': max_features,
+        'min_df': min_df,
+        'max_df': max_df,
+        'stop_words': stop_words,
+        'token_pattern': r'(?u)\b[a-zA-Z]{3,}\b',  # Only pure alphabetical terms of 3+ chars
+    }
     
     if vectorizer_type == 'tfidf':
         return TfidfVectorizer(
-            max_features=max_features,
-            min_df=min_df,
-            max_df=max_df,
-            stop_words='english'
+            **common_params,
+            ngram_range=(1, 1),  # Unigrams only for clearer interpretation
+            norm='l2',
+            use_idf=True,
+            smooth_idf=True
         )
     elif vectorizer_type == 'bm25':
         return BM25Vectorizer(
-            max_features=max_features,
-            min_df=min_df,
-            max_df=max_df,
+            **common_params,
             k1=kwargs.get('k1', 1.5),
             b=kwargs.get('b', 0.75)
         )
     elif vectorizer_type == 'weighted':
         return WeightedTfidfVectorizer(
-            max_features=max_features,
-            min_df=min_df,
-            max_df=max_df,
+            **common_params,
             tf_scheme=kwargs.get('tf_scheme', 'raw'),
             idf_scheme=kwargs.get('idf_scheme', 'smooth')
         )
     else:
         raise ValueError(f"Unknown vectorizer type: {vectorizer_type}")
+
+
+
         
 # Configure logging
 logging.basicConfig(
@@ -274,8 +317,9 @@ def combine_document_text(row: pd.Series) -> str:
     
     return ' '.join(text_parts)
     
+
 def clean_text_for_modeling(text: str) -> str:
-    """Clean text for modeling purposes with improved thematic focus"""
+    """Clean text with enhanced noise removal"""
     if not isinstance(text, str):
         return ""
     
@@ -286,50 +330,33 @@ def clean_text_for_modeling(text: str) -> str:
         # Remove URLs
         text = re.sub(r'http\S+|www\S+|https\S+', '', text)
         
-        # Remove email addresses
+        # Remove email addresses and phone numbers
         text = re.sub(r'\S+@\S+', '', text)
-        
-        # Remove common names and titles
-        text = re.sub(r'\b(mr|mrs|ms|dr|prof|sir|lord|lady)\b\.?\s+\w+', '', text, flags=re.IGNORECASE)
-        
-        # Remove common location identifiers
-        text = re.sub(r'\b(street|road|avenue|lane|drive|court|way|place|square|hospital|centre|center)\b', '', text, flags=re.IGNORECASE)
-        
-        # Remove UK city and county names (common ones)
-        locations = r'\b(london|manchester|birmingham|liverpool|leeds|sheffield|bristol|newcastle|nottingham|cardiff|belfast|glasgow|edinburgh|surrey|kent|essex|sussex|yorkshire|lancashire)\b'
-        text = re.sub(locations, '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '', text)
         
         # Remove dates and times
         text = re.sub(r'\b\d{1,2}(?:st|nd|rd|th)?\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\b\d{1,2}:\d{2}\b', '', text)
-        
-        # Remove phone numbers and postal codes
-        text = re.sub(r'\b\d{3,4}[-\s]?\d{3,4}\b', '', text)
-        text = re.sub(r'\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b', '', text, flags=re.IGNORECASE)
-        
-        # Remove reference numbers and case numbers
-        text = re.sub(r'\b(?:ref|reference|case)(?:\s+no)?\.?\s*[-:\s]?\s*\w+[-\d]+\b', '', text, flags=re.IGNORECASE)
-        
-        # Remove any numbers or words containing numbers
-        text = re.sub(r'\b\w*\d+\w*\b', '', text)
+        text = re.sub(r'\b\d{1,2}/\d{1,2}/\d{2,4}\b', '', text)
         
         # Remove specific document-related terms
+        text = re.sub(r'\b(?:ref|reference|case)(?:\s+no)?\.?\s*[-:\s]?\s*\w+[-\d]+\b', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\b(regulation|paragraph|section|subsection|article)\s+\d+\b', '', text, flags=re.IGNORECASE)
         
         # Remove common legal document terms
-        text = re.sub(r'\b(coroner|inquest|hearing|evidence|witness|statement|report|dated|signed)\b', '', text, flags=re.IGNORECASE)
-        
-        # Remove single characters
-        text = re.sub(r'\b[a-z]\b', '', text)
+        legal_terms = r'\b(coroner|inquest|hearing|evidence|witness|statement|report|dated|signed)\b'
+        text = re.sub(legal_terms, '', text, flags=re.IGNORECASE)
         
         # Remove special characters and multiple spaces
         text = re.sub(r'[^a-z\s]', ' ', text)
         text = re.sub(r'\s+', ' ', text)
         
-        # Remove very short words (likely to be noise)
+        # Remove very short words
         text = ' '.join(word for word in text.split() if len(word) > 2)
         
-        return text.strip()
+        # Ensure minimum content length
+        cleaned_text = text.strip()
+        return cleaned_text if len(cleaned_text.split()) >= 3 else ""
     
     except Exception as e:
         logging.error(f"Error in text cleaning: {e}")
