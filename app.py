@@ -100,7 +100,7 @@ def combine_document_text(row: pd.Series) -> str:
     return ' '.join(text_parts)
     
 def clean_text_for_modeling(text: str) -> str:
-    """Clean text for modeling purposes"""
+    """Clean text for modeling purposes with improved thematic focus"""
     if not isinstance(text, str):
         return ""
     
@@ -114,8 +114,35 @@ def clean_text_for_modeling(text: str) -> str:
         # Remove email addresses
         text = re.sub(r'\S+@\S+', '', text)
         
+        # Remove common names and titles
+        text = re.sub(r'\b(mr|mrs|ms|dr|prof|sir|lord|lady)\b\.?\s+\w+', '', text, flags=re.IGNORECASE)
+        
+        # Remove common location identifiers
+        text = re.sub(r'\b(street|road|avenue|lane|drive|court|way|place|square|hospital|centre|center)\b', '', text, flags=re.IGNORECASE)
+        
+        # Remove UK city and county names (common ones)
+        locations = r'\b(london|manchester|birmingham|liverpool|leeds|sheffield|bristol|newcastle|nottingham|cardiff|belfast|glasgow|edinburgh|surrey|kent|essex|sussex|yorkshire|lancashire)\b'
+        text = re.sub(locations, '', text, flags=re.IGNORECASE)
+        
+        # Remove dates and times
+        text = re.sub(r'\b\d{1,2}(?:st|nd|rd|th)?\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'\b\d{1,2}:\d{2}\b', '', text)
+        
+        # Remove phone numbers and postal codes
+        text = re.sub(r'\b\d{3,4}[-\s]?\d{3,4}\b', '', text)
+        text = re.sub(r'\b[A-Z]{1,2}\d{1,2}[A-Z]?\s*\d[A-Z]{2}\b', '', text, flags=re.IGNORECASE)
+        
+        # Remove reference numbers and case numbers
+        text = re.sub(r'\b(?:ref|reference|case)(?:\s+no)?\.?\s*[-:\s]?\s*\w+[-\d]+\b', '', text, flags=re.IGNORECASE)
+        
         # Remove any numbers or words containing numbers
         text = re.sub(r'\b\w*\d+\w*\b', '', text)
+        
+        # Remove specific document-related terms
+        text = re.sub(r'\b(regulation|paragraph|section|subsection|article)\s+\d+\b', '', text, flags=re.IGNORECASE)
+        
+        # Remove common legal document terms
+        text = re.sub(r'\b(coroner|inquest|hearing|evidence|witness|statement|report|dated|signed)\b', '', text, flags=re.IGNORECASE)
         
         # Remove single characters
         text = re.sub(r'\b[a-z]\b', '', text)
@@ -123,6 +150,9 @@ def clean_text_for_modeling(text: str) -> str:
         # Remove special characters and multiple spaces
         text = re.sub(r'[^a-z\s]', ' ', text)
         text = re.sub(r'\s+', ' ', text)
+        
+        # Remove very short words (likely to be noise)
+        text = ' '.join(word for word in text.split() if len(word) > 2)
         
         return text.strip()
     
