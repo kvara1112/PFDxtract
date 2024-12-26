@@ -3080,6 +3080,194 @@ def render_footer():
         unsafe_allow_html=True
     )
 
+def render_topic_modeling_tab(data: pd.DataFrame):
+    """Render the topic modeling tab with enhanced visualization options"""
+    st.header("Topic Modeling Analysis")
+    
+    if data is None or len(data) == 0:
+        st.warning("No data available. Please scrape or upload data first.")
+        return
+        
+    with st.sidebar:
+        st.subheader("Vectorization Settings")
+        vectorizer_type = st.selectbox(
+            "Vectorization Method",
+            ["tfidf", "bm25", "weighted"],
+            help="Choose how to convert text to numerical features"
+        )
+        
+        # BM25 specific parameters
+        if vectorizer_type == "bm25":
+            k1 = st.slider("k1 parameter", 0.5, 3.0, 1.5, 0.1,
+                          help="Term saturation parameter")
+            b = st.slider("b parameter", 0.0, 1.0, 0.75, 0.05,
+                         help="Length normalization parameter")
+            
+        # Weighted TF-IDF parameters
+        elif vectorizer_type == "weighted":
+            tf_scheme = st.selectbox(
+                "TF Weighting Scheme",
+                ["raw", "log", "binary", "augmented"],
+                help="How to weight term frequencies"
+            )
+            idf_scheme = st.selectbox(
+                "IDF Weighting Scheme",
+                ["smooth", "standard", "probabilistic"],
+                help="How to weight inverse document frequencies"
+            )
+    
+    # Analysis parameters
+    st.subheader("Analysis Parameters")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        num_topics = st.slider(
+            "Number of Topics",
+            min_value=2,
+            max_value=20,
+            value=5,
+            help="Number of distinct topics to identify"
+        )
+        
+    with col2:
+        max_features = st.slider(
+            "Maximum Features",
+            min_value=500,
+            max_value=5000,
+            value=1000,
+            help="Maximum number of terms to consider"
+        )
+    
+    # Get vectorizer parameters
+    vectorizer_params = {}
+    if vectorizer_type == "bm25":
+        vectorizer_params.update({'k1': k1, 'b': b})
+    elif vectorizer_type == "weighted":
+        vectorizer_params.update({
+            'tf_scheme': tf_scheme,
+            'idf_scheme': idf_scheme
+        })
+    
+    if st.button("Run Analysis", type="primary"):
+        with st.spinner("Performing topic analysis..."):
+            try:
+                # Create vectorizer
+                vectorizer = get_vectorizer(
+                    vectorizer_type=vectorizer_type,
+                    max_features=max_features,
+                    min_df=2,
+                    max_df=0.95,
+                    **vectorizer_params
+                )
+                
+                # Process text data
+                docs = data['Content'].fillna('').apply(clean_text_for_modeling)
+                
+                # Create document-term matrix
+                dtm = vectorizer.fit_transform(docs)
+                feature_names = vectorizer.get_feature_names_out()
+                
+                # Fit LDA model
+                lda = LatentDirichletAllocation(
+                    n_components=num_topics,
+                    random_state=42,
+                    n_jobs=-1
+                )
+                
+                doc_topics = lda.fit_transform(dtm)
+                
+                # Store model results
+                st.session_state.topic_model = {
+                    'lda': lda,
+                    'vectorizer': vectorizer,
+                    'feature_names': feature_names,
+                    'doc_topics': doc_topics
+                }
+                
+                # Display results
+                st.success("Topic analysis complete!")
+                
+                # Show topic words
+                st.subheader("Topic Keywords")
+                for idx, topic in enumerate(lda.components_):
+                    top_words = [
+                        feature_names[i] 
+                        for i in topic.argsort()[:-11:-1]
+                    ]
+                    st.markdown(f"**Topic {idx+1}:** {', '.join(top_words)}")
+                
+                # Display network visualization
+                st.subheader("Topic Similarity Network")
+                display_topic_network(lda, feature_names)
+                
+                # Show topic distribution
+                st.subheader("Topic Distribution")
+                topic_dist = doc_topics.mean(axis=0)
+                topic_df = pd.DataFrame({
+                    'Topic': [f"Topic {i+1}" for i in range(num_topics)],
+                    'Proportion': topic_dist
+                })
+                
+                fig = px.bar(
+                    topic_df,
+                    x='Topic',
+                    y='Proportion',
+                    title='Topic Distribution Across Documents'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Export options
+                st.subheader("Export Results")
+                if st.download_button(
+                    "Download Topic Analysis Results",
+                    data=export_topic_results(
+                        lda, vectorizer, feature_names, doc_topics
+                    ).encode(),
+                    file_name="topic_analysis_results.json",
+                    mime="application/json"
+                ):
+                    st.success("Results downloaded successfully!")
+                    
+            except Exception as e:
+                st.error(f"Error during analysis: {str(e)}")
+                logging.error(f"Topic modeling error: {e}", exc_info=True)
+
+def export_topic_results(
+    lda_model,
+    vectorizer,
+    feature_names,
+    doc_topics
+) -> str:
+    """Export topic modeling results to JSON format"""
+    results = {
+        'topics': [],
+        'model_params': {
+            'n_topics': lda_model.n_components,
+            'max_features': len(feature_names)
+        },
+        'topic_distribution': doc_topics.mean(axis=0).tolist()
+    }
+    
+    # Add topic details
+    for idx, topic in enumerate(lda_model.components_):
+        top_indices = topic.argsort()[:-11:-1]
+        
+        topic_words = [
+            {
+                'word': feature_names[i],
+                'weight': float(topic[i])
+            }
+            for i in top_indices
+        ]
+        
+        results['topics'].append({
+            'id': idx,
+            'words': topic_words,
+            'total_weight': float(topic.sum())
+        })
+    
+    return json.dumps(results, indent=2)
+    
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
     """Main topic analysis and summary tab rendering function"""
     st.header("Topic Analysis & Summaries")
@@ -3097,60 +3285,10 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
 
     with st.sidebar:
         st.header("Analysis Parameters")
-
-        # Add vectorizer selection
-        vectorizer_type = st.selectbox(
-            "Vectorization Method",
-            options=['tfidf', 'bm25', 'weighted'],
-            format_func=lambda x: {
-                'tfidf': 'Standard TF-IDF',
-                'bm25': 'BM25 Ranking',
-                'weighted': 'Weighted TF-IDF'
-            }[x],
-            help="Choose the method for converting text to vectors"
-        )
-
-        # Store in session state
-        st.session_state.vectorizer_type = vectorizer_type
-
-        # Show parameters specific to the chosen vectorizer
-        if vectorizer_type == 'bm25':
-            st.session_state.bm25_k1 = st.slider(
-                "BM25 k1 Parameter",
-                0.5, 3.0, 1.5, 0.1,
-                help="Controls term frequency scaling"
-            )
-            st.session_state.bm25_b = st.slider(
-                "BM25 b Parameter",
-                0.0, 1.0, 0.75, 0.05,
-                help="Controls document length normalization"
-            )
-        elif vectorizer_type == 'weighted':
-            st.session_state.tf_scheme = st.selectbox(
-                "Term Frequency Scheme",
-                options=['raw', 'log', 'binary', 'augmented'],
-                format_func=lambda x: {
-                    'raw': 'Raw Count',
-                    'log': 'Logarithmic',
-                    'binary': 'Binary',
-                    'augmented': 'Augmented'
-                }[x],
-                help="How to weight term frequencies"
-            )
-            st.session_state.idf_scheme = st.selectbox(
-                "IDF Scheme",
-                options=['smooth', 'standard', 'probabilistic'],
-                format_func=lambda x: {
-                    'smooth': 'Smoothed',
-                    'standard': 'Standard',
-                    'probabilistic': 'Probabilistic'
-                }[x],
-                help="How to weight inverse document frequencies"
-            )
         
         # Basic clustering parameters
         min_cluster_size = st.slider(
-            "Minimum Group Size",
+            "Minimum Group Size ❓", 
             2, 5, 2,
             help="Minimum number of documents needed to form a thematic group"
         )
@@ -3158,24 +3296,18 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
         # Document frequency parameters
         total_docs = len(data)
         min_docs = st.slider(
-            "Minimum Document Frequency",
+            "Minimum Document Frequency ❓", 
             2, max(2, total_docs//2), 5,
             help="How many documents a term must appear in"
         )
         min_df = min_docs / total_docs
         
         max_docs = st.slider(
-            "Maximum Document Frequency",
+            "Maximum Document Frequency ❓", 
             min_docs, total_docs, int(total_docs * 0.9),
             help="Maximum number of documents a term can appear in"
         )
         max_df = max_docs / total_docs
-        
-        max_features = st.slider(
-            "Maximum Features",
-            1000, 10000, 5000, 500,
-            help="Maximum number of terms to include in the analysis"
-        )
 
     # Date range selection
     col1, col2 = st.columns(2)
@@ -3206,7 +3338,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             all_categories.update(cats)
     
     categories = st.multiselect(
-        "Categories",
+        "Categories ❓",
         options=sorted(all_categories),
         key="analysis_categories",
         help="Specific categories to analyze"
@@ -3257,6 +3389,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
             
+            # Process content
             progress_bar.progress(0.4)
             status_text.text("Processing document content...")
             
@@ -3272,11 +3405,11 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.6)
             status_text.text("Performing clustering analysis...")
             
-            # Perform clustering with selected vectorizer
+            # Perform clustering
             cluster_results = perform_semantic_clustering(
                 processed_df,
                 min_cluster_size=min_cluster_size,
-                max_features=max_features,
+                max_features=5000,
                 min_df=min_df,
                 max_df=max_df
             )
@@ -3286,39 +3419,22 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             
             # Store results
             st.session_state.topic_model = cluster_results
-            st.session_state.current_data = filtered_df
             
             progress_bar.progress(1.0)
             status_text.text("Analysis complete!")
             
-            # Clear progress indicators
             progress_bar.empty()
             status_text.empty()
             
             # Display results
-            display_cluster_analysis(cluster_results)
+            render_summary_tab(cluster_results, processed_df)
             
-            # Add export options
-            st.markdown("---")
-            st.subheader("Export Results")
-            
-            # Export cluster results as JSON
-            if st.download_button(
-                "📥 Download Analysis Results (JSON)",
-                data=json.dumps(cluster_results, indent=2),
-                file_name="cluster_analysis.json",
-                mime="application/json"
-            ):
-                st.success("Analysis results downloaded successfully!")
-                
         except Exception as e:
             progress_bar.empty()
             status_text.empty()
             st.error(f"Analysis error: {str(e)}")
             logging.error(f"Analysis error: {e}", exc_info=True)
-            
-            with st.expander("Error Details"):
-                st.code(traceback.format_exc())
+
 
 def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
     """Render cluster summaries and records with flexible column handling"""
