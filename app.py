@@ -2808,8 +2808,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 processed_df,
                 min_cluster_size=min_cluster_size
             )
-
-
             
             progress_bar.progress(0.8)
             status_text.text("Analyzing cluster results...")
@@ -2984,7 +2982,8 @@ class BM25Vectorizer:
 
 def clean_text_for_modeling(text: str) -> str:
     """Enhanced text cleaning for better term extraction"""
-    if not isinstance(text, str):
+    # Handle different input types
+    if pd.isna(text) or not isinstance(text, str):
         return ""
     
     try:
