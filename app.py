@@ -2445,13 +2445,21 @@ def perform_semantic_clustering(data: pd.DataFrame, method: str = 'tfidf',
             doc_vectors = vectorizer.fit_transform(processed_texts)
 
 
+
         elif method == 'bm25':
             # Vectorization with BM25
             corpus = [text.split() for text in processed_texts]
             bm25 = BM25Okapi(corpus)
-            doc_vectors = bm25.transform(corpus)
-            # Convert sparse BM25 scores to dense array
-            doc_vectors = doc_vectors.toarray()
+            
+            # Get BM25 scores for each document
+            doc_vectors = []
+            for doc in corpus:
+                scores = bm25.get_scores(doc)
+                doc_vectors.append(scores)
+            
+            # Convert list of scores to dense numpy array
+            doc_vectors = np.array(doc_vectors)
+
 
 
         else:
@@ -2571,9 +2579,7 @@ def perform_semantic_clustering(data: pd.DataFrame, method: str = 'tfidf',
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise ValueError(f"Clustering failed: {str(e)}")
-        
 
-...
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
     """Main topic analysis and summary tab rendering function"""
