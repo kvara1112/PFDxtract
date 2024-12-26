@@ -256,9 +256,7 @@ def get_vectorizer(
         )
     else:
         raise ValueError(f"Unknown vectorizer type: {vectorizer_type}")
-
-
-
+        
         
 # Configure logging
 logging.basicConfig(
@@ -2980,8 +2978,8 @@ def perform_semantic_clustering(
         vectorizer = get_vectorizer(
             vectorizer_type=vectorizer_type,
             max_features=max_features,
-            min_df=min_df,
-            max_df=max_df,
+            min_df=max(min_df, 3/len(processed_texts)),
+            max_df=min(max_df, 0.7),
             **vectorizer_params
         )
         
