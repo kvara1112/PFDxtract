@@ -41,6 +41,7 @@ import string
 import traceback
 from datetime import datetime
 from openpyxl.utils import get_column_letter
+import scipy.sparse as sp
 
 # Configure logging
 logging.basicConfig(
@@ -2917,7 +2918,6 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
         
         st.markdown("---")
 
-
 class BM25Vectorizer:
     """
     BM25 vectorizer for better term weighting
@@ -2957,12 +2957,17 @@ class BM25Vectorizer:
             
             # Multiply by IDF
             bm25_score = tf_component * idf[j]
-            data.append(bm25_score)
+            data.append(float(bm25_score))  # Ensure float type
         
         return sp.csr_matrix((data, (rows, cols)), shape=X.shape)
     
     def get_feature_names_out(self):
         return self.vectorizer.get_feature_names_out()
+    
+    def transform(self, documents):
+        # Reuse fit_transform logic for transform
+        return self.fit_transform(documents)
+
 
 def clean_text_for_modeling(text: str) -> str:
     """Enhanced text cleaning for better term extraction"""
