@@ -2370,17 +2370,16 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
                              max_features: int = 5000, min_df: float = 0.01,
                              max_df: float = 0.95) -> Dict:
     """
-    Perform semantic clustering with adaptive parameters
+    Perform semantic clustering with improved cluster quality checks
     """
     try:
         # Initialize NLTK resources
         initialize_nltk()
         
-        # Validate input data
+        # Validate and process input data
         if 'Content' not in data.columns:
             raise ValueError("Input data must contain 'Content' column")
             
-        # Clean and process the content
         processed_texts = data['Content'].apply(clean_text_for_modeling)
         valid_mask = processed_texts.notna() & (processed_texts != '')
         processed_texts = processed_texts[valid_mask]
@@ -2397,19 +2396,19 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
             min_cluster_size = 2
             max_features = min(2000, n_docs * 100)
             min_clusters = 2
-            max_clusters = 3
+            max_clusters = 2
         elif n_docs < 20:
             min_cluster_size = 2
             max_features = min(3000, n_docs * 150)
             min_clusters = 2
-            max_clusters = 4
+            max_clusters = 3
         else:
-            min_cluster_size = max(2, min(5, n_docs // 10))
+            min_cluster_size = max(2, min(3, n_docs // 15))
             max_features = min(5000, n_docs * 200)
-            min_clusters = max(2, n_docs // 20)
-            max_clusters = max(3, min(15, n_docs // 10))
+            min_clusters = 2
+            max_clusters = min(5, n_docs // 5)
 
-        # Vectorization with adaptive parameters
+        # Vectorization with adjusted parameters
         vectorizer = TfidfVectorizer(
             max_features=max_features,
             min_df=max(2, int(min_df * len(processed_texts))),
@@ -2422,7 +2421,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
         tfidf_matrix = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
         
-        # Try clustering with different configurations
+        # Try clustering configurations
         best_n_clusters = min_clusters
         best_score = -1
         best_labels = None
@@ -2440,9 +2439,14 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
                 
                 labels = clustering.fit_predict(tfidf_matrix.toarray())
                 
-                # Check minimum cluster size
+                # Verify cluster quality
                 cluster_sizes = np.bincount(labels)
                 if min(cluster_sizes) < min_cluster_size:
+                    continue
+                    
+                # Check cluster balance
+                size_ratio = min(cluster_sizes) / max(cluster_sizes)
+                if size_ratio < 0.1:  # Avoid highly imbalanced clusters
                     continue
                     
                 score = silhouette_score(tfidf_matrix.toarray(), labels, metric='euclidean')
@@ -2451,14 +2455,14 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
                     best_score = score
                     best_n_clusters = n_clusters
                     best_labels = labels
+                    
             except Exception as cluster_error:
                 logging.warning(f"Clustering attempt failed for n_clusters={n_clusters}: {str(cluster_error)}")
                 continue
 
-        # If no suitable configuration found, try with minimum requirements
+        # If no suitable configuration found, try minimal clustering
         if best_labels is None:
-            min_cluster_size = 2  # Reduce to absolute minimum
-            n_clusters = min(3, len(processed_texts) // 2)  # Try with minimal clusters
+            n_clusters = 2  # Force two clusters
             clustering = AgglomerativeClustering(
                 n_clusters=n_clusters,
                 metric='euclidean',
@@ -2472,9 +2476,15 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
 
         # Extract cluster information
         clusters = []
-        for cluster_id in range(n_clusters):
+        cluster_sizes = np.bincount(best_labels)
+        valid_clusters = [i for i in range(len(cluster_sizes)) if cluster_sizes[i] >= min_cluster_size]
+        
+        for cluster_id in valid_clusters:
             cluster_indices = np.where(best_labels == cluster_id)[0]
             
+            if len(cluster_indices) < min_cluster_size:
+                continue
+                
             # Calculate cluster terms
             cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
             centroid = np.mean(cluster_tfidf, axis=0)
@@ -2516,14 +2526,14 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
 
             # Sort by similarity and get top documents
             doc_similarities.sort(key=lambda x: x[1], reverse=True)
-            representative_docs = [item[2] for item in doc_similarities[:5]]
+            representative_docs = [item[2] for item in doc_similarities]  # Include all documents
 
             # Calculate cluster cohesion
             cluster_similarities = similarity_matrix[cluster_indices][:, cluster_indices]
             cohesion = float(np.mean(cluster_similarities))
 
             clusters.append({
-                'id': cluster_id,
+                'id': len(clusters),  # Reassign IDs to be sequential
                 'size': len(cluster_indices),
                 'cohesion': cohesion,
                 'terms': top_terms,
@@ -2540,6 +2550,8 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise ValueError(f"Clustering failed: {str(e)}")
+
+
 def format_date_uk(date_obj):
     """Convert datetime object to UK date format string"""
     if pd.isna(date_obj):
