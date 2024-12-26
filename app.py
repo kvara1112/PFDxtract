@@ -3035,42 +3035,56 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2) -
         # Validate and process input data
         if 'Content' not in data.columns:
             raise ValueError("Input data must contain 'Content' column")
-            
-        # Enhanced text processing
-        processed_texts = data['Content'].apply(clean_text_for_modeling)
-        valid_mask = processed_texts.notna() & (processed_texts.str.len() > 50)  # Require minimum content length
-        processed_texts = processed_texts[valid_mask]
-        display_data = data[valid_mask].copy()
         
-        if len(processed_texts) == 0:
-            raise ValueError("No valid text content found after preprocessing")
+        # Clean and filter text content
+        def process_text(text):
+            if pd.isna(text):
+                return None
+            cleaned = clean_text_for_modeling(str(text))
+            return cleaned if cleaned and len(cleaned.split()) > 3 else None
         
+        # Create a copy and add processed content column
+        data_copy = data.copy()
+        data_copy['ProcessedContent'] = data_copy['Content'].apply(process_text)
+        
+        # Remove rows with empty processed content
+        processed_data = data_copy[data_copy['ProcessedContent'].notna()]
+        
+        # Validate processed data
+        if len(processed_data) == 0:
+            raise ValueError("No valid documents found after preprocessing")
+        
+        # Get processed texts
+        processed_texts = processed_data['ProcessedContent'].tolist()
+        
+        # Determine number of clusters
         n_docs = len(processed_texts)
-        
-        # Dynamic cluster parameters
-        min_clusters = max(2, min(4, n_docs // 8))
-        max_clusters = max(4, min(6, n_docs // 5))
+        num_topics = max(2, min(5, n_docs // 3))
         
         # Create document embeddings with BM25
         vectorizer = BM25Vectorizer(k1=1.5, b=0.75)
         doc_term_matrix = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
         
+        # Validate document-term matrix
+        if doc_term_matrix.shape[0] == 0 or doc_term_matrix.shape[1] == 0:
+            raise ValueError(f"Failed to create document-term matrix. Processed {len(processed_texts)} documents.")
+        
         # Calculate document similarities
-        similarity_matrix = cosine_similarity(doc_term_matrix)
+        similarity_matrix = cosine_similarity(doc_term_matrix.toarray())
         
         # Try different clustering configurations
         best_score = -1
         best_labels = None
-        best_n_clusters = min_clusters
+        best_n_clusters = num_topics
         
-        for n_clusters in range(min_clusters, max_clusters + 1):
+        for n_clusters in range(max(2, num_topics-1), min(num_topics+2, n_docs)):
             try:
                 # Try different linkage methods
                 for linkage in ['ward', 'complete', 'average']:
                     clustering = AgglomerativeClustering(
                         n_clusters=n_clusters,
-                        metric='euclidean',
+                        affinity='euclidean',
                         linkage=linkage
                     )
                     
@@ -3079,46 +3093,19 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2) -
                     # Cluster quality checks
                     cluster_sizes = np.bincount(labels)
                     
-                    # Skip if clusters are too small or unbalanced
-                    if min(cluster_sizes) < min_cluster_size:
+                    # Skip if clusters are too small
+                    if np.min(cluster_sizes) < min_cluster_size:
                         continue
                     
-                    # Calculate cluster separation metrics
-                    silhouette = silhouette_score(doc_term_matrix.toarray(), labels, metric='euclidean')
+                    # Calculate silhouette score
+                    try:
+                        silhouette = silhouette_score(doc_term_matrix.toarray(), labels)
+                    except Exception:
+                        continue
                     
-                    # Calculate inter-cluster distances
-                    centroids = []
-                    for i in range(n_clusters):
-                        cluster_docs = doc_term_matrix[labels == i].toarray()
-                        centroids.append(np.mean(cluster_docs, axis=0))
-                    
-                    inter_distances = []
-                    for i in range(len(centroids)):
-                        for j in range(i + 1, len(centroids)):
-                            dist = np.linalg.norm(centroids[i] - centroids[j])
-                            inter_distances.append(dist)
-                    
-                    inter_cluster_distance = np.mean(inter_distances) if inter_distances else 0
-                    
-                    # Calculate intra-cluster cohesion
-                    cohesion_scores = []
-                    for i in range(n_clusters):
-                        mask = labels == i
-                        if np.sum(mask) > 1:
-                            cluster_sims = similarity_matrix[mask][:, mask]
-                            cohesion_scores.append(np.mean(cluster_sims))
-                    
-                    intra_cluster_cohesion = np.mean(cohesion_scores) if cohesion_scores else 0
-                    
-                    # Combined quality score
-                    quality_score = (
-                        0.4 * silhouette +
-                        0.3 * inter_cluster_distance +
-                        0.3 * intra_cluster_cohesion
-                    )
-                    
-                    if quality_score > best_score:
-                        best_score = quality_score
+                    # Update best clustering if needed
+                    if silhouette > best_score:
+                        best_score = silhouette
                         best_labels = labels
                         best_n_clusters = n_clusters
                     
@@ -3126,9 +3113,10 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2) -
                 logging.warning(f"Clustering attempt failed: {str(e)}")
                 continue
         
-        # Generate clusters with improved term selection
+        # Prepare clusters
         clusters = []
         for cluster_id in range(best_n_clusters):
+            # Find indices for this cluster
             cluster_indices = np.where(best_labels == cluster_id)[0]
             
             if len(cluster_indices) < min_cluster_size:
@@ -3138,64 +3126,47 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2) -
             cluster_vectors = doc_term_matrix[cluster_indices].toarray()
             centroid = np.mean(cluster_vectors, axis=0)
             
-            # Improved term scoring
+            # Identify top terms
             term_scores = []
             for idx, score in enumerate(centroid):
                 if score > 0:
                     term = feature_names[idx]
-                    
-                    # Calculate term metrics
-                    cluster_freq = np.mean(cluster_vectors[:, idx] > 0)
-                    total_freq = np.mean(doc_term_matrix[:, idx].toarray() > 0)
-                    
-                    # Calculate distinctiveness
-                    distinctiveness = np.log((cluster_freq + 1e-10) / (total_freq + 1e-10))
-                    
-                    # Combined importance score
-                    importance = score * (1 + distinctiveness) * np.log1p(cluster_freq)
-                    
-                    if cluster_freq >= 0.2 and distinctiveness > 0:  # Term quality threshold
-                        term_scores.append({
-                            'term': term,
-                            'score': float(importance),
-                            'cluster_frequency': float(cluster_freq),
-                            'total_frequency': float(total_freq),
-                            'distinctiveness': float(distinctiveness)
-                        })
+                    term_scores.append({
+                        'term': term,
+                        'score': float(score)
+                    })
             
-            # Sort and filter terms
+            # Sort terms
             term_scores.sort(key=lambda x: x['score'], reverse=True)
-            top_terms = term_scores[:20]
+            top_terms = term_scores[:10]
             
             # Get representative documents
             doc_similarities = []
-            for idx in cluster_indices:
-                doc_vector = doc_term_matrix[idx].toarray().flatten()
+            for local_idx, doc_idx in enumerate(cluster_indices):
+                doc_vector = doc_term_matrix[doc_idx].toarray().flatten()
                 similarity = cosine_similarity(
                     doc_vector.reshape(1, -1),
                     centroid.reshape(1, -1)
                 )[0][0]
                 
+                # Get original document details
+                original_doc = processed_data.iloc[doc_idx]
+                
                 doc_info = {
-                    'title': display_data.iloc[idx]['Title'],
-                    'date': display_data.iloc[idx]['date_of_report'],
+                    'title': original_doc['Title'],
+                    'date': original_doc.get('date_of_report', None),
                     'similarity': float(similarity),
-                    'summary': display_data.iloc[idx]['Content'][:500]
+                    'summary': original_doc['Content'][:500]
                 }
-                doc_similarities.append((idx, similarity, doc_info))
+                doc_similarities.append((local_idx, similarity, doc_info))
             
             # Sort and select documents
             doc_similarities.sort(key=lambda x: x[1], reverse=True)
-            representative_docs = [item[2] for item in doc_similarities]
-            
-            # Calculate cluster cohesion
-            cluster_similarities = similarity_matrix[cluster_indices][:, cluster_indices]
-            cohesion = float(np.mean(cluster_similarities))
+            representative_docs = [item[2] for item in doc_similarities[:5]]
             
             clusters.append({
                 'id': len(clusters),
                 'size': len(cluster_indices),
-                'cohesion': cohesion,
                 'terms': top_terms,
                 'documents': representative_docs
             })
@@ -3210,7 +3181,6 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2) -
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise ValueError(f"Clustering failed: {str(e)}")
-
 
 def main():
     """Updated main application entry point."""
