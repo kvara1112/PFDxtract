@@ -3369,20 +3369,14 @@ def find_optimal_clusters(tfidf_matrix: sp.csr_matrix,
                            min_clusters: int = 2,
                            max_clusters: int = 10,
                            min_cluster_size: int = 3) -> Tuple[int, np.ndarray]:
-    """Find optimal number of clusters using multiple metrics"""
+    """Find optimal number of clusters with relaxed constraints"""
     
     best_score = -1
     best_n_clusters = min_clusters
     best_labels = None
     
     # Store metrics for each clustering attempt
-    metrics = {
-        'n_clusters': [],
-        'silhouette': [],
-        'calinski': [],
-        'davies': [],
-        'balance_ratio': []
-    }
+    metrics = []
     
     # Try different numbers of clusters
     for n_clusters in range(min_clusters, max_clusters + 1):
@@ -3406,44 +3400,65 @@ def find_optimal_clusters(tfidf_matrix: sp.csr_matrix,
             # Calculate balance ratio (smaller is better)
             balance_ratio = max(cluster_sizes) / min(cluster_sizes)
             
-            # Skip if clusters are too imbalanced
-            if balance_ratio > 5:  # No cluster should be more than 5x larger than smallest
+            # Skip only if clusters are extremely imbalanced
+            if balance_ratio > 10:  # Relaxed from 5 to 10
                 continue
             
             # Calculate clustering metrics
             sil_score = silhouette_score(tfidf_matrix.toarray(), labels, metric='euclidean')
-            cal_score = calinski_harabasz_score(tfidf_matrix.toarray(), labels)
-            dav_score = davies_bouldin_score(tfidf_matrix.toarray(), labels)
             
-            # Store metrics
-            metrics['n_clusters'].append(n_clusters)
-            metrics['silhouette'].append(sil_score)
-            metrics['calinski'].append(cal_score)
-            metrics['davies'].append(dav_score)
-            metrics['balance_ratio'].append(balance_ratio)
+            # Simplified scoring focused on silhouette and basic balance
+            combined_score = sil_score * (1 - (balance_ratio / 20))  # Relaxed balance penalty
             
-            # Calculate combined score (weighted average of normalized metrics)
-            # Higher values of silhouette and calinski are better
-            # Lower values of davies and balance_ratio are better
-            combined_score = (
-                0.4 * sil_score +
-                0.3 * (cal_score / max(metrics['calinski'])) +
-                0.2 * (1 - dav_score / max(metrics['davies'])) +
-                0.1 * (1 - balance_ratio / max(metrics['balance_ratio']))
-            )
+            metrics.append({
+                'n_clusters': n_clusters,
+                'silhouette': sil_score,
+                'balance_ratio': balance_ratio,
+                'combined_score': combined_score,
+                'labels': labels
+            })
             
-            if combined_score > best_score:
-                best_score = combined_score
-                best_n_clusters = n_clusters
-                best_labels = labels
-                
         except Exception as e:
             logging.warning(f"Error trying {n_clusters} clusters: {str(e)}")
             continue
-            
-    if best_labels is None:
-        raise ValueError("Could not find valid clustering configuration")
-        
+    
+    # If no configurations met the strict criteria, try to find the best available
+    if not metrics:
+        # Try again with minimal constraints
+        for n_clusters in range(min_clusters, max_clusters + 1):
+            try:
+                clustering = AgglomerativeClustering(
+                    n_clusters=n_clusters,
+                    metric='euclidean',
+                    linkage='ward'
+                )
+                
+                labels = clustering.fit_predict(tfidf_matrix.toarray())
+                sil_score = silhouette_score(tfidf_matrix.toarray(), labels, metric='euclidean')
+                
+                if sil_score > best_score:
+                    best_score = sil_score
+                    best_n_clusters = n_clusters
+                    best_labels = labels
+                    
+            except Exception as e:
+                continue
+                
+        if best_labels is None:
+            # If still no valid configuration, use minimum number of clusters
+            clustering = AgglomerativeClustering(
+                n_clusters=min_clusters,
+                metric='euclidean',
+                linkage='ward'
+            )
+            best_labels = clustering.fit_predict(tfidf_matrix.toarray())
+            best_n_clusters = min_clusters
+    else:
+        # Use the best configuration from metrics
+        best_metric = max(metrics, key=lambda x: x['combined_score'])
+        best_n_clusters = best_metric['n_clusters']
+        best_labels = best_metric['labels']
+    
     return best_n_clusters, best_labels
 
 
