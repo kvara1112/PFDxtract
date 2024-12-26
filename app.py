@@ -44,6 +44,9 @@ from openpyxl.utils import get_column_letter
 from sklearn.base import BaseEstimator, TransformerMixin
 import scipy.sparse as sp
 from typing import Union
+from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
+
+
 
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
     """BM25 vectorizer implementation"""
@@ -2899,20 +2902,20 @@ def initialize_nltk():
 
 def perform_semantic_clustering(
     data: pd.DataFrame, 
-    min_cluster_size: int = 2,
+    min_cluster_size: int = 3,
     max_features: int = 5000,
     min_df: float = 0.01,
     max_df: float = 0.95,
     similarity_threshold: float = 0.3
 ) -> Dict:
     """
-    Perform semantic clustering with enhanced balance and distribution
+    Perform semantic clustering with improved cluster selection
     """
     try:
         # Initialize NLTK resources
         initialize_nltk()
         
-        # Validate and process input data
+        # Validate input data
         if 'Content' not in data.columns:
             raise ValueError("Input data must contain 'Content' column")
             
@@ -2928,8 +2931,8 @@ def perform_semantic_clustering(
             
         # Calculate optimal parameters based on dataset size
         n_docs = len(processed_texts)
-        min_clusters = max(2, min(3, n_docs // 10))
-        max_clusters = max(3, min(5, n_docs // 7))
+        min_clusters = max(2, min(3, n_docs // 20))  # More conservative minimum
+        max_clusters = max(3, min(8, n_docs // 10))  # More conservative maximum
 
         # Get vectorization parameters from session state
         vectorizer_type = st.session_state.get('vectorizer_type', 'tfidf')
@@ -2959,54 +2962,17 @@ def perform_semantic_clustering(
         tfidf_matrix = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
         
-        # Try different clustering configurations
-        best_score = -1
-        best_labels = None
-        best_n_clusters = min_clusters
+        # Find optimal number of clusters
+        best_n_clusters, best_labels = find_optimal_clusters(
+            tfidf_matrix,
+            min_clusters=min_clusters,
+            max_clusters=max_clusters,
+            min_cluster_size=min_cluster_size
+        )
+
+        # Calculate final clustering quality
+        silhouette_avg = silhouette_score(tfidf_matrix.toarray(), best_labels, metric='euclidean')
         
-        for n_clusters in range(min_clusters, max_clusters + 1):
-            try:
-                # Try hierarchical clustering
-                clustering = AgglomerativeClustering(
-                    n_clusters=n_clusters,
-                    metric='euclidean',
-                    linkage='ward'
-                )
-                
-                labels = clustering.fit_predict(tfidf_matrix.toarray())
-                
-                # Verify cluster sizes
-                cluster_sizes = np.bincount(labels)
-                if min(cluster_sizes) < min_cluster_size:
-                    continue
-                
-                # Check cluster balance
-                size_ratio = min(cluster_sizes) / max(cluster_sizes)
-                if size_ratio < 0.2:  # Require more balanced clusters
-                    continue
-                
-                # Calculate clustering quality
-                score = silhouette_score(tfidf_matrix.toarray(), labels, metric='euclidean')
-                
-                if score > best_score:
-                    best_score = score
-                    best_labels = labels
-                    best_n_clusters = n_clusters
-                    
-            except Exception as e:
-                logging.warning(f"Clustering attempt failed for k={n_clusters}: {str(e)}")
-                continue
-
-        # If no good clustering found, try alternative approach
-        if best_labels is None:
-            best_n_clusters = 2  # Minimum viable clustering
-            clustering = AgglomerativeClustering(
-                n_clusters=best_n_clusters,
-                metric='euclidean',
-                linkage='ward'
-            )
-            best_labels = clustering.fit_predict(tfidf_matrix.toarray())
-
         # Calculate similarities using similarity threshold
         similarity_matrix = cosine_similarity(tfidf_matrix)
         similarity_matrix[similarity_matrix < similarity_threshold] = 0
@@ -3035,7 +3001,7 @@ def perform_semantic_clustering(
                     
                     term_scores.append({
                         'term': term,
-                        'score': float(score * distinctiveness),  # Weight by distinctiveness
+                        'score': float(score * distinctiveness),
                         'cluster_frequency': float(cluster_freq),
                         'total_frequency': float(total_freq)
                     })
@@ -3073,15 +3039,29 @@ def perform_semantic_clustering(
                 'size': len(cluster_indices),
                 'cohesion': cohesion,
                 'terms': top_terms,
-                'documents': representative_docs
+                'documents': representative_docs,
+                'balance_ratio': max(len(cluster_indices) for cluster_indices in 
+                                  [np.where(best_labels == i)[0] for i in range(best_n_clusters)]) / 
+                              min(len(cluster_indices) for cluster_indices in 
+                                  [np.where(best_labels == i)[0] for i in range(best_n_clusters)])
             })
+
+        # Add cluster quality metrics to results
+        metrics = {
+            'silhouette_score': float(silhouette_avg),
+            'calinski_score': float(calinski_harabasz_score(tfidf_matrix.toarray(), best_labels)),
+            'davies_score': float(davies_bouldin_score(tfidf_matrix.toarray(), best_labels)),
+            'balance_ratio': float(max(len(c['documents']) for c in clusters) / 
+                                 min(len(c['documents']) for c in clusters))
+        }
 
         return {
             'n_clusters': len(clusters),
             'total_documents': len(processed_texts),
-            'silhouette_score': float(best_score),
+            'silhouette_score': float(silhouette_avg),
             'clusters': clusters,
-            'vectorizer_type': vectorizer_type
+            'vectorizer_type': vectorizer_type,
+            'quality_metrics': metrics
         }
         
     except Exception as e:
@@ -3291,44 +3271,86 @@ def get_optimal_clustering_params(num_docs: int) -> Dict[str, int]:
     return params
     
 def display_cluster_analysis(cluster_results: Dict) -> None:
-    """Display comprehensive cluster analysis results"""
+    """Display comprehensive cluster analysis results with quality metrics"""
     try:
         st.subheader("Document Clustering Analysis")
         
-        # Overview metrics
+        # Overview metrics in two rows
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric("Number of Clusters", cluster_results['n_clusters'])
         with col2:
             st.metric("Total Documents", cluster_results['total_documents'])
         with col3:
-            st.metric("Clustering Quality", 
-                     f"{cluster_results['silhouette_score']:.3f}",
-                     help="Silhouette score (ranges from -1 to 1, higher is better)")
+            st.metric("Average Cluster Size", 
+                     round(cluster_results['total_documents'] / cluster_results['n_clusters'], 1))
+        
+        # Quality metrics
+        st.subheader("Clustering Quality Metrics")
+        metrics = cluster_results['quality_metrics']
+        
+        qual_col1, qual_col2, qual_col3, qual_col4 = st.columns(4)
+        
+        with qual_col1:
+            st.metric(
+                "Silhouette Score",
+                f"{metrics['silhouette_score']:.3f}",
+                help="Measures how similar an object is to its own cluster compared to other clusters. Range: [-1, 1], higher is better."
+            )
+        
+        with qual_col2:
+            st.metric(
+                "Calinski-Harabasz Score",
+                f"{metrics['calinski_score']:.0f}",
+                help="Ratio of between-cluster to within-cluster dispersion. Higher is better."
+            )
+            
+        with qual_col3:
+            st.metric(
+                "Davies-Bouldin Score",
+                f"{metrics['davies_score']:.3f}",
+                help="Average similarity measure of each cluster with its most similar cluster. Lower is better."
+            )
+            
+        with qual_col4:
+            st.metric(
+                "Balance Ratio",
+                f"{metrics['balance_ratio']:.1f}",
+                help="Ratio of largest to smallest cluster size. Closer to 1 is better."
+            )
         
         # Display each cluster
         for cluster in cluster_results['clusters']:
-            with st.expander(f"Cluster {cluster['id']+1} ({cluster['size']} documents)", 
-                           expanded=True):
-                
+            with st.expander(
+                f"Cluster {cluster['id']+1} ({cluster['size']} documents)", 
+                expanded=True
+            ):
                 # Cluster metrics
-                st.markdown(f"**Cohesion Score**: {cluster['cohesion']:.3f}")
+                met_col1, met_col2 = st.columns(2)
+                with met_col1:
+                    st.metric(
+                        "Cohesion Score", 
+                        f"{cluster['cohesion']:.3f}",
+                        help="Average similarity between documents in the cluster"
+                    )
+                with met_col2:
+                    st.metric(
+                        "Size Percentage",
+                        f"{(cluster['size'] / cluster_results['total_documents'] * 100):.1f}%",
+                        help="Percentage of total documents in this cluster"
+                    )
                 
                 # Terms analysis
                 st.markdown("#### Key Terms")
-                terms_df = pd.DataFrame(cluster['terms'])
-                
-                # Create term importance visualization
-                fig = px.bar(
-                    terms_df.head(10),
-                    x='relevance',
-                    y='term',
-                    orientation='h',
-                    title='Top Terms by Relevance',
-                    labels={'relevance': 'Relevance Score', 'term': 'Term'}
-                )
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True)
+                terms_df = pd.DataFrame([
+                    {
+                        'Term': term['term'],
+                        'Frequency': f"{term['cluster_frequency']*100:.1f}%",
+                        'Distinctiveness': f"{term['score']:.3f}"
+                    }
+                    for term in cluster['terms'][:10]
+                ])
+                st.dataframe(terms_df, hide_index=True)
                 
                 # Representative documents with formatted dates
                 st.markdown("#### Representative Documents")
@@ -3336,12 +3358,93 @@ def display_cluster_analysis(cluster_results: Dict) -> None:
                     st.markdown(f"**{doc['title']}** (Similarity: {doc['similarity']:.2f})")
                     st.markdown(f"**Date**: {format_date_uk(doc['date'])}")
                     st.markdown(f"**Summary**: {doc['summary'][:300]}...")
-                    st.markdown("---")  # Separator between documents
+                    st.markdown("---")
 
     except Exception as e:
         st.error(f"Error displaying cluster analysis: {str(e)}")
         logging.error(f"Display error: {str(e)}", exc_info=True)
 
+
+def find_optimal_clusters(tfidf_matrix: sp.csr_matrix, 
+                           min_clusters: int = 2,
+                           max_clusters: int = 10,
+                           min_cluster_size: int = 3) -> Tuple[int, np.ndarray]:
+    """Find optimal number of clusters using multiple metrics"""
+    
+    best_score = -1
+    best_n_clusters = min_clusters
+    best_labels = None
+    
+    # Store metrics for each clustering attempt
+    metrics = {
+        'n_clusters': [],
+        'silhouette': [],
+        'calinski': [],
+        'davies': [],
+        'balance_ratio': []
+    }
+    
+    # Try different numbers of clusters
+    for n_clusters in range(min_clusters, max_clusters + 1):
+        try:
+            # Perform clustering
+            clustering = AgglomerativeClustering(
+                n_clusters=n_clusters,
+                metric='euclidean',
+                linkage='ward'
+            )
+            
+            labels = clustering.fit_predict(tfidf_matrix.toarray())
+            
+            # Calculate cluster sizes
+            cluster_sizes = np.bincount(labels)
+            
+            # Skip if any cluster is too small
+            if min(cluster_sizes) < min_cluster_size:
+                continue
+                
+            # Calculate balance ratio (smaller is better)
+            balance_ratio = max(cluster_sizes) / min(cluster_sizes)
+            
+            # Skip if clusters are too imbalanced
+            if balance_ratio > 5:  # No cluster should be more than 5x larger than smallest
+                continue
+            
+            # Calculate clustering metrics
+            sil_score = silhouette_score(tfidf_matrix.toarray(), labels, metric='euclidean')
+            cal_score = calinski_harabasz_score(tfidf_matrix.toarray(), labels)
+            dav_score = davies_bouldin_score(tfidf_matrix.toarray(), labels)
+            
+            # Store metrics
+            metrics['n_clusters'].append(n_clusters)
+            metrics['silhouette'].append(sil_score)
+            metrics['calinski'].append(cal_score)
+            metrics['davies'].append(dav_score)
+            metrics['balance_ratio'].append(balance_ratio)
+            
+            # Calculate combined score (weighted average of normalized metrics)
+            # Higher values of silhouette and calinski are better
+            # Lower values of davies and balance_ratio are better
+            combined_score = (
+                0.4 * sil_score +
+                0.3 * (cal_score / max(metrics['calinski'])) +
+                0.2 * (1 - dav_score / max(metrics['davies'])) +
+                0.1 * (1 - balance_ratio / max(metrics['balance_ratio']))
+            )
+            
+            if combined_score > best_score:
+                best_score = combined_score
+                best_n_clusters = n_clusters
+                best_labels = labels
+                
+        except Exception as e:
+            logging.warning(f"Error trying {n_clusters} clusters: {str(e)}")
+            continue
+            
+    if best_labels is None:
+        raise ValueError("Could not find valid clustering configuration")
+        
+    return best_n_clusters, best_labels
 
 
 def export_cluster_results(cluster_results: Dict) -> bytes:
