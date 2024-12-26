@@ -2917,7 +2917,6 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
             st.warning("No displayable columns found in the data")
         
         st.markdown("---")
-
 class BM25Vectorizer:
     """
     BM25 vectorizer for better term weighting
@@ -2934,20 +2933,32 @@ class BM25Vectorizer:
         )
         
     def fit_transform(self, documents):
+        # Ensure documents is not empty
+        if not documents or len(documents) == 0:
+            raise ValueError("No documents provided for vectorization")
+        
         # Get term frequencies
         X = self.vectorizer.fit_transform(documents)
         
+        # Ensure X is not empty
+        if X.shape[0] == 0 or X.shape[1] == 0:
+            raise ValueError("Vectorization resulted in empty matrix")
+        
         # Calculate document lengths
-        doc_lengths = X.sum(axis=1).A1
+        doc_lengths = np.asarray(X.sum(axis=1)).flatten()
+        
+        # Handle case of zero-length documents
+        doc_lengths = np.maximum(doc_lengths, 1)  # Prevent division by zero
         avg_doc_length = doc_lengths.mean()
         
         # Get IDF values
         idf = self.vectorizer.idf_
         
-        # Calculate BM25 scores
+        # Get nonzero elements
         rows, cols = X.nonzero()
-        data = []
         
+        # Compute BM25 scores
+        data = []
         for i, j in zip(rows, cols):
             tf = X[i, j]
             doc_len = doc_lengths[i]
@@ -2956,9 +2967,10 @@ class BM25Vectorizer:
             tf_component = ((self.k1 + 1) * tf) / (self.k1 * (1 - self.b + self.b * doc_len / avg_doc_length) + tf)
             
             # Multiply by IDF
-            bm25_score = tf_component * idf[j]
-            data.append(float(bm25_score))  # Ensure float type
+            bm25_score = float(tf_component * idf[j])
+            data.append(bm25_score)
         
+        # Create sparse matrix
         return sp.csr_matrix((data, (rows, cols)), shape=X.shape)
     
     def get_feature_names_out(self):
@@ -2967,6 +2979,7 @@ class BM25Vectorizer:
     def transform(self, documents):
         # Reuse fit_transform logic for transform
         return self.fit_transform(documents)
+
 
 
 def clean_text_for_modeling(text: str) -> str:
