@@ -2443,11 +2443,15 @@ def perform_semantic_clustering(data: pd.DataFrame, method: str = 'tfidf',
                 norm='l2'
             )
             doc_vectors = vectorizer.fit_transform(processed_texts)
+
         elif method == 'bm25':
             # Vectorization with BM25
             corpus = [text.split() for text in processed_texts]
             bm25 = BM25Okapi(corpus)
-            doc_vectors = np.array(bm25.get_scores_per_document(corpus))
+            doc_vectors = bm25.get_scores_per_document(corpus)
+            # Convert sparse BM25 scores to dense array
+            doc_vectors = np.array([scores.toarray()[0] for scores in doc_vectors])  
+
         else:
             raise ValueError(f"Invalid method: {method}")
         
@@ -2565,7 +2569,7 @@ def perform_semantic_clustering(data: pd.DataFrame, method: str = 'tfidf',
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise ValueError(f"Clustering failed: {str(e)}")
-
+        
 def format_date_uk(date_obj):
     """Convert datetime object to UK date format string"""
     if pd.isna(date_obj):
