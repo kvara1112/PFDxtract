@@ -182,81 +182,81 @@ class WeightedTfidfVectorizer(BaseEstimator, TransformerMixin):
     def get_feature_names_out(self):
         return self.count_vectorizer.get_feature_names_out()
 
-def get_vectorizer(
-    vectorizer_type: str,
-    max_features: int,
-    min_df: float,
-    max_df: float,
-    **kwargs
-) -> Union[TfidfVectorizer, BM25Vectorizer, WeightedTfidfVectorizer]:
-    """Create and configure the specified vectorizer type with enhanced filtering"""
-    
-    # Common stopwords to exclude
-    additional_stops = {
-        'report', 'dated', 'concern', 'concerns', 'concerned',
-        'paragraph', 'section', 'regulation', 'reference', 'ref',
-        'page', 'copy', 'copies', 'letter', 'letters',
-        'information', 'email', 'telephone', 'address',
-        'dear', 'regards', 'sincerely', 'yours',
-        'mr', 'mrs', 'ms', 'dr', 'prof', 'sir', 'madam',
-        'monday', 'tuesday', 'wednesday', 'thursday', 'friday',
-        'january', 'february', 'march', 'april', 'may', 'june',
-        'july', 'august', 'september', 'october', 'november', 'december',
-        'inquest', 'investigation', 'evidence', 'witness',
-        'statement', 'statements', 'review', 'reviewed',
-        'provided', 'received', 'sent', 'following',
-        'identified', 'found', 'noted', 'stated',
-        'concluded', 'conclusion', 'conclusions'
-    }
-    
-    # Get default English stopwords and add custom ones
-    stop_words = set(stopwords.words('english'))
-    stop_words.update(additional_stops)
-    
-    # Function to filter out noisy terms
-    def token_filter(text):
-        return (
-            # Remove common legal/document terms
-            not any(word in text.lower() for word in ['regulation', 'paragraph', 'section']) and
-            # Remove short terms
-            len(text) > 2 and
-            # Remove terms with numbers or special characters
-            text.isalpha() and
-            # Remove single character repeats (e.g., 'aaa')
-            not (len(set(text)) == 1 and len(text) > 2)
-        )
-    
-    common_params = {
-        'max_features': max_features,
-        'min_df': min_df,
-        'max_df': max_df,
-        'stop_words': stop_words,
-        'token_pattern': r'(?u)\b[a-zA-Z]{3,}\b',  # Only pure alphabetical terms of 3+ chars
-    }
-    
-    if vectorizer_type == 'tfidf':
-        return TfidfVectorizer(
-            **common_params,
-            ngram_range=(1, 1),  # Unigrams only for clearer interpretation
-            norm='l2',
-            use_idf=True,
-            smooth_idf=True
-        )
-    elif vectorizer_type == 'bm25':
-        return BM25Vectorizer(
-            **common_params,
-            k1=kwargs.get('k1', 1.5),
-            b=kwargs.get('b', 0.75)
-        )
-    elif vectorizer_type == 'weighted':
-        return WeightedTfidfVectorizer(
-            **common_params,
-            tf_scheme=kwargs.get('tf_scheme', 'raw'),
-            idf_scheme=kwargs.get('idf_scheme', 'smooth')
-        )
-    else:
-        raise ValueError(f"Unknown vectorizer type: {vectorizer_type}")
+    def get_vectorizer(
+        vectorizer_type: str,
+        max_features: int,
+        min_df: float,
+        max_df: float,
+        **kwargs
+    ) -> Union[TfidfVectorizer, BM25Vectorizer, WeightedTfidfVectorizer]:
+        """Create and configure the specified vectorizer type with enhanced filtering"""
         
+        # Common stopwords to exclude
+        additional_stops = {
+            'report', 'dated', 'concern', 'concerns', 'concerned',
+            'paragraph', 'section', 'regulation', 'reference', 'ref',
+            'page', 'copy', 'copies', 'letter', 'letters',
+            'information', 'email', 'telephone', 'address',
+            'dear', 'regards', 'sincerely', 'yours',
+            'mr', 'mrs', 'ms', 'dr', 'prof', 'sir', 'madam',
+            'monday', 'tuesday', 'wednesday', 'thursday', 'friday',
+            'january', 'february', 'march', 'april', 'may', 'june',
+            'july', 'august', 'september', 'october', 'november', 'december',
+            'inquest', 'investigation', 'evidence', 'witness',
+            'statement', 'statements', 'review', 'reviewed',
+            'provided', 'received', 'sent', 'following',
+            'identified', 'found', 'noted', 'stated',
+            'concluded', 'conclusion', 'conclusions'
+        }
+        
+        # Get default English stopwords and add custom ones
+        stop_words = set(stopwords.words('english'))
+        stop_words.update(additional_stops)
+        
+        # Function to filter out noisy terms
+        def token_filter(text):
+            return (
+                # Remove common legal/document terms
+                not any(word in text.lower() for word in ['regulation', 'paragraph', 'section']) and
+                # Remove short terms
+                len(text) > 2 and
+                # Remove terms with numbers or special characters
+                text.isalpha() and
+                # Remove single character repeats (e.g., 'aaa')
+                not (len(set(text)) == 1 and len(text) > 2)
+            )
+        
+        common_params = {
+            'max_features': max_features,
+            'min_df': min_df,
+            'max_df': max_df,
+            'stop_words': stop_words,
+            'token_pattern': r'(?u)\b[a-zA-Z]{3,}\b',  # Only pure alphabetical terms of 3+ chars
+        }
+        
+        if vectorizer_type == 'tfidf':
+            return TfidfVectorizer(
+                **common_params,
+                ngram_range=(1, 1),  # Unigrams only for clearer interpretation
+                norm='l2',
+                use_idf=True,
+                smooth_idf=True
+            )
+        elif vectorizer_type == 'bm25':
+            return BM25Vectorizer(
+                **common_params,
+                k1=kwargs.get('k1', 1.5),
+                b=kwargs.get('b', 0.75)
+            )
+        elif vectorizer_type == 'weighted':
+            return WeightedTfidfVectorizer(
+                **common_params,
+                tf_scheme=kwargs.get('tf_scheme', 'raw'),
+                idf_scheme=kwargs.get('idf_scheme', 'smooth')
+            )
+        else:
+            raise ValueError(f"Unknown vectorizer type: {vectorizer_type}")
+            
         
 # Configure logging
 logging.basicConfig(
