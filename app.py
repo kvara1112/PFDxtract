@@ -2805,11 +2805,10 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             # Perform clustering
             cluster_results = perform_semantic_clustering(
                 processed_df,
-                min_cluster_size=min_cluster_size,
-                max_features=5000,
-                min_df=min_df,
-                max_df=max_df
+                min_cluster_size=min_cluster_size
             )
+
+
             
             progress_bar.progress(0.8)
             status_text.text("Analyzing cluster results...")
