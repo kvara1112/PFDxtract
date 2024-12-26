@@ -2398,11 +2398,11 @@ def deduplicate_documents(data: pd.DataFrame) -> pd.DataFrame:
     
     return deduped_data
 
-def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2, 
-                             max_features: int = 5000, min_df: float = 0.01,
-                             max_df: float = 0.95) -> Dict:
+def perform_semantic_clustering(data: pd.DataFrame, method: str = 'tfidf',  
+                             min_cluster_size: int = 2, max_features: int = 5000, 
+                             min_df: float = 0.01, max_df: float = 0.95) -> Dict:
     """
-    Perform semantic clustering with improved balance and distribution
+    Perform semantic clustering with BM25 or TF-IDF options 
     """
     try:
         # Initialize NLTK resources
@@ -2431,19 +2431,25 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
         max_features = min(5000, n_docs * 200)
         min_df = max(2, int(0.05 * n_docs))  # At least 5% of documents
         max_df = min(0.95, 1.0 - (min_cluster_size / n_docs))  # Leave room for unique terms
-
-        # Vectorization with enhanced parameters
-        vectorizer = TfidfVectorizer(
-            max_features=max_features,
-            min_df=min_df,
-            max_df=max_df,
-            stop_words='english',
-            ngram_range=(1, 2),
-            norm='l2'
-        )
         
-        tfidf_matrix = vectorizer.fit_transform(processed_texts)
-        feature_names = vectorizer.get_feature_names_out()
+        if method == 'tfidf':
+            # Vectorization with TF-IDF
+            vectorizer = TfidfVectorizer(
+                max_features=max_features,
+                min_df=min_df,  
+                max_df=max_df,
+                stop_words='english',
+                ngram_range=(1, 2),
+                norm='l2'
+            )
+            doc_vectors = vectorizer.fit_transform(processed_texts)
+        elif method == 'bm25':
+            # Vectorization with BM25
+            corpus = [text.split() for text in processed_texts]
+            bm25 = BM25Okapi(corpus)
+            doc_vectors = np.array(bm25.get_scores_per_document(corpus))
+        else:
+            raise ValueError(f"Invalid method: {method}")
         
         # Try different clustering configurations
         best_score = -1
@@ -2459,7 +2465,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
                     linkage='ward'
                 )
                 
-                labels = clustering.fit_predict(tfidf_matrix.toarray())
+                labels = clustering.fit_predict(doc_vectors)
                 
                 # Verify cluster sizes
                 cluster_sizes = np.bincount(labels)
@@ -2472,7 +2478,7 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
                     continue
                 
                 # Calculate clustering quality
-                score = silhouette_score(tfidf_matrix.toarray(), labels, metric='euclidean')
+                score = silhouette_score(doc_vectors, labels, metric='euclidean')
                 
                 if score > best_score:
                     best_score = score
@@ -2491,10 +2497,13 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
                 metric='euclidean',
                 linkage='ward'
             )
-            best_labels = clustering.fit_predict(tfidf_matrix.toarray())
+            best_labels = clustering.fit_predict(doc_vectors)
 
-        # Calculate similarities
-        similarity_matrix = cosine_similarity(tfidf_matrix)
+        # Calculate similarities based on chosen method
+        if method == 'tfidf':
+            similarity_matrix = cosine_similarity(doc_vectors)
+        else:  
+            similarity_matrix = cosine_similarity(doc_vectors)
 
         # Extract cluster information
         clusters = []
@@ -2505,37 +2514,22 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2,
             if len(cluster_indices) < min_cluster_size:
                 continue
                 
-            # Calculate cluster terms
-            cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
-            centroid = np.mean(cluster_tfidf, axis=0)
-            
-            # Get important terms with improved distinctiveness
-            term_scores = []
-            for idx, score in enumerate(centroid):
-                if score > 0:
-                    term = feature_names[idx]
-                    cluster_freq = np.mean(cluster_tfidf[:, idx] > 0)
-                    total_freq = np.mean(tfidf_matrix[:, idx].toarray() > 0)
-                    distinctiveness = cluster_freq / (total_freq + 1e-10)
-                    
-                    term_scores.append({
-                        'term': term,
-                        'score': float(score * distinctiveness),  # Weight by distinctiveness
-                        'cluster_frequency': float(cluster_freq),
-                        'total_frequency': float(total_freq)
-                    })
-            
-            term_scores.sort(key=lambda x: x['score'], reverse=True)
-            top_terms = term_scores[:20]
-
+            # Get important terms 
+            if method == 'tfidf':
+                centroid_vector = np.mean(doc_vectors[cluster_indices].toarray(), axis=0)
+                top_term_indices = np.argsort(centroid_vector)[::-1][:20]
+                top_terms = [{'term': vectorizer.get_feature_names_out()[i], 
+                             'score': centroid_vector[i]}
+                             for i in top_term_indices]
+            else: 
+                top_terms = [] # BM25 doesn't provide term scores
+                
             # Get representative documents
             doc_similarities = []
             for idx in cluster_indices:
-                doc_vector = tfidf_matrix[idx].toarray().flatten()
-                sim_to_centroid = cosine_similarity(
-                    doc_vector.reshape(1, -1),
-                    centroid.reshape(1, -1)
-                )[0][0]
+                doc_vector = doc_vectors[idx]
+                sim_to_centroid = cosine_similarity([doc_vector], 
+                                                    [np.mean(doc_vectors[cluster_indices], axis=0)])[0][0]
                 
                 doc_info = {
                     'title': display_data.iloc[idx]['Title'],
@@ -2914,6 +2908,9 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     with st.sidebar:
         st.header("Analysis Parameters")
         
+        # Similarity method selection
+        method = st.selectbox("Similarity Method", ['tfidf', 'bm25'])
+        
         # Basic clustering parameters
         min_cluster_size = st.slider(
             "Minimum Group Size ❓", 
@@ -3036,6 +3033,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             # Perform clustering
             cluster_results = perform_semantic_clustering(
                 processed_df,
+                method=method,
                 min_cluster_size=min_cluster_size,
                 max_features=5000,
                 min_df=min_df,
@@ -3062,7 +3060,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             status_text.empty()
             st.error(f"Analysis error: {str(e)}")
             logging.error(f"Analysis error: {e}", exc_info=True)
-
+            
 
 def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
     """Render cluster summaries and records with flexible column handling"""
