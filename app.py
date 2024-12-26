@@ -1092,6 +1092,148 @@ def render_scraping_tab():
             logging.error(f"Scraping error: {e}")
             return False                           
 
+def render_topic_options():
+    """Render enhanced topic analysis options in a clear layout"""
+    
+    st.subheader("Analysis Settings")
+    
+    # Create two columns for main settings
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("##### Text Processing")
+        vectorizer_type = st.selectbox(
+            "Vectorization Method",
+            options=["tfidf", "bm25", "weighted"],
+            help="Choose how to convert text to numerical features:\n" +
+                 "- TF-IDF: Classic term frequency-inverse document frequency\n" +
+                 "- BM25: Enhanced version of TF-IDF used in search engines\n" +
+                 "- Weighted: Customizable term and document weighting"
+        )
+        
+        # Show specific parameters based on vectorizer type
+        if vectorizer_type == "bm25":
+            st.markdown("##### BM25 Parameters")
+            k1 = st.slider("Term Saturation (k1)", 
+                          min_value=0.5, 
+                          max_value=3.0, 
+                          value=1.5,
+                          step=0.1,
+                          help="Controls how quickly term frequency saturates (higher = slower)")
+            b = st.slider("Length Normalization (b)",
+                         min_value=0.0,
+                         max_value=1.0,
+                         value=0.75,
+                         step=0.05,
+                         help="How much to penalize long documents")
+                         
+        elif vectorizer_type == "weighted":
+            st.markdown("##### Weighting Schemes")
+            tf_scheme = st.selectbox(
+                "Term Frequency Scheme",
+                options=["raw", "log", "binary", "augmented"],
+                help="How to count term occurrences:\n" +
+                     "- Raw: Use actual counts\n" +
+                     "- Log: Logarithmic scaling\n" +
+                     "- Binary: Just presence/absence\n" +
+                     "- Augmented: Normalized frequency"
+            )
+            idf_scheme = st.selectbox(
+                "Document Frequency Scheme",
+                options=["smooth", "standard", "probabilistic"],
+                help="How to weight document frequencies:\n" +
+                     "- Smooth: With smoothing factor\n" +
+                     "- Standard: Classic IDF\n" +
+                     "- Probabilistic: Based on probability"
+            )
+    
+    with col2:
+        st.markdown("##### Clustering Parameters")
+        min_cluster_size = st.slider(
+            "Minimum Cluster Size",
+            min_value=2,
+            max_value=10,
+            value=3,
+            help="Smallest allowed group of similar documents"
+        )
+        
+        max_features = st.slider(
+            "Maximum Features",
+            min_value=1000,
+            max_value=10000,
+            value=5000,
+            step=500,
+            help="Maximum number of terms to consider"
+        )
+        
+        min_similarity = st.slider(
+            "Minimum Similarity",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.3,
+            step=0.05,
+            help="How similar documents must be to be grouped together"
+        )
+    
+    # Advanced options in expander
+    with st.expander("Advanced Settings"):
+        st.markdown("##### Document Frequency Bounds")
+        col3, col4 = st.columns(2)
+        
+        with col3:
+            min_df = st.number_input(
+                "Minimum Document Frequency",
+                min_value=1,
+                max_value=100,
+                value=2,
+                help="Minimum number of documents a term must appear in"
+            )
+        
+        with col4:
+            max_df = st.slider(
+                "Maximum Document %",
+                min_value=0.1,
+                max_value=1.0,
+                value=0.95,
+                step=0.05,
+                help="Maximum % of documents a term can appear in"
+            )
+            
+        st.markdown("##### Visualization Settings")
+        network_layout = st.selectbox(
+            "Network Layout",
+            options=["force", "circular", "random"],
+            help="How to arrange nodes in topic networks"
+        )
+        
+        show_weights = st.checkbox(
+            "Show Edge Weights",
+            value=True,
+            help="Display connection strengths between terms"
+        )
+    
+    return {
+        "vectorizer_type": vectorizer_type,
+        "vectorizer_params": {
+            "k1": k1 if vectorizer_type == "bm25" else None,
+            "b": b if vectorizer_type == "bm25" else None,
+            "tf_scheme": tf_scheme if vectorizer_type == "weighted" else None,
+            "idf_scheme": idf_scheme if vectorizer_type == "weighted" else None
+        },
+        "cluster_params": {
+            "min_cluster_size": min_cluster_size,
+            "max_features": max_features,
+            "min_similarity": min_similarity,
+            "min_df": min_df,
+            "max_df": max_df
+        },
+        "viz_params": {
+            "network_layout": network_layout,
+            "show_weights": show_weights
+        }
+    }
+
+
 def sort_reports(reports: List[Dict], order: str) -> List[Dict]:
     """Sort reports based on specified order"""
     if order == "date_desc":
@@ -3269,7 +3411,7 @@ def export_topic_results(
     return json.dumps(results, indent=2)
     
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    """Main topic analysis and summary tab rendering function"""
+    """Main topic analysis and summary tab with enhanced options"""
     st.header("Topic Analysis & Summaries")
     st.markdown("""
     This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
@@ -3283,31 +3425,8 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             render_summary_tab(st.session_state.topic_model, data)
             return
 
-    with st.sidebar:
-        st.header("Analysis Parameters")
-        
-        # Basic clustering parameters
-        min_cluster_size = st.slider(
-            "Minimum Group Size ❓", 
-            2, 5, 2,
-            help="Minimum number of documents needed to form a thematic group"
-        )
-        
-        # Document frequency parameters
-        total_docs = len(data)
-        min_docs = st.slider(
-            "Minimum Document Frequency ❓", 
-            2, max(2, total_docs//2), 5,
-            help="How many documents a term must appear in"
-        )
-        min_df = min_docs / total_docs
-        
-        max_docs = st.slider(
-            "Maximum Document Frequency ❓", 
-            min_docs, total_docs, int(total_docs * 0.9),
-            help="Maximum number of documents a term can appear in"
-        )
-        max_df = max_docs / total_docs
+    # Get all analysis options
+    options = render_topic_options()
 
     # Date range selection
     col1, col2 = st.columns(2)
@@ -3383,6 +3502,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             # Remove empty content
             filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
             
+            min_cluster_size = options["cluster_params"]["min_cluster_size"]
             if len(filtered_df) < min_cluster_size:
                 progress_bar.empty()
                 status_text.empty()
@@ -3405,19 +3525,31 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.6)
             status_text.text("Performing clustering analysis...")
             
-            # Perform clustering
+            # Create vectorizer with selected options
+            vectorizer = get_vectorizer(
+                vectorizer_type=options["vectorizer_type"],
+                max_features=options["cluster_params"]["max_features"],
+                min_df=options["cluster_params"]["min_df"],
+                max_df=options["cluster_params"]["max_df"],
+                **options["vectorizer_params"]
+            )
+            
+            # Perform clustering with selected parameters
             cluster_results = perform_semantic_clustering(
                 processed_df,
-                min_cluster_size=min_cluster_size,
-                max_features=5000,
-                min_df=min_df,
-                max_df=max_df
+                min_cluster_size=options["cluster_params"]["min_cluster_size"],
+                max_features=options["cluster_params"]["max_features"],
+                min_df=options["cluster_params"]["min_df"],
+                max_df=options["cluster_params"]["max_df"],
+                vectorizer=vectorizer,
+                similarity_threshold=options["cluster_params"]["min_similarity"]
             )
             
             progress_bar.progress(0.8)
             status_text.text("Analyzing cluster results...")
             
-            # Store results
+            # Store results along with visualization parameters
+            cluster_results['viz_params'] = options["viz_params"]
             st.session_state.topic_model = cluster_results
             
             progress_bar.progress(1.0)
@@ -3426,7 +3558,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.empty()
             status_text.empty()
             
-            # Display results
+            # Display results with selected visualization options
             render_summary_tab(cluster_results, processed_df)
             
         except Exception as e:
@@ -3434,7 +3566,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             status_text.empty()
             st.error(f"Analysis error: {str(e)}")
             logging.error(f"Analysis error: {e}", exc_info=True)
-
 
 def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
     """Render cluster summaries and records with flexible column handling"""
