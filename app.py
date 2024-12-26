@@ -2366,11 +2366,11 @@ def deduplicate_documents(data: pd.DataFrame) -> pd.DataFrame:
     
     return deduped_data
 
-def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3, 
+def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 2, 
                              max_features: int = 5000, min_df: float = 0.01,
                              max_df: float = 0.95) -> Dict:
     """
-    Perform semantic clustering focused on document content
+    Perform semantic clustering with adaptive parameters
     """
     try:
         # Initialize NLTK resources
@@ -2379,9 +2379,6 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         # Validate input data
         if 'Content' not in data.columns:
             raise ValueError("Input data must contain 'Content' column")
-            
-        if len(data) < min_cluster_size * 2:
-            raise ValueError(f"Not enough documents for clustering. Need at least {min_cluster_size * 2}, got {len(data)}")
             
         # Clean and process the content
         processed_texts = data['Content'].apply(clean_text_for_modeling)
@@ -2394,7 +2391,25 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         # Keep the original data for display
         display_data = data[valid_mask].copy()
             
-        # Vectorization
+        # Adaptive parameters based on dataset size
+        n_docs = len(processed_texts)
+        if n_docs < 10:
+            min_cluster_size = 2
+            max_features = min(2000, n_docs * 100)
+            min_clusters = 2
+            max_clusters = 3
+        elif n_docs < 20:
+            min_cluster_size = 2
+            max_features = min(3000, n_docs * 150)
+            min_clusters = 2
+            max_clusters = 4
+        else:
+            min_cluster_size = max(2, min(5, n_docs // 10))
+            max_features = min(5000, n_docs * 200)
+            min_clusters = max(2, n_docs // 20)
+            max_clusters = max(3, min(15, n_docs // 10))
+
+        # Vectorization with adaptive parameters
         vectorizer = TfidfVectorizer(
             max_features=max_features,
             min_df=max(2, int(min_df * len(processed_texts))),
@@ -2407,52 +2422,58 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         tfidf_matrix = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
         
-        # Calculate optimal number of clusters
-        max_clusters = min(int(len(processed_texts) * 0.3), 15)
-        min_clusters = max(2, int(len(processed_texts) * 0.05))
-        
+        # Try clustering with different configurations
         best_n_clusters = min_clusters
         best_score = -1
         best_labels = None
         
-        # Try different numbers of clusters
         for n_clusters in range(min_clusters, max_clusters + 1):
             if len(processed_texts) < n_clusters * min_cluster_size:
-                break
+                continue
                 
+            try:
+                clustering = AgglomerativeClustering(
+                    n_clusters=n_clusters,
+                    metric='euclidean',
+                    linkage='ward'
+                )
+                
+                labels = clustering.fit_predict(tfidf_matrix.toarray())
+                
+                # Check minimum cluster size
+                cluster_sizes = np.bincount(labels)
+                if min(cluster_sizes) < min_cluster_size:
+                    continue
+                    
+                score = silhouette_score(tfidf_matrix.toarray(), labels, metric='euclidean')
+                
+                if score > best_score:
+                    best_score = score
+                    best_n_clusters = n_clusters
+                    best_labels = labels
+            except Exception as cluster_error:
+                logging.warning(f"Clustering attempt failed for n_clusters={n_clusters}: {str(cluster_error)}")
+                continue
+
+        # If no suitable configuration found, try with minimum requirements
+        if best_labels is None:
+            min_cluster_size = 2  # Reduce to absolute minimum
+            n_clusters = min(3, len(processed_texts) // 2)  # Try with minimal clusters
             clustering = AgglomerativeClustering(
                 n_clusters=n_clusters,
                 metric='euclidean',
                 linkage='ward'
             )
-            
-            labels = clustering.fit_predict(tfidf_matrix.toarray())
-            
-            # Check minimum cluster size
-            cluster_sizes = np.bincount(labels)
-            if min(cluster_sizes) < min_cluster_size:
-                continue
-                
-            score = silhouette_score(tfidf_matrix.toarray(), labels, metric='euclidean')
-            
-            if score > best_score:
-                best_score = score
-                best_n_clusters = n_clusters
-                best_labels = labels
-
-        if best_labels is None:
-            raise ValueError("Could not find suitable clustering configuration")
+            best_labels = clustering.fit_predict(tfidf_matrix.toarray())
+            best_score = silhouette_score(tfidf_matrix.toarray(), best_labels, metric='euclidean')
 
         # Calculate similarities
         similarity_matrix = cosine_similarity(tfidf_matrix)
 
         # Extract cluster information
         clusters = []
-        for cluster_id in range(best_n_clusters):
+        for cluster_id in range(n_clusters):
             cluster_indices = np.where(best_labels == cluster_id)[0]
-            
-            if len(cluster_indices) < min_cluster_size:
-                continue
             
             # Calculate cluster terms
             cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
@@ -2493,11 +2514,11 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
                 }
                 doc_similarities.append((idx, sim_to_centroid, doc_info))
 
-            # Sort by similarity
+            # Sort by similarity and get top documents
             doc_similarities.sort(key=lambda x: x[1], reverse=True)
             representative_docs = [item[2] for item in doc_similarities[:5]]
 
-            # Calculate cohesion
+            # Calculate cluster cohesion
             cluster_similarities = similarity_matrix[cluster_indices][:, cluster_indices]
             cohesion = float(np.mean(cluster_similarities))
 
@@ -2519,8 +2540,6 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise ValueError(f"Clustering failed: {str(e)}")
-
-
 def format_date_uk(date_obj):
     """Convert datetime object to UK date format string"""
     if pd.isna(date_obj):
