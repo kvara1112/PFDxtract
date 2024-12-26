@@ -2597,29 +2597,77 @@ def generate_extractive_summary(documents, max_length=500):
         return []
 
 def generate_abstractive_summary(cluster_terms, documents, max_length=500):
-    """Generate abstractive summary from cluster information"""
+    """Generate abstractive summary from cluster information with improved date handling"""
     try:
         # Extract key themes from terms
         top_themes = [term['term'] for term in cluster_terms[:5]]
         
-        # Get document dates and format them
-        dates = [format_date_uk(doc['date']) for doc in documents if doc['date']]
-        date_range = f"from {min(dates)} to {max(dates)}" if dates else ""
+        # Get document dates and format them with proper sorting
+        dates = []
+        for doc in documents:
+            try:
+                if doc['date']:
+                    date_obj = pd.to_datetime(doc['date'])
+                    dates.append(date_obj)
+            except:
+                continue
         
-        # Build template-based summary
-        summary = f"This cluster contains reports {date_range} primarily focused on {', '.join(top_themes[:-1])} and {top_themes[-1]}. "
+        if dates:
+            start_date = min(dates).strftime('%d/%m/%Y')
+            end_date = max(dates).strftime('%d/%m/%Y')
+            date_range = f"from {start_date} to {end_date}"
+        else:
+            date_range = ""
         
-        # Add document count and main patterns
-        summary += f"Across {len(documents)} documents, common patterns include "
+        # Extract key themes with better formatting
+        main_themes = ', '.join(top_themes[:-1])
+        if main_themes:
+            themes_text = f"{main_themes} and {top_themes[-1]}"
+        else:
+            themes_text = top_themes[0] if top_themes else ""
         
-        # Add key findings from terms
-        term_patterns = [f"{term['term']} (appearing in {term['cluster_frequency']*100:.0f}% of cluster documents)"
-                        for term in cluster_terms[5:8]]
-        summary += ', '.join(term_patterns) + '. '
+        # Build better structured summary
+        summary = f"This cluster contains {len(documents)} documents "
+        if date_range:
+            summary += f"{date_range} "
+        summary += f"focused on {themes_text}. "
         
-        # Truncate to max length
+        # Add key patterns with improved statistics
+        term_patterns = []
+        for term in cluster_terms[5:8]:  # Get next 3 terms after main themes
+            if term['cluster_frequency'] > 0:
+                freq = term['cluster_frequency'] * 100
+                # Add context based on frequency
+                if freq > 75:
+                    context = "very commonly"
+                elif freq > 50:
+                    context = "frequently"
+                elif freq > 25:
+                    context = "sometimes"
+                else:
+                    context = "occasionally"
+                term_patterns.append(
+                    f"{term['term']} ({context} appearing in {freq:.0f}% of documents)"
+                )
+        
+        if term_patterns:
+            summary += f"Common patterns include {', '.join(term_patterns)}. "
+        
+        # Add cluster distinctiveness if available
+        if any(term['total_frequency'] < 0.5 for term in cluster_terms[:5]):
+            distinctive_terms = [
+                term['term'] for term in cluster_terms[:5] 
+                if term['total_frequency'] < 0.5
+            ]
+            if distinctive_terms:
+                summary += f"This cluster is particularly distinctive in its discussion of {', '.join(distinctive_terms)}."
+        
+        # Truncate to max length while preserving complete sentences
         if len(summary) > max_length:
-            summary = summary[:max_length-3] + '...'
+            summary = summary[:max_length]
+            last_period = summary.rfind('.')
+            if last_period > 0:
+                summary = summary[:last_period + 1]
             
         return summary
         
@@ -2627,6 +2675,46 @@ def generate_abstractive_summary(cluster_terms, documents, max_length=500):
         logging.error(f"Error in abstractive summarization: {e}")
         return "Error generating summary"
 
+def get_optimal_clustering_params(num_docs: int) -> Dict[str, int]:
+    """Calculate optimal clustering parameters based on dataset size"""
+    
+    # Base parameters
+    params = {
+        'min_cluster_size': 2,  # Minimum starting point
+        'max_features': 5000,   # Maximum vocabulary size
+        'min_docs': 2,         # Minimum document frequency
+        'max_docs': None       # Maximum document frequency (will be calculated)
+    }
+    
+    # Adjust minimum cluster size based on dataset size
+    if num_docs < 10:
+        params['min_cluster_size'] = 2
+    elif num_docs < 20:
+        params['min_cluster_size'] = 3
+    elif num_docs < 50:
+        params['min_cluster_size'] = 4
+    else:
+        params['min_cluster_size'] = 5
+        
+    # Adjust document frequency bounds
+    params['min_docs'] = max(2, int(num_docs * 0.05))  # At least 5% of documents
+    params['max_docs'] = min(
+        int(num_docs * 0.95),  # No more than 95% of documents
+        num_docs - params['min_cluster_size']  # Leave room for at least one cluster
+    )
+    
+    # Adjust feature count based on dataset size
+    if num_docs < 20:
+        params['max_features'] = 2000
+    elif num_docs < 50:
+        params['max_features'] = 3000
+    elif num_docs < 100:
+        params['max_features'] = 4000
+    else:
+        params['max_features'] = 5000
+        
+    return params
+    
 def display_cluster_analysis(cluster_results: Dict) -> None:
     """Display comprehensive cluster analysis results"""
     try:
@@ -2791,37 +2879,70 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     with st.sidebar:
         st.header("Analysis Parameters")
         
-        # Clustering parameters
+        # Get optimal parameters based on dataset size
+        optimal_params = get_optimal_clustering_params(len(data))
+        
+        # Clustering parameters with optimal defaults
         min_cluster_size = st.slider(
             "Minimum Group Size ❓", 
-            2, 5, 2,
+            2, max(5, optimal_params['min_cluster_size'] * 2), 
+            value=optimal_params['min_cluster_size'],
             help="Minimum number of documents needed to form a thematic group"
         )
         
         # Document frequency parameters
-        total_docs = len(data)
         min_docs = st.slider(
             "Minimum Document Frequency ❓", 
-            2, max(2, total_docs//2), 5,
-            help="How many documents a term must appear in"
+            2, optimal_params['min_docs'] * 2, 
+            value=optimal_params['min_docs'],
+            help="Minimum number of documents a term must appear in"
         )
-        min_df = min_docs / total_docs
+        min_df = min_docs / len(data)
         
         max_docs = st.slider(
             "Maximum Document Frequency ❓", 
-            min_docs, total_docs, int(total_docs * 0.9),
+            min_docs, optimal_params['max_docs'],
+            value=optimal_params['max_docs'],
             help="Maximum number of documents a term can appear in"
         )
-        max_df = max_docs / total_docs
+        max_df = max_docs / len(data)
 
-    # Date range selection
+        # Advanced options expander
+        with st.expander("Advanced Options", expanded=False):
+            max_features = st.slider(
+                "Maximum Features ❓",
+                1000, optimal_params['max_features'],
+                value=optimal_params['max_features'],
+                step=500,
+                help="Maximum number of terms to consider"
+            )
+            
+            clustering_method = st.selectbox(
+                "Clustering Method ❓",
+                ["Ward Linkage", "Average Linkage", "Complete Linkage"],
+                index=0,
+                help="Method used to form clusters"
+            )
+            
+            similarity_metric = st.selectbox(
+                "Similarity Metric ❓",
+                ["Euclidean", "Cosine"],
+                index=1,
+                help="Metric used to measure document similarity"
+            )
+
+    # Date range selection with improved defaults
     col1, col2 = st.columns(2)
     with col1:
+        min_date = data['date_of_report'].min().date()
+        max_date = data['date_of_report'].max().date()
+        default_start = max_date - pd.Timedelta(days=365)  # Default to last year
+        
         start_date = st.date_input(
             "From",
-            value=data['date_of_report'].min().date(),
-            min_value=data['date_of_report'].min().date(),
-            max_value=data['date_of_report'].max().date(),
+            value=default_start if default_start > min_date else min_date,
+            min_value=min_date,
+            max_value=max_date,
             key="analysis_start_date",
             format="DD/MM/YYYY"
         )
@@ -2829,28 +2950,86 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     with col2:
         end_date = st.date_input(
             "To",
-            value=data['date_of_report'].max().date(),
-            min_value=data['date_of_report'].min().date(),
-            max_value=data['date_of_report'].max().date(),
+            value=max_date,
+            min_value=min_date,
+            max_value=max_date,
             key="analysis_end_date",
             format="DD/MM/YYYY"
         )
 
-    # Category selection
+    # Category selection with improved handling
     all_categories = set()
     for cats in data['categories'].dropna():
         if isinstance(cats, list):
             all_categories.update(cats)
     
-    categories = st.multiselect(
-        "Categories ❓",
-        options=sorted(all_categories),
-        key="analysis_categories",
-        help="Specific categories to analyze"
+    # Sort categories by frequency
+    category_counts = Counter()
+    for cats in data['categories'].dropna():
+        if isinstance(cats, list):
+            category_counts.update(cats)
+    
+    sorted_categories = sorted(
+        all_categories,
+        key=lambda x: (-category_counts[x], x)  # Sort by frequency then alphabetically
     )
+    
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        categories = st.multiselect(
+            "Categories ❓",
+            options=sorted_categories,
+            key="analysis_categories",
+            help="Select specific categories to analyze",
+            format_func=lambda x: f"{x} ({category_counts[x]} reports)"
+        )
+    
+    with col2:
+        min_category_docs = st.number_input(
+            "Minimum Reports per Category",
+            min_value=1,
+            max_value=len(data),
+            value=max(1, len(data) // 20),  # Default to 5% of total
+            help="Minimum number of reports required for a category"
+        )
+
+    # Analysis options
+    st.subheader("Analysis Options")
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        include_responses = st.checkbox(
+            "Include Response Documents",
+            value=False,
+            help="Include response documents in the analysis"
+        )
+        
+        process_pdfs = st.checkbox(
+            "Process PDF Content",
+            value=True,
+            help="Include PDF content in the analysis (slower but more comprehensive)"
+        )
+    
+    with col2:
+        deduplicate = st.checkbox(
+            "Remove Duplicates",
+            value=True,
+            help="Remove duplicate or very similar documents"
+        )
+        
+        show_summaries = st.checkbox(
+            "Show Document Summaries",
+            value=True,
+            help="Display summaries of representative documents"
+        )
 
     # Analysis button
-    analyze_clicked = st.button("🔍 Analyze Documents", type="primary", use_container_width=True)
+    analyze_clicked = st.button(
+        "🔍 Analyze Documents",
+        type="primary",
+        use_container_width=True,
+        help="Start the analysis with current settings"
+    )
 
     if analyze_clicked:
         try:
@@ -2873,15 +3052,34 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 (filtered_df['date_of_report'].dt.date <= end_date)
             ]
             
-            # Apply category filter
+            # Apply category filter with minimum document threshold
             if categories:
-                filtered_df = filter_by_categories(filtered_df, categories)
-                
+                category_mask = filtered_df['categories'].apply(
+                    lambda x: bool(x) and any(
+                        cat in x for cat in categories
+                        if category_counts[cat] >= min_category_docs
+                    )
+                )
+                filtered_df = filtered_df[category_mask]
+            
+            # Filter by document type if specified
+            if not include_responses:
+                filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
+            
             progress_bar.progress(0.3)
             status_text.text("Preprocessing documents...")
             
+            # Prepare document content
+            if process_pdfs:
+                filtered_df['analysis_text'] = filtered_df.apply(combine_document_text, axis=1)
+            else:
+                filtered_df['analysis_text'] = filtered_df['Content']
+            
             # Remove empty content
-            filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
+            filtered_df = filtered_df[
+                filtered_df['analysis_text'].notna() & 
+                (filtered_df['analysis_text'].str.strip() != '')
+            ]
             
             if len(filtered_df) < min_cluster_size:
                 progress_bar.empty()
@@ -2892,11 +3090,13 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             # Process content
             progress_bar.progress(0.4)
             status_text.text("Processing document content...")
-            processed_texts = filtered_df['Content'].apply(clean_text_for_modeling)
+            
+            # Clean and prepare text
+            processed_texts = filtered_df['analysis_text'].apply(clean_text_for_modeling)
             valid_indices = processed_texts[processed_texts.notna() & (processed_texts != '')].index
             
             processed_df = pd.DataFrame({
-                'Content': filtered_df.loc[valid_indices, 'Content'],
+                'Content': filtered_df.loc[valid_indices, 'analysis_text'],
                 'processed_content': processed_texts[valid_indices],
                 'Title': filtered_df.loc[valid_indices, 'Title'],
                 'date_of_report': filtered_df.loc[valid_indices, 'date_of_report'],
@@ -2908,16 +3108,30 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 'categories': filtered_df.loc[valid_indices, 'categories']
             })
             
+            # Deduplicate if requested
+            if deduplicate:
+                processed_df = deduplicate_documents(processed_df)
+            
             progress_bar.progress(0.6)
             status_text.text("Performing clustering analysis...")
+            
+            # Convert clustering method to linkage parameter
+            linkage = {
+                "Ward Linkage": "ward",
+                "Average Linkage": "average",
+                "Complete Linkage": "complete"
+            }[clustering_method]
             
             # Perform clustering
             cluster_results = perform_semantic_clustering(
                 processed_df,
                 min_cluster_size=min_cluster_size,
-                max_features=None,
+                max_features=max_features,
                 min_df=min_df,
-                max_df=max_df
+                max_df=max_df,
+                linkage=linkage,
+                metric=similarity_metric.lower(),
+                show_summaries=show_summaries
             )
             
             progress_bar.progress(0.8)
@@ -2925,6 +3139,14 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             
             # Store results
             st.session_state.topic_model = cluster_results
+            st.session_state.last_analysis_params = {
+                'date_range': (start_date, end_date),
+                'categories': categories,
+                'min_cluster_size': min_cluster_size,
+                'clustering_method': clustering_method,
+                'include_responses': include_responses,
+                'process_pdfs': process_pdfs
+            }
             
             progress_bar.progress(1.0)
             status_text.text("Analysis complete!")
@@ -2933,7 +3155,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             status_text.empty()
             
             # Display results
-            render_summary_tab(cluster_results, filtered_df)
+            render_summary_tab(cluster_results, processed_df)
             
         except Exception as e:
             progress_bar.empty()
