@@ -170,6 +170,7 @@ def clean_text(text: str) -> str:
         logging.error(f"Error in clean_text: {e}")
         return ""
 
+
 def extract_metadata(content: str) -> dict:
     """
     Extract structured metadata from report content with improved category handling.
@@ -240,46 +241,52 @@ def extract_metadata(content: str) -> dict:
         if area_match:
             metadata['coroner_area'] = clean_text(area_match.group(1)).strip()
         
-        # Extract categories with enhanced parsing for multiple separators
+        # Extract categories with enhanced handling
         cat_match = re.search(r'Category:?\s*(.+?)(?=This report is being sent to:|$)', content, re.IGNORECASE | re.DOTALL)
         if cat_match:
-            # Get the raw category text
             category_text = cat_match.group(1).strip()
             
-            # Replace common separators with a standard one
-            # First, normalize spaces around separators
-            category_text = re.sub(r'\s*[|,;]\s*', '|', category_text)
-            # Handle bullet points and other list markers
+            # Normalize all possible separators to pipe
+            category_text = re.sub(r'\s*[,;]\s*', '|', category_text)
             category_text = re.sub(r'[•·⋅‣⁃▪▫–—-]\s*', '|', category_text)
-            # Handle multiple spaces or newlines
             category_text = re.sub(r'\s{2,}', '|', category_text)
             category_text = re.sub(r'\n+', '|', category_text)
             
-            # Split by normalized separator
+            # Split into individual categories
             categories = category_text.split('|')
             cleaned_categories = []
             
+            # Get standard categories for matching
+            standard_categories = {cat.lower(): cat for cat in get_pfd_categories()}
+            
             for cat in categories:
-                # Clean the text and remove special characters
+                # Clean and normalize the category
                 cleaned_cat = clean_text(cat).strip()
-                # Remove &nbsp; and other HTML entities
                 cleaned_cat = re.sub(r'&nbsp;', '', cleaned_cat)
-                # Remove common trailing text patterns
                 cleaned_cat = re.sub(r'\s*This report.*$', '', cleaned_cat, flags=re.IGNORECASE)
-                # Remove any remaining separator characters
                 cleaned_cat = re.sub(r'[|,;]', '', cleaned_cat)
-                # Only add non-empty categories that aren't just whitespace or separators
+                
+                # Only process non-empty categories
                 if cleaned_cat and not re.match(r'^[\s|,;]+$', cleaned_cat):
-                    # Check if category matches any standard categories (case-insensitive)
-                    standard_categories = {cat.lower(): cat for cat in get_pfd_categories()}
+                    # Try to match with standard categories
                     cat_lower = cleaned_cat.lower()
+                    
+                    # Check for exact match first
                     if cat_lower in standard_categories:
                         cleaned_cat = standard_categories[cat_lower]
+                    else:
+                        # Try partial matching
+                        for std_lower, std_original in standard_categories.items():
+                            if cat_lower in std_lower or std_lower in cat_lower:
+                                cleaned_cat = std_original
+                                break
+                    
                     cleaned_categories.append(cleaned_cat)
             
             # Remove duplicates while preserving order
             seen = set()
-            metadata['categories'] = [x for x in cleaned_categories if not (x.lower() in seen or seen.add(x.lower()))]
+            metadata['categories'] = [x for x in cleaned_categories 
+                                    if not (x.lower() in seen or seen.add(x.lower()))]
         
         return metadata
         
@@ -2083,6 +2090,94 @@ def is_response(row: pd.Series) -> bool:
     except Exception as e:
         logging.error(f"Error checking response type: {e}")
         return False
+
+
+def normalize_category(category: str) -> str:
+    """Normalize category string for consistent matching"""
+    if not category:
+        return ""
+    # Convert to lowercase and remove extra whitespace
+    normalized = " ".join(str(category).lower().split())
+    # Remove common separators and special characters
+    normalized = re.sub(r'[,;|•·⋅‣⁃▪▫–—-]', ' ', normalized)
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    return normalized
+
+def match_category(category: str, standard_categories: List[str]) -> Optional[str]:
+    """Match a category against standard categories with fuzzy matching"""
+    if not category:
+        return None
+    
+    normalized_category = normalize_category(category)
+    normalized_standards = {normalize_category(cat): cat for cat in standard_categories}
+    
+    # Try exact match first
+    if normalized_category in normalized_standards:
+        return normalized_standards[normalized_category]
+    
+    # Try partial matching
+    for norm_std, original_std in normalized_standards.items():
+        if normalized_category in norm_std or norm_std in normalized_category:
+            return original_std
+    
+    return category  # Return original if no match found
+
+def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd.DataFrame:
+    """Improved category filtering with fuzzy matching"""
+    if not selected_categories:
+        return df
+    
+    # Get standard categories
+    standard_cats = get_pfd_categories()
+    
+    def has_matching_category(categories):
+        if not isinstance(categories, list):
+            return False
+        
+        # Normalize all categories in the list
+        normalized_cats = [normalize_category(cat) for cat in categories]
+        # Normalize selected categories
+        normalized_selected = [normalize_category(cat) for cat in selected_categories]
+        
+        # Check for matches
+        for norm_cat in normalized_cats:
+            for norm_selected in normalized_selected:
+                if norm_cat in norm_selected or norm_selected in norm_cat:
+                    return True
+        return False
+    
+    return df[df['categories'].apply(has_matching_category)]
+
+# Update the category extraction in extract_metadata
+def extract_categories(category_text: str, standard_categories: List[str]) -> List[str]:
+    """Extract and normalize categories from raw text"""
+    if not category_text:
+        return []
+    
+    # Replace common separators with a standard one
+    category_text = re.sub(r'\s*[|,;]\s*', '|', category_text)
+    category_text = re.sub(r'[•·⋅‣⁃▪▫–—-]\s*', '|', category_text)
+    category_text = re.sub(r'\s{2,}', '|', category_text)
+    category_text = re.sub(r'\n+', '|', category_text)
+    
+    # Split and clean categories
+    raw_categories = category_text.split('|')
+    cleaned_categories = []
+    
+    for cat in raw_categories:
+        cleaned_cat = clean_text(cat).strip()
+        if cleaned_cat and not re.match(r'^[\s|,;]+$', cleaned_cat):
+            matched_cat = match_category(cleaned_cat, standard_categories)
+            if matched_cat:
+                cleaned_categories.append(matched_cat)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    return [x for x in cleaned_categories if not (normalize_category(x) in seen or seen.add(normalize_category(x)))]
+
+
+
+
 
 def filter_by_document_type(df: pd.DataFrame, doc_types: List[str]) -> pd.DataFrame:
     """
