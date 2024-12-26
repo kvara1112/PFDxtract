@@ -1094,7 +1094,7 @@ def render_scraping_tab():
 
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    """Main topic analysis and summary tab with simplified options"""
+    """Topic analysis with weighting schemes and essential controls"""
     st.header("Topic Analysis & Summaries")
     st.markdown("""
     This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
@@ -1110,30 +1110,68 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
 
     st.subheader("Analysis Settings")
 
-    # Core analysis parameters
+    # Text Processing
     col1, col2 = st.columns(2)
     
     with col1:
-        # Simplified clustering parameters
+        # Vectorization method
+        vectorizer_type = st.selectbox(
+            "Vectorization Method",
+            options=["tfidf", "bm25", "weighted"],
+            help="Choose how to convert text to numerical features"
+        )
+
+        # Weighting Schemes
+        if vectorizer_type == "weighted":
+            tf_scheme = st.selectbox(
+                "Term Frequency Scheme",
+                options=["raw", "log", "binary", "augmented"],
+                help="How to count term occurrences"
+            )
+            idf_scheme = st.selectbox(
+                "Document Frequency Scheme",
+                options=["smooth", "standard", "probabilistic"],
+                help="How to weight document frequencies"
+            )
+        elif vectorizer_type == "bm25":
+            k1 = st.slider(
+                "Term Saturation (k1)",
+                min_value=0.5,
+                max_value=3.0,
+                value=1.5,
+                help="Controls term frequency impact"
+            )
+            b = st.slider(
+                "Length Normalization (b)",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.75,
+                help="Document length impact"
+            )
+
+    with col2:
+        # Clustering Parameters
         min_cluster_size = st.slider(
             "Minimum Group Size",
             min_value=2,
             max_value=10,
             value=3,
-            help="Minimum number of documents in each theme group"
+            help="Minimum documents per theme"
         )
         
         max_features = st.slider(
-            "Topic Detail Level",
+            "Maximum Features",
             min_value=1000,
             max_value=10000,
             value=5000,
             step=1000,
-            help="Higher values capture more detailed topics"
+            help="Number of terms to consider"
         )
 
-    with col2:
-        # Date range selection
+    # Date range selection
+    st.subheader("Date Range")
+    date_col1, date_col2 = st.columns(2)
+    with date_col1:
         start_date = st.date_input(
             "From",
             value=data['date_of_report'].min().date(),
@@ -1141,6 +1179,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             max_value=data['date_of_report'].max().date()
         )
 
+    with date_col2:
         end_date = st.date_input(
             "To",
             value=data['date_of_report'].max().date(),
@@ -1214,7 +1253,24 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             progress_bar.progress(0.6)
             status_text.text("Analyzing patterns...")
             
-            # Perform clustering with simplified parameters
+            # Prepare vectorizer parameters
+            vectorizer_params = {}
+            if vectorizer_type == "weighted":
+                vectorizer_params.update({
+                    'tf_scheme': tf_scheme,
+                    'idf_scheme': idf_scheme
+                })
+            elif vectorizer_type == "bm25":
+                vectorizer_params.update({
+                    'k1': k1,
+                    'b': b
+                })
+            
+            # Store vectorization settings in session state
+            st.session_state.vectorizer_type = vectorizer_type
+            st.session_state.update(vectorizer_params)
+            
+            # Perform clustering
             cluster_results = perform_semantic_clustering(
                 processed_df,
                 min_cluster_size=min_cluster_size,
