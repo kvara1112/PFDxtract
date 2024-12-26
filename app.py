@@ -2091,7 +2091,6 @@ def is_response(row: pd.Series) -> bool:
         logging.error(f"Error checking response type: {e}")
         return False
 
-
 def normalize_category(category: str) -> str:
     """Normalize category string for consistent matching"""
     if not category:
@@ -2122,33 +2121,6 @@ def match_category(category: str, standard_categories: List[str]) -> Optional[st
     
     return category  # Return original if no match found
 
-def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd.DataFrame:
-    """Improved category filtering with fuzzy matching"""
-    if not selected_categories:
-        return df
-    
-    # Get standard categories
-    standard_cats = get_pfd_categories()
-    
-    def has_matching_category(categories):
-        if not isinstance(categories, list):
-            return False
-        
-        # Normalize all categories in the list
-        normalized_cats = [normalize_category(cat) for cat in categories]
-        # Normalize selected categories
-        normalized_selected = [normalize_category(cat) for cat in selected_categories]
-        
-        # Check for matches
-        for norm_cat in normalized_cats:
-            for norm_selected in normalized_selected:
-                if norm_cat in norm_selected or norm_selected in norm_cat:
-                    return True
-        return False
-    
-    return df[df['categories'].apply(has_matching_category)]
-
-# Update the category extraction in extract_metadata
 def extract_categories(category_text: str, standard_categories: List[str]) -> List[str]:
     """Extract and normalize categories from raw text"""
     if not category_text:
@@ -2174,6 +2146,39 @@ def extract_categories(category_text: str, standard_categories: List[str]) -> Li
     # Remove duplicates while preserving order
     seen = set()
     return [x for x in cleaned_categories if not (normalize_category(x) in seen or seen.add(normalize_category(x)))]
+    
+
+def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd.DataFrame:
+    """
+    Filter DataFrame by categories with fuzzy matching
+    
+    Args:
+        df: DataFrame containing 'categories' column
+        selected_categories: List of categories to filter by
+    
+    Returns:
+        Filtered DataFrame
+    """
+    if not selected_categories:
+        return df
+    
+    def has_matching_category(row_categories):
+        if not isinstance(row_categories, list):
+            return False
+        
+        # Normalize categories for comparison
+        row_cats_norm = [cat.lower().strip() for cat in row_categories if cat]
+        selected_cats_norm = [cat.lower().strip() for cat in selected_categories if cat]
+        
+        for row_cat in row_cats_norm:
+            for selected_cat in selected_cats_norm:
+                # Check for partial matches in either direction
+                if row_cat in selected_cat or selected_cat in row_cat:
+                    return True
+        return False
+    
+    return df[df['categories'].apply(has_matching_category)]
+
 
 
 
@@ -2852,12 +2857,8 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             
             # Apply category filter
             if categories:
-                filtered_df = filtered_df[
-                    filtered_df['categories'].apply(
-                        lambda x: bool(x) and any(cat in x for cat in categories)
-                    )
-                ]
-            
+                filtered_df = filter_by_categories(filtered_df, categories)
+                
             progress_bar.progress(0.3)
             status_text.text("Preprocessing documents...")
             
