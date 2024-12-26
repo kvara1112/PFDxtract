@@ -2384,132 +2384,150 @@ def perform_semantic_clustering(data: pd.DataFrame, min_cluster_size: int = 3,
         initialize_nltk()
         
         # Validate input data
-        if 'processed_content' not in data.columns:
-            raise ValueError("Input data must contain 'processed_content' column")
+        if 'Content' not in data.columns:
+            raise ValueError("Input data must contain 'Content' column")
             
         if len(data) < min_cluster_size * 2:
             raise ValueError(f"Not enough documents for clustering. Need at least {min_cluster_size * 2}, got {len(data)}")
             
-        # Only use the processed content for the actual analysis
-        texts = data['processed_content'].dropna().tolist()
-        if not texts:
+        # Process the content for analysis
+        processed_texts = data['Content'].apply(clean_text_for_modeling)
+        valid_mask = processed_texts.notna() & (processed_texts != '')
+        processed_texts = processed_texts[valid_mask]
+        
+        if len(processed_texts) == 0:
             raise ValueError("No valid text content found after preprocessing")
         
-        # Keep the original content and metadata only for display purposes
-        display_data = data[['Title', 'date_of_report', 'Content']]
+        # Keep the original data for display
+        display_data = data[valid_mask].copy()
             
-        # Enhanced vectorization
+        # Enhanced vectorization with bigrams
         vectorizer = TfidfVectorizer(
             max_features=max_features,
-            min_df=min_df,
+            min_df=max(2, int(min_df * len(processed_texts))),  # Ensure at least 2 documents
             max_df=max_df,
             stop_words='english',
-            ngram_range=(1, 2)
+            ngram_range=(1, 2),
+            norm='l2'
         )
         
-        tfidf_matrix = vectorizer.fit_transform(texts)
+        tfidf_matrix = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
         
-        # Calculate optimal number of clusters
-        max_clusters = min(int(len(texts) * 0.4), 20)
-        best_n_clusters = 2
-        best_score = -1
+        # Calculate optimal number of clusters using silhouette score
+        max_clusters = min(int(len(processed_texts) * 0.3), 15)  # Limit max clusters
+        min_clusters = max(2, int(len(processed_texts) * 0.05))  # At least 2 clusters
         
-        for n_clusters in range(2, max_clusters + 1):
-            if len(texts) < n_clusters * min_cluster_size:
+        best_n_clusters = min_clusters
+        best_score = -1
+        best_labels = None
+        
+        # Try different numbers of clusters
+        for n_clusters in range(min_clusters, max_clusters + 1):
+            if len(processed_texts) < n_clusters * min_cluster_size:
                 break
                 
             clustering = AgglomerativeClustering(
                 n_clusters=n_clusters,
                 metric='euclidean',
-                linkage='average'
+                linkage='ward'  # Ward linkage for better balanced clusters
             )
             
-            tfidf_dense = tfidf_matrix.toarray()
-            cluster_labels = clustering.fit_predict(tfidf_dense)
+            labels = clustering.fit_predict(tfidf_matrix.toarray())
             
-            if len(set(cluster_labels)) > 1:
-                score = silhouette_score(tfidf_dense, cluster_labels, metric='euclidean')
-                if score > best_score:
-                    best_score = score
-                    best_n_clusters = n_clusters
+            # Check minimum cluster size
+            cluster_sizes = np.bincount(labels)
+            if min(cluster_sizes) < min_cluster_size:
+                continue
+                
+            # Calculate silhouette score
+            score = silhouette_score(tfidf_matrix.toarray(), labels, metric='euclidean')
+            
+            if score > best_score:
+                best_score = score
+                best_n_clusters = n_clusters
+                best_labels = labels
 
-        # Final clustering
-        final_clustering = AgglomerativeClustering(
-            n_clusters=best_n_clusters,
-            metric='euclidean',
-            linkage='average'
-        )
-        
-        final_labels = final_clustering.fit_predict(tfidf_matrix.toarray())
+        if best_labels is None:
+            raise ValueError("Could not find suitable clustering configuration")
+
+        # Calculate document similarities
         similarity_matrix = cosine_similarity(tfidf_matrix)
 
         # Extract cluster information
         clusters = []
         for cluster_id in range(best_n_clusters):
-            cluster_doc_indices = np.where(final_labels == cluster_id)[0]
+            cluster_indices = np.where(best_labels == cluster_id)[0]
             
-            if len(cluster_doc_indices) < min_cluster_size:
+            if len(cluster_indices) < min_cluster_size:
                 continue
             
             # Calculate cluster terms
-            cluster_tfidf = tfidf_matrix[cluster_doc_indices].toarray()
-            centroid = cluster_tfidf.mean(axis=0)
+            cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
+            centroid = np.mean(cluster_tfidf, axis=0)
             
-            # Get top terms
-            top_term_indices = centroid.argsort()[-20:][::-1]
-            cluster_terms = []
-            
-            for idx in top_term_indices:
-                if centroid[idx] > 0:
+            # Get important terms using TF-IDF scores
+            term_scores = []
+            for idx, score in enumerate(centroid):
+                if score > 0:
                     term = feature_names[idx]
                     cluster_freq = np.mean(cluster_tfidf[:, idx] > 0)
                     total_freq = np.mean(tfidf_matrix[:, idx].toarray() > 0)
-                    relevance = cluster_freq * np.log2(cluster_freq / total_freq + 1)
                     
-                    cluster_terms.append({
+                    # Calculate term importance using BM25-inspired weighting
+                    k1 = 1.5
+                    b = 0.75
+                    idf = np.log((1 - total_freq + 0.5) / (total_freq + 0.5))
+                    tf = (score * (k1 + 1)) / (score + k1 * (1 - b + b))
+                    importance = idf * tf
+                    
+                    term_scores.append({
                         'term': term,
-                        'relevance': float(relevance),
+                        'score': float(importance),
                         'cluster_frequency': float(cluster_freq),
                         'total_frequency': float(total_freq)
                     })
+            
+            # Sort terms by importance
+            term_scores.sort(key=lambda x: x['score'], reverse=True)
+            top_terms = term_scores[:20]  # Keep top 20 terms
 
             # Get representative documents
             doc_similarities = []
-            for doc_idx in cluster_doc_indices:
-                doc_vector = tfidf_matrix[doc_idx].toarray().flatten()
+            for idx in cluster_indices:
+                doc_vector = tfidf_matrix[idx].toarray().flatten()
                 sim_to_centroid = cosine_similarity(
                     doc_vector.reshape(1, -1),
                     centroid.reshape(1, -1)
                 )[0][0]
                 
                 doc_info = {
-                    'title': data.iloc[doc_idx].get('Title', ''),
-                    'date': data.iloc[doc_idx].get('date_of_report', ''),
+                    'title': display_data.iloc[idx]['Title'],
+                    'date': display_data.iloc[idx]['date_of_report'],
                     'similarity': float(sim_to_centroid),
-                    'summary': texts[doc_idx][:500]  # Using preprocessed text for summary
+                    'summary': display_data.iloc[idx]['Content'][:500]
                 }
-                doc_similarities.append((doc_idx, sim_to_centroid, doc_info))
+                doc_similarities.append((idx, sim_to_centroid, doc_info))
 
             # Sort by similarity and get top documents
             doc_similarities.sort(key=lambda x: x[1], reverse=True)
             representative_docs = [item[2] for item in doc_similarities[:5]]
 
             # Calculate cluster cohesion
-            cluster_similarities = similarity_matrix[cluster_doc_indices][:, cluster_doc_indices]
+            cluster_similarities = similarity_matrix[cluster_indices][:, cluster_indices]
             cohesion = float(np.mean(cluster_similarities))
 
             clusters.append({
                 'id': cluster_id,
-                'size': len(cluster_doc_indices),
+                'size': len(cluster_indices),
                 'cohesion': cohesion,
-                'terms': cluster_terms,
+                'terms': top_terms,
                 'documents': representative_docs
             })
 
         return {
             'n_clusters': len(clusters),
-            'total_documents': len(texts),
+            'total_documents': len(processed_texts),
             'silhouette_score': float(best_score),
             'clusters': clusters
         }
