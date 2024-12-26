@@ -26,11 +26,13 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score  # Added for semantic clustering
 import networkx as nx
-from nltk.tokenize import word_tokenize
+from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
 from bs4 import BeautifulSoup, Tag
 import json  # Added for JSON export functionality
+from rank_bm25 import BM25Okapi  # Added for BM25 similarity
+
 # Initialize NLTK resources
 import nltk 
 nltk.download('punkt')
