@@ -240,16 +240,24 @@ def extract_metadata(content: str) -> dict:
         if area_match:
             metadata['coroner_area'] = clean_text(area_match.group(1)).strip()
         
-        # Extract categories with improved parsing
-        # Look for category pattern and handle cases where "This report" follows immediately
+        # Extract categories with enhanced parsing for multiple separators
         cat_match = re.search(r'Category:?\s*(.+?)(?=This report is being sent to:|$)', content, re.IGNORECASE | re.DOTALL)
         if cat_match:
             # Get the raw category text
             category_text = cat_match.group(1).strip()
             
-            # Split by pipe and clean each category
-            cleaned_categories = []
+            # Replace common separators with a standard one
+            # First, normalize spaces around separators
+            category_text = re.sub(r'\s*[|,;]\s*', '|', category_text)
+            # Handle bullet points and other list markers
+            category_text = re.sub(r'[•·⋅‣⁃▪▫–—-]\s*', '|', category_text)
+            # Handle multiple spaces or newlines
+            category_text = re.sub(r'\s{2,}', '|', category_text)
+            category_text = re.sub(r'\n+', '|', category_text)
+            
+            # Split by normalized separator
             categories = category_text.split('|')
+            cleaned_categories = []
             
             for cat in categories:
                 # Clean the text and remove special characters
@@ -258,17 +266,26 @@ def extract_metadata(content: str) -> dict:
                 cleaned_cat = re.sub(r'&nbsp;', '', cleaned_cat)
                 # Remove common trailing text patterns
                 cleaned_cat = re.sub(r'\s*This report.*$', '', cleaned_cat, flags=re.IGNORECASE)
-                # Only add non-empty categories
-                if cleaned_cat:
+                # Remove any remaining separator characters
+                cleaned_cat = re.sub(r'[|,;]', '', cleaned_cat)
+                # Only add non-empty categories that aren't just whitespace or separators
+                if cleaned_cat and not re.match(r'^[\s|,;]+$', cleaned_cat):
+                    # Check if category matches any standard categories (case-insensitive)
+                    standard_categories = {cat.lower(): cat for cat in get_pfd_categories()}
+                    cat_lower = cleaned_cat.lower()
+                    if cat_lower in standard_categories:
+                        cleaned_cat = standard_categories[cat_lower]
                     cleaned_categories.append(cleaned_cat)
             
-            metadata['categories'] = cleaned_categories
+            # Remove duplicates while preserving order
+            seen = set()
+            metadata['categories'] = [x for x in cleaned_categories if not (x.lower() in seen or seen.add(x.lower()))]
         
         return metadata
         
     except Exception as e:
         logging.error(f"Error extracting metadata: {e}")
-        return metadata 
+        return metadata
 
 def get_pfd_categories() -> List[str]:
     """Get all available PFD report categories"""
