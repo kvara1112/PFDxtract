@@ -816,7 +816,7 @@ def scrape_pfd_reports(
     max_pages: Optional[int] = None
 ) -> List[Dict]:
     """
-    Scrape PFD reports with enhanced progress tracking and proper pagination
+    Scrape PFD reports with improved pagination and error handling
     """
     all_reports = []
     base_url = "https://www.judiciary.uk/"
@@ -827,28 +827,29 @@ def scrape_pfd_reports(
         status_text = st.empty()
         report_count_text = st.empty()
         
-        # Validate and prepare category
-        category_slug = None
-        if category:
-            category_slug = category.lower()\
-                .replace(' ', '-')\
-                .replace('&', 'and')\
-                .replace('--', '-')\
-                .strip('-')
-            logging.info(f"Using category: {category}, slug: {category_slug}")
-        
         # Construct initial search URL
         base_search_url = construct_search_url(
             base_url=base_url,
             keyword=keyword,
-            category=category,
-            category_slug=category_slug
+            category=category
         )
         
         st.info(f"Searching at: {base_search_url}")
         
-        # Get total pages and results count
-        total_pages, total_results = get_total_pages(base_search_url)
+        # Get total pages and results count with retry logic
+        retries = 3
+        total_pages = total_results = 0
+        
+        for attempt in range(retries):
+            try:
+                total_pages, total_results = get_total_pages(base_search_url)
+                if total_pages > 0:
+                    break
+            except Exception as e:
+                if attempt == retries - 1:
+                    st.error(f"Failed to get total pages: {str(e)}")
+                    return []
+                time.sleep(2 * (attempt + 1))
         
         if total_results == 0:
             st.warning("No results found matching your search criteria")
@@ -861,7 +862,11 @@ def scrape_pfd_reports(
             total_pages = min(total_pages, max_pages)
             st.info(f"Limiting search to first {total_pages} pages")
         
-        # Process each page
+        # Enhanced session management
+        session = requests.Session()
+        session.headers.update(HEADERS)
+        
+        # Process each page with improved error handling
         for current_page in range(1, total_pages + 1):
             try:
                 # Check if scraping should be stopped
@@ -874,37 +879,101 @@ def scrape_pfd_reports(
                 progress_bar.progress(progress)
                 status_text.text(f"Processing page {current_page} of {total_pages}")
                 
-                # Construct current page URL
+                # Construct current page URL with proper pagination
                 page_url = construct_search_url(
                     base_url=base_url,
                     keyword=keyword,
                     category=category,
-                    category_slug=category_slug,
                     page=current_page
                 )
                 
-                # Scrape current page
-                page_reports = scrape_page(page_url)
+                # Multiple attempts for each page
+                page_reports = None
+                for attempt in range(3):
+                    try:
+                        # Add random delay between requests
+                        delay = random.uniform(1.5, 3.0)
+                        time.sleep(delay)
+                        
+                        response = session.get(page_url, verify=False, timeout=30)
+                        response.raise_for_status()
+                        
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        results_list = soup.find('ul', class_='search__list')
+                        
+                        if not results_list:
+                            logging.warning(f"No results list found on page {current_page}")
+                            continue
+                        
+                        page_reports = []
+                        cards = results_list.find_all('div', class_='card')
+                        
+                        for card in cards:
+                            try:
+                                title_elem = card.find('h3', class_='card__title')
+                                if not title_elem:
+                                    continue
+                                    
+                                title_link = title_elem.find('a')
+                                if not title_link:
+                                    continue
+                                
+                                report_url = title_link['href']
+                                if not report_url.startswith(('http://', 'https://')):
+                                    report_url = f"https://www.judiciary.uk{report_url}"
+                                
+                                # Get report content with its own retry logic
+                                content_data = get_report_content(report_url)
+                                
+                                if content_data:
+                                    report = {
+                                        'Title': clean_text(title_link.text),
+                                        'URL': report_url,
+                                        'Content': content_data['content']
+                                    }
+                                    
+                                    # Add PDF details
+                                    for i, (name, content, path, pdf_type) in enumerate(zip(
+                                        content_data['pdf_names'],
+                                        content_data['pdf_contents'],
+                                        content_data['pdf_paths'],
+                                        content_data['pdf_types']
+                                    ), 1):
+                                        report[f'PDF_{i}_Name'] = name
+                                        report[f'PDF_{i}_Content'] = content
+                                        report[f'PDF_{i}_Path'] = path
+                                        report[f'PDF_{i}_Type'] = pdf_type
+                                    
+                                    page_reports.append(report)
+                            
+                            except Exception as e:
+                                logging.error(f"Error processing card: {e}")
+                                continue
+                        
+                        if page_reports:
+                            break
+                            
+                    except requests.exceptions.RequestException as e:
+                        if attempt == 2:  # Last attempt
+                            logging.error(f"Failed to fetch page {current_page}: {e}")
+                        time.sleep(5 * (attempt + 1))  # Exponential backoff
+                        continue
                 
                 if page_reports:
-                    # Deduplicate based on title and URL
-                    existing_reports = {(r['Title'], r['URL']) for r in all_reports}
-                    new_reports = [r for r in page_reports if (r['Title'], r['URL']) not in existing_reports]
+                    # Deduplicate based on URL
+                    existing_urls = {r['URL'] for r in all_reports}
+                    new_reports = [r for r in page_reports if r['URL'] not in existing_urls]
                     
                     all_reports.extend(new_reports)
                     report_count_text.text(f"Retrieved {len(all_reports)} unique reports so far...")
-                
-                # Add delay between pages
-                time.sleep(2)
+                else:
+                    st.warning(f"No reports found on page {current_page}")
                 
             except Exception as e:
                 logging.error(f"Error processing page {current_page}: {e}")
                 st.warning(f"Error on page {current_page}. Continuing with next page...")
+                time.sleep(5)  # Longer delay after error
                 continue
-        
-        # Sort results if specified
-        if order != "relevance":
-            all_reports = sort_reports(all_reports, order)
         
         # Clear progress indicators
         progress_bar.empty()
@@ -925,27 +994,31 @@ def scrape_pfd_reports(
 
 def construct_search_url(base_url: str, keyword: Optional[str] = None, 
                       category: Optional[str] = None, 
-                      category_slug: Optional[str] = None, 
                       page: Optional[int] = None) -> str:
     """Constructs proper search URL with pagination"""
     # Start with base search URL
-    url = f"{base_url}?s=&post_type=pfd"
+    url = f"{base_url}search"
     
-    # Add category filter
-    if category and category_slug:
-        url += f"&pfd_report_type={category_slug}"
+    # Add query parameters
+    params = {
+        'post_type': 'pfd'
+    }
     
-    # Add keyword search
     if keyword:
-        url = f"{base_url}?s={keyword}&post_type=pfd"
-        if category and category_slug:
-            url += f"&pfd_report_type={category_slug}"
+        params['s'] = keyword
     
-    # Add pagination
+    if category:
+        category_slug = get_category_slug(category)
+        if category_slug:
+            params['pfd_report_type'] = category_slug
+    
+    # Add pagination - important: use page not paged
     if page and page > 1:
-        url += f"&paged={page}"  # Changed from &page= to &paged= for proper pagination
-
-    return url
+        params['page'] = page
+    
+    # Construct final URL
+    query_string = '&'.join(f"{k}={v}" for k, v in params.items())
+    return f"{url}?{query_string}"
 
 
 def render_scraping_tab():
