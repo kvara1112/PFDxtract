@@ -2889,15 +2889,16 @@ def perform_semantic_clustering(
     similarity_threshold: float = 0.3
 ) -> Dict:
     """
-    Perform semantic clustering with improved topic separation
+    Perform semantic clustering to group similar documents
     """
     try:
+        # Process text
         processed_texts = data['Content'].apply(clean_text_for_modeling)
         valid_mask = processed_texts.notna() & (processed_texts != '')
         processed_texts = processed_texts[valid_mask]
         display_data = data[valid_mask].copy()
         
-        # Create vectorizer with optimized BM25 parameters
+        # Create vectorizer
         vectorizer = get_vectorizer(
             vectorizer_type='bm25',
             max_features=max_features,
@@ -2911,10 +2912,10 @@ def perform_semantic_clustering(
         doc_vectors = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
         
-        # Calculate similarity matrix for later use
+        # Calculate similarity matrix
         similarity_matrix = cosine_similarity(doc_vectors)
         
-        # Use normalized vectors for clustering with Ward linkage
+        # Use normalized vectors for clustering
         normalized_vectors = normalize(doc_vectors.toarray())
         
         # Perform clustering
@@ -2982,17 +2983,11 @@ def perform_semantic_clustering(
                 'documents': doc_info
             })
         
-        silhouette_avg = silhouette_score(doc_vectors.toarray(), labels)
-        
         return {
             'n_clusters': len(clusters),
             'total_documents': len(processed_texts),
-            'silhouette_score': float(silhouette_avg),
             'clusters': clusters,
-            'vectorizer_type': 'bm25',
-            'quality_metrics': {
-                'silhouette_score': float(silhouette_avg)
-            }
+            'vectorizer_type': 'bm25'
         }
         
     except Exception as e:
