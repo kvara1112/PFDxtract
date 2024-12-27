@@ -2880,6 +2880,7 @@ def initialize_nltk():
         raise
 
 
+
 def perform_semantic_clustering(
     data: pd.DataFrame, 
     min_cluster_size: int = 5,
@@ -2892,7 +2893,6 @@ def perform_semantic_clustering(
     Perform semantic clustering with optimized number of clusters
     """
     try:
-        # Process text
         processed_texts = data['Content'].apply(clean_text_for_modeling)
         valid_mask = processed_texts.notna() & (processed_texts != '')
         processed_texts = processed_texts[valid_mask]
@@ -2914,13 +2914,12 @@ def perform_semantic_clustering(
         normalized_vectors = normalize(doc_vectors.toarray())
         
         # Find optimal number of clusters
-        best_n_clusters = 2  # Default minimum
+        best_n_clusters = 2
         best_score = -1
         best_labels = None
         
-        # Try different numbers of clusters
-        min_n_clusters = max(2, len(processed_texts) // 50)  # At least 2, or 1 cluster per 50 docs
-        max_n_clusters = min(20, len(processed_texts) // min_cluster_size)  # Cap at 20 or data size limit
+        min_n_clusters = max(2, len(processed_texts) // 50)
+        max_n_clusters = min(8, len(processed_texts) // min_cluster_size)
         
         for n_clusters in range(min_n_clusters, max_n_clusters + 1):
             clustering = AgglomerativeClustering(
@@ -2929,34 +2928,43 @@ def perform_semantic_clustering(
                 linkage='ward'
             )
             
-            labels = clustering.fit_predict(normalized_vectors)
+            current_labels = clustering.fit_predict(normalized_vectors)
             
             # Check minimum cluster size
-            cluster_sizes = np.bincount(labels)
-            if min(cluster_sizes) < min_cluster_size:
+            cluster_sizes = np.bincount(current_labels)
+            if np.min(cluster_sizes) < min_cluster_size:
                 continue
             
-            # Calculate silhouette score
-            score = silhouette_score(normalized_vectors, labels)
+            score = silhouette_score(normalized_vectors, current_labels)
             
-            # Update best if improved
             if score > best_score:
                 best_score = score
                 best_n_clusters = n_clusters
-                best_labels = labels
+                best_labels = current_labels
         
-        # Use best clustering results
-        labels = best_labels
+        # If no valid clustering found, use minimum number of clusters
+        if best_labels is None:
+            clustering = AgglomerativeClustering(
+                n_clusters=min_n_clusters,
+                metric='euclidean',
+                linkage='ward'
+            )
+            best_labels = clustering.fit_predict(normalized_vectors)
+        
+        # Calculate similarity matrix for document relationships
         similarity_matrix = cosine_similarity(doc_vectors)
         
-        # Process each cluster
+        # Process clusters
         clusters = []
-        for cluster_id in range(best_n_clusters):
-            doc_indices = np.where(labels == cluster_id)[0]
+        unique_labels = np.unique(best_labels)
+        
+        for cluster_id in unique_labels:
+            cluster_mask = (best_labels == cluster_id)
+            doc_indices = np.arange(len(best_labels))[cluster_mask]
             
             if len(doc_indices) < min_cluster_size:
                 continue
-                
+            
             # Calculate cluster terms
             cluster_vectors = doc_vectors[doc_indices]
             centroid = np.mean(cluster_vectors.toarray(), axis=0)
@@ -3014,7 +3022,6 @@ def perform_semantic_clustering(
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
-        
 def create_document_identifier(row: pd.Series) -> str:
     """Create a unique identifier for a document based on its title and reference number"""
     title = str(row.get('Title', '')).strip()
