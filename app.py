@@ -255,233 +255,7 @@ def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[request
             time.sleep(delay * (attempt + 1))
     return None
 
-def calculate_word_frequencies(texts: List[str]) -> Dict[str, int]:
-    """
-    Calculate word frequencies across all documents
-    
-    Args:
-        texts: List of document texts
-        
-    Returns:
-        Dictionary mapping words to their frequencies
-    """
-    word_freq = Counter()
-    
-    for text in texts:
-        if not isinstance(text, str):
-            continue
-            
-        # Clean and tokenize
-        cleaned_text = clean_text_for_modeling(text)
-        words = word_tokenize(cleaned_text)
-        
-        # Update frequencies
-        word_freq.update(words)
-        
-    return dict(word_freq)
 
-def filter_word_frequencies(
-    texts: List[str],
-    min_freq: int = 2,
-    max_freq: Optional[int] = None,
-    top_n: Optional[int] = None,
-    stopwords: Optional[Set[str]] = None
-) -> Tuple[List[str], Dict[str, int]]:
-    """
-    Filter words based on frequency thresholds
-    
-    Args:
-        texts: List of document texts
-        min_freq: Minimum word frequency
-        max_freq: Maximum word frequency (optional)
-        top_n: Keep only top N most frequent words (optional)
-        stopwords: Set of stopwords to exclude (optional)
-        
-    Returns:
-        Tuple of (filtered texts, word frequencies dict)
-    """
-    # Calculate initial frequencies
-    word_freq = calculate_word_frequencies(texts)
-    
-    # Apply filters
-    filtered_words = set(word_freq.keys())
-    
-    # Minimum frequency
-    filtered_words = {word for word in filtered_words 
-                     if word_freq[word] >= min_freq}
-    
-    # Maximum frequency
-    if max_freq:
-        filtered_words = {word for word in filtered_words 
-                         if word_freq[word] <= max_freq}
-    
-    # Top N words
-    if top_n:
-        sorted_words = sorted(filtered_words, 
-                            key=lambda w: word_freq[w],
-                            reverse=True)
-        filtered_words = set(sorted_words[:top_n])
-    
-    # Remove stopwords
-    if stopwords:
-        filtered_words = filtered_words - stopwords
-    
-    # Filter texts
-    filtered_texts = []
-    for text in texts:
-        if not isinstance(text, str):
-            filtered_texts.append("")
-            continue
-            
-        cleaned_text = clean_text_for_modeling(text)
-        words = word_tokenize(cleaned_text)
-        filtered_text = " ".join(w for w in words if w in filtered_words)
-        filtered_texts.append(filtered_text)
-    
-    return filtered_texts, {w: word_freq[w] for w in filtered_words}
-
-def get_frequency_stats(word_freq: Dict[str, int]) -> Dict[str, Any]:
-    """
-    Calculate frequency statistics for visualization
-    """
-    if not word_freq:
-        return {}
-        
-    frequencies = list(word_freq.values())
-    
-    return {
-        'min': min(frequencies),
-        'max': max(frequencies),
-        'mean': np.mean(frequencies),
-        'median': np.median(frequencies),
-        'total_words': len(word_freq),
-        'frequency_distribution': Counter(frequencies)
-    }
-
-def render_frequency_controls() -> Dict[str, Any]:
-    """
-    Render frequency filtering controls in Streamlit
-    
-    Returns:
-        Dictionary of filter settings
-    """
-    st.subheader("Word Frequency Filtering")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        min_freq = st.number_input(
-            "Minimum Word Frequency",
-            min_value=1,
-            value=2,
-            help="Minimum number of times a word must appear"
-        )
-        
-        use_max_freq = st.checkbox(
-            "Set Maximum Frequency",
-            value=False,
-            help="Enable maximum frequency filter"
-        )
-        
-        if use_max_freq:
-            max_freq = st.number_input(
-                "Maximum Word Frequency",
-                min_value=min_freq,
-                value=1000
-            )
-        else:
-            max_freq = None
-            
-    with col2:
-        use_top_n = st.checkbox(
-            "Keep Top N Words",
-            value=False,
-            help="Filter to only keep most frequent words"
-        )
-        
-        if use_top_n:
-            top_n = st.number_input(
-                "Number of Words to Keep",
-                min_value=100,
-                value=1000,
-                step=100
-            )
-        else:
-            top_n = None
-            
-        remove_stopwords = st.checkbox(
-            "Remove Stopwords",
-            value=True,
-            help="Remove common English stopwords"
-        )
-    
-    return {
-        'min_freq': min_freq,
-        'max_freq': max_freq,
-        'top_n': top_n,
-        'remove_stopwords': remove_stopwords
-    }
-
-def display_frequency_stats(word_freq: Dict[str, int]):
-    """
-    Display word frequency statistics and visualizations
-    """
-    stats = get_frequency_stats(word_freq)
-    if not stats:
-        st.warning("No word frequency data available")
-        return
-        
-    # Overview metrics
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Total Unique Words", stats['total_words'])
-    with col2:
-        st.metric("Mean Frequency", f"{stats['mean']:.1f}")
-    with col3:
-        st.metric("Median Frequency", f"{stats['median']:.1f}")
-    with col4:
-        st.metric("Max Frequency", stats['max'])
-    
-    # Frequency distribution plot
-    freq_dist = pd.DataFrame(
-        [(k, v) for k, v in stats['frequency_distribution'].items()],
-        columns=['frequency', 'count']
-    )
-    
-    fig = px.histogram(
-        freq_dist,
-        x='frequency',
-        y='count',
-        nbins=50,
-        title='Word Frequency Distribution'
-    )
-    
-    fig.update_layout(
-        xaxis_title="Word Frequency",
-        yaxis_title="Number of Words",
-        showlegend=False
-    )
-    
-    st.plotly_chart(fig, use_container_width=True)
-    
-    # Top words table
-    st.subheader("Most Frequent Words")
-    top_words = pd.DataFrame(
-        [(w, f) for w, f in sorted(word_freq.items(), 
-                                  key=lambda x: x[1], 
-                                  reverse=True)[:50]],
-        columns=['Word', 'Frequency']
-    )
-    
-    st.dataframe(
-        top_words,
-        column_config={
-            'Word': st.column_config.TextColumn('Word'),
-            'Frequency': st.column_config.NumberColumn('Frequency')
-        },
-        hide_index=True
-    )
 def combine_document_text(row: pd.Series) -> str:
     """Combine all text content from a document"""
     text_parts = []
@@ -3116,23 +2890,10 @@ def perform_semantic_clustering(
     max_features: int = 5000,
     min_df: float = 0.01,
     max_df: float = 0.95,
-    similarity_threshold: float = 0.3,
-    frequency_filters: Optional[Dict] = None
+    similarity_threshold: float = 0.3
 ) -> Dict:
     """
-    Perform semantic clustering with word frequency filtering
-    
-    Args:
-        data: DataFrame containing documents
-        min_cluster_size: Minimum cluster size
-        max_features: Maximum features for vectorization
-        min_df: Minimum document frequency
-        max_df: Maximum document frequency
-        similarity_threshold: Similarity threshold for clustering
-        frequency_filters: Dictionary of word frequency filtering parameters
-        
-    Returns:
-        Dictionary containing clustering results
+    Perform semantic clustering with improved cluster selection
     """
     try:
         # Initialize NLTK resources
@@ -3144,36 +2905,18 @@ def perform_semantic_clustering(
             
         processed_texts = data['Content'].apply(clean_text_for_modeling)
         valid_mask = processed_texts.notna() & (processed_texts != '')
-        processed_texts = processed_texts[valid_mask].tolist()
+        processed_texts = processed_texts[valid_mask]
         
         if len(processed_texts) == 0:
             raise ValueError("No valid text content found after preprocessing")
-        
-        # Apply word frequency filtering if specified
-        if frequency_filters:
-            stopwords_set = set(stopwords.words('english')) if frequency_filters.get('remove_stopwords') else None
-            processed_texts, word_freq = filter_word_frequencies(
-                processed_texts,
-                min_freq=frequency_filters.get('min_freq', 2),
-                max_freq=frequency_filters.get('max_freq'),
-                top_n=frequency_filters.get('top_n'),
-                stopwords=stopwords_set
-            )
-            
-            # Store word frequencies in session state for visualization
-            st.session_state.word_frequencies = word_freq
-            
-            # Display frequency statistics
-            with st.expander("Word Frequency Analysis", expanded=False):
-                display_frequency_stats(word_freq)
         
         # Keep the original data for display
         display_data = data[valid_mask].copy()
             
         # Calculate optimal parameters based on dataset size
         n_docs = len(processed_texts)
-        min_clusters = max(2, min(3, n_docs // 20))
-        max_clusters = max(3, min(8, n_docs // 10))
+        min_clusters = max(2, min(3, n_docs // 20))  # More conservative minimum
+        max_clusters = max(3, min(8, n_docs // 10))  # More conservative maximum
 
         # Get vectorization parameters from session state
         vectorizer_type = st.session_state.get('vectorizer_type', 'tfidf')
@@ -3190,7 +2933,7 @@ def perform_semantic_clustering(
                 'idf_scheme': st.session_state.get('idf_scheme', 'smooth')
             })
 
-        # Create vectorizer
+        # Create the vectorizer
         vectorizer = get_vectorizer(
             vectorizer_type=vectorizer_type,
             max_features=max_features,
@@ -3211,10 +2954,10 @@ def perform_semantic_clustering(
             min_cluster_size=min_cluster_size
         )
 
-        # Calculate clustering quality
+        # Calculate final clustering quality
         silhouette_avg = silhouette_score(tfidf_matrix.toarray(), best_labels, metric='euclidean')
         
-        # Calculate similarities
+        # Calculate similarities using similarity threshold
         similarity_matrix = cosine_similarity(tfidf_matrix)
         similarity_matrix[similarity_matrix < similarity_threshold] = 0
 
@@ -3223,6 +2966,7 @@ def perform_semantic_clustering(
         for cluster_id in range(best_n_clusters):
             cluster_indices = np.where(best_labels == cluster_id)[0]
             
+            # Skip if cluster is too small
             if len(cluster_indices) < min_cluster_size:
                 continue
                 
@@ -3230,7 +2974,7 @@ def perform_semantic_clustering(
             cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
             centroid = np.mean(cluster_tfidf, axis=0)
             
-            # Get important terms
+            # Get important terms with improved distinctiveness
             term_scores = []
             for idx, score in enumerate(centroid):
                 if score > 0:
@@ -3266,7 +3010,7 @@ def perform_semantic_clustering(
                 }
                 doc_similarities.append((idx, sim_to_centroid, doc_info))
 
-            # Sort by similarity
+            # Sort by similarity and get representative docs
             doc_similarities.sort(key=lambda x: x[1], reverse=True)
             representative_docs = [item[2] for item in doc_similarities]
 
@@ -3279,11 +3023,15 @@ def perform_semantic_clustering(
                 'size': len(cluster_indices),
                 'cohesion': cohesion,
                 'terms': top_terms,
-                'documents': representative_docs
+                'documents': representative_docs,
+                'balance_ratio': max(len(cluster_indices) for cluster_indices in 
+                                  [np.where(best_labels == i)[0] for i in range(best_n_clusters)]) / 
+                              min(len(cluster_indices) for cluster_indices in 
+                                  [np.where(best_labels == i)[0] for i in range(best_n_clusters)])
             })
 
-        # Calculate quality metrics
-        quality_metrics = {
+        # Add cluster quality metrics to results
+        metrics = {
             'silhouette_score': float(silhouette_avg),
             'calinski_score': float(calinski_harabasz_score(tfidf_matrix.toarray(), best_labels)),
             'davies_score': float(davies_bouldin_score(tfidf_matrix.toarray(), best_labels)),
@@ -3303,7 +3051,7 @@ def perform_semantic_clustering(
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
-         
+        
 def create_document_identifier(row: pd.Series) -> str:
     """Create a unique identifier for a document based on its title and reference number"""
     title = str(row.get('Title', '')).strip()
