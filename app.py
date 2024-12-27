@@ -3727,56 +3727,62 @@ def export_topic_results(
     return json.dumps(results, indent=2)
 
 
-
-def generate_cluster_topic(terms: List[Dict]) -> str:
-    """Generate a meaningful topic name from cluster terms"""
+def generate_cluster_topic(terms: List[Dict], documents: List[Dict]) -> str:
+    """Generate a meaningful topic name from cluster terms and documents"""
     try:
-        # Get top terms with their scores
-        top_terms = terms[:5]  # Use top 5 terms
+        # Get all terms with their scores
+        term_scores = {term['term']: term['score'] for term in terms}
         
-        # Group terms by part of speech using NLTK
-        tagged_terms = nltk.pos_tag([term['term'] for term in top_terms])
+        # Define domain-specific patterns
+        healthcare_terms = {'hospital', 'nhs', 'trust', 'care', 'medical', 'health', 'patient', 'clinical', 'ward'}
+        police_terms = {'police', 'officer', 'custody', 'force', 'investigation'}
+        prison_terms = {'prison', 'hmp', 'prisoner', 'cell', 'custody', 'probation'}
+        medication_terms = {'prescription', 'prescribing', 'medication', 'drug', 'prescribed', 'medicine'}
+        mental_health_terms = {'mental', 'psychiatric', 'psychology', 'counseling', 'therapy'}
         
-        nouns = []
-        adjectives = []
-        verbs = []
+        # Count term occurrences in each domain
+        domain_scores = {
+            'Healthcare': sum(term_scores.get(term, 0) for term in healthcare_terms if term in term_scores),
+            'Law Enforcement': sum(term_scores.get(term, 0) for term in police_terms if term in term_scores),
+            'Prison System': sum(term_scores.get(term, 0) for term in prison_terms if term in term_scores),
+            'Medical Prescriptions': sum(term_scores.get(term, 0) for term in medication_terms if term in term_scores),
+            'Mental Health': sum(term_scores.get(term, 0) for term in mental_health_terms if term in term_scores)
+        }
         
-        for (term, pos), term_data in zip(tagged_terms, top_terms):
-            if pos.startswith('NN'):  # Nouns
-                nouns.append((term, term_data['score']))
-            elif pos.startswith('JJ'):  # Adjectives
-                adjectives.append((term, term_data['score']))
-            elif pos.startswith('VB'):  # Verbs
-                verbs.append((term, term_data['score']))
+        # Get the dominant domain
+        dominant_domain = max(domain_scores.items(), key=lambda x: x[1])
         
-        # Sort each list by score
-        nouns.sort(key=lambda x: x[1], reverse=True)
-        adjectives.sort(key=lambda x: x[1], reverse=True)
-        verbs.sort(key=lambda x: x[1], reverse=True)
+        # If we have a strong domain match
+        if dominant_domain[1] > 0:
+            base_topic = dominant_domain[0]
+            
+            # Get specific focus within the domain
+            top_terms = sorted(term_scores.items(), key=lambda x: x[1], reverse=True)[:3]
+            specific_terms = [term for term, score in top_terms if score > 0.05]
+            
+            # Add specificity based on top terms
+            if base_topic == "Healthcare":
+                if any(term in {'trust', 'nhs'} for term in specific_terms):
+                    return "NHS Healthcare System"
+                return "Hospital Care & Safety"
+            elif base_topic == "Law Enforcement":
+                if 'foster' in term_scores:
+                    return "Child Protection & Foster Care"
+                return "Police & Emergency Services"
+            elif base_topic == "Prison System":
+                if 'mental' in term_scores or 'health' in term_scores:
+                    return "Prison Mental Health"
+                return "Prison Safety & Custody"
+            elif base_topic == "Medical Prescriptions":
+                return "Medication & Prescription Safety"
+            elif base_topic == "Mental Health":
+                return "Mental Health Services"
+            
+            return base_topic
         
-        # Construct topic name using a template
-        topic_parts = []
-        
-        # Add an adjective if available
-        if adjectives:
-            topic_parts.append(adjectives[0][0].title())
-        
-        # Add up to two most relevant nouns
-        if nouns:
-            topic_parts.extend([n[0].title() for n, _ in nouns[:2]])
-        
-        # If we have a relevant verb and few nouns, add it
-        if verbs and len(nouns) < 2:
-            topic_parts.append(verbs[0][0].title())
-        
-        # Combine parts into a topic name
-        if topic_parts:
-            topic_name = " & ".join(topic_parts)
-        else:
-            # Fallback if no good POS matches
-            topic_name = " & ".join([term['term'].title() for term in top_terms[:2]])
-        
-        return topic_name
+        # Fallback: Generate from top terms
+        top_terms = [term['term'] for term in terms[:2]]
+        return " & ".join(t.title() for t in top_terms)
         
     except Exception as e:
         logging.error(f"Error generating cluster topic: {e}")
