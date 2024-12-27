@@ -2879,6 +2879,7 @@ def initialize_nltk():
         logging.error(f"Error initializing NLTK resources: {e}")
         raise
 
+
 def perform_semantic_clustering(
     data: pd.DataFrame, 
     min_cluster_size: int = 5,
@@ -3035,10 +3036,17 @@ def perform_semantic_clustering(
         # Calculate clustering quality metrics
         valid_vectors = doc_vectors.toarray()
         
+        # Calculate cluster sizes for balance ratio
+        cluster_sizes = np.bincount(final_labels)
+        max_cluster_size = np.max(cluster_sizes)
+        min_cluster_size = np.min(cluster_sizes[cluster_sizes > 0])
+        balance_ratio = float(max_cluster_size) / float(min_cluster_size)
+
         metrics = {
             'silhouette_score': float(silhouette_score(valid_vectors, final_labels)),
             'calinski_score': float(calinski_harabasz_score(valid_vectors, final_labels)),
-            'davies_score': float(davies_bouldin_score(valid_vectors, final_labels))
+            'davies_score': float(davies_bouldin_score(valid_vectors, final_labels)),
+            'balance_ratio': float(balance_ratio)
         }
         
         return {
@@ -3068,7 +3076,6 @@ LOCATION_STOPWORDS = {
     'shropshire', 'lincolnshire', 'rutland', 'north', 'south', 'east', 'west',
     'central', 'greater', 'upper', 'lower', 'mid'
 }
-
         
 def create_document_identifier(row: pd.Series) -> str:
     """Create a unique identifier for a document based on its title and reference number"""
