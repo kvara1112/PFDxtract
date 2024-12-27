@@ -2879,8 +2879,6 @@ def initialize_nltk():
         logging.error(f"Error initializing NLTK resources: {e}")
         raise
 
-
-
 def perform_semantic_clustering(
     data: pd.DataFrame, 
     min_cluster_size: int = 5,
@@ -3014,14 +3012,15 @@ def perform_semantic_clustering(
         return {
             'n_clusters': len(clusters),
             'total_documents': len(processed_texts),
-            'clusters': clusters,
-            'vectorizer_type': 'bm25',
-            'quality_metrics': {}
+            'clusters': clusters
         }
         
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
+
+
+
 def create_document_identifier(row: pd.Series) -> str:
     """Create a unique identifier for a document based on its title and reference number"""
     title = str(row.get('Title', '')).strip()
