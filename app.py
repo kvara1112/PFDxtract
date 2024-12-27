@@ -1175,6 +1175,10 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
                 step=0.05,
                 help="Document length normalization (BM25 parameter)"
             )
+            
+            # Store BM25 parameters in session state
+            st.session_state.k1 = k1
+            st.session_state.b = b
 
     with col2:
         # Clustering Parameters
@@ -1236,6 +1240,9 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
         help="Select specific categories to analyze"
     )
 
+    # Store vectorizer type in session state
+    st.session_state.vectorizer_type = vectorizer_type
+
     # Analysis button
     analyze_clicked = st.button(
         "🔍 Analyze Documents",
@@ -1244,20 +1251,38 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     )
 
     if analyze_clicked:
-        # Pass all parameters to clustering function
-        cluster_results = perform_semantic_clustering(
-            data=data,
-            min_cluster_size=min_cluster_size,
-            max_features=max_features,
-            similarity_threshold=similarity_threshold,
-            vectorizer_params={
-                'k1': k1 if vectorizer_type == 'bm25' else None,
-                'b': b if vectorizer_type == 'bm25' else None
-            }
-        )
-        
-        # Display results
-        display_cluster_analysis(cluster_results)
+        try:
+            # Filter data by date range if selected
+            filtered_df = data.copy()
+            filtered_df = filtered_df[
+                (filtered_df['date_of_report'].dt.date >= start_date) &
+                (filtered_df['date_of_report'].dt.date <= end_date)
+            ]
+            
+            # Filter by categories if selected
+            if categories:
+                filtered_df = filter_by_categories(filtered_df, categories)
+
+            if len(filtered_df) < min_cluster_size:
+                st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
+                return
+
+            # Perform clustering with correct parameters
+            cluster_results = perform_semantic_clustering(
+                data=filtered_df,
+                min_cluster_size=min_cluster_size,
+                max_features=max_features,
+                min_df=2/len(filtered_df),
+                max_df=0.95,
+                similarity_threshold=similarity_threshold
+            )
+            
+            # Display results
+            display_cluster_analysis(cluster_results)
+            
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
+            logging.error(f"Clustering error: {e}", exc_info=True)
 
 def render_topic_options():
     """Render enhanced topic analysis options in a clear layout"""
