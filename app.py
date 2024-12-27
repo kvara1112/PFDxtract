@@ -276,14 +276,11 @@ def combine_document_text(row: pd.Series) -> str:
     
 
 def clean_text_for_modeling(text: str) -> str:
-    """Enhanced text cleaning with lemmatization to combine singular/plural forms"""
+    """Clean text with enhanced noise removal"""
     if not isinstance(text, str):
         return ""
     
     try:
-        # Initialize lemmatizer
-        lemmatizer = WordNetLemmatizer()
-        
         # Convert to lowercase
         text = text.lower()
         
@@ -294,7 +291,7 @@ def clean_text_for_modeling(text: str) -> str:
         text = re.sub(r'\S+@\S+', '', text)
         text = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '', text)
         
-        # Remove dates in various formats
+        # Remove dates and times
         text = re.sub(r'\b\d{1,2}(?:st|nd|rd|th)?\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\b\d{1,2}:\d{2}\b', '', text)
         text = re.sub(r'\b\d{1,2}/\d{1,2}/\d{2,4}\b', '', text)
@@ -303,81 +300,24 @@ def clean_text_for_modeling(text: str) -> str:
         text = re.sub(r'\b(?:ref|reference|case)(?:\s+no)?\.?\s*[-:\s]?\s*\w+[-\d]+\b', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\b(regulation|paragraph|section|subsection|article)\s+\d+\b', '', text, flags=re.IGNORECASE)
         
-        # Remove personal titles and common name indicators
-        name_indicators = r'\b(mr|mrs|ms|dr|prof|sir|lady|lord|hon|rt|qc|esquire|esq)\b\.?\s+'
-        text = re.sub(name_indicators, '', text, flags=re.IGNORECASE)
+        # Remove common legal document terms
+        legal_terms = r'\b(coroner|inquest|hearing|evidence|witness|statement|report|dated|signed)\b'
+        text = re.sub(legal_terms, '', text, flags=re.IGNORECASE)
         
-        # Remove numbers and special characters
+        # Remove special characters and multiple spaces
         text = re.sub(r'[^a-z\s]', ' ', text)
+        text = re.sub(r'\s+', ' ', text)
         
-        # Get NLTK stopwords
-        nltk_stops = set(stopwords.words('english'))
-        
-        # Add domain-specific legal stopwords
-        legal_stops = {
-            # Geographical terms
-            'north', 'south', 'east', 'west', 'central', 'london', 'england',
-            'wales', 'britain', 'uk', 'british', 'english', 'welsh',
-            # Legal/procedural terms
-            
-            'coroner', 'inquest', 'hearing', 'evidence', 'witness', 'statement',
-            'report', 'dated', 'signed', 'concluded', 'determined', 'found',
-            'noted', 'accordance', 'pursuant', 'hereby', 'thereafter', 'whereas',
-            'furthermore', 'concerning', 'regarding', 'following', 'said', 'done',
-            'made', 'given', 'told', 'took', 'sent', 'received', 'got', 'went',
-            'called', 'came', 'took', 'place', 'found', 'made', 'given', 'stated',
-            'identified', 'recorded', 'conducted', 'provided', 'indicated', 'showed',
-            'contained', 'included', 'considered', 'discussed', 'mentioned', 'noted',
-            'explained', 'described', 'outlined', 'suggested', 'recommended',
-            'proposed', 'advised', 'requested', 'required', 'needed', 'sought',
-            'looked', 'seemed', 'appeared', 'believed', 'thought', 'felt',
-            'understood', 'knew', 'saw', 'heard', 'read', 'wrote', 'sent',
-            'received', 'obtained', 'acquired', 'submitted', 'presented',
-            'matter', 'matters', 'issue', 'issues', 'case', 'cases',
-            'within', 'without', 'therefore', 'however', 'although',
-            'despite', 'nevertheless', 'moreover', 'furthermore', 'additionally'
-        }
-        
-        # Add common variations of stopwords to ensure coverage
-        expanded_legal_stops = set()
-        for word in legal_stops:
-            expanded_legal_stops.add(word)
-            expanded_legal_stops.add(lemmatizer.lemmatize(word))
-            expanded_legal_stops.add(lemmatizer.lemmatize(word, 'v'))
-        
-        # Combine all stopwords
-        all_stops = nltk_stops.union(expanded_legal_stops)
-        
-        # Split into words, lemmatize, and apply filtering
-        words = text.split()
-        processed_words = []
-        
-        for word in words:
-            if len(word) > 2:
-                # Try both noun and verb lemmatization
-                lemma_n = lemmatizer.lemmatize(word, 'n')  # noun
-                lemma_v = lemmatizer.lemmatize(word, 'v')  # verb
-                
-                # Use the shorter lemma (usually the more common form)
-                lemma = lemma_n if len(lemma_n) <= len(lemma_v) else lemma_v
-                
-                if (lemma not in all_stops and 
-                    not (len(lemma) == 1 or (lemma.istitle() and len(lemma) > 2))):
-                    processed_words.append(lemma)
+        # Remove very short words
+        text = ' '.join(word for word in text.split() if len(word) > 2)
         
         # Ensure minimum content length
-        cleaned_text = ' '.join(processed_words)
+        cleaned_text = text.strip()
         return cleaned_text if len(cleaned_text.split()) >= 3 else ""
     
     except Exception as e:
         logging.error(f"Error in text cleaning: {e}")
         return ""
-
-# Make sure to import WordNetLemmatizer at the top of your file:
-from nltk.stem import WordNetLemmatizer
-# And download the required NLTK resource:
-nltk.download('wordnet')
-nltk.download('averaged_perceptron_tagger')
 
 def clean_text(text: str) -> str:
     """Clean text while preserving structure and metadata formatting"""
@@ -1139,64 +1079,71 @@ def render_scraping_tab():
             logging.error(f"Scraping error: {e}")
             return False                           
 
+
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    """Topic analysis with improved controls"""
+    """Topic analysis with weighting schemes and essential controls"""
     st.header("Topic Analysis & Summaries")
     st.markdown("""
     This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
     and generating summaries for each thematic group.
     """)
 
-    # Analysis Settings
+    # Show previous results if available
+    if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
+        st.sidebar.success("Previous analysis results available")
+        if st.sidebar.button("View Previous Results"):
+            render_summary_tab(st.session_state.topic_model, data)
+            return
+
     st.subheader("Analysis Settings")
+
+    # Text Processing
     col1, col2 = st.columns(2)
     
     with col1:
+        # Vectorization method
         vectorizer_type = st.selectbox(
             "Vectorization Method",
-            options=["bm25", "tfidf", "weighted"],
+            options=["tfidf", "bm25", "weighted"],
             help="Choose how to convert text to numerical features"
         )
 
-        if vectorizer_type == "bm25":
+        # Weighting Schemes
+        if vectorizer_type == "weighted":
+            tf_scheme = st.selectbox(
+                "Term Frequency Scheme",
+                options=["raw", "log", "binary", "augmented"],
+                help="How to count term occurrences"
+            )
+            idf_scheme = st.selectbox(
+                "Document Frequency Scheme",
+                options=["smooth", "standard", "probabilistic"],
+                help="How to weight document frequencies"
+            )
+        elif vectorizer_type == "bm25":
             k1 = st.slider(
                 "Term Saturation (k1)",
                 min_value=0.5,
                 max_value=3.0,
-                value=1.2,
-                step=0.1,
-                help="Controls term frequency impact (BM25 parameter)"
+                value=1.5,
+                help="Controls term frequency impact"
             )
             b = st.slider(
                 "Length Normalization (b)",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.85,
-                step=0.05,
-                help="Document length normalization (BM25 parameter)"
+                value=0.75,
+                help="Document length impact"
             )
-            
-            # Store BM25 parameters in session state
-            st.session_state.k1 = k1
-            st.session_state.b = b
 
     with col2:
         # Clustering Parameters
         min_cluster_size = st.slider(
-            "Minimum Cluster Size",
-            min_value=3,
-            max_value=15,
-            value=5,
-            help="Smallest allowed group of documents"
-        )
-        
-        similarity_threshold = st.slider(
-            "Similarity Threshold",
-            min_value=0.1,
-            max_value=0.9,
-            value=0.25,  # Slightly lower default for more granular clustering
-            step=0.05,
-            help="How similar documents must be to be grouped together (higher = more clusters)"
+            "Minimum Group Size",
+            min_value=2,
+            max_value=10,
+            value=3,
+            help="Minimum documents per theme"
         )
         
         max_features = st.slider(
@@ -1204,14 +1151,13 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             min_value=1000,
             max_value=10000,
             value=5000,
-            step=500,
+            step=1000,
             help="Number of terms to consider"
         )
 
     # Date range selection
     st.subheader("Date Range")
     date_col1, date_col2 = st.columns(2)
-    
     with date_col1:
         start_date = st.date_input(
             "From",
@@ -1240,9 +1186,6 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
         help="Select specific categories to analyze"
     )
 
-    # Store vectorizer type in session state
-    st.session_state.vectorizer_type = vectorizer_type
-
     # Analysis button
     analyze_clicked = st.button(
         "🔍 Analyze Documents",
@@ -1252,37 +1195,99 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
 
     if analyze_clicked:
         try:
-            # Filter data by date range if selected
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            # Initialize
+            progress_bar.progress(0.2)
+            status_text.text("Processing documents...")
+            initialize_nltk()
+
+            # Filter data
             filtered_df = data.copy()
+            
+            # Apply date filter
             filtered_df = filtered_df[
                 (filtered_df['date_of_report'].dt.date >= start_date) &
                 (filtered_df['date_of_report'].dt.date <= end_date)
             ]
             
-            # Filter by categories if selected
+            # Apply category filter
             if categories:
                 filtered_df = filter_by_categories(filtered_df, categories)
-
+            
+            # Remove empty content
+            filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
+            
             if len(filtered_df) < min_cluster_size:
+                progress_bar.empty()
+                status_text.empty()
                 st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
                 return
 
-            # Perform clustering with correct parameters
+            # Process content
+            progress_bar.progress(0.4)
+            status_text.text("Identifying themes...")
+            
+            processed_df = pd.DataFrame({
+                'Content': filtered_df['Content'],
+                'Title': filtered_df['Title'],
+                'date_of_report': filtered_df['date_of_report'],
+                'URL': filtered_df['URL'],
+                'categories': filtered_df['categories']
+            })
+            
+            progress_bar.progress(0.6)
+            status_text.text("Analyzing patterns...")
+            
+            # Prepare vectorizer parameters
+            vectorizer_params = {}
+            if vectorizer_type == "weighted":
+                vectorizer_params.update({
+                    'tf_scheme': tf_scheme,
+                    'idf_scheme': idf_scheme
+                })
+            elif vectorizer_type == "bm25":
+                vectorizer_params.update({
+                    'k1': k1,
+                    'b': b
+                })
+            
+            # Store vectorization settings in session state
+            st.session_state.vectorizer_type = vectorizer_type
+            st.session_state.update(vectorizer_params)
+            
+            # Perform clustering
             cluster_results = perform_semantic_clustering(
-                data=filtered_df,
+                processed_df,
                 min_cluster_size=min_cluster_size,
                 max_features=max_features,
-                min_df=2/len(filtered_df),
+                min_df=2/len(processed_df),
                 max_df=0.95,
-                similarity_threshold=similarity_threshold
+                similarity_threshold=0.3
             )
             
+            progress_bar.progress(0.8)
+            status_text.text("Generating summaries...")
+            
+            # Store results
+            st.session_state.topic_model = cluster_results
+            
+            progress_bar.progress(1.0)
+            status_text.text("Analysis complete!")
+            
+            progress_bar.empty()
+            status_text.empty()
+            
             # Display results
-            display_cluster_analysis(cluster_results)
+            render_summary_tab(cluster_results, processed_df)
             
         except Exception as e:
-            st.error(f"An error occurred: {str(e)}")
-            logging.error(f"Clustering error: {e}", exc_info=True)
+            progress_bar.empty()
+            status_text.empty()
+            st.error(f"Analysis error: {str(e)}")
+            logging.error(f"Analysis error: {e}", exc_info=True)
+
 
 def render_topic_options():
     """Render enhanced topic analysis options in a clear layout"""
@@ -2881,99 +2886,101 @@ def initialize_nltk():
 
 def perform_semantic_clustering(
     data: pd.DataFrame, 
-    min_cluster_size: int = 5,
+    min_cluster_size: int = 3,
     max_features: int = 5000,
     min_df: float = 0.01,
     max_df: float = 0.95,
     similarity_threshold: float = 0.3
 ) -> Dict:
     """
-    Perform semantic clustering with optimized number of clusters
+    Perform semantic clustering with improved cluster selection
     """
     try:
+        # Initialize NLTK resources
+        initialize_nltk()
+        
+        # Validate input data
+        if 'Content' not in data.columns:
+            raise ValueError("Input data must contain 'Content' column")
+            
         processed_texts = data['Content'].apply(clean_text_for_modeling)
         valid_mask = processed_texts.notna() & (processed_texts != '')
         processed_texts = processed_texts[valid_mask]
-        display_data = data[valid_mask].copy()
         
-        # Create vectorizer
+        if len(processed_texts) == 0:
+            raise ValueError("No valid text content found after preprocessing")
+        
+        # Keep the original data for display
+        display_data = data[valid_mask].copy()
+            
+        # Calculate optimal parameters based on dataset size
+        n_docs = len(processed_texts)
+        min_clusters = max(2, min(3, n_docs // 20))  # More conservative minimum
+        max_clusters = max(3, min(8, n_docs // 10))  # More conservative maximum
+
+        # Get vectorization parameters from session state
+        vectorizer_type = st.session_state.get('vectorizer_type', 'tfidf')
+        vectorizer_params = {}
+
+        if vectorizer_type == 'bm25':
+            vectorizer_params.update({
+                'k1': st.session_state.get('bm25_k1', 1.5),
+                'b': st.session_state.get('bm25_b', 0.75)
+            })
+        elif vectorizer_type == 'weighted':
+            vectorizer_params.update({
+                'tf_scheme': st.session_state.get('tf_scheme', 'raw'),
+                'idf_scheme': st.session_state.get('idf_scheme', 'smooth')
+            })
+
+        # Create the vectorizer
         vectorizer = get_vectorizer(
-            vectorizer_type='bm25',
+            vectorizer_type=vectorizer_type,
             max_features=max_features,
-            min_df=max(min_df, 2/len(processed_texts)),
-            max_df=max_df,
-            k1=1.2,
-            b=0.85
+            min_df=max(min_df, 3/len(processed_texts)),
+            max_df=min(max_df, 0.7),
+            **vectorizer_params
         )
         
         # Create document vectors
-        doc_vectors = vectorizer.fit_transform(processed_texts)
+        tfidf_matrix = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
-        normalized_vectors = normalize(doc_vectors.toarray())
         
         # Find optimal number of clusters
-        best_n_clusters = 2
-        best_score = -1
-        best_labels = None
+        best_n_clusters, best_labels = find_optimal_clusters(
+            tfidf_matrix,
+            min_clusters=min_clusters,
+            max_clusters=max_clusters,
+            min_cluster_size=min_cluster_size
+        )
+
+        # Calculate final clustering quality
+        silhouette_avg = silhouette_score(tfidf_matrix.toarray(), best_labels, metric='euclidean')
         
-        min_n_clusters = max(2, len(processed_texts) // 50)
-        max_n_clusters = min(8, len(processed_texts) // min_cluster_size)
-        
-        for n_clusters in range(min_n_clusters, max_n_clusters + 1):
-            clustering = AgglomerativeClustering(
-                n_clusters=n_clusters,
-                metric='euclidean',
-                linkage='ward'
-            )
-            
-            current_labels = clustering.fit_predict(normalized_vectors)
-            
-            # Check minimum cluster size
-            cluster_sizes = np.bincount(current_labels)
-            if np.min(cluster_sizes) < min_cluster_size:
-                continue
-            
-            score = silhouette_score(normalized_vectors, current_labels)
-            
-            if score > best_score:
-                best_score = score
-                best_n_clusters = n_clusters
-                best_labels = current_labels
-        
-        # If no valid clustering found, use minimum number of clusters
-        if best_labels is None:
-            clustering = AgglomerativeClustering(
-                n_clusters=min_n_clusters,
-                metric='euclidean',
-                linkage='ward'
-            )
-            best_labels = clustering.fit_predict(normalized_vectors)
-        
-        # Calculate similarity matrix for document relationships
-        similarity_matrix = cosine_similarity(doc_vectors)
-        
-        # Process clusters
+        # Calculate similarities using similarity threshold
+        similarity_matrix = cosine_similarity(tfidf_matrix)
+        similarity_matrix[similarity_matrix < similarity_threshold] = 0
+
+        # Extract cluster information
         clusters = []
-        unique_labels = np.unique(best_labels)
-        
-        for cluster_id in unique_labels:
-            cluster_mask = (best_labels == cluster_id)
-            doc_indices = np.arange(len(best_labels))[cluster_mask]
+        for cluster_id in range(best_n_clusters):
+            cluster_indices = np.where(best_labels == cluster_id)[0]
             
-            if len(doc_indices) < min_cluster_size:
+            # Skip if cluster is too small
+            if len(cluster_indices) < min_cluster_size:
                 continue
-            
+                
             # Calculate cluster terms
-            cluster_vectors = doc_vectors[doc_indices]
-            centroid = np.mean(cluster_vectors.toarray(), axis=0)
+            cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
+            centroid = np.mean(cluster_tfidf, axis=0)
             
-            # Get important terms
+            # Get important terms with improved distinctiveness
             term_scores = []
             for idx, score in enumerate(centroid):
                 if score > 0:
                     term = feature_names[idx]
-                    cluster_freq = np.mean(cluster_vectors[:, idx].toarray() > 0)
-                    total_freq = np.mean(doc_vectors[:, idx].toarray() > 0)
+                    cluster_freq = np.mean(cluster_tfidf[:, idx] > 0)
+                    total_freq = np.mean(tfidf_matrix[:, idx].toarray() > 0)
                     distinctiveness = cluster_freq / (total_freq + 1e-10)
                     
                     term_scores.append({
@@ -2985,52 +2992,66 @@ def perform_semantic_clustering(
             
             term_scores.sort(key=lambda x: x['score'], reverse=True)
             top_terms = term_scores[:20]
-            
+
             # Get representative documents
-            doc_info = []
-            for idx in doc_indices:
-                info = {
+            doc_similarities = []
+            for idx in cluster_indices:
+                doc_vector = tfidf_matrix[idx].toarray().flatten()
+                sim_to_centroid = cosine_similarity(
+                    doc_vector.reshape(1, -1),
+                    centroid.reshape(1, -1)
+                )[0][0]
+                
+                doc_info = {
                     'title': display_data.iloc[idx]['Title'],
                     'date': display_data.iloc[idx]['date_of_report'],
-                    'similarity': float(similarity_matrix[idx].mean()),
+                    'similarity': float(sim_to_centroid),
                     'summary': display_data.iloc[idx]['Content'][:500]
                 }
-                doc_info.append(info)
-            
+                doc_similarities.append((idx, sim_to_centroid, doc_info))
+
+            # Sort by similarity and get representative docs
+            doc_similarities.sort(key=lambda x: x[1], reverse=True)
+            representative_docs = [item[2] for item in doc_similarities]
+
             # Calculate cluster cohesion
-            cluster_similarities = similarity_matrix[doc_indices][:, doc_indices]
+            cluster_similarities = similarity_matrix[cluster_indices][:, cluster_indices]
             cohesion = float(np.mean(cluster_similarities))
-            
+
             clusters.append({
                 'id': len(clusters),
-                'size': len(doc_indices),
+                'size': len(cluster_indices),
                 'cohesion': cohesion,
                 'terms': top_terms,
-                'documents': doc_info
+                'documents': representative_docs,
+                'balance_ratio': max(len(cluster_indices) for cluster_indices in 
+                                  [np.where(best_labels == i)[0] for i in range(best_n_clusters)]) / 
+                              min(len(cluster_indices) for cluster_indices in 
+                                  [np.where(best_labels == i)[0] for i in range(best_n_clusters)])
             })
-        
-        # Calculate quality metrics (keeping just silhouette score)
-        silhouette_avg = silhouette_score(normalized_vectors, best_labels)
+
+        # Add cluster quality metrics to results
+        metrics = {
+            'silhouette_score': float(silhouette_avg),
+            'calinski_score': float(calinski_harabasz_score(tfidf_matrix.toarray(), best_labels)),
+            'davies_score': float(davies_bouldin_score(tfidf_matrix.toarray(), best_labels)),
+            'balance_ratio': float(max(len(c['documents']) for c in clusters) / 
+                                 min(len(c['documents']) for c in clusters))
+        }
 
         return {
             'n_clusters': len(clusters),
             'total_documents': len(processed_texts),
-            'clusters': clusters,
             'silhouette_score': float(silhouette_avg),
-            'vectorizer_type': 'bm25',
-            'quality_metrics': {
-                'silhouette_score': float(silhouette_avg),
-                'davies_score': 0.0,
-                'calinski_score': 0.0,
-                'balance_ratio': 1.0
-            }
+            'clusters': clusters,
+            'vectorizer_type': vectorizer_type,
+            'quality_metrics': metrics
         }
         
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
-
-
+        
 def create_document_identifier(row: pd.Series) -> str:
     """Create a unique identifier for a document based on its title and reference number"""
     title = str(row.get('Title', '')).strip()
