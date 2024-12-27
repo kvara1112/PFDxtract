@@ -776,119 +776,7 @@ def get_category_slug(category: str) -> str:
     logging.info(f"Generated category slug: {slug} from category: {category}")
     return slug
 
-def scrape_pfd_reports(
-    keyword: Optional[str] = None,
-    category: Optional[str] = None,
-    order: str = "relevance",
-    max_pages: Optional[int] = None
-) -> List[Dict]:
-    """
-    Scrape PFD reports with enhanced progress tracking and proper pagination
-    """
-    all_reports = []
-    base_url = "https://www.judiciary.uk/"
-    
-    try:
-        # Initialize progress tracking
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        report_count_text = st.empty()
-        
-        # Validate and prepare category
-        category_slug = None
-        if category:
-            category_slug = category.lower()\
-                .replace(' ', '-')\
-                .replace('&', 'and')\
-                .replace('--', '-')\
-                .strip('-')
-            logging.info(f"Using category: {category}, slug: {category_slug}")
-        
-        # Construct initial search URL
-        base_search_url = construct_search_url(
-            base_url=base_url,
-            keyword=keyword,
-            category=category,
-            category_slug=category_slug
-        )
-        
-        st.info(f"Searching at: {base_search_url}")
-        
-        # Get total pages and results count
-        total_pages, total_results = get_total_pages(base_search_url)
-        
-        if total_results == 0:
-            st.warning("No results found matching your search criteria")
-            return []
-            
-        st.info(f"Found {total_results} matching reports across {total_pages} pages")
-        
-        # Apply max pages limit if specified
-        if max_pages:
-            total_pages = min(total_pages, max_pages)
-            st.info(f"Limiting search to first {total_pages} pages")
-        
-        # Process each page
-        for current_page in range(1, total_pages + 1):
-            try:
-                # Check if scraping should be stopped
-                if hasattr(st.session_state, 'stop_scraping') and st.session_state.stop_scraping:
-                    st.warning("Scraping stopped by user")
-                    break
-                
-                # Update progress
-                progress = (current_page - 1) / total_pages
-                progress_bar.progress(progress)
-                status_text.text(f"Processing page {current_page} of {total_pages}")
-                
-                # Construct current page URL
-                page_url = construct_search_url(
-                    base_url=base_url,
-                    keyword=keyword,
-                    category=category,
-                    category_slug=category_slug,
-                    page=current_page
-                )
-                
-                # Scrape current page
-                page_reports = scrape_page(page_url)
-                
-                if page_reports:
-                    # Deduplicate based on title and URL
-                    existing_reports = {(r['Title'], r['URL']) for r in all_reports}
-                    new_reports = [r for r in page_reports if (r['Title'], r['URL']) not in existing_reports]
-                    
-                    all_reports.extend(new_reports)
-                    report_count_text.text(f"Retrieved {len(all_reports)} unique reports so far...")
-                
-                # Add delay between pages
-                time.sleep(2)
-                
-            except Exception as e:
-                logging.error(f"Error processing page {current_page}: {e}")
-                st.warning(f"Error on page {current_page}. Continuing with next page...")
-                continue
-        
-        # Sort results if specified
-        if order != "relevance":
-            all_reports = sort_reports(all_reports, order)
-        
-        # Clear progress indicators
-        progress_bar.empty()
-        status_text.empty()
-        report_count_text.empty()
-        
-        if all_reports:
-            st.success(f"Successfully scraped {len(all_reports)} unique reports")
-        else:
-            st.warning("No reports were successfully retrieved")
-        
-        return all_reports
-        
-    except Exception as e:
-        logging.error(f"Error in scrape_pfd_reports: {e}")
-        st.error(f"An error occurred while scraping reports: {e}")
-        return []
+
 
 def get_total_pages(url: str) -> Tuple[int, int]:
     """
@@ -975,8 +863,145 @@ def construct_search_url(base_url: str, keyword: Optional[str] = None,
     logging.info(f"Constructed URL: {url}")
     return url
 
+def scrape_pfd_reports(
+    keyword: Optional[str] = None,
+    category: Optional[str] = None,
+    order: str = "relevance",
+    batch_size: int = 10
+) -> List[Dict]:
+    """
+    Scrape PFD reports in batches with user confirmation between batches
+    """
+    all_reports = []
+    base_url = "https://www.judiciary.uk/"
+    
+    try:
+        # Initialize progress tracking
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        report_count_text = st.empty()
+        
+        # Prepare category
+        category_slug = None
+        if category:
+            category_slug = get_category_slug(category)
+            logging.info(f"Using category: {category}, slug: {category_slug}")
+        
+        # Get initial URL
+        base_search_url = construct_search_url(
+            base_url=base_url,
+            keyword=keyword,
+            category=category,
+            category_slug=category_slug
+        )
+        
+        st.info(f"Starting search at: {base_search_url}")
+        
+        # Get total pages
+        total_pages, total_results = get_total_pages(base_search_url)
+        
+        if total_results == 0:
+            st.warning("No results found matching your search criteria")
+            return []
+            
+        st.info(f"Found {total_results} matching reports across {total_pages} pages")
+        
+        # Calculate number of batches
+        current_batch = 0
+        total_batches = (total_pages + batch_size - 1) // batch_size
+        
+        # Process each batch
+        while current_batch < total_batches:
+            start_page = current_batch * batch_size + 1
+            end_page = min(start_page + batch_size - 1, total_pages)
+            
+            # Show batch progress
+            st.subheader(f"Processing Batch {current_batch + 1} of {total_batches}")
+            st.write(f"Pages {start_page} to {end_page}")
+            
+            # Process current batch
+            batch_reports = []
+            for current_page in range(start_page, end_page + 1):
+                try:
+                    # Update progress
+                    batch_progress = (current_page - start_page) / batch_size
+                    progress_bar.progress(batch_progress)
+                    status_text.text(f"Processing page {current_page}")
+                    
+                    # Construct URL for current page
+                    page_url = construct_search_url(
+                        base_url=base_url,
+                        keyword=keyword,
+                        category=category,
+                        category_slug=category_slug,
+                        page=current_page
+                    )
+                    
+                    # Scrape page
+                    page_reports = scrape_page(page_url)
+                    
+                    if page_reports:
+                        batch_reports.extend(page_reports)
+                        report_count_text.text(
+                            f"Retrieved {len(batch_reports)} reports in current batch, "
+                            f"{len(all_reports)} reports total"
+                        )
+                    
+                    # Add delay between pages
+                    time.sleep(random.uniform(2.0, 3.0))
+                    
+                except Exception as e:
+                    st.error(f"Error on page {current_page}: {str(e)}")
+                    continue
+            
+            # Show batch results
+            if batch_reports:
+                st.success(f"Successfully scraped {len(batch_reports)} reports in this batch")
+                
+                # Convert batch to DataFrame for display
+                batch_df = pd.DataFrame(batch_reports)
+                st.dataframe(
+                    batch_df,
+                    column_config={
+                        "URL": st.column_config.LinkColumn("Report Link"),
+                        "Title": "Report Title"
+                    },
+                    hide_index=True
+                )
+                
+                # Add batch to all reports
+                all_reports.extend(batch_reports)
+            
+            # Clear progress indicators for this batch
+            progress_bar.empty()
+            status_text.empty()
+            
+            # If there are more batches, ask user to continue
+            if current_batch < total_batches - 1:
+                continue_scraping = st.button(
+                    f"Continue with next {batch_size} pages?",
+                    key=f"continue_batch_{current_batch}"
+                )
+                
+                if not continue_scraping:
+                    st.info("Scraping paused. Click the button above to continue with next batch.")
+                    break
+            
+            current_batch += 1
+        
+        # Show final results
+        if all_reports:
+            st.success(f"Successfully scraped {len(all_reports)} total reports")
+        
+        return all_reports
+        
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        return all_reports  # Return any reports we managed to get
+
+# Update the scraping form in render_scraping_tab
 def render_scraping_tab():
-    """Render the scraping tab with a clean 2x2 filter layout"""
+    """Render the scraping tab with batch processing"""
     st.header("Scrape PFD Reports")
 
     # Initialize default values if not in session state
@@ -985,25 +1010,7 @@ def render_scraping_tab():
         st.session_state['search_keyword_default'] = "report"
         st.session_state['category_default'] = ""
         st.session_state['order_default'] = "relevance"
-        st.session_state['max_pages_default'] = 0
     
-    if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
-        st.success(f"Found {len(st.session_state.scraped_data)} reports")
-        
-        st.subheader("Results")
-        st.dataframe(
-            st.session_state.scraped_data,
-            column_config={
-                "URL": st.column_config.LinkColumn("Report Link"),
-                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY"),
-                "categories": st.column_config.ListColumn("Categories")
-            },
-            hide_index=True
-        )
-        
-        show_export_options(st.session_state.scraped_data, "scraped")
-
-    # Create the search form with 2x2 layout
     with st.form("scraping_form"):
         # Create two rows with two columns each
         row1_col1, row1_col2 = st.columns(2)
@@ -1042,26 +1049,17 @@ def render_scraping_tab():
             )
 
         with row2_col2:
-            max_pages = st.number_input(
-                "Maximum pages to scrape:",
-                min_value=0,
-                value=st.session_state.get('max_pages_default', 0),
-                key='max_pages',
-                help="Enter 0 for all pages"
+            batch_size = st.number_input(
+                "Pages per batch:",
+                min_value=5,
+                max_value=20,
+                value=10,
+                step=5,
+                help="Number of pages to scrape before asking to continue"
             )
 
-        # Action buttons in a row
-        button_col1, button_col2 = st.columns(2)
-        with button_col1:
-            submitted = st.form_submit_button("Search Reports")
-        with button_col2:
-            stop_scraping = st.form_submit_button("Stop Scraping")
-    
-    # Handle stop scraping
-    if stop_scraping:
-        st.session_state.stop_scraping = True
-        st.warning("Scraping will be stopped after the current page completes...")
-        return
+        # Submit button
+        submitted = st.form_submit_button("Start Scraping")
     
     if submitted:
         try:
@@ -1072,18 +1070,12 @@ def render_scraping_tab():
                 'order': order
             }
             
-            # Initialize stop_scraping flag
-            st.session_state.stop_scraping = False
-
-            # Set max pages
-            max_pages_val = None if max_pages == 0 else max_pages
-            
             # Perform scraping
             reports = scrape_pfd_reports(
                 keyword=search_keyword,
                 category=category if category else None,
                 order=order,
-                max_pages=max_pages_val
+                batch_size=batch_size
             )
             
             if reports:
@@ -1096,15 +1088,15 @@ def render_scraping_tab():
                 st.session_state.data_source = 'scraped'
                 st.session_state.current_data = df
                 
-                # Trigger a rerun to refresh the page
-                st.rerun()
+                # Show export options
+                show_export_options(df, "scraped")
             else:
                 st.warning("No reports found matching your search criteria")
                 
         except Exception as e:
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
-            return False                           
+            return False
 
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
