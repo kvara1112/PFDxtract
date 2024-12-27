@@ -239,22 +239,6 @@ HEADERS = {
     'Referer': 'https://judiciary.uk/'
 }
 
-# Core utility functions
-def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[requests.Response]:
-    """Make HTTP request with retries and delay"""
-    for attempt in range(retries):
-        try:
-            time.sleep(delay)
-            response = requests.get(url, headers=HEADERS, verify=False, timeout=30)
-            response.raise_for_status()
-            return response
-        except Exception as e:
-            if attempt == retries - 1:
-                st.error(f"Request failed: {str(e)}")
-                raise e
-            time.sleep(delay * (attempt + 1))
-    return None
-
 
 def combine_document_text(row: pd.Series) -> str:
     """Combine all text content from a document"""
@@ -607,8 +591,33 @@ def get_report_content(url: str) -> Optional[Dict]:
         logging.error(f"Error getting report content: {e}")
         return None
 
+def make_request(url: str, retries: int = 3, delay: int = 2) -> Optional[requests.Response]:
+    """Make HTTP request with retries and delay"""
+    for attempt in range(retries):
+        try:
+            # Add randomized delay between requests
+            current_delay = delay + random.uniform(1, 2)
+            time.sleep(current_delay)
+            
+            response = requests.get(url, headers=HEADERS, verify=False, timeout=30)
+            response.raise_for_status()
+            
+            # Verify we got a valid response
+            if response.status_code == 200:
+                return response
+            else:
+                logging.warning(f"Received status code {response.status_code} for URL: {url}")
+                
+        except requests.exceptions.RequestException as e:
+            logging.warning(f"Attempt {attempt + 1}/{retries} failed for {url}: {str(e)}")
+            if attempt == retries - 1:
+                st.error(f"Request failed: {str(e)}")
+                raise e
+            time.sleep(delay * (attempt + 1))
+    return None
+
 def scrape_page(url: str) -> List[Dict]:
-    """Scrape a single page with improved PDF handling"""
+    """Scrape a single page with improved error handling"""
     reports = []
     try:
         response = make_request(url)
@@ -641,6 +650,10 @@ def scrape_page(url: str) -> List[Dict]:
                     card_url = f"https://www.judiciary.uk{card_url}"
                 
                 logging.info(f"Processing report: {title}")
+                
+                # Add delay between processing individual reports
+                time.sleep(random.uniform(1.5, 2.5))
+                
                 content_data = get_report_content(card_url)
                 
                 if content_data:
@@ -650,7 +663,7 @@ def scrape_page(url: str) -> List[Dict]:
                         'Content': content_data['content']
                     }
                     
-                    # Add PDF details with type classification
+                    # Add PDF details
                     for i, (name, content, path, pdf_type) in enumerate(zip(
                         content_data['pdf_names'],
                         content_data['pdf_contents'],
@@ -674,8 +687,6 @@ def scrape_page(url: str) -> List[Dict]:
     except Exception as e:
         logging.error(f"Error fetching page {url}: {e}")
         return []
-
-
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with metadata extraction"""
