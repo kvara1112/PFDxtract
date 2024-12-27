@@ -3292,13 +3292,15 @@ def perform_semantic_clustering(
         }
 
         return {
-            'n_clusters': len(clusters),'total_documents': len(processed_texts),
+            'n_clusters': len(clusters),
+            'total_documents': len(processed_texts),
             'silhouette_score': float(silhouette_avg),
             'clusters': clusters,
             'vectorizer_type': vectorizer_type,
             'quality_metrics': metrics
         }
-     except Exception as e:
+        
+    except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
          
