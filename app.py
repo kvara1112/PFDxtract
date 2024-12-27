@@ -315,6 +315,11 @@ def clean_text_for_modeling(text: str) -> str:
         
         # Add domain-specific legal stopwords
         legal_stops = {
+            # Geographical terms
+            'north', 'south', 'east', 'west', 'central', 'london', 'england',
+            'wales', 'britain', 'uk', 'british', 'english', 'welsh',
+            # Legal/procedural terms
+            
             'coroner', 'inquest', 'hearing', 'evidence', 'witness', 'statement',
             'report', 'dated', 'signed', 'concluded', 'determined', 'found',
             'noted', 'accordance', 'pursuant', 'hereby', 'thereafter', 'whereas',
@@ -373,7 +378,6 @@ from nltk.stem import WordNetLemmatizer
 # And download the required NLTK resource:
 nltk.download('wordnet')
 nltk.download('averaged_perceptron_tagger')
-
 
 def clean_text(text: str) -> str:
     """Clean text while preserving structure and metadata formatting"""
