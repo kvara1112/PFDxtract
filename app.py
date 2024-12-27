@@ -2946,19 +2946,16 @@ def initialize_nltk():
 
 def perform_semantic_clustering(
     data: pd.DataFrame, 
-    min_cluster_size: int = 3,
+    min_cluster_size: int = 5,
     max_features: int = 5000,
     min_df: float = 0.01,
     max_df: float = 0.95,
     similarity_threshold: float = 0.3
 ) -> Dict:
     """
-    Perform semantic clustering with improved cluster selection
+    Perform semantic clustering with dynamic number of clusters based on similarity
     """
     try:
-        # Initialize NLTK resources
-        initialize_nltk()
-        
         # Validate input data
         if 'Content' not in data.columns:
             raise ValueError("Input data must contain 'Content' column")
@@ -2972,27 +2969,17 @@ def perform_semantic_clustering(
         
         # Keep the original data for display
         display_data = data[valid_mask].copy()
-            
-        # Calculate optimal parameters based on dataset size
-        n_docs = len(processed_texts)
-        min_clusters = max(2, min(3, n_docs // 20))  # More conservative minimum
-        max_clusters = max(3, min(8, n_docs // 10))  # More conservative maximum
-
+        
         # Get vectorization parameters from session state
         vectorizer_type = st.session_state.get('vectorizer_type', 'tfidf')
         vectorizer_params = {}
-
+        
         if vectorizer_type == 'bm25':
             vectorizer_params.update({
-                'k1': st.session_state.get('bm25_k1', 1.5),
-                'b': st.session_state.get('bm25_b', 0.75)
+                'k1': st.session_state.get('k1', 1.2),
+                'b': st.session_state.get('b', 0.85)
             })
-        elif vectorizer_type == 'weighted':
-            vectorizer_params.update({
-                'tf_scheme': st.session_state.get('tf_scheme', 'raw'),
-                'idf_scheme': st.session_state.get('idf_scheme', 'smooth')
-            })
-
+        
         # Create the vectorizer
         vectorizer = get_vectorizer(
             vectorizer_type=vectorizer_type,
@@ -3003,44 +2990,62 @@ def perform_semantic_clustering(
         )
         
         # Create document vectors
-        tfidf_matrix = vectorizer.fit_transform(processed_texts)
+        doc_vectors = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
         
-        # Find optimal number of clusters
-        best_n_clusters, best_labels = find_optimal_clusters(
-            tfidf_matrix,
-            min_clusters=min_clusters,
-            max_clusters=max_clusters,
-            min_cluster_size=min_cluster_size
-        )
-
-        # Calculate final clustering quality
-        silhouette_avg = silhouette_score(tfidf_matrix.toarray(), best_labels, metric='euclidean')
+        # Calculate document similarity matrix
+        similarity_matrix = cosine_similarity(doc_vectors)
         
-        # Calculate similarities using similarity threshold
-        similarity_matrix = cosine_similarity(tfidf_matrix)
-        similarity_matrix[similarity_matrix < similarity_threshold] = 0
-
-        # Extract cluster information
+        # Perform hierarchical clustering with distance threshold
+        distance_threshold = 1 - similarity_threshold  # Convert similarity to distance
+        clustering = AgglomerativeClustering(
+            n_clusters=None,  # Let the algorithm determine number of clusters
+            distance_threshold=distance_threshold,
+            metric='precomputed',
+            linkage='complete'
+        )
+        
+        # Convert similarity to distance matrix
+        distance_matrix = 1 - similarity_matrix
+        labels = clustering.fit_predict(distance_matrix)
+        
+        # Get number of clusters
+        n_clusters = len(set(labels))
+        
+        # Filter out small clusters
+        cluster_sizes = np.bincount(labels)
+        valid_clusters = np.where(cluster_sizes >= min_cluster_size)[0]
+        
+        if len(valid_clusters) == 0:
+            # If no valid clusters, adjust threshold to get at least 2 clusters
+            while len(valid_clusters) < 2:
+                distance_threshold += 0.1
+                clustering = AgglomerativeClustering(
+                    n_clusters=None,
+                    distance_threshold=distance_threshold,
+                    metric='precomputed',
+                    linkage='complete'
+                )
+                labels = clustering.fit_predict(distance_matrix)
+                cluster_sizes = np.bincount(labels)
+                valid_clusters = np.where(cluster_sizes >= min_cluster_size)[0]
+        
+        # Process each valid cluster
         clusters = []
-        for cluster_id in range(best_n_clusters):
-            cluster_indices = np.where(best_labels == cluster_id)[0]
+        for cluster_id in valid_clusters:
+            cluster_indices = np.where(labels == cluster_id)[0]
             
-            # Skip if cluster is too small
-            if len(cluster_indices) < min_cluster_size:
-                continue
-                
             # Calculate cluster terms
-            cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
-            centroid = np.mean(cluster_tfidf, axis=0)
+            cluster_vectors = doc_vectors[cluster_indices]
+            centroid = np.mean(cluster_vectors.toarray(), axis=0)
             
-            # Get important terms with improved distinctiveness
+            # Get important terms
             term_scores = []
             for idx, score in enumerate(centroid):
                 if score > 0:
                     term = feature_names[idx]
-                    cluster_freq = np.mean(cluster_tfidf[:, idx] > 0)
-                    total_freq = np.mean(tfidf_matrix[:, idx].toarray() > 0)
+                    cluster_freq = np.mean(cluster_vectors[:, idx].toarray() > 0)
+                    total_freq = np.mean(doc_vectors[:, idx].toarray() > 0)
                     distinctiveness = cluster_freq / (total_freq + 1e-10)
                     
                     term_scores.append({
@@ -3052,11 +3057,11 @@ def perform_semantic_clustering(
             
             term_scores.sort(key=lambda x: x['score'], reverse=True)
             top_terms = term_scores[:20]
-
+            
             # Get representative documents
             doc_similarities = []
             for idx in cluster_indices:
-                doc_vector = tfidf_matrix[idx].toarray().flatten()
+                doc_vector = doc_vectors[idx].toarray().flatten()
                 sim_to_centroid = cosine_similarity(
                     doc_vector.reshape(1, -1),
                     centroid.reshape(1, -1)
@@ -3069,36 +3074,36 @@ def perform_semantic_clustering(
                     'summary': display_data.iloc[idx]['Content'][:500]
                 }
                 doc_similarities.append((idx, sim_to_centroid, doc_info))
-
-            # Sort by similarity and get representative docs
+            
+            # Sort by similarity
             doc_similarities.sort(key=lambda x: x[1], reverse=True)
             representative_docs = [item[2] for item in doc_similarities]
-
+            
             # Calculate cluster cohesion
             cluster_similarities = similarity_matrix[cluster_indices][:, cluster_indices]
             cohesion = float(np.mean(cluster_similarities))
-
+            
             clusters.append({
                 'id': len(clusters),
                 'size': len(cluster_indices),
                 'cohesion': cohesion,
                 'terms': top_terms,
-                'documents': representative_docs,
-                'balance_ratio': max(len(cluster_indices) for cluster_indices in 
-                                  [np.where(best_labels == i)[0] for i in range(best_n_clusters)]) / 
-                              min(len(cluster_indices) for cluster_indices in 
-                                  [np.where(best_labels == i)[0] for i in range(best_n_clusters)])
+                'documents': representative_docs
             })
-
-        # Add cluster quality metrics to results
+        
+        # Calculate clustering quality metrics
+        valid_indices = np.concatenate([np.where(labels == c)[0] for c in valid_clusters])
+        valid_vectors = doc_vectors[valid_indices].toarray()
+        valid_labels = np.array([np.where(valid_clusters == labels[i])[0][0] for i in valid_indices])
+        
+        silhouette_avg = silhouette_score(valid_vectors, valid_labels)
+        
         metrics = {
             'silhouette_score': float(silhouette_avg),
-            'calinski_score': float(calinski_harabasz_score(tfidf_matrix.toarray(), best_labels)),
-            'davies_score': float(davies_bouldin_score(tfidf_matrix.toarray(), best_labels)),
-            'balance_ratio': float(max(len(c['documents']) for c in clusters) / 
-                                 min(len(c['documents']) for c in clusters))
+            'calinski_score': float(calinski_harabasz_score(valid_vectors, valid_labels)),
+            'davies_score': float(davies_bouldin_score(valid_vectors, valid_labels))
         }
-
+        
         return {
             'n_clusters': len(clusters),
             'total_documents': len(processed_texts),
