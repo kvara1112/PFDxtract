@@ -2889,20 +2889,15 @@ def perform_semantic_clustering(
     similarity_threshold: float = 0.3
 ) -> Dict:
     """
-    Perform semantic clustering with improved document assignment
+    Perform semantic clustering with improved topic separation
     """
     try:
-        # Process texts with enhanced cleaning
         processed_texts = data['Content'].apply(clean_text_for_modeling)
         valid_mask = processed_texts.notna() & (processed_texts != '')
         processed_texts = processed_texts[valid_mask]
-        
-        if len(processed_texts) == 0:
-            raise ValueError("No valid text content found after preprocessing")
-        
         display_data = data[valid_mask].copy()
         
-        # Create vectorizer
+        # Create vectorizer with optimized BM25 parameters
         vectorizer = get_vectorizer(
             vectorizer_type='bm25',
             max_features=max_features,
@@ -2916,166 +2911,92 @@ def perform_semantic_clustering(
         doc_vectors = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
         
-        # Calculate similarity matrix
+        # Calculate similarity and perform clustering
         similarity_matrix = cosine_similarity(doc_vectors)
+        distance_matrix = 1 - similarity_matrix
         
-        # Initial clustering with lower threshold
-        initial_threshold = similarity_threshold
-        max_attempts = 5
-        current_attempt = 0
+        # Use Ward linkage for more balanced clusters
+        clustering = AgglomerativeClustering(
+            n_clusters=None,
+            distance_threshold=0.75,  # Adjusted threshold for better separation
+            metric='precomputed',
+            linkage='ward'
+        )
         
-        while current_attempt < max_attempts:
-            # Perform clustering
-            clustering = AgglomerativeClustering(
-                n_clusters=None,
-                distance_threshold=1 - initial_threshold,
-                metric='precomputed',
-                linkage='average'  # Changed to average linkage for better balance
-            )
-            
-            # Convert similarity to distance
-            distance_matrix = 1 - similarity_matrix
-            labels = clustering.fit_predict(distance_matrix)
-            
-            # Count documents in valid clusters
-            cluster_sizes = np.bincount(labels)
-            valid_clusters = np.where(cluster_sizes >= min_cluster_size)[0]
-            docs_in_clusters = sum(cluster_sizes[valid_clusters])
-            
-            # If we have enough documents clustered, break
-            if docs_in_clusters >= len(processed_texts) * 0.7:  # At least 70% clustered
-                break
-                
-            # Reduce threshold to include more documents
-            initial_threshold *= 0.8
-            current_attempt += 1
+        labels = clustering.fit_predict(distance_matrix)
         
-        # Assign remaining documents to nearest cluster
-        final_labels = labels.copy()
-        unclustered = np.where(~np.isin(labels, valid_clusters))[0]
-        
-        if len(unclustered) > 0:
-            for doc_idx in unclustered:
-                # Calculate average similarity to each valid cluster
-                cluster_similarities = []
-                for cluster_id in valid_clusters:
-                    cluster_docs = np.where(labels == cluster_id)[0]
-                    avg_similarity = np.mean(similarity_matrix[doc_idx, cluster_docs])
-                    cluster_similarities.append((cluster_id, avg_similarity))
-                
-                # Assign to most similar cluster
-                best_cluster = max(cluster_similarities, key=lambda x: x[1])[0]
-                final_labels[doc_idx] = best_cluster
-        
-        # Process clusters
+        # Process each cluster
         clusters = []
-        for cluster_id in valid_clusters:
-            cluster_indices = np.where(final_labels == cluster_id)[0]
+        cluster_indices = range(len(np.unique(labels)))
+        
+        for cluster_id in cluster_indices:
+            doc_indices = np.where(labels == cluster_id)[0]
             
+            if len(doc_indices) < min_cluster_size:
+                continue
+                
             # Calculate cluster terms
-            cluster_vectors = doc_vectors[cluster_indices]
+            cluster_vectors = doc_vectors[doc_indices]
             centroid = np.mean(cluster_vectors.toarray(), axis=0)
             
-            # Get important terms with improved scoring
+            # Get important terms
             term_scores = []
             for idx, score in enumerate(centroid):
                 if score > 0:
                     term = feature_names[idx]
                     cluster_freq = np.mean(cluster_vectors[:, idx].toarray() > 0)
                     total_freq = np.mean(doc_vectors[:, idx].toarray() > 0)
+                    distinctiveness = cluster_freq / (total_freq + 1e-10)
                     
-                    # Enhanced distinctiveness calculation
-                    distinctiveness = (cluster_freq + 0.1) / (total_freq + 0.2)
-                    term_importance = score * distinctiveness
-                    
-                    # Skip likely names and locations (additional filter)
-                    if not (term.istitle() or term in LOCATION_STOPWORDS):
-                        term_scores.append({
-                            'term': term,
-                            'score': float(term_importance),
-                            'cluster_frequency': float(cluster_freq),
-                            'total_frequency': float(total_freq)
-                        })
+                    term_scores.append({
+                        'term': term,
+                        'score': float(score * distinctiveness),
+                        'cluster_frequency': float(cluster_freq),
+                        'total_frequency': float(total_freq)
+                    })
             
             term_scores.sort(key=lambda x: x['score'], reverse=True)
             top_terms = term_scores[:20]
             
             # Get representative documents
-            doc_similarities = []
-            for idx in cluster_indices:
-                doc_vector = doc_vectors[idx].toarray().flatten()
-                sim_to_centroid = cosine_similarity(
-                    doc_vector.reshape(1, -1),
-                    centroid.reshape(1, -1)
-                )[0][0]
-                
-                doc_info = {
+            doc_info = []
+            for idx in doc_indices:
+                info = {
                     'title': display_data.iloc[idx]['Title'],
                     'date': display_data.iloc[idx]['date_of_report'],
-                    'similarity': float(sim_to_centroid),
+                    'similarity': float(similarity_matrix[idx].mean()),
                     'summary': display_data.iloc[idx]['Content'][:500]
                 }
-                doc_similarities.append((idx, sim_to_centroid, doc_info))
-            
-            # Sort by similarity
-            doc_similarities.sort(key=lambda x: x[1], reverse=True)
-            representative_docs = [item[2] for item in doc_similarities]
+                doc_info.append(info)
             
             # Calculate cluster cohesion
-            cluster_similarities = similarity_matrix[cluster_indices][:, cluster_indices]
+            cluster_similarities = similarity_matrix[doc_indices][:, doc_indices]
             cohesion = float(np.mean(cluster_similarities))
             
             clusters.append({
                 'id': len(clusters),
-                'size': len(cluster_indices),
+                'size': len(doc_indices),
                 'cohesion': cohesion,
                 'terms': top_terms,
-                'documents': representative_docs
+                'documents': doc_info
             })
         
-        # Calculate clustering quality metrics
-        valid_vectors = doc_vectors.toarray()
-        
-        # Calculate cluster sizes for balance ratio
-        cluster_sizes = np.bincount(final_labels)
-        max_cluster_size = np.max(cluster_sizes)
-        min_cluster_size = np.min(cluster_sizes[cluster_sizes > 0])
-        balance_ratio = float(max_cluster_size) / float(min_cluster_size)
-
-        metrics = {
-            'silhouette_score': float(silhouette_score(valid_vectors, final_labels)),
-            'calinski_score': float(calinski_harabasz_score(valid_vectors, final_labels)),
-            'davies_score': float(davies_bouldin_score(valid_vectors, final_labels)),
-            'balance_ratio': float(balance_ratio)
-        }
+        silhouette_avg = silhouette_score(doc_vectors.toarray(), labels)
         
         return {
             'n_clusters': len(clusters),
             'total_documents': len(processed_texts),
-            'silhouette_score': float(metrics['silhouette_score']),
+            'silhouette_score': float(silhouette_avg),
             'clusters': clusters,
             'vectorizer_type': 'bm25',
-            'quality_metrics': metrics
+            'quality_metrics': {
+                'silhouette_score': float(silhouette_avg)
+            }
         }
         
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
-
-# Add at top of file:
-LOCATION_STOPWORDS = {
-    'london', 'manchester', 'birmingham', 'leeds', 'liverpool', 'newcastle',
-    'nottingham', 'sheffield', 'bristol', 'brighton', 'oxford', 'cambridge',
-    'cardiff', 'swansea', 'glasgow', 'edinburgh', 'belfast', 'sussex', 'kent',
-    'surrey', 'essex', 'suffolk', 'norfolk', 'devon', 'cornwall', 'yorkshire',
-    'lancashire', 'cheshire', 'derbyshire', 'staffordshire', 'worcestershire',
-    'warwickshire', 'leicestershire', 'northamptonshire', 'buckinghamshire',
-    'hertfordshire', 'bedfordshire', 'cambridgeshire', 'northumberland',
-    'cumbria', 'durham', 'wiltshire', 'somerset', 'dorset', 'hampshire',
-    'berkshire', 'oxfordshire', 'gloucestershire', 'herefordshire',
-    'shropshire', 'lincolnshire', 'rutland', 'north', 'south', 'east', 'west',
-    'central', 'greater', 'upper', 'lower', 'mid'
-}
         
 def create_document_identifier(row: pd.Series) -> str:
     """Create a unique identifier for a document based on its title and reference number"""
