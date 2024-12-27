@@ -3727,198 +3727,89 @@ def export_topic_results(
     return json.dumps(results, indent=2)
 
 
-def generate_cluster_topic(terms: List[Dict], documents: List[Dict]) -> str:
-    """Generate a meaningful topic name from cluster terms and documents"""
-    try:
-        # Get all terms with their scores
-        term_scores = {term['term']: term['score'] for term in terms}
-        
-        # Define domain-specific patterns
-        healthcare_terms = {'hospital', 'nhs', 'trust', 'care', 'medical', 'health', 'patient', 'clinical', 'ward'}
-        police_terms = {'police', 'officer', 'custody', 'force', 'investigation'}
-        prison_terms = {'prison', 'hmp', 'prisoner', 'cell', 'custody', 'probation'}
-        medication_terms = {'prescription', 'prescribing', 'medication', 'drug', 'prescribed', 'medicine'}
-        mental_health_terms = {'mental', 'psychiatric', 'psychology', 'counseling', 'therapy'}
-        
-        # Count term occurrences in each domain
-        domain_scores = {
-            'Healthcare': sum(term_scores.get(term, 0) for term in healthcare_terms if term in term_scores),
-            'Law Enforcement': sum(term_scores.get(term, 0) for term in police_terms if term in term_scores),
-            'Prison System': sum(term_scores.get(term, 0) for term in prison_terms if term in term_scores),
-            'Medical Prescriptions': sum(term_scores.get(term, 0) for term in medication_terms if term in term_scores),
-            'Mental Health': sum(term_scores.get(term, 0) for term in mental_health_terms if term in term_scores)
-        }
-        
-        # Get the dominant domain
-        dominant_domain = max(domain_scores.items(), key=lambda x: x[1])
-        
-        # If we have a strong domain match
-        if dominant_domain[1] > 0:
-            base_topic = dominant_domain[0]
-            
-            # Get specific focus within the domain
-            top_terms = sorted(term_scores.items(), key=lambda x: x[1], reverse=True)[:3]
-            specific_terms = [term for term, score in top_terms if score > 0.05]
-            
-            # Add specificity based on top terms
-            if base_topic == "Healthcare":
-                if any(term in {'trust', 'nhs'} for term in specific_terms):
-                    return "NHS Healthcare System"
-                return "Hospital Care & Safety"
-            elif base_topic == "Law Enforcement":
-                if 'foster' in term_scores:
-                    return "Child Protection & Foster Care"
-                return "Police & Emergency Services"
-            elif base_topic == "Prison System":
-                if 'mental' in term_scores or 'health' in term_scores:
-                    return "Prison Mental Health"
-                return "Prison Safety & Custody"
-            elif base_topic == "Medical Prescriptions":
-                return "Medication & Prescription Safety"
-            elif base_topic == "Mental Health":
-                return "Mental Health Services"
-            
-            return base_topic
-        
-        # Fallback: Generate from top terms
-        top_terms = [term['term'] for term in terms[:2]]
-        return " & ".join(t.title() for t in top_terms)
-        
-    except Exception as e:
-        logging.error(f"Error generating cluster topic: {e}")
-        return "Miscellaneous Topics"
 
 def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
-    """Enhanced render function with meaningful topics and similarity scores"""
+    """Render cluster summaries and records with flexible column handling"""
     if not cluster_results or 'clusters' not in cluster_results:
         st.warning("No cluster results available.")
         return
     
     st.write(f"Found {cluster_results['total_documents']} total documents in {cluster_results['n_clusters']} clusters")
     
-    # Create metrics overview
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Total Documents", cluster_results['total_documents'])
-    with col2:
-        st.metric("Number of Clusters", cluster_results['n_clusters'])
-    with col3:
-        avg_size = cluster_results['total_documents'] / cluster_results['n_clusters']
-        st.metric("Average Cluster Size", f"{avg_size:.1f}")
-    
     for cluster in cluster_results['clusters']:
-        # Generate meaningful topic name
-        topic_name = generate_cluster_topic(cluster['terms'])
+        st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
         
-        st.markdown(f"### Cluster {cluster['id']+1}: {topic_name}")
-        st.markdown(f"*{cluster['size']} documents, {cluster['cohesion']:.2%} cohesion*")
+        # Overview
+        st.markdown("#### Overview") 
+        abstractive_summary = generate_abstractive_summary(
+            cluster['terms'],
+            cluster['documents']
+        )
+        st.write(abstractive_summary)
         
-        # Overview with tabs
-        tab1, tab2, tab3 = st.tabs(["📊 Overview", "🔑 Key Terms", "📄 Records"])
+        # Key terms table
+        st.markdown("#### Key Terms")
+        terms_df = pd.DataFrame([
+            {'Term': term['term'], 
+             'Frequency': f"{term['cluster_frequency']*100:.0f}%"}
+            for term in cluster['terms'][:10]
+        ])
+        st.dataframe(terms_df, hide_index=True)
         
-        with tab1:
-            # Generate and display cluster summary
-            abstractive_summary = generate_abstractive_summary(
-                cluster['terms'],
-                cluster['documents']
-            )
-            st.write(abstractive_summary)
-            
-            # Topic visualization
-            if len(cluster['terms']) > 0:
-                term_data = pd.DataFrame([
-                    {
-                        'term': term['term'],
-                        'score': term['score'],
-                        'frequency': term['cluster_frequency']
-                    }
-                    for term in cluster['terms'][:10]
-                ])
-                
-                fig = px.scatter(
-                    term_data,
-                    x='frequency',
-                    y='score',
-                    text='term',
-                    title='Topic Terms Distribution',
-                    labels={
-                        'frequency': 'Term Frequency',
-                        'score': 'Term Importance'
-                    }
-                )
-                fig.update_traces(textposition='top center')
-                st.plotly_chart(fig, use_container_width=True)
+        # Records
+        st.markdown("#### Records")
+        st.success(f"Showing {len(cluster['documents'])} matching documents")
         
-        with tab2:
-            # Enhanced terms display
-            terms_df = pd.DataFrame([
-                {
-                    'Term': term['term'],
-                    'Frequency': f"{term['cluster_frequency']*100:.1f}%",
-                    'Importance': f"{term['score']:.3f}",
-                    'Distinctiveness': f"{term['score']/term['total_frequency']:.2f}"
-                }
-                for term in cluster['terms'][:15]
-            ])
-            st.dataframe(
-                terms_df,
-                column_config={
-                    'Term': st.column_config.TextColumn("Term"),
-                    'Frequency': st.column_config.TextColumn("Frequency in Cluster"),
-                    'Importance': st.column_config.TextColumn("Term Weight"),
-                    'Distinctiveness': st.column_config.TextColumn(
-                        "Distinctiveness",
-                        help="How unique this term is to this cluster"
-                    )
-                },
-                hide_index=True
+        # Get the full records from original data
+        doc_titles = [doc.get('title', '') for doc in cluster['documents']]
+        cluster_docs = original_data[original_data['Title'].isin(doc_titles)].copy()
+        
+        # Sort to match the original order
+        title_to_position = {title: i for i, title in enumerate(doc_titles)}
+        cluster_docs['sort_order'] = cluster_docs['Title'].map(title_to_position)
+        cluster_docs = cluster_docs.sort_values('sort_order').drop('sort_order', axis=1)
+        
+        # Determine available columns
+        available_columns = []
+        column_config = {}
+        
+        # Always include URL and Title if available
+        if 'URL' in cluster_docs.columns:
+            available_columns.append('URL')
+            column_config['URL'] = st.column_config.LinkColumn("Report Link")
+        
+        if 'Title' in cluster_docs.columns:
+            available_columns.append('Title')
+            column_config['Title'] = st.column_config.TextColumn("Title")
+        
+        # Add date if available
+        if 'date_of_report' in cluster_docs.columns:
+            available_columns.append('date_of_report')
+            column_config['date_of_report'] = st.column_config.DateColumn(
+                "Date of Report",
+                format="DD/MM/YYYY"
             )
         
-        with tab3:
-            # Get the full records with similarity scores
-            doc_titles = [doc['title'] for doc in cluster['documents']]
-            cluster_docs = original_data[original_data['Title'].isin(doc_titles)].copy()
-            
-            # Add similarity scores from cluster documents
-            similarity_dict = {
-                doc['title']: doc['similarity'] 
-                for doc in cluster['documents']
-            }
-            cluster_docs['Similarity'] = cluster_docs['Title'].map(similarity_dict)
-            
-            # Sort by similarity
-            cluster_docs = cluster_docs.sort_values('Similarity', ascending=False)
-            
-            # Configure columns for display
-            display_columns = ['Title', 'Similarity', 'date_of_report', 'URL']
-            optional_columns = ['ref', 'deceased_name', 'coroner_name', 'categories']
-            
-            for col in optional_columns:
-                if col in cluster_docs.columns:
-                    display_columns.append(col)
-            
-            # Configure column display
-            column_config = {
-                'URL': st.column_config.LinkColumn("Report Link"),
-                'date_of_report': st.column_config.DateColumn(
-                    "Date",
-                    format="DD/MM/YYYY"
-                ),
-                'Similarity': st.column_config.ProgressColumn(
-                    "Cluster Similarity",
-                    format="%.1f%%",
-                    min_value=0,
-                    max_value=100
-                ),
-                'categories': st.column_config.ListColumn("Categories")
-            }
-            
-            # Display records
+        # Add optional columns if available
+        optional_columns = ['ref', 'deceased_name', 'coroner_name', 'coroner_area', 'categories']
+        for col in optional_columns:
+            if col in cluster_docs.columns:
+                available_columns.append(col)
+                if col == 'categories':
+                    column_config[col] = st.column_config.ListColumn("Categories")
+                else:
+                    column_config[col] = st.column_config.TextColumn(col.replace('_', ' ').title())
+        
+        # Display the dataframe with available columns
+        if available_columns:
             st.dataframe(
-                cluster_docs[display_columns],
+                cluster_docs[available_columns],
                 column_config=column_config,
-                hide_index=True
+                hide_index=True,
+                use_container_width=True
             )
+        else:
+            st.warning("No displayable columns found in the data")
         
         st.markdown("---")
         
