@@ -276,11 +276,14 @@ def combine_document_text(row: pd.Series) -> str:
     
 
 def clean_text_for_modeling(text: str) -> str:
-    """Enhanced text cleaning with combined NLTK and domain-specific stopwords"""
+    """Enhanced text cleaning with lemmatization to combine singular/plural forms"""
     if not isinstance(text, str):
         return ""
     
     try:
+        # Initialize lemmatizer
+        lemmatizer = WordNetLemmatizer()
+        
         # Convert to lowercase
         text = text.lower()
         
@@ -330,25 +333,47 @@ def clean_text_for_modeling(text: str) -> str:
             'despite', 'nevertheless', 'moreover', 'furthermore', 'additionally'
         }
         
-        # Combine both stopword sets
-        all_stops = nltk_stops.union(legal_stops)
+        # Add common variations of stopwords to ensure coverage
+        expanded_legal_stops = set()
+        for word in legal_stops:
+            expanded_legal_stops.add(word)
+            expanded_legal_stops.add(lemmatizer.lemmatize(word))
+            expanded_legal_stops.add(lemmatizer.lemmatize(word, 'v'))
         
-        # Split into words and apply filtering
+        # Combine all stopwords
+        all_stops = nltk_stops.union(expanded_legal_stops)
+        
+        # Split into words, lemmatize, and apply filtering
         words = text.split()
-        words = [
-            word for word in words 
-            if len(word) > 2 
-            and word not in all_stops 
-            and not (len(word) == 1 or (word.istitle() and len(word) > 2))
-        ]
+        processed_words = []
+        
+        for word in words:
+            if len(word) > 2:
+                # Try both noun and verb lemmatization
+                lemma_n = lemmatizer.lemmatize(word, 'n')  # noun
+                lemma_v = lemmatizer.lemmatize(word, 'v')  # verb
+                
+                # Use the shorter lemma (usually the more common form)
+                lemma = lemma_n if len(lemma_n) <= len(lemma_v) else lemma_v
+                
+                if (lemma not in all_stops and 
+                    not (len(lemma) == 1 or (lemma.istitle() and len(lemma) > 2))):
+                    processed_words.append(lemma)
         
         # Ensure minimum content length
-        cleaned_text = ' '.join(words)
+        cleaned_text = ' '.join(processed_words)
         return cleaned_text if len(cleaned_text.split()) >= 3 else ""
     
     except Exception as e:
         logging.error(f"Error in text cleaning: {e}")
         return ""
+
+# Make sure to import WordNetLemmatizer at the top of your file:
+from nltk.stem import WordNetLemmatizer
+# And download the required NLTK resource:
+nltk.download('wordnet')
+nltk.download('averaged_perceptron_tagger')
+
 
 def clean_text(text: str) -> str:
     """Clean text while preserving structure and metadata formatting"""
