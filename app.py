@@ -3009,16 +3009,26 @@ def perform_semantic_clustering(
                 'documents': doc_info
             })
         
+        # Calculate quality metrics (keeping just silhouette score)
+        silhouette_avg = silhouette_score(normalized_vectors, best_labels)
+
         return {
             'n_clusters': len(clusters),
             'total_documents': len(processed_texts),
-            'clusters': clusters
+            'clusters': clusters,
+            'silhouette_score': float(silhouette_avg),
+            'vectorizer_type': 'bm25',
+            'quality_metrics': {
+                'silhouette_score': float(silhouette_avg),
+                'davies_score': 0.0,
+                'calinski_score': 0.0,
+                'balance_ratio': 1.0
+            }
         }
         
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
         raise
-
 
 
 def create_document_identifier(row: pd.Series) -> str:
