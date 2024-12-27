@@ -2911,19 +2911,17 @@ def perform_semantic_clustering(
         doc_vectors = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
         
-        # Calculate similarity and perform clustering
-        similarity_matrix = cosine_similarity(doc_vectors)
-        distance_matrix = 1 - similarity_matrix
+        # Use normalized vectors for Euclidean distance
+        normalized_vectors = normalize(doc_vectors.toarray())
         
-        # Use Ward linkage for more balanced clusters
+        # Use Ward linkage with Euclidean distance
         clustering = AgglomerativeClustering(
-            n_clusters=None,
-            distance_threshold=0.75,  # Adjusted threshold for better separation
-            metric='precomputed',
+            n_clusters=4,  # Target number of clusters
+            metric='euclidean',
             linkage='ward'
         )
         
-        labels = clustering.fit_predict(distance_matrix)
+        labels = clustering.fit_predict(normalized_vectors)
         
         # Process each cluster
         clusters = []
