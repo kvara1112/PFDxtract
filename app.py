@@ -2889,7 +2889,7 @@ def perform_semantic_clustering(
     similarity_threshold: float = 0.3
 ) -> Dict:
     """
-    Perform semantic clustering to group similar documents
+    Perform semantic clustering with optimized number of clusters
     """
     try:
         # Process text
@@ -2911,27 +2911,47 @@ def perform_semantic_clustering(
         # Create document vectors
         doc_vectors = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
-        
-        # Calculate similarity matrix
-        similarity_matrix = cosine_similarity(doc_vectors)
-        
-        # Use normalized vectors for clustering
         normalized_vectors = normalize(doc_vectors.toarray())
         
-        # Perform clustering
-        clustering = AgglomerativeClustering(
-            n_clusters=4,  # Target number of clusters
-            metric='euclidean',
-            linkage='ward'
-        )
+        # Find optimal number of clusters
+        best_n_clusters = 2  # Default minimum
+        best_score = -1
+        best_labels = None
         
-        labels = clustering.fit_predict(normalized_vectors)
+        # Try different numbers of clusters
+        min_n_clusters = max(2, len(processed_texts) // 50)  # At least 2, or 1 cluster per 50 docs
+        max_n_clusters = min(20, len(processed_texts) // min_cluster_size)  # Cap at 20 or data size limit
+        
+        for n_clusters in range(min_n_clusters, max_n_clusters + 1):
+            clustering = AgglomerativeClustering(
+                n_clusters=n_clusters,
+                metric='euclidean',
+                linkage='ward'
+            )
+            
+            labels = clustering.fit_predict(normalized_vectors)
+            
+            # Check minimum cluster size
+            cluster_sizes = np.bincount(labels)
+            if min(cluster_sizes) < min_cluster_size:
+                continue
+            
+            # Calculate silhouette score
+            score = silhouette_score(normalized_vectors, labels)
+            
+            # Update best if improved
+            if score > best_score:
+                best_score = score
+                best_n_clusters = n_clusters
+                best_labels = labels
+        
+        # Use best clustering results
+        labels = best_labels
+        similarity_matrix = cosine_similarity(doc_vectors)
         
         # Process each cluster
         clusters = []
-        cluster_indices = range(len(np.unique(labels)))
-        
-        for cluster_id in cluster_indices:
+        for cluster_id in range(best_n_clusters):
             doc_indices = np.where(labels == cluster_id)[0]
             
             if len(doc_indices) < min_cluster_size:
@@ -2987,7 +3007,8 @@ def perform_semantic_clustering(
             'n_clusters': len(clusters),
             'total_documents': len(processed_texts),
             'clusters': clusters,
-            'vectorizer_type': 'bm25'
+            'vectorizer_type': 'bm25',
+            'quality_metrics': {}
         }
         
     except Exception as e:
