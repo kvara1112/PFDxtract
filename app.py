@@ -1139,71 +1139,60 @@ def render_scraping_tab():
             logging.error(f"Scraping error: {e}")
             return False                           
 
-
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
-    """Topic analysis with weighting schemes and essential controls"""
+    """Topic analysis with improved controls"""
     st.header("Topic Analysis & Summaries")
     st.markdown("""
     This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
     and generating summaries for each thematic group.
     """)
 
-    # Show previous results if available
-    if 'topic_model' in st.session_state and st.session_state.topic_model is not None:
-        st.sidebar.success("Previous analysis results available")
-        if st.sidebar.button("View Previous Results"):
-            render_summary_tab(st.session_state.topic_model, data)
-            return
-
+    # Analysis Settings
     st.subheader("Analysis Settings")
-
-    # Text Processing
     col1, col2 = st.columns(2)
     
     with col1:
-        # Vectorization method
         vectorizer_type = st.selectbox(
             "Vectorization Method",
-            options=["tfidf", "bm25", "weighted"],
+            options=["bm25", "tfidf", "weighted"],
             help="Choose how to convert text to numerical features"
         )
 
-        # Weighting Schemes
-        if vectorizer_type == "weighted":
-            tf_scheme = st.selectbox(
-                "Term Frequency Scheme",
-                options=["raw", "log", "binary", "augmented"],
-                help="How to count term occurrences"
-            )
-            idf_scheme = st.selectbox(
-                "Document Frequency Scheme",
-                options=["smooth", "standard", "probabilistic"],
-                help="How to weight document frequencies"
-            )
-        elif vectorizer_type == "bm25":
+        if vectorizer_type == "bm25":
             k1 = st.slider(
                 "Term Saturation (k1)",
                 min_value=0.5,
                 max_value=3.0,
-                value=1.5,
-                help="Controls term frequency impact"
+                value=1.2,
+                step=0.1,
+                help="Controls term frequency impact (BM25 parameter)"
             )
             b = st.slider(
                 "Length Normalization (b)",
                 min_value=0.0,
                 max_value=1.0,
-                value=0.75,
-                help="Document length impact"
+                value=0.85,
+                step=0.05,
+                help="Document length normalization (BM25 parameter)"
             )
 
     with col2:
         # Clustering Parameters
         min_cluster_size = st.slider(
-            "Minimum Group Size",
-            min_value=2,
-            max_value=10,
-            value=3,
-            help="Minimum documents per theme"
+            "Minimum Cluster Size",
+            min_value=3,
+            max_value=15,
+            value=5,
+            help="Smallest allowed group of documents"
+        )
+        
+        similarity_threshold = st.slider(
+            "Similarity Threshold",
+            min_value=0.1,
+            max_value=0.9,
+            value=0.25,  # Slightly lower default for more granular clustering
+            step=0.05,
+            help="How similar documents must be to be grouped together (higher = more clusters)"
         )
         
         max_features = st.slider(
@@ -1211,13 +1200,14 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
             min_value=1000,
             max_value=10000,
             value=5000,
-            step=1000,
+            step=500,
             help="Number of terms to consider"
         )
 
     # Date range selection
     st.subheader("Date Range")
     date_col1, date_col2 = st.columns(2)
+    
     with date_col1:
         start_date = st.date_input(
             "From",
@@ -1254,100 +1244,20 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     )
 
     if analyze_clicked:
-        try:
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-
-            # Initialize
-            progress_bar.progress(0.2)
-            status_text.text("Processing documents...")
-            initialize_nltk()
-
-            # Filter data
-            filtered_df = data.copy()
-            
-            # Apply date filter
-            filtered_df = filtered_df[
-                (filtered_df['date_of_report'].dt.date >= start_date) &
-                (filtered_df['date_of_report'].dt.date <= end_date)
-            ]
-            
-            # Apply category filter
-            if categories:
-                filtered_df = filter_by_categories(filtered_df, categories)
-            
-            # Remove empty content
-            filtered_df = filtered_df[filtered_df['Content'].notna() & (filtered_df['Content'].str.strip() != '')]
-            
-            if len(filtered_df) < min_cluster_size:
-                progress_bar.empty()
-                status_text.empty()
-                st.warning(f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}.")
-                return
-
-            # Process content
-            progress_bar.progress(0.4)
-            status_text.text("Identifying themes...")
-            
-            processed_df = pd.DataFrame({
-                'Content': filtered_df['Content'],
-                'Title': filtered_df['Title'],
-                'date_of_report': filtered_df['date_of_report'],
-                'URL': filtered_df['URL'],
-                'categories': filtered_df['categories']
-            })
-            
-            progress_bar.progress(0.6)
-            status_text.text("Analyzing patterns...")
-            
-            # Prepare vectorizer parameters
-            vectorizer_params = {}
-            if vectorizer_type == "weighted":
-                vectorizer_params.update({
-                    'tf_scheme': tf_scheme,
-                    'idf_scheme': idf_scheme
-                })
-            elif vectorizer_type == "bm25":
-                vectorizer_params.update({
-                    'k1': k1,
-                    'b': b
-                })
-            
-            # Store vectorization settings in session state
-            st.session_state.vectorizer_type = vectorizer_type
-            st.session_state.update(vectorizer_params)
-            
-            # Perform clustering
-            cluster_results = perform_semantic_clustering(
-                processed_df,
-                min_cluster_size=min_cluster_size,
-                max_features=max_features,
-                min_df=2/len(processed_df),
-                max_df=0.95,
-                similarity_threshold=0.3
-            )
-            
-            progress_bar.progress(0.8)
-            status_text.text("Generating summaries...")
-            
-            # Store results
-            st.session_state.topic_model = cluster_results
-            
-            progress_bar.progress(1.0)
-            status_text.text("Analysis complete!")
-            
-            progress_bar.empty()
-            status_text.empty()
-            
-            # Display results
-            render_summary_tab(cluster_results, processed_df)
-            
-        except Exception as e:
-            progress_bar.empty()
-            status_text.empty()
-            st.error(f"Analysis error: {str(e)}")
-            logging.error(f"Analysis error: {e}", exc_info=True)
-
+        # Pass all parameters to clustering function
+        cluster_results = perform_semantic_clustering(
+            data=data,
+            min_cluster_size=min_cluster_size,
+            max_features=max_features,
+            similarity_threshold=similarity_threshold,
+            vectorizer_params={
+                'k1': k1 if vectorizer_type == 'bm25' else None,
+                'b': b if vectorizer_type == 'bm25' else None
+            }
+        )
+        
+        # Display results
+        display_cluster_analysis(cluster_results)
 
 def render_topic_options():
     """Render enhanced topic analysis options in a clear layout"""
