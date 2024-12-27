@@ -276,7 +276,7 @@ def combine_document_text(row: pd.Series) -> str:
     
 
 def clean_text_for_modeling(text: str) -> str:
-    """Clean text with enhanced noise removal"""
+    """Enhanced text cleaning with combined NLTK and domain-specific stopwords"""
     if not isinstance(text, str):
         return ""
     
@@ -291,7 +291,7 @@ def clean_text_for_modeling(text: str) -> str:
         text = re.sub(r'\S+@\S+', '', text)
         text = re.sub(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', '', text)
         
-        # Remove dates and times
+        # Remove dates in various formats
         text = re.sub(r'\b\d{1,2}(?:st|nd|rd|th)?\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\b\d{1,2}:\d{2}\b', '', text)
         text = re.sub(r'\b\d{1,2}/\d{1,2}/\d{2,4}\b', '', text)
@@ -300,19 +300,50 @@ def clean_text_for_modeling(text: str) -> str:
         text = re.sub(r'\b(?:ref|reference|case)(?:\s+no)?\.?\s*[-:\s]?\s*\w+[-\d]+\b', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\b(regulation|paragraph|section|subsection|article)\s+\d+\b', '', text, flags=re.IGNORECASE)
         
-        # Remove common legal document terms
-        legal_terms = r'\b(coroner|inquest|hearing|evidence|witness|statement|report|dated|signed)\b'
-        text = re.sub(legal_terms, '', text, flags=re.IGNORECASE)
+        # Remove personal titles and common name indicators
+        name_indicators = r'\b(mr|mrs|ms|dr|prof|sir|lady|lord|hon|rt|qc|esquire|esq)\b\.?\s+'
+        text = re.sub(name_indicators, '', text, flags=re.IGNORECASE)
         
-        # Remove special characters and multiple spaces
+        # Remove numbers and special characters
         text = re.sub(r'[^a-z\s]', ' ', text)
-        text = re.sub(r'\s+', ' ', text)
         
-        # Remove very short words
-        text = ' '.join(word for word in text.split() if len(word) > 2)
+        # Get NLTK stopwords
+        nltk_stops = set(stopwords.words('english'))
+        
+        # Add domain-specific legal stopwords
+        legal_stops = {
+            'coroner', 'inquest', 'hearing', 'evidence', 'witness', 'statement',
+            'report', 'dated', 'signed', 'concluded', 'determined', 'found',
+            'noted', 'accordance', 'pursuant', 'hereby', 'thereafter', 'whereas',
+            'furthermore', 'concerning', 'regarding', 'following', 'said', 'done',
+            'made', 'given', 'told', 'took', 'sent', 'received', 'got', 'went',
+            'called', 'came', 'took', 'place', 'found', 'made', 'given', 'stated',
+            'identified', 'recorded', 'conducted', 'provided', 'indicated', 'showed',
+            'contained', 'included', 'considered', 'discussed', 'mentioned', 'noted',
+            'explained', 'described', 'outlined', 'suggested', 'recommended',
+            'proposed', 'advised', 'requested', 'required', 'needed', 'sought',
+            'looked', 'seemed', 'appeared', 'believed', 'thought', 'felt',
+            'understood', 'knew', 'saw', 'heard', 'read', 'wrote', 'sent',
+            'received', 'obtained', 'acquired', 'submitted', 'presented',
+            'matter', 'matters', 'issue', 'issues', 'case', 'cases',
+            'within', 'without', 'therefore', 'however', 'although',
+            'despite', 'nevertheless', 'moreover', 'furthermore', 'additionally'
+        }
+        
+        # Combine both stopword sets
+        all_stops = nltk_stops.union(legal_stops)
+        
+        # Split into words and apply filtering
+        words = text.split()
+        words = [
+            word for word in words 
+            if len(word) > 2 
+            and word not in all_stops 
+            and not (len(word) == 1 or (word.istitle() and len(word) > 2))
+        ]
         
         # Ensure minimum content length
-        cleaned_text = text.strip()
+        cleaned_text = ' '.join(words)
         return cleaned_text if len(cleaned_text.split()) >= 3 else ""
     
     except Exception as e:
