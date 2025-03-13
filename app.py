@@ -809,11 +809,14 @@ def get_category_slug(category: str) -> str:
     logging.info(f"Generated category slug: {slug} from category: {category}")
     return slug
 
+
+
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
     category: Optional[str] = None,
     order: str = "relevance",
-    max_pages: Optional[int] = None
+    start_page: int = 1,
+    end_page: Optional[int] = None
 ) -> List[Dict]:
     """
     Scrape PFD reports with enhanced progress tracking and proper pagination
@@ -856,13 +859,21 @@ def scrape_pfd_reports(
             
         st.info(f"Found {total_results} matching reports across {total_pages} pages")
         
-        # Apply max pages limit if specified
-        if max_pages:
-            total_pages = min(total_pages, max_pages)
-            st.info(f"Limiting search to first {total_pages} pages")
+        # Apply page range limits
+        start_page = max(1, start_page)  # Ensure start_page is at least 1
+        if end_page is None:
+            end_page = total_pages
+        else:
+            end_page = min(end_page, total_pages)  # Ensure end_page doesn't exceed total_pages
         
-        # Process each page
-        for current_page in range(1, total_pages + 1):
+        if start_page > end_page:
+            st.warning(f"Invalid page range: {start_page} to {end_page}")
+            return []
+            
+        st.info(f"Scraping pages {start_page} to {end_page}")
+        
+        # Process each page in the specified range
+        for current_page in range(start_page, end_page + 1):
             try:
                 # Check if scraping should be stopped
                 if hasattr(st.session_state, 'stop_scraping') and st.session_state.stop_scraping:
@@ -870,9 +881,9 @@ def scrape_pfd_reports(
                     break
                 
                 # Update progress
-                progress = (current_page - 1) / total_pages
+                progress = (current_page - start_page) / (end_page - start_page + 1)
                 progress_bar.progress(progress)
-                status_text.text(f"Processing page {current_page} of {total_pages}")
+                status_text.text(f"Processing page {current_page} of {end_page} (out of {total_pages} total pages)")
                 
                 # Construct current page URL
                 page_url = construct_search_url(
@@ -923,6 +934,7 @@ def scrape_pfd_reports(
         st.error(f"An error occurred while scraping reports: {e}")
         return []
 
+
 def construct_search_url(base_url: str, keyword: Optional[str] = None, 
                       category: Optional[str] = None, 
                       category_slug: Optional[str] = None, 
@@ -947,9 +959,8 @@ def construct_search_url(base_url: str, keyword: Optional[str] = None,
 
     return url
 
-
 def render_scraping_tab():
-    """Render the scraping tab with a clean 2x2 filter layout"""
+    """Render the scraping tab with a clean 2x2 filter layout and page range selection"""
     st.header("Scrape PFD Reports")
 
     # Initialize default values if not in session state
@@ -958,7 +969,8 @@ def render_scraping_tab():
         st.session_state['search_keyword_default'] = "report"
         st.session_state['category_default'] = ""
         st.session_state['order_default'] = "relevance"
-        st.session_state['max_pages_default'] = 0
+        st.session_state['start_page_default'] = 1
+        st.session_state['end_page_default'] = None
     
     if 'scraped_data' in st.session_state and st.session_state.scraped_data is not None:
         st.success(f"Found {len(st.session_state.scraped_data)} reports")
@@ -976,11 +988,12 @@ def render_scraping_tab():
         
         show_export_options(st.session_state.scraped_data, "scraped")
 
-    # Create the search form with 2x2 layout
+    # Create the search form with page range selection
     with st.form("scraping_form"):
         # Create two rows with two columns each
         row1_col1, row1_col2 = st.columns(2)
         row2_col1, row2_col2 = st.columns(2)
+        row3_col1, row3_col2 = st.columns(2)
 
         # First row
         with row1_col1:
@@ -1015,12 +1028,59 @@ def render_scraping_tab():
             )
 
         with row2_col2:
-            max_pages = st.number_input(
-                "Maximum pages to scrape:",
+            # Get total pages for the query (preview)
+            if search_keyword or category:
+                base_url = "https://www.judiciary.uk/"
+                
+                # Prepare category slug
+                category_slug = None
+                if category:
+                    category_slug = category.lower()\
+                        .replace(' ', '-')\
+                        .replace('&', 'and')\
+                        .replace('--', '-')\
+                        .strip('-')
+                
+                # Create preview URL
+                preview_url = construct_search_url(
+                    base_url=base_url,
+                    keyword=search_keyword,
+                    category=category,
+                    category_slug=category_slug
+                )
+                
+                try:
+                    with st.spinner("Checking total pages..."):
+                        total_pages, total_results = get_total_pages(preview_url)
+                        if total_pages > 0:
+                            st.info(f"This search has {total_pages} pages with {total_results} results")
+                            st.session_state['total_pages_preview'] = total_pages
+                        else:
+                            st.warning("No results found for this search")
+                            st.session_state['total_pages_preview'] = 0
+                except Exception as e:
+                    st.error(f"Error checking pages: {str(e)}")
+                    st.session_state['total_pages_preview'] = 0
+            else:
+                st.session_state['total_pages_preview'] = 0
+        
+        # Third row for page range
+        with row3_col1:
+            start_page = st.number_input(
+                "Start page:",
+                min_value=1,
+                value=st.session_state.get('start_page_default', 1),
+                key='start_page',
+                help="First page to scrape (minimum 1)"
+            )
+
+        with row3_col2:
+            end_page = st.number_input(
+                "End page:",
                 min_value=0,
-                value=st.session_state.get('max_pages_default', 0),
-                key='max_pages',
-                help="Enter 0 for all pages"
+                value=st.session_state.get('end_page_default', 0),
+                key='end_page',
+                help="Last page to scrape (0 for all pages)"
             )
 
         # Action buttons in a row
@@ -1042,21 +1102,24 @@ def render_scraping_tab():
             st.session_state.last_search_params = {
                 'keyword': search_keyword,
                 'category': category,
-                'order': order
+                'order': order,
+                'start_page': start_page,
+                'end_page': end_page
             }
             
             # Initialize stop_scraping flag
             st.session_state.stop_scraping = False
 
-            # Set max pages
-            max_pages_val = None if max_pages == 0 else max_pages
+            # Convert end_page=0 to None (all pages)
+            end_page_val = None if end_page == 0 else end_page
             
             # Perform scraping
             reports = scrape_pfd_reports(
                 keyword=search_keyword,
                 category=category if category else None,
                 order=order,
-                max_pages=max_pages_val
+                start_page=start_page,
+                end_page=end_page_val
             )
             
             if reports:
@@ -1077,7 +1140,7 @@ def render_scraping_tab():
         except Exception as e:
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
-            return False                           
+            return False               
 
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
