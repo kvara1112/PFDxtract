@@ -798,6 +798,8 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
                             
+# (Previous code remains unchanged until the end)
+
 def get_category_slug(category: str) -> str:
     """Generate proper category slug for the website's URL structure"""
     if not category:
@@ -812,3 +814,32 @@ def get_category_slug(category: str) -> str:
     
     logging.info(f"Generated category slug: {slug} from category: {category}")
     return slug
+
+def main():
+    st.title("Document Analysis Tool")
+    st.sidebar.title("Options")
+    
+    # Initialize session state variables
+    if 'stop_scraping' not in st.session_state:
+        st.session_state.stop_scraping = False
+    
+    # Add options for scraping and analysis
+    keyword = st.sidebar.text_input("Enter keyword for search")
+    category = st.sidebar.selectbox("Select category", options=get_pfd_categories())
+    
+    if st.sidebar.button("Start Scraping"):
+        st.session_state.stop_scraping = False
+        reports = scrape_pfd_reports(keyword=keyword, category=category)
+        if reports:
+            st.success(f"Scraped {len(reports)} reports")
+            st.session_state.reports = reports
+    
+    if st.sidebar.button("Stop Scraping"):
+        st.session_state.stop_scraping = True
+    
+    if 'reports' in st.session_state:
+        display_advanced_analysis_results()
+
+# Add this at the very end of the code to call the main() function
+if __name__ == "__main__":
+    main()
