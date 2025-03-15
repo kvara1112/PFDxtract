@@ -814,6 +814,36 @@ def get_category_slug(category: str) -> str:
     
     logging.info(f"Generated category slug: {slug} from category: {category}")
     return slug
+    
+def display_advanced_analysis_results():
+    """Display the results of advanced document analysis"""
+    if 'advanced_analysis_results' not in st.session_state:
+        st.warning("No analysis results available. Please run the analysis first.")
+        return
+    
+    results = st.session_state.advanced_analysis_results
+    
+    st.subheader("Analysis Results")
+    st.write("Here are the results of the analysis:")
+    
+    # Display basic results
+    if 'df_with_assignments' in results:
+        st.write("### Document Assignments")
+        st.dataframe(results['df_with_assignments'])
+    
+    if 'doc_stats' in results:
+        st.write("### Document Statistics")
+        st.dataframe(results['doc_stats'])
+    
+    if 'topic_stats' in results:
+        st.write("### Topic/Cluster Statistics")
+        st.dataframe(results['topic_stats'])
+    
+    if 'analysis_stats' in results:
+        st.write("### Analysis Statistics")
+        st.write(results['analysis_stats'])
+    
+    # Add more visualizations or details as needed
 
 def main():
     st.title("Document Analysis Tool")
@@ -822,6 +852,12 @@ def main():
     # Initialize session state variables
     if 'stop_scraping' not in st.session_state:
         st.session_state.stop_scraping = False
+    
+    if 'reports' not in st.session_state:
+        st.session_state.reports = []
+    
+    if 'advanced_analysis_results' not in st.session_state:
+        st.session_state.advanced_analysis_results = {}
     
     # Add options for scraping and analysis
     keyword = st.sidebar.text_input("Enter keyword for search")
@@ -837,7 +873,20 @@ def main():
     if st.sidebar.button("Stop Scraping"):
         st.session_state.stop_scraping = True
     
-    if 'reports' in st.session_state:
+    if st.session_state.reports:
+        # Process and analyze the reports
+        df = pd.DataFrame(st.session_state.reports)
+        processed_df = process_scraped_data(df)
+        
+        # Store analysis results in session state
+        st.session_state.advanced_analysis_results = {
+            'df_with_assignments': processed_df,
+            'doc_stats': {},  # Add document statistics here
+            'topic_stats': {},  # Add topic/cluster statistics here
+            'analysis_stats': {}  # Add analysis statistics here
+        }
+        
+        # Display the results
         display_advanced_analysis_results()
 
 # Add this at the very end of the code to call the main() function
