@@ -889,6 +889,5 @@ def main():
         # Display the results
         display_advanced_analysis_results()
 
-# Add this at the very end of the code to call the main() function
 if __name__ == "__main__":
     main()
