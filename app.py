@@ -47,6 +47,33 @@ from typing import Union
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
 
 
+# Add these imports at the top with your other imports
+def check_password():
+    """Returns `True` if the user had the correct password."""
+    def password_entered():
+        """Checks whether a password entered by the user is correct."""
+        if st.session_state["password"] == st.secrets["password"]:
+            st.session_state["password_correct"] = True
+            del st.session_state["password"]  # Don't store password
+        else:
+            st.session_state["password_correct"] = False
+
+    # First run or password not correct
+    if "password_correct" not in st.session_state:
+        # Show input for password
+        st.text_input(
+            "Please enter the password",
+            type="password",
+            key="password",
+            on_change=password_entered
+        )
+        return False
+
+    # Password correct
+    elif st.session_state["password_correct"]:
+        return True
+        
+
 
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
     """BM25 vectorizer implementation"""
