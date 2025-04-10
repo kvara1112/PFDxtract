@@ -12,4 +12,5 @@ libpng-dev
 poppler-utils
 cmake
 libomp-dev
-torch
+libopenblas-dev
+libffi-dev
