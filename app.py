@@ -442,7 +442,7 @@ class ThemeAnalyzer:
 
     def create_detailed_results(self, data, content_column='Content'):
         """
-        Analyze multiple documents and create detailed results.
+        Analyze multiple documents and create detailed results with progress tracking.
         
         Args:
             data (pd.DataFrame): DataFrame containing documents
@@ -451,11 +451,27 @@ class ThemeAnalyzer:
         Returns:
             Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
         """
+        import streamlit as st
+        
         results = []
         highlighted_texts = {}
         
+        # Create progress tracking elements
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        doc_count_text = st.empty()
+        
+        # Calculate total documents to process
+        total_docs = len(data)
+        doc_count_text.text(f"Processing 0/{total_docs} documents")
+        
         # Process each document
-        for idx, row in data.iterrows():
+        for idx, (i, row) in enumerate(data.iterrows()):
+            # Update progress
+            progress = (idx + 1) / total_docs
+            progress_bar.progress(progress)
+            status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
+            
             # Skip empty content
             if pd.isna(row[content_column]) or row[content_column] == '':
                 continue
@@ -467,25 +483,43 @@ class ThemeAnalyzer:
             
             # Create highlighted HTML for this document
             highlighted_html = self.create_highlighted_html(content, theme_highlights)
-            highlighted_texts[idx] = highlighted_html
+            highlighted_texts[i] = highlighted_html
             
             # Store results for each theme
+            theme_count = 0
             for framework_name, themes in framework_themes.items():
                 for theme in themes:
+                    theme_count += 1
                     results.append({
-                        'Document_ID': idx,
-                        'Title': row.get('Title', f'Document {idx}'),
+                        'Record ID': i,
+                        'Title': row.get('Title', f'Document {i}'),
                         'Framework': framework_name,
                         'Theme': theme['theme'],
-                        'Confidence': theme['combined_score'],
+                        'Confidence': self._get_confidence_label(theme['combined_score']),
+                        'Combined Score': theme['combined_score'],
                         'Semantic_Similarity': theme['semantic_similarity'],
-                        'Matched_Keywords': theme['matched_keywords']
+                        'Matched Keywords': theme['matched_keywords']
                     })
+            
+            # Update documents processed count with theme info
+            doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
+        
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        
+        # Final count update
+        if results:
+            doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
+        else:
+            doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
         
         # Create results DataFrame
         results_df = pd.DataFrame(results) if results else pd.DataFrame()
-    
+        
         return results_df, highlighted_texts
+    
+    
     def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
         """
         Create a comprehensive PDF report with analysis results
