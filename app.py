@@ -4537,14 +4537,12 @@ def main():
                 handle_no_data_state("topic_summary")
             else:
                 render_topic_summary_tab(st.session_state.current_data)
-        
+
         elif current_tab == "🔬 BERT Analysis":
-    # Check password before showing BERT analysis
             if check_bert_password():
                 render_bert_analysis_tab(st.session_state.current_data)
-            else:
-                st.warning("Please enter the correct password to access BERT Analysis.")
-
+        
+    
         # Sidebar data management
         with st.sidebar:
             st.header("Data Management")
@@ -4568,33 +4566,41 @@ def main():
 
 def check_bert_password():
     """Returns `True` if the user had the correct password for BERT Analysis."""
-    # Initialize the error message state if it doesn't exist
-    if "password_error" not in st.session_state:
-        st.session_state["password_error"] = False
-    
+    # Initialize session state variables if they don't exist
     if "bert_password_correct" not in st.session_state:
-        # Create a separate password for BERT section
         st.session_state["bert_password_correct"] = False
+    if "bert_password_attempted" not in st.session_state:
+        st.session_state["bert_password_attempted"] = False
+    
+    # If already authenticated, return True
+    if st.session_state["bert_password_correct"]:
+        return True
         
-        password = st.text_input(
-            "Please enter the password for BERT Analysis",
-            type="password",
-            key="bert_password"
-        )
+    # Otherwise, show password input
+    password = st.text_input(
+        "Please enter the password for BERT Analysis",
+        type="password",
+        key="bert_password_input"
+    )
+    
+    if st.button("Submit Password", key="bert_password_submit"):
+        st.session_state["bert_password_attempted"] = True
+        # Get the correct password from secrets
+        correct_password = st.secrets.get("bert_password", "amazing246")
         
-        # Add an explicit submit button instead of checking on enter
-        if st.button("Submit Password", key="bert_password_submit"):
-            # For development/testing, use a default fallback password if the secret is not set
-            correct_password = st.secrets.get("bert_password", "your_default_password_here")
-            if password == correct_password:
-                st.session_state["bert_password_correct"] = True
-                st.session_state["password_error"] = False
-                return True
-            else:
-                st.session_state["password_error"] = True
-                return False
-        return False
-    return st.session_state["bert_password_correct"]
+        if password == correct_password:
+            st.session_state["bert_password_correct"] = True
+            st.experimental_rerun()  # Force a rerun to update the UI
+            return True
+        else:
+            st.error("Incorrect password. Please try again.")
+            return False
+    
+    # Only show error if password has been attempted
+    if st.session_state["bert_password_attempted"] and not st.session_state["bert_password_correct"]:
+        st.error("Please enter the correct password to access BERT Analysis.")
+    
+    return False
 
 
 def render_bert_analysis_tab(data: pd.DataFrame):
