@@ -12,3 +12,4 @@ libpng-dev
 poppler-utils
 cmake
 libomp-dev
+torch
