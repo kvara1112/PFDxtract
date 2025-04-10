@@ -754,7 +754,7 @@ class ThemeAnalyzer:
         results_df = pd.DataFrame(results) if results else pd.DataFrame()
         
         return results_df, highlighted_texts
-
+        
     def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
         """
         Create a comprehensive PDF report with analysis results
@@ -767,70 +767,238 @@ class ThemeAnalyzer:
         Returns:
             str: Path to the created PDF file
         """
-        import matplotlib.pyplot as plt
         from matplotlib.backends.backend_pdf import PdfPages
         from datetime import datetime
+        import matplotlib.pyplot as plt
+        import matplotlib.gridspec as gridspec
+        import pandas as pd
+        import numpy as np
         import os
+        import tempfile
+        from matplotlib.colors import LinearSegmentedColormap
+        from matplotlib.patches import Patch
         
         # Generate default filename if not provided
         if output_filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_filename = f"theme_analysis_report_{timestamp}.pdf"
         
-        # Create HTML content for the PDF
-        html_content = self._create_integrated_html_for_pdf(results_df, highlighted_texts)
+        # Use a tempfile for matplotlib to avoid file conflicts
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmpfile:
+            temp_pdf_path = tmpfile.name
         
-        # Save HTML file
-        html_filename = output_filename.replace('.pdf', '.html')
-        with open(html_filename, "w", encoding="utf-8") as f:
-            f.write(html_content)
-        
-        # Create basic PDF with matplotlib as a fallback
-        with PdfPages(output_filename) as pdf:
+        # Create PDF with matplotlib
+        with PdfPages(temp_pdf_path) as pdf:
             # Title page
-            plt.figure(figsize=(12, 8))
-            plt.text(0.5, 0.5, "Theme Analysis Report", 
-                     fontsize=24, ha='center', va='center')
-            plt.text(0.5, 0.4, f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
-                     fontsize=14, ha='center', va='center')
+            fig = plt.figure(figsize=(12, 10))
+            plt.text(0.5, 0.6, "BERT Theme Analysis Report", 
+                     fontsize=28, ha='center', va='center', weight='bold')
+            plt.text(0.5, 0.5, f"Generated on {datetime.now().strftime('%d %B %Y, %H:%M')}",
+                     fontsize=16, ha='center', va='center')
+            
+            # Add a decorative header bar
+            plt.axhline(y=0.75, xmin=0.1, xmax=0.9, color='#3366CC', linewidth=3)
+            plt.axhline(y=0.35, xmin=0.1, xmax=0.9, color='#3366CC', linewidth=3)
+            
+            # Add framework names
+            frameworks = self.frameworks.keys()
+            framework_text = "Frameworks analyzed: " + ", ".join(frameworks)
+            plt.text(0.5, 0.3, framework_text,
+                     fontsize=14, ha='center', va='center', style='italic')
+            
             plt.axis('off')
-            pdf.savefig()
-            plt.close()
+            pdf.savefig(fig, bbox_inches='tight')
+            plt.close(fig)
             
-            # Summary statistics
-            plt.figure(figsize=(12, 8))
-            plt.text(0.5, 0.95, "Analysis Summary", fontsize=20, ha='center', va='center')
-            
-            # Document count
-            doc_count = len(highlighted_texts)
-            plt.text(0.1, 0.85, f"Total Documents Analyzed: {doc_count}", fontsize=14)
-            
-            # Theme count
+            # Summary statistics page
             if not results_df.empty:
-                theme_count = len(results_df)
-                plt.text(0.1, 0.8, f"Total Theme Predictions: {theme_count}", fontsize=14)
+                # Create a summary page with charts
+                fig = plt.figure(figsize=(12, 10))
+                gs = gridspec.GridSpec(3, 2, height_ratios=[1, 2, 2])
                 
-                # Framework distribution
-                plt.text(0.1, 0.7, "Framework Distribution:", fontsize=14)
-                y_pos = 0.65
-                for framework, count in results_df['Framework'].value_counts().items():
-                    plt.text(0.15, y_pos, f"{framework}: {count} themes", fontsize=12)
-                    y_pos -= 0.05
+                # Header
+                ax_header = plt.subplot(gs[0, :])
+                ax_header.text(0.5, 0.5, "Analysis Summary", 
+                              fontsize=20, ha='center', va='center', weight='bold')
+                ax_header.axis('off')
+                
+                # Document count and metrics
+                ax_metrics = plt.subplot(gs[1, 0])
+                doc_count = len(highlighted_texts)
+                theme_count = len(results_df)
+                frameworks_count = len(results_df['Framework'].unique())
+                
+                metrics_text = (
+                    f"Total Documents Analyzed: {doc_count}\n"
+                    f"Total Theme Predictions: {theme_count}\n"
+                    f"Unique Frameworks: {frameworks_count}\n"
+                )
+                
+                if 'Confidence' in results_df.columns:
+                    confidence_counts = results_df['Confidence'].value_counts()
+                    metrics_text += "\nConfidence Levels:\n"
+                    for conf, count in confidence_counts.items():
+                        metrics_text += f"  {conf}: {count} themes\n"
+                
+                ax_metrics.text(0.1, 0.9, metrics_text, 
+                               fontsize=12, va='top', linespacing=2)
+                ax_metrics.axis('off')
+                
+                # Framework distribution chart
+                ax_framework = plt.subplot(gs[1, 1])
+                if not results_df.empty:
+                    framework_counts = results_df['Framework'].value_counts()
+                    bars = ax_framework.bar(framework_counts.index, framework_counts.values, 
+                                          color=['#3366CC', '#DC3912', '#FF9900'])
+                    ax_framework.set_title('Theme Distribution by Framework', fontsize=14)
+                    ax_framework.set_ylabel('Number of Themes')
                     
-            plt.axis('off')
-            pdf.savefig()
-            plt.close()
+                    # Add value labels on bars
+                    for bar in bars:
+                        height = bar.get_height()
+                        ax_framework.text(bar.get_x() + bar.get_width()/2., height+0.1,
+                                         f'{height:d}', ha='center', fontsize=10)
+                    
+                    ax_framework.spines['top'].set_visible(False)
+                    ax_framework.spines['right'].set_visible(False)
+                    plt.setp(ax_framework.get_xticklabels(), rotation=30, ha='right')
+                
+                # Themes by confidence chart
+                ax_confidence = plt.subplot(gs[2, :])
+                if 'Confidence' in results_df.columns and 'Theme' in results_df.columns:
+                    # Prepare data for stacked bar chart
+                    theme_conf_data = pd.crosstab(results_df['Theme'], results_df['Confidence'])
+                    
+                    # Select top themes by total count
+                    top_themes = theme_conf_data.sum(axis=1).sort_values(ascending=False).head(10).index
+                    theme_conf_data = theme_conf_data.loc[top_themes]
+                    
+                    # Plot stacked bar chart
+                    confidence_colors = {'High': '#4CAF50', 'Medium': '#FFC107', 'Low': '#F44336'}
+                    
+                    # Get confidence levels present in the data
+                    confidence_levels = list(theme_conf_data.columns)
+                    colors = [confidence_colors.get(level, '#999999') for level in confidence_levels]
+                    
+                    theme_conf_data.plot(kind='barh', stacked=True, ax=ax_confidence, 
+                                         color=colors, figsize=(10, 6))
+                    
+                    ax_confidence.set_title('Top Themes by Confidence Level', fontsize=14)
+                    ax_confidence.set_xlabel('Number of Documents')
+                    ax_confidence.set_ylabel('Theme')
+                    
+                    # Create custom legend
+                    patches = [Patch(color=confidence_colors.get(level, '#999999'), label=level) 
+                              for level in confidence_levels]
+                    ax_confidence.legend(handles=patches, title='Confidence', loc='upper right')
+                    
+                    ax_confidence.spines['top'].set_visible(False)
+                    ax_confidence.spines['right'].set_visible(False)
+                else:
+                    ax_confidence.axis('off')
+                    ax_confidence.text(0.5, 0.5, "Confidence data not available",
+                                      fontsize=14, ha='center', va='center')
+                
+                plt.tight_layout()
+                pdf.savefig(fig, bbox_inches='tight')
+                plt.close(fig)
             
-            # Note about HTML
-            plt.figure(figsize=(12, 8))
-            plt.text(0.5, 0.5, 
-                     "For better visualization with highlighted text,\nplease refer to the HTML version.",
-                     fontsize=14, ha='center', va='center')
-            plt.axis('off')
-            pdf.savefig()
-            plt.close()
+            # Framework-specific pages
+            for framework_name in self.frameworks.keys():
+                # Filter results for this framework
+                framework_results = results_df[results_df['Framework'] == framework_name]
+                
+                if not framework_results.empty:
+                    # Create a new page for the framework
+                    fig = plt.figure(figsize=(12, 10))
+                    
+                    # Title
+                    plt.suptitle(f"{framework_name} Framework Analysis", 
+                                fontsize=20, y=0.95, weight='bold')
+                    
+                    # Theme counts
+                    theme_counts = framework_results['Theme'].value_counts().head(15)
+                    
+                    if not theme_counts.empty:
+                        plt.subplot(111)
+                        bars = plt.barh(theme_counts.index[::-1], theme_counts.values[::-1], 
+                                       color='#5975A4', alpha=0.8)
+                        
+                        # Add value labels
+                        for i, bar in enumerate(bars):
+                            width = bar.get_width()
+                            plt.text(width + 0.3, bar.get_y() + bar.get_height()/2,
+                                    f'{width:d}', va='center', fontsize=10)
+                        
+                        plt.xlabel('Number of Documents')
+                        plt.ylabel('Theme')
+                        plt.title(f'Top Themes in {framework_name}', pad=20)
+                        plt.grid(axis='x', linestyle='--', alpha=0.7)
+                        plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust for suptitle
+                    
+                    pdf.savefig(fig, bbox_inches='tight')
+                    plt.close(fig)
+            
+            # Sample highlighted documents (text descriptions only)
+            if highlighted_texts:
+                # Create document summaries page
+                fig = plt.figure(figsize=(12, 10))
+                plt.suptitle("Document Analysis Summaries", fontsize=20, y=0.95, weight='bold')
+                
+                # We'll show summaries of a few documents
+                max_docs_to_show = min(3, len(highlighted_texts))
+                docs_to_show = list(highlighted_texts.keys())[:max_docs_to_show]
+                
+                # Get theme counts for each document
+                doc_summaries = []
+                for doc_id in docs_to_show:
+                    doc_themes = results_df[results_df['Record ID'] == doc_id]
+                    theme_count = len(doc_themes)
+                    frameworks = doc_themes['Framework'].unique()
+                    doc_summaries.append({
+                        'doc_id': doc_id,
+                        'theme_count': theme_count,
+                        'frameworks': ', '.join(frameworks)
+                    })
+                
+                # Format as a table-like display
+                plt.axis('off')
+                table_text = "Document Analysis Summaries:\n\n"
+                for i, summary in enumerate(doc_summaries):
+                    doc_id = summary['doc_id']
+                    table_text += f"Document {i+1} (ID: {doc_id}):\n"
+                    table_text += f"  • Identified Themes: {summary['theme_count']}\n"
+                    table_text += f"  • Frameworks: {summary['frameworks']}\n\n"
+                
+                plt.text(0.1, 0.8, table_text, fontsize=12, va='top', linespacing=1.5)
+                
+                # Also add a note about the full HTML version
+                note_text = (
+                    "Note: A detailed HTML report with highlighted text excerpts has been\n"
+                    "created alongside this PDF. The HTML version provides interactive\n"
+                    "highlighting of theme-related sentences in each document."
+                )
+                plt.text(0.1, 0.3, note_text, fontsize=12, va='top', 
+                        linespacing=1.5, style='italic', bbox=dict(
+                            facecolor='#F0F0F0', edgecolor='#CCCCCC', 
+                            boxstyle='round,pad=0.5'))
+                
+                pdf.savefig(fig, bbox_inches='tight')
+                plt.close(fig)
         
+        # Copy the temp file to the desired output filename
+        import shutil
+        shutil.copy2(temp_pdf_path, output_filename)
+        
+        # Clean up temp file
+        try:
+            os.unlink(temp_pdf_path)
+        except:
+            pass
+            
         return output_filename
+   
+
 
     def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
         """
