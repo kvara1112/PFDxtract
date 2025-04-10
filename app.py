@@ -53,32 +53,6 @@ import re
 from collections import Counter
 from tqdm import tqdm
 
-def get_bert_embedding(texts, max_length=512):
-    try:
-        # Try to load model with fallback to offline mode
-        tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased", 
-                                                local_files_only=False,
-                                                cache_dir="./model_cache")
-        model = AutoModel.from_pretrained("bert-base-uncased", 
-                                        local_files_only=False,
-                                        cache_dir="./model_cache")
-        
-        # Process the texts and return embeddings
-        st.success("BERT model loaded successfully")
-        # Your existing BERT processing code here
-        
-    except Exception as e:
-        st.error(f"Error during BERT analysis: {e}")
-        
-        # Fallback to simpler method if BERT fails
-        st.warning("Using TF-IDF as fallback for semantic analysis")
-        
-        # Simple TF-IDF fallback
-        vectorizer = TfidfVectorizer(max_features=768)  # Same dimensions as BERT
-        embeddings = vectorizer.fit_transform(texts).toarray()
-        
-        return embeddings
-        
 class ThemeAnalyzer:
     def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
         """Initialize the BERT-based theme analyzer with sentence highlighting capabilities"""
@@ -440,108 +414,6 @@ class ThemeAnalyzer:
 
         return "".join(result)
 
-    def create_detailed_results(self, data, content_column='Content'):
-        """
-        Analyze multiple documents and create detailed results with progress tracking.
-        
-        Args:
-            data (pd.DataFrame): DataFrame containing documents
-            content_column (str): Name of the column containing text to analyze
-            
-        Returns:
-            Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
-        """
-        import streamlit as st
-        
-        results = []
-        highlighted_texts = {}
-        
-        # Create progress tracking elements
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        doc_count_text = st.empty()
-        
-        # Calculate total documents to process
-        total_docs = len(data)
-        doc_count_text.text(f"Processing 0/{total_docs} documents")
-        
-        # Process each document
-        for idx, (i, row) in enumerate(data.iterrows()):
-            # Update progress
-            progress = (idx + 1) / total_docs
-            progress_bar.progress(progress)
-            status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
-            
-            # Skip empty content
-            if pd.isna(row[content_column]) or row[content_column] == '':
-                continue
-                
-            content = str(row[content_column])
-            
-            # Analyze themes and get highlights
-            framework_themes, theme_highlights = self.analyze_document(content)
-            
-            # Create highlighted HTML for this document
-            highlighted_html = self.create_highlighted_html(content, theme_highlights)
-            highlighted_texts[i] = highlighted_html
-            
-            # Store results for each theme
-            theme_count = 0
-            for framework_name, themes in framework_themes.items():
-                for theme in themes:
-                    theme_count += 1
-                    results.append({
-                        'Record ID': i,
-                        'Title': row.get('Title', f'Document {i}'),
-                        'Framework': framework_name,
-                        'Theme': theme['theme'],
-                        'Confidence': self._get_confidence_label(theme['combined_score']),
-                        'Combined Score': theme['combined_score'],
-                        'Semantic_Similarity': theme['semantic_similarity'],
-                        'Matched Keywords': theme['matched_keywords']
-                    })
-            
-            # Update documents processed count with theme info
-            doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
-        
-        # Clear progress indicators
-        progress_bar.empty()
-        status_text.empty()
-        
-        # Final count update
-        if results:
-            doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
-        else:
-            doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
-        
-        # Create results DataFrame
-        results_df = pd.DataFrame(results) if results else pd.DataFrame()
-        
-        return results_df, highlighted_texts
-    
-    
-    def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
-        """
-        Create a comprehensive PDF report with analysis results
-        
-        Args:
-            results_df (pd.DataFrame): Results DataFrame
-            highlighted_texts (Dict): Dictionary of highlighted texts
-            output_filename (str, optional): Output filename
-            
-        Returns:
-            str: Path to the created PDF file
-        """
-        import matplotlib.pyplot as plt
-        from matplotlib.backends.backend_pdf import PdfPages
-        from io import BytesIO
-        from datetime import datetime
-        
-        # Generate default filename if not provided
-        if output_filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_filename = f"theme_analysis_report_{timestamp}.pdf"
-    
     def _get_isirch_framework(self):
         """I-SIRCh framework themes mapped exactly to the official framework structure"""
         return [
@@ -794,6 +666,293 @@ class ThemeAnalyzer:
                         "transportation", "storage", "labeling", "amniocentesis", "blood sample"]}
         ]
 
+    # New methods to add
+    def _get_confidence_label(self, score):
+        """Convert numerical score to confidence label"""
+        if score >= 0.7:
+            return "High"
+        elif score >= 0.5:
+            return "Medium"
+        else:
+            return "Low"
+
+    def create_detailed_results(self, data, content_column='Content'):
+        """
+        Analyze multiple documents and create detailed results with progress tracking.
+        
+        Args:
+            data (pd.DataFrame): DataFrame containing documents
+            content_column (str): Name of the column containing text to analyze
+            
+        Returns:
+            Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
+        """
+        import streamlit as st
+        
+        results = []
+        highlighted_texts = {}
+        
+        # Create progress tracking elements
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        doc_count_text = st.empty()
+        
+        # Calculate total documents to process
+        total_docs = len(data)
+        doc_count_text.text(f"Processing 0/{total_docs} documents")
+        
+        # Process each document
+        for idx, (i, row) in enumerate(data.iterrows()):
+            # Update progress
+            progress = (idx + 1) / total_docs
+            progress_bar.progress(progress)
+            status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
+            
+            # Skip empty content
+            if pd.isna(row[content_column]) or row[content_column] == '':
+                continue
+                
+            content = str(row[content_column])
+            
+            # Analyze themes and get highlights
+            framework_themes, theme_highlights = self.analyze_document(content)
+            
+            # Create highlighted HTML for this document
+            highlighted_html = self.create_highlighted_html(content, theme_highlights)
+            highlighted_texts[i] = highlighted_html
+            
+            # Store results for each theme
+            theme_count = 0
+            for framework_name, themes in framework_themes.items():
+                for theme in themes:
+                    theme_count += 1
+                    results.append({
+                        'Record ID': i,
+                        'Title': row.get('Title', f'Document {i}'),
+                        'Framework': framework_name,
+                        'Theme': theme['theme'],
+                        'Confidence': self._get_confidence_label(theme['combined_score']),
+                        'Combined Score': theme['combined_score'],
+                        'Semantic_Similarity': theme['semantic_similarity'],
+                        'Matched Keywords': theme['matched_keywords']
+                    })
+            
+            # Update documents processed count with theme info
+            doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
+        
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        
+        # Final count update
+        if results:
+            doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
+        else:
+            doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
+        
+        # Create results DataFrame
+        results_df = pd.DataFrame(results) if results else pd.DataFrame()
+        
+        return results_df, highlighted_texts
+
+    def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
+        """
+        Create a comprehensive PDF report with analysis results
+        
+        Args:
+            results_df (pd.DataFrame): Results DataFrame
+            highlighted_texts (Dict): Dictionary of highlighted texts
+            output_filename (str, optional): Output filename
+            
+        Returns:
+            str: Path to the created PDF file
+        """
+        import matplotlib.pyplot as plt
+        from matplotlib.backends.backend_pdf import PdfPages
+        from datetime import datetime
+        import os
+        
+        # Generate default filename if not provided
+        if output_filename is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_filename = f"theme_analysis_report_{timestamp}.pdf"
+        
+        # Create HTML content for the PDF
+        html_content = self._create_integrated_html_for_pdf(results_df, highlighted_texts)
+        
+        # Save HTML file
+        html_filename = output_filename.replace('.pdf', '.html')
+        with open(html_filename, "w", encoding="utf-8") as f:
+            f.write(html_content)
+        
+        # Create basic PDF with matplotlib as a fallback
+        with PdfPages(output_filename) as pdf:
+            # Title page
+            plt.figure(figsize=(12, 8))
+            plt.text(0.5, 0.5, "Theme Analysis Report", 
+                     fontsize=24, ha='center', va='center')
+            plt.text(0.5, 0.4, f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                     fontsize=14, ha='center', va='center')
+            plt.axis('off')
+            pdf.savefig()
+            plt.close()
+            
+            # Summary statistics
+            plt.figure(figsize=(12, 8))
+            plt.text(0.5, 0.95, "Analysis Summary", fontsize=20, ha='center', va='center')
+            
+            # Document count
+            doc_count = len(highlighted_texts)
+            plt.text(0.1, 0.85, f"Total Documents Analyzed: {doc_count}", fontsize=14)
+            
+            # Theme count
+            if not results_df.empty:
+                theme_count = len(results_df)
+                plt.text(0.1, 0.8, f"Total Theme Predictions: {theme_count}", fontsize=14)
+                
+                # Framework distribution
+                plt.text(0.1, 0.7, "Framework Distribution:", fontsize=14)
+                y_pos = 0.65
+                for framework, count in results_df['Framework'].value_counts().items():
+                    plt.text(0.15, y_pos, f"{framework}: {count} themes", fontsize=12)
+                    y_pos -= 0.05
+                    
+            plt.axis('off')
+            pdf.savefig()
+            plt.close()
+            
+            # Note about HTML
+            plt.figure(figsize=(12, 8))
+            plt.text(0.5, 0.5, 
+                     "For better visualization with highlighted text,\nplease refer to the HTML version.",
+                     fontsize=14, ha='center', va='center')
+            plt.axis('off')
+            pdf.savefig()
+            plt.close()
+        
+        return output_filename
+
+    def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
+        """
+        Create a single integrated HTML file with all highlighted records, themes, and framework information
+        that can be easily converted to PDF
+        """
+        from collections import defaultdict
+        
+        # Map report IDs to their themes
+        report_themes = defaultdict(list)
+        
+        # Organize the results by report ID
+        for _, row in results_df.iterrows():
+            if 'Record ID' in row and 'Theme' in row and 'Framework' in row:
+                record_id = row['Record ID']
+                framework = row['Framework']
+                theme = row['Theme']
+                confidence = row.get('Confidence', '')
+                score = row.get('Combined Score', 0)
+                matched_keywords = row.get('Matched Keywords', '')
+                
+                report_themes[record_id].append({
+                    'framework': framework,
+                    'theme': theme,
+                    'confidence': confidence,
+                    'score': score,
+                    'keywords': matched_keywords
+                })
+        
+        # Create HTML content
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Highlighted Text Analysis with Themes</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }
+                h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 5px; }
+                h2 { color: #444; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
+                .record-container { margin-bottom: 40px; page-break-after: always; }
+                .highlighted-text { margin: 15px 0; padding: 15px; border: 1px solid #ddd; background-color: #fff; }
+                .theme-info { margin: 15px 0; }
+                .theme-info table { border-collapse: collapse; width: 100%; }
+                .theme-info th, .theme-info td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                .theme-info th { background-color: #f2f2f2; }
+                .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
+                .high-confidence { background-color: #C6EFCE; }
+                .medium-confidence { background-color: #FFEB9C; }
+                .low-confidence { background-color: #FFC7CE; }
+                @media print {
+                    .record-container { page-break-after: always; }
+                    body { font-size: 12px; }
+                    h1 { font-size: 18px; }
+                    h2 { font-size: 16px; }
+                }
+            </style>
+        </head>
+        <body>
+            <h1>BERT Analysis Results with Highlighted Text</h1>
+        """
+        
+        # Add each record with its themes and highlighted text
+        for record_id, themes in report_themes.items():
+            if record_id in highlighted_texts:
+                html_content += f"""
+                <div class="record-container">
+                    <h2>Record {record_id}</h2>
+                    
+                    <div class="theme-info">
+                        <h3>Identified Themes</h3>
+                        <table>
+                            <tr>
+                                <th>Framework</th>
+                                <th>Theme</th>
+                                <th>Confidence</th>
+                                <th>Score</th>
+                                <th>Matched Keywords</th>
+                            </tr>
+                """
+                
+                # Add theme rows
+                for theme_info in sorted(themes, key=lambda x: (x['framework'], -x.get('score', 0))):
+                    confidence_class = ''
+                    if theme_info.get('confidence') == 'High':
+                        confidence_class = 'high-confidence'
+                    elif theme_info.get('confidence') == 'Medium':
+                        confidence_class = 'medium-confidence'
+                    elif theme_info.get('confidence') == 'Low':
+                        confidence_class = 'low-confidence'
+                    
+                    html_content += f"""
+                            <tr>
+                                <td>{theme_info['framework']}</td>
+                                <td>{theme_info['theme']}</td>
+                                <td class="{confidence_class}">{theme_info.get('confidence', '')}</td>
+                                <td>{round(theme_info.get('score', 0), 3)}</td>
+                                <td>{theme_info.get('keywords', '')}</td>
+                            </tr>
+                    """
+                
+                html_content += """
+                        </table>
+                    </div>
+                    
+                    <div class="highlighted-text">
+                        <h3>Text with Highlighted Keywords</h3>
+                """
+                
+                # Add highlighted text
+                html_content += highlighted_texts[record_id]
+                
+                html_content += """
+                    </div>
+                </div>
+                """
+        
+        html_content += """
+        </body>
+        </html>
+        """
+        
+        return html_content
 
 
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
