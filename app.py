@@ -45,34 +45,650 @@ from sklearn.base import BaseEstimator, TransformerMixin
 import scipy.sparse as sp
 from typing import Union
 from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
+from transformers import AutoTokenizer, AutoModel
+import torch
+import numpy as np
+from sklearn.metrics.pairwise import cosine_similarity
+import re
+from collections import Counter
+from tqdm import tqdm
 
 
-# Add these imports at the top with your other imports
-def check_password():
-    """Returns `True` if the user had the correct password."""
-    def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        if st.session_state["password"] == st.secrets["password"]:
-            st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Don't store password
-        else:
-            st.session_state["password_correct"] = False
-
-    # First run or password not correct
-    if "password_correct" not in st.session_state:
-        # Show input for password
-        st.text_input(
-            "Please enter the password",
-            type="password",
-            key="password",
-            on_change=password_entered
-        )
-        return False
-
-    # Password correct
-    elif st.session_state["password_correct"]:
-        return True
+def check_bert_password():
+    """Returns `True` if the user had the correct password for BERT Analysis."""
+    if "bert_password_correct" not in st.session_state:
+        # Create a separate password for BERT section
+        st.session_state["bert_password_correct"] = False
         
+        password = st.text_input(
+            "Please enter the password for BERT Analysis",
+            type="password",
+            key="bert_password"
+        )
+        
+        if st.button("Submit Password"):
+            if password == st.secrets.get("bert_password", "your_default_password_here"):
+                st.session_state["bert_password_correct"] = True
+                return True
+            else:
+                st.error("Incorrect password")
+                return False
+        return False
+    return st.session_state["bert_password_correct"]
+
+class ThemeAnalyzer:
+    def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
+        """Initialize the BERT-based theme analyzer with sentence highlighting capabilities"""
+        # Initialize transformer model and tokenizer
+        st.info("Loading BERT model and tokenizer... This may take a moment.")
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name)
+
+        # Configuration settings
+        self.config = {
+            'base_similarity_threshold': 0.65,
+            'keyword_match_weight': 0.3,
+            'semantic_similarity_weight': 0.7,
+            'max_themes_per_framework': 5,
+            'context_window_size': 200,
+        }
+
+        # Initialize frameworks with themes
+        self.frameworks = {
+            'I-SIRch': self._get_isirch_framework(),
+            'House of Commons': self._get_house_of_commons_themes(),
+            'Extended Analysis': self._get_extended_themes()
+        }
+
+        # Color mapping for themes
+        self.theme_color_map = {}
+        self.theme_colors = [
+            '#FFD580',  # Light orange
+            '#FFECB3',  # Light amber
+            '#E1F5FE',  # Light blue
+            '#E8F5E9',  # Light green
+            '#F3E5F5',  # Light purple
+            '#FFF3E0',  # Light orange
+            '#E0F7FA',  # Light cyan
+            '#F1F8E9',  # Light lime
+            '#FFF8E1',  # Light yellow
+            '#E8EAF6',  # Light indigo
+            '#FCE4EC',  # Light pink
+            '#F5F5DC',  # Beige
+            '#E6E6FA',  # Lavender
+            '#FFFACD',  # Lemon chiffon
+            '#D1E7DD',  # Mint
+            '#F8D7DA',  # Light red
+            '#D1ECF1',  # Teal light
+            '#FFF3CD',  # Light yellow
+            '#D6D8D9',  # Light gray
+            '#CFF4FC',  # Info light
+        ]
+
+        # Pre-assign colors to frameworks
+        self._preassign_framework_colors()
+
+    def _preassign_framework_colors(self):
+        """Preassign colors to each framework for consistent coloring"""
+        # Create a dictionary to track colors used for each framework
+        framework_colors = {}
+
+        # Assign colors to each theme in each framework
+        for framework, themes in self.frameworks.items():
+            for i, theme in enumerate(themes):
+                theme_key = f"{framework}_{theme['name']}"
+                # Assign color from the theme_colors list, cycling if needed
+                color_idx = i % len(self.theme_colors)
+                self.theme_color_map[theme_key] = self.theme_colors[color_idx]
+
+    def get_bert_embedding(self, text, max_length=512):
+        """Generate BERT embedding for text"""
+        if not isinstance(text, str) or not text.strip():
+            return np.zeros(768)
+
+        # Tokenize with truncation
+        inputs = self.tokenizer(
+            text,
+            return_tensors="pt",
+            truncation=True,
+            max_length=max_length,
+            padding=True
+        )
+
+        # Get embeddings
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+
+        # Use CLS token for sentence representation
+        return outputs.last_hidden_state[:, 0, :].squeeze().numpy()
+
+    def _get_contextual_embedding(self, text, keyword, window_size=100):
+        """Get embedding for text surrounding the keyword occurrence"""
+        if not isinstance(text, str) or not text.strip() or keyword not in text.lower():
+            return self.get_bert_embedding(keyword)
+
+        text_lower = text.lower()
+        position = text_lower.find(keyword.lower())
+
+        # Get context window
+        start = max(0, position - window_size)
+        end = min(len(text), position + len(keyword) + window_size)
+
+        # Get contextual text
+        context = text[start:end]
+        return self.get_bert_embedding(context)
+
+    def _calculate_combined_score(self, semantic_similarity, keyword_count, text_length):
+        """Calculate combined score that balances semantic similarity and keyword presence"""
+        # Normalize keyword count by text length
+        normalized_keyword_density = min(1.0, keyword_count / (text_length / 1000))
+
+        # Weighted combination
+        keyword_component = normalized_keyword_density * self.config['keyword_match_weight']
+        semantic_component = semantic_similarity * self.config['semantic_similarity_weight']
+
+        return keyword_component + semantic_component
+
+    def _find_sentence_positions(self, text, keywords):
+        """Find sentences containing keywords and return their positions"""
+        if not isinstance(text, str) or not text.strip():
+            return []
+
+        # Split text into sentences
+        sentence_endings = r'(?<=[.!?])\s+(?=[A-Z])'
+        sentences = re.split(sentence_endings, text)
+
+        # Track character positions and matched sentences
+        positions = []
+        current_pos = 0
+
+        for sentence in sentences:
+            if not sentence.strip():
+                current_pos += len(sentence)
+                continue
+
+            # Check if any keyword is in this sentence
+            sentence_lower = sentence.lower()
+            matched_keywords = []
+
+            for keyword in keywords:
+                if keyword and len(keyword) >= 3 and keyword.lower() in sentence_lower:
+                    # Check if it's a whole word using word boundaries
+                    keyword_lower = keyword.lower()
+                    pattern = r'\b' + re.escape(keyword_lower) + r'\b'
+                    if re.search(pattern, sentence_lower):
+                        matched_keywords.append(keyword)
+
+            # If sentence contains any keywords, add to positions
+            if matched_keywords:
+                start_pos = current_pos
+                end_pos = current_pos + len(sentence)
+                # Join all matched keywords
+                keywords_str = ", ".join(matched_keywords)
+                positions.append((start_pos, end_pos, keywords_str, sentence))
+
+            # Move to next position
+            current_pos += len(sentence)
+
+            # Account for sentence ending characters and whitespace
+            if current_pos < len(text) and text[current_pos-1] in '.!?':
+                # Check for any whitespace after sentence ending
+                space_count = 0
+                while current_pos + space_count < len(text) and text[current_pos + space_count].isspace():
+                    space_count += 1
+                current_pos += space_count
+
+        return sorted(positions)
+
+    def _get_theme_color(self, theme_key):
+        """Get a consistent color for a specific theme"""
+        # If this theme already has an assigned color, use it
+        if theme_key in self.theme_color_map:
+            return self.theme_color_map[theme_key]
+
+        # Extract framework and theme from the theme_key (format: "framework_theme")
+        parts = theme_key.split('_', 1)
+        framework = parts[0] if len(parts) > 0 else "unknown"
+
+        # Count existing colors for this framework
+        framework_count = sum(1 for existing_key in self.theme_color_map
+                           if existing_key.startswith(framework + '_'))
+
+        # Assign the next available color from our palette
+        color_idx = framework_count % len(self.theme_colors)
+        assigned_color = self.theme_colors[color_idx]
+
+        # Store the assignment for future consistency
+        self.theme_color_map[theme_key] = assigned_color
+        return assigned_color
+
+    def analyze_document(self, text):
+        """Analyze document text for themes and highlight sentences containing theme keywords"""
+        if not isinstance(text, str) or not text.strip():
+            return {}, {}
+
+        # Get full document embedding
+        document_embedding = self.get_bert_embedding(text)
+        text_length = len(text.split())
+
+        framework_themes = {}
+        theme_highlights = {}
+
+        for framework_name, framework_theme_list in self.frameworks.items():
+            # Track keyword matches across the entire document
+            all_keyword_matches = []
+
+            # First pass: identify all keyword matches and their contexts
+            theme_matches = []
+            for theme in framework_theme_list:
+                # Find all sentence positions containing any matching keywords
+                sentence_positions = self._find_sentence_positions(text, theme['keywords'])
+
+                # Extract keywords from sentence positions
+                keyword_matches = []
+                match_contexts = []
+
+                for _, _, keywords_str, _ in sentence_positions:
+                    for keyword in keywords_str.split(", "):
+                        if keyword not in keyword_matches:
+                            keyword_matches.append(keyword)
+
+                            # Get contextual embeddings for each keyword occurrence
+                            context_embedding = self._get_contextual_embedding(
+                                text, keyword, self.config['context_window_size']
+                            )
+                            match_contexts.append(context_embedding)
+
+                # Calculate semantic similarity with theme description
+                theme_description = theme['name'] + ": " + ", ".join(theme['keywords'])
+                theme_embedding = self.get_bert_embedding(theme_description)
+                theme_doc_similarity = cosine_similarity([document_embedding], [theme_embedding])[0][0]
+
+                # Calculate context similarities if available
+                context_similarities = []
+                if match_contexts:
+                    for context_emb in match_contexts:
+                        sim = cosine_similarity([context_emb], [theme_embedding])[0][0]
+                        context_similarities.append(sim)
+
+                # Use max context similarity if available, otherwise use document similarity
+                max_context_similarity = max(context_similarities) if context_similarities else 0
+                semantic_similarity = max(theme_doc_similarity, max_context_similarity)
+
+                # Calculate combined score
+                combined_score = self._calculate_combined_score(
+                    semantic_similarity,
+                    len(keyword_matches),
+                    text_length
+                )
+
+                if keyword_matches and combined_score >= self.config['base_similarity_threshold']:
+                    theme_matches.append({
+                        'theme': theme['name'],
+                        'semantic_similarity': round(semantic_similarity, 3),
+                        'combined_score': round(combined_score, 3),
+                        'matched_keywords': ', '.join(keyword_matches),
+                        'keyword_count': len(keyword_matches),
+                        'sentence_positions': sentence_positions  # Store sentence positions for highlighting
+                    })
+
+                    all_keyword_matches.extend(keyword_matches)
+
+            # Sort by combined score
+            theme_matches.sort(key=lambda x: x['combined_score'], reverse=True)
+
+            # Limit number of themes
+            top_theme_matches = theme_matches[:self.config['max_themes_per_framework']]
+
+            # Store theme matches and their highlighting info
+            if top_theme_matches:
+                # Count keywords to identify potential overlaps
+                keyword_counter = Counter(all_keyword_matches)
+
+                # Filter out themes with high keyword overlap and lower scores
+                final_themes = []
+                used_keywords = set()
+
+                for theme_match in top_theme_matches:
+                    # Check if this theme adds unique keywords
+                    theme_keywords = set(theme_match['matched_keywords'].split(', '))
+                    unique_keywords = theme_keywords - used_keywords
+
+                    # If theme adds unique keywords or has high score, include it
+                    if unique_keywords or theme_match['combined_score'] > 0.75:
+                        # Store the theme data
+                        theme_match_data = {
+                            'theme': theme_match['theme'],
+                            'semantic_similarity': theme_match['semantic_similarity'],
+                            'combined_score': theme_match['combined_score'],
+                            'matched_keywords': theme_match['matched_keywords'],
+                            'keyword_count': theme_match['keyword_count']
+                        }
+                        final_themes.append(theme_match_data)
+
+                        # Store the highlighting positions separately
+                        theme_key = f"{framework_name}_{theme_match['theme']}"
+                        theme_highlights[theme_key] = theme_match['sentence_positions']
+
+                        used_keywords.update(theme_keywords)
+
+                framework_themes[framework_name] = final_themes
+            else:
+                framework_themes[framework_name] = []
+
+        return framework_themes, theme_highlights
+
+    def create_highlighted_html(self, text, theme_highlights):
+        """Create HTML with sentences highlighted by theme"""
+        if not text or not theme_highlights:
+            return text
+
+        # Convert highlights to a flat list of positions
+        all_positions = []
+        for theme_key, positions in theme_highlights.items():
+            theme_color = self._get_theme_color(theme_key)
+            for pos_info in positions:
+                # position format: (start_pos, end_pos, keywords_str, sentence)
+                all_positions.append((pos_info[0], pos_info[1], theme_key, pos_info[2], pos_info[3], theme_color))
+
+        # Sort positions by start position
+        all_positions.sort()
+
+        # Merge overlapping sentences
+        merged_positions = []
+        if all_positions:
+            current = all_positions[0]
+            for i in range(1, len(all_positions)):
+                if all_positions[i][0] <= current[1]:  # Overlap
+                    # Extend current span and combine theme keys
+                    # For overlaps, create a blended highlight effect (use the first theme's color)
+                    current = (
+                        current[0],
+                        max(current[1], all_positions[i][1]),
+                        current[2] + " + " + all_positions[i][2],
+                        current[3] + " + " + all_positions[i][3],
+                        current[4],  # Keep the sentence
+                        current[5]   # Keep the first theme's color
+                    )
+                else:
+                    merged_positions.append(current)
+                    current = all_positions[i]
+            merged_positions.append(current)
+
+        # Create highlighted text
+        result = []
+        last_end = 0
+
+        for start, end, theme_key, keywords, sentence, color in merged_positions:
+            # Add text before this highlight
+            if start > last_end:
+                result.append(text[last_end:start])
+
+            # Add highlighted text with tooltip
+            style = f"background-color:{color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
+            tooltip = f"Theme: {theme_key}\nKeywords: {keywords}"
+            result.append(f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>')
+
+            last_end = end
+
+        # Add remaining text
+        if last_end < len(text):
+            result.append(text[last_end:])
+
+        return "".join(result)
+
+    def _get_isirch_framework(self):
+        """I-SIRCh framework themes mapped exactly to the official framework structure"""
+        return [
+            {"name": "External - Policy factor",
+            "keywords": ["policy factor", "policy", "factor"]},
+
+            {"name": "External - Societal factor",
+            "keywords": ["societal factor", "societal", "factor"]},
+
+            {"name": "External - Economic factor",
+            "keywords": ["economic factor", "economic", "factor"]},
+
+            {"name": "External - COVID ✓",
+            "keywords": ["covid ✓", "covid"]},
+
+            {"name": "External - Geographical factor (e.g. Location of patient)",
+            "keywords": ["geographical factor", "geographical", "factor", "location of patient"]},
+
+            {"name": "Internal - Physical layout and Environment",
+            "keywords": ["physical layout and environment", "physical", "layout", "environment"]},
+
+            {"name": "Internal - Acuity (e.g., capacity of the maternity unit as a whole)",
+            "keywords": ["acuity", "capacity of the maternity unit as a whole"]},
+
+            {"name": "Internal - Availability (e.g., operating theatres)",
+            "keywords": ["availability", "operating theatres"]},
+
+            {"name": "Internal - Time of day (e.g., night working or day of the week)",
+            "keywords": ["time of day", "time", "night working or day of the week"]},
+
+            {"name": "Organisation - Team culture factor (e.g., patient safety culture)",
+            "keywords": ["team culture factor", "team", "culture", "factor", "patient safety culture"]},
+
+            {"name": "Organisation - Incentive factor (e.g., performance evaluation)",
+            "keywords": ["incentive factor", "incentive", "factor", "performance evaluation"]},
+
+            {"name": "Organisation - Teamworking",
+            "keywords": ["teamworking"]},
+
+            {"name": "Organisation - Communication factor",
+            "keywords": ["communication factor", "communication", "factor"]},
+
+            {"name": "Organisation - Communication factor - Between staff",
+            "keywords": ["between staff", "between", "staff"]},
+
+            {"name": "Organisation - Communication factor - Between staff and patient (verbal)",
+            "keywords": ["between staff and patient", "between", "staff", "patient", "verbal"]},
+
+            {"name": "Organisation - Documentation",
+            "keywords": ["documentation"]},
+
+            {"name": "Organisation - Escalation/referral factor (including fresh eyes reviews)",
+            "keywords": ["escalation/referral factor", "escalation/referral", "factor", "including fresh eyes reviews",
+                        "specialist referral", "delay in escalation", "specialist review", "senior input",
+                        "interdisciplinary referral", "escalation delay", "consultant opinion"]},
+
+            {"name": "Organisation - National and/or local guidance",
+            "keywords": ["national and/or local guidance", "national", "and/or", "local", "guidance",
+                        "national screening", "screening program", "standard implementation",
+                        "standardized screening", "protocol adherence"]},
+
+            {"name": "Organisation - Language barrier",
+            "keywords": ["language barrier", "language", "barrier"]},
+
+            {"name": "Jobs/Task - Assessment, investigation, testing, screening (e.g., holistic review)",
+            "keywords": ["assessment, investigation, testing, screening", "assessment,", "investigation,", "testing,",
+                        "screening", "holistic review", "specimen", "sample", "laboratory", "test result",
+                        "abnormal finding", "test interpretation"]},
+
+            {"name": "Jobs/Task - Care planning",
+            "keywords": ["care planning", "care", "planning"]},
+
+            {"name": "Jobs/Task - Dispensing, administering",
+            "keywords": ["dispensing, administering", "dispensing,", "administering"]},
+
+            {"name": "Jobs/Task - Monitoring",
+            "keywords": ["monitoring"]},
+
+            {"name": "Jobs/Task - Risk assessment",
+            "keywords": ["risk assessment", "risk", "assessment"]},
+
+            {"name": "Jobs/Task - Situation awareness (e.g., loss of helicopter view)",
+            "keywords": ["situation awareness", "situation", "awareness", "loss of helicopter view"]},
+
+            {"name": "Jobs/Task - Obstetric review",
+            "keywords": ["obstetric review", "obstetric", "review"]},
+
+            {"name": "Technologies - Issues",
+            "keywords": ["issues"]},
+
+            {"name": "Technologies - Interpretation (e.g., CTG)",
+            "keywords": ["interpretation", "ctg"]},
+
+            {"name": "Person - Patient (characteristics and performance)",
+            "keywords": ["patient", "characteristics and performance"]},
+
+            {"name": "Person - Patient (characteristics and performance) - Characteristics",
+            "keywords": ["characteristics", "patient characteristics"]},
+
+            {"name": "Person - Patient (characteristics and performance) - Characteristics - Physical characteristics",
+            "keywords": ["physical characteristics", "physical", "characteristics"]},
+
+            {"name": "Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)",
+            "keywords": ["psychological characteristics", "psychological", "characteristics", "stress", "mental health"]},
+
+            {"name": "Person - Patient (characteristics and performance) - Characteristics - Language competence (English)",
+            "keywords": ["language competence", "language", "competence", "english"]},
+
+            {"name": "Person - Patient (characteristics and performance) - Characteristics - Disability (e.g., hearing problems)",
+            "keywords": ["disability", "hearing problems"]},
+
+            {"name": "Person - Patient (characteristics and performance) - Characteristics - Training and education (e.g., attendance at ante-natal classes)",
+            "keywords": ["training and education", "training", "education", "attendance at ante-natal classes"]},
+
+            {"name": "Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)",
+            "keywords": ["record of attendance", "record", "attendance", "failure to attend antenatal classes"]},
+
+            {"name": "Person - Patient (characteristics and performance) - Performance",
+            "keywords": ["performance", "patient performance"]},
+
+            {"name": "Person - Staff (characteristics and performance)",
+            "keywords": ["staff", "characteristics and performance"]},
+
+            {"name": "Person - Staff (characteristics and performance) - Characteristics",
+            "keywords": ["characteristics", "staff characteristics"]},
+
+            {"name": "Person - Staff (characteristics and performance) - Performance",
+            "keywords": ["performance", "staff performance"]}
+        ]
+
+    def _get_house_of_commons_themes(self):
+        """House of Commons themes mapped exactly to the official document"""
+        return [
+            {"name": "Communication",
+            "keywords": ["communication", "dismissed", "listened", "concerns not taken seriously", "concerns", "seriously"]},
+
+            {"name": "Fragmented care",
+            "keywords": ["fragmented care", "fragmented", "care", "spread", "poorly", "communicating", "providers", "no clear coordination", "clear", "coordination"]},
+
+            {"name": "Guidance gaps",
+            "keywords": ["guidance gaps", "guidance", "gaps", "information", "needs", "optimal", "minority"]},
+
+            {"name": "Pre-existing conditions and comorbidities",
+            "keywords": ["pre-existing conditions and comorbidities", "pre-existing", "conditions", "comorbidities", "overrepresented", "ethnic", "minority", "contribute", "higher", "mortality"]},
+
+            {"name": "Inadequate maternity care",
+            "keywords": ["inadequate maternity care", "inadequate", "maternity", "care", "individualized", "culturally", "sensitive"]},
+
+            {"name": "Care quality and access issues",
+            "keywords": ["microaggressions and racism", "microaggressions", "racism", "implicit/explicit", "impacts", "access", "treatment", "quality", "stereotyping"]},
+
+            {"name": "Socioeconomic factors and deprivation",
+            "keywords": ["socioeconomic factors and deprivation", "socioeconomic", "factors", "deprivation", "links to poor outcomes", "links", "outcomes", "minority", "overrepresented", "deprived", "areas"]},
+
+            {"name": "Biases and stereotyping",
+            "keywords": ["biases and stereotyping", "biases", "stereotyping", "perpetuation", "stereotypes", "providers"]},
+
+            {"name": "Consent/agency",
+            "keywords": ["consent/agency", "consent", "agency", "informed consent", "agency over care decisions", "informed", "decisions"]},
+
+            {"name": "Dignity/respect",
+            "keywords": ["dignity/respect", "dignity", "respect", "neglectful", "lacking", "discrimination faced", "discrimination", "faced"]}
+        ]
+
+    def _get_extended_themes(self):
+        """Extended Analysis themes with unique concepts not covered in I-SIRCh or House of Commons frameworks"""
+        return [
+            {"name": "Procedural and Process Failures",
+            "keywords": ["procedure failure", "process breakdown", "protocol breach", "standard violation", "workflow issue",
+                        "operational failure", "process gap", "procedural deviation", "system failure", "process error",
+                        "workflow disruption", "task failure"]},
+
+            {"name": "Medication safety",
+            "keywords": ["medication safety", "medication", "safety", "drug error", "prescription", "drug administration",
+                        "medication error", "adverse reaction", "medication reconciliation"]},
+
+            {"name": "Resource allocation",
+            "keywords": ["resource allocation", "resource", "allocation", "resource management", "resource constraints",
+                        "prioritisation", "resource distribution", "staffing levels", "staff shortage", "budget constraints"]},
+
+            {"name": "Facility and Equipment Issues",
+            "keywords": ["facility", "equipment", "maintenance", "infrastructure", "device failure", "equipment malfunction",
+                        "equipment availability", "technical failure", "equipment maintenance", "facility limitations"]},
+
+            {"name": "Emergency preparedness",
+            "keywords": ["emergency preparedness", "emergency protocol", "emergency response", "crisis management",
+                        "contingency planning", "disaster readiness", "emergency training", "rapid response"]},
+
+            {"name": "Staff Wellbeing and Burnout",
+            "keywords": ["burnout", "staff wellbeing", "resilience", "psychological safety", "stress management",
+                        "compassion fatigue", "work-life balance", "staff support", "mental health", "emotional burden"]},
+
+            {"name": "Ethical considerations",
+            "keywords": ["ethical dilemma", "ethical decision", "moral distress", "ethical conflict", "value conflict",
+                        "ethics committee", "moral judgment", "conscientious objection", "ethical framework"]},
+
+            {"name": "Diagnostic process",
+            "keywords": ["diagnostic error", "misdiagnosis", "delayed diagnosis", "diagnostic uncertainty", "diagnostic reasoning",
+                        "differential diagnosis", "diagnostic testing", "diagnostic accuracy", "test interpretation"]},
+
+            {"name": "Post-Event Learning and Improvement",
+            "keywords": ["incident learning", "corrective action", "improvement plan", "feedback loop", "lessons learned",
+                        "action tracking", "improvement verification", "learning culture", "incident review",
+                        "recommendation implementation", "systemic improvement", "organisational learning"]},
+
+            {"name": "Electronic Health Record Issues",
+            "keywords": ["electronic health record", "ehr issue", "alert fatigue", "interface design", "copy-paste error",
+                        "dropdown selection", "clinical decision support", "digital documentation", "system integration",
+                        "information retrieval", "data entry error", "electronic alert"]},
+
+            {"name": "Time-Critical Interventions",
+            "keywords": ["time-critical", "delayed intervention", "response time", "golden hour", "deterioration recognition",
+                        "rapid response", "timely treatment", "intervention delay", "time sensitivity",
+                        "critical timing", "delayed recognition", "prompt action", "urgent intervention",
+                        "emergency response", "time-sensitive decision", "immediate action", "rapid assessment"]},
+
+            {"name": "Human Factors and Cognitive Aspects",
+            "keywords": ["cognitive bias", "situational awareness", "attention management", "visual perception",
+                        "cognitive overload", "decision heuristic", "tunnel vision", "confirmation bias",
+                        "fixation error", "anchoring bias", "memory limitation", "cognitive fatigue",
+                        "isolation decision-making", "clinical confidence", "professional authority",
+                        "hierarchical barriers", "professional autonomy"]},
+
+            {"name": "Service Design and Patient Flow",
+            "keywords": ["service design", "patient flow", "care pathway", "bottleneck", "patient journey",
+                        "waiting time", "system design", "process mapping", "patient transfer", "capacity planning",
+                        "workflow design", "service bottleneck"]},
+
+            {"name": "Maternal and Neonatal Risk Factors",
+            "keywords": ["maternal risk", "pregnancy complication", "obstetric risk", "neonatal risk", "fetal risk",
+                        "gestational diabetes", "preeclampsia", "placental issue", "maternal age", "parity",
+                        "previous cesarean", "multiple gestation", "fetal growth restriction", "prematurity",
+                        "congenital anomaly", "birth asphyxia", "maternal obesity", "maternal hypertension",
+                        "maternal infection", "obstetric hemorrhage", "maternal cardiac", "thromboembolism"]},
+
+            {"name": "Private vs. NHS Care Integration",
+            "keywords": ["private care", "private midwife", "private provider", "NHS interface", "care transition",
+                        "private-public interface", "independent provider", "private consultation",
+                        "private-NHS coordination", "privately arranged care", "independent midwife",
+                        "cross-system communication"]},
+
+            {"name": "Peer Support and Supervision",
+            "keywords": ["peer support", "collegial support", "professional isolation", "clinical supervision",
+                        "peer review", "case discussion", "professional feedback", "unsupported decision",
+                        "lack of collegiality", "professional network", "mentoring", "supervision"]},
+
+            {"name": "Diagnostic Testing and Specimen Handling",
+            "keywords": ["specimen", "sample", "test result", "laboratory", "analysis", "interpretation",
+                        "abnormal finding", "discolored", "contamination", "collection", "processing",
+                        "transportation", "storage", "labeling", "amniocentesis", "blood sample"]}
+        ]
+
 
 
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
@@ -3919,7 +4535,8 @@ def main():
         [
             "🔍 Scrape Reports",
             "📊 Analysis",
-            "📝 Topic Analysis & Summaries"
+            "📝 Topic Analysis & Summaries",
+            "🔬 BERT Analysis"  # New tab for BERT Analysis
         ],
         label_visibility="collapsed",
         horizontal=True,
@@ -3944,6 +4561,13 @@ def main():
             else:
                 render_topic_summary_tab(st.session_state.current_data)
         
+        elif current_tab == "🔬 BERT Analysis":
+    # Check password before showing BERT analysis
+            if check_bert_password():
+                render_bert_analysis_tab(st.session_state.current_data)
+            else:
+                st.warning("Please enter the correct password to access BERT Analysis.")
+
         # Sidebar data management
         with st.sidebar:
             st.header("Data Management")
