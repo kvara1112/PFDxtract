@@ -10,3 +10,5 @@ python3-lxml
 libjpeg-dev
 libpng-dev
 poppler-utils
+cmake
+libomp-dev
