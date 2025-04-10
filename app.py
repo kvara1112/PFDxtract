@@ -4602,15 +4602,42 @@ def check_bert_password():
     return False
 
 
-def render_bert_analysis_tab(data: pd.DataFrame):
-    """Render BERT Analysis tab with theme detection"""
+def render_bert_analysis_tab(data: pd.DataFrame = None):
+    """Render BERT Analysis tab with theme detection and file upload"""
     st.header("BERT-based Theme Analysis")
     
     # Check password before showing BERT analysis
     if check_bert_password():
-        # Continue with BERT analysis
+        # File upload section
+        st.subheader("Upload Data")
+        uploaded_file = st.file_uploader(
+            "Upload CSV or Excel file for BERT Analysis", 
+            type=['csv', 'xlsx'],
+            help="Upload a file with reports for theme analysis"
+        )
+        
+        # If a file is uploaded, process it
+        if uploaded_file is not None:
+            try:
+                if uploaded_file.name.endswith('.csv'):
+                    uploaded_data = pd.read_csv(uploaded_file)
+                else:
+                    uploaded_data = pd.read_excel(uploaded_file)
+                
+                # Process the uploaded data
+                uploaded_data = process_scraped_data(uploaded_data)
+                
+                # Update the data reference
+                data = uploaded_data
+                
+                st.success("File uploaded and processed successfully!")
+            except Exception as e:
+                st.error(f"Error uploading file: {str(e)}")
+                return
+        
+        # Check if data is available
         if data is None or len(data) == 0:
-            st.warning("No data available. Please scrape or upload data first.")
+            st.warning("No data available. Please upload a file or ensure existing data is loaded.")
             return
         
         st.markdown("""
@@ -4706,8 +4733,6 @@ def render_bert_analysis_tab(data: pd.DataFrame):
     elif st.session_state.get("password_error", False):
         # Only show error if a password was submitted and rejected
         st.error("Please enter the correct password to access BERT Analysis.")
-        
-    
 if __name__ == "__main__":
     try:
         main()
