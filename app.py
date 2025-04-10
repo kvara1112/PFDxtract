@@ -4627,7 +4627,120 @@ def check_bert_password():
     
     return False
 
-
+def create_detailed_results(self, data, content_column='Content'):
+    """
+    Analyze multiple documents and create detailed results.
+    
+    Args:
+        data (pd.DataFrame): DataFrame containing documents
+        content_column (str): Name of the column containing text to analyze
+        
+    Returns:
+        Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
+    """
+    results = []
+    highlighted_texts = {}
+    
+    # Process each document
+    for idx, row in data.iterrows():
+        # Skip empty content
+        if pd.isna(row[content_column]) or row[content_column] == '':
+            continue
+            
+        content = str(row[content_column])
+        
+        # Analyze themes and get highlights
+        framework_themes, theme_highlights = self.analyze_document(content)
+        
+        # Create highlighted HTML for this document
+        highlighted_html = self.create_highlighted_html(content, theme_highlights)
+        highlighted_texts[idx] = highlighted_html
+        
+        # Store results for each theme
+        for framework_name, themes in framework_themes.items():
+            for theme in themes:
+                results.append({
+                    'Document_ID': idx,
+                    'Title': row.get('Title', f'Document {idx}'),
+                    'Framework': framework_name,
+                    'Theme': theme['theme'],
+                    'Confidence': theme['combined_score'],
+                    'Semantic_Similarity': theme['semantic_similarity'],
+                    'Matched_Keywords': theme['matched_keywords']
+                })
+    
+    # Create results DataFrame
+    results_df = pd.DataFrame(results) if results else pd.DataFrame()
+    
+    return results_df, highlighted_texts
+def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
+    """
+    Create a comprehensive PDF report with analysis results
+    
+    Args:
+        results_df (pd.DataFrame): Results DataFrame
+        highlighted_texts (Dict): Dictionary of highlighted texts
+        output_filename (str, optional): Output filename
+        
+    Returns:
+        str: Path to the created PDF file
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.backends.backend_pdf import PdfPages
+    from io import BytesIO
+    from datetime import datetime
+    
+    # Generate default filename if not provided
+    if output_filename is None:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_filename = f"theme_analysis_report_{timestamp}.pdf"
+    
+    # Create PDF with matplotlib
+    with PdfPages(output_filename) as pdf:
+        # Title page
+        plt.figure(figsize=(12, 8))
+        plt.text(0.5, 0.5, "Theme Analysis Report", 
+                 fontsize=24, ha='center', va='center')
+        plt.text(0.5, 0.4, f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+                 fontsize=14, ha='center', va='center')
+        plt.axis('off')
+        pdf.savefig()
+        plt.close()
+        
+        # Summary statistics
+        plt.figure(figsize=(12, 8))
+        plt.text(0.5, 0.95, "Analysis Summary", fontsize=20, ha='center', va='center')
+        
+        # Document count
+        doc_count = len(highlighted_texts)
+        plt.text(0.1, 0.85, f"Total Documents Analyzed: {doc_count}", fontsize=14)
+        
+        # Theme count
+        if not results_df.empty:
+            theme_count = len(results_df)
+            plt.text(0.1, 0.8, f"Total Theme Predictions: {theme_count}", fontsize=14)
+            
+            # Framework distribution
+            plt.text(0.1, 0.7, "Framework Distribution:", fontsize=14)
+            y_pos = 0.65
+            for framework, count in results_df['Framework'].value_counts().items():
+                plt.text(0.15, y_pos, f"{framework}: {count} themes", fontsize=12)
+                y_pos -= 0.05
+                
+        plt.axis('off')
+        pdf.savefig()
+        plt.close()
+        
+        # Cannot directly include HTML in matplotlib, so just note that the highlights are available
+        plt.figure(figsize=(12, 8))
+        plt.text(0.5, 0.5, 
+                 "Highlighted texts are available in the web interface.\nThey cannot be directly included in this PDF.",
+                 fontsize=14, ha='center', va='center')
+        plt.axis('off')
+        pdf.savefig()
+        plt.close()
+    
+    return output_filename    
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Render BERT Analysis tab with theme detection, column selection, and multi-report analysis"""
     st.header("BERT-based Theme Analysis")
