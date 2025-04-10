@@ -4603,7 +4603,7 @@ def check_bert_password():
 
 
 def render_bert_analysis_tab(data: pd.DataFrame = None):
-    """Render BERT Analysis tab with theme detection and file upload"""
+    """Render BERT Analysis tab with theme detection, column selection, and multi-report analysis"""
     st.header("BERT-based Theme Analysis")
     
     # Check password before showing BERT analysis
@@ -4640,99 +4640,124 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             st.warning("No data available. Please upload a file or ensure existing data is loaded.")
             return
         
-        st.markdown("""
-        This analysis uses a Clinical BERT model to identify themes in the reports based on advanced 
-        semantic understanding. The model can identify themes from different frameworks and highlight 
-        relevant sentences in the documents.
-        """)
+        # Column selection for analysis
+        st.subheader("Select Analysis Column")
         
-        # Sample record selection
-        st.subheader("Select Document for Analysis")
+        # Find text columns (object/string type)
+        text_columns = data.select_dtypes(include=['object']).columns.tolist()
         
-        # Filter to just essential display columns
-        display_cols = ['Title', 'date_of_report']
-        if 'deceased_name' in data.columns:
-            display_cols.append('deceased_name')
+        # If no text columns found
+        if not text_columns:
+            st.error("No text columns found in the dataset.")
+            return
         
-        # Display selection dataframe with proper column config
-        selected_index = st.selectbox(
-            "Choose a document to analyze:",
-            options=list(range(len(data))),
-            format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})"
+        # Column selection with dropdown
+        content_column = st.selectbox(
+            "Choose the column to analyze:",
+            options=text_columns,
+            index=0,
+            help="Select the column containing the text you want to analyze"
         )
         
-        selected_doc = data.iloc[selected_index]
+        # Filtering options
+        st.subheader("Select Documents to Analyze")
         
-        # Display document details
-        st.subheader("Document Details")
-        details_col1, details_col2 = st.columns(2)
+        # Option to select all or specific records
+        analysis_type = st.radio(
+            "Analysis Type",
+            ["All Reports", "Selected Reports"],
+            horizontal=True
+        )
         
-        with details_col1:
-            st.markdown(f"**Title:** {selected_doc['Title']}")
-            if 'deceased_name' in selected_doc and pd.notna(selected_doc['deceased_name']):
-                st.markdown(f"**Deceased:** {selected_doc['deceased_name']}")
+        if analysis_type == "Selected Reports":
+            # Multi-select for reports
+            selected_indices = st.multiselect(
+                "Choose specific reports to analyze",
+                options=list(range(len(data))),
+                format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})"
+            )
+            selected_data = data.iloc[selected_indices] if selected_indices else None
+        else:
+            selected_data = data
         
-        with details_col2:
-            if 'date_of_report' in selected_doc and pd.notna(selected_doc['date_of_report']):
-                st.markdown(f"**Date:** {selected_doc['date_of_report'].strftime('%d/%m/%Y')}")
-            if 'coroner_area' in selected_doc and pd.notna(selected_doc['coroner_area']):
-                st.markdown(f"**Area:** {selected_doc['coroner_area']}")
+        # Highlighting color selection
+        st.subheader("Highlighting Preferences")
+        highlight_color = st.selectbox(
+            "Choose Highlight Color",
+            ["orange", "yellow", "lightblue", "lightgreen"],
+            index=0
+        )
         
-        # Get document content - combine main content and PDF contents
-        doc_content = selected_doc['Content']
-        
-        # Add PDF content if available
-        pdf_columns = [col for col in selected_doc.index if col.startswith('PDF_') and col.endswith('_Content')]
-        for pdf_col in pdf_columns:
-            if pd.notna(selected_doc[pdf_col]):
-                doc_content += "\n\n" + selected_doc[pdf_col]
-        
-        # Run BERT analysis
-        if st.button("Analyze Themes", type="primary"):
-            with st.spinner("Analyzing document themes with BERT model..."):
+        # Analysis button
+        if st.button("Run BERT Analysis", type="primary"):
+            with st.spinner("Performing BERT Theme Analysis..."):
                 try:
+                    # Validate data selection
+                    if selected_data is None or len(selected_data) == 0:
+                        st.warning("No documents selected for analysis.")
+                        return
+                    
                     # Initialize the theme analyzer
                     theme_analyzer = ThemeAnalyzer(model_name="emilyalsentzer/Bio_ClinicalBERT")
                     
-                    # Analyze the document
-                    framework_themes, theme_highlights = theme_analyzer.analyze_document(doc_content)
+                    # Set highlighting color
+                    theme_analyzer.config['highlight_color'] = highlight_color
                     
-                    # Create highlighted HTML
-                    highlighted_html = theme_analyzer.create_highlighted_html(doc_content, theme_highlights)
+                    # Perform analysis with highlighting
+                    results_df, highlighted_texts = theme_analyzer.create_detailed_results(
+                        selected_data,
+                        content_column=content_column
+                    )
                     
-                    # Display results
-                    st.subheader("Theme Analysis Results")
+                    # Create PDF with comprehensive results
+                    pdf_filename = theme_analyzer.create_comprehensive_pdf(results_df, highlighted_texts)
                     
-                    # Create tabs for different frameworks
-                    framework_tabs = st.tabs(list(framework_themes.keys()))
+                    # Display summary of results
+                    st.subheader("Analysis Summary")
+                    st.write(f"Total Records Analyzed: {len(selected_data)}")
+                    st.write(f"Total Theme Predictions: {len(results_df)}")
                     
-                    for i, (framework_name, themes) in enumerate(framework_themes.items()):
-                        with framework_tabs[i]:
-                            if themes:
-                                for theme in themes:
-                                    st.markdown(f"**Theme:** {theme['theme']}")
-                                    st.markdown(f"**Combined Score:** {theme['combined_score']}")
-                                    st.markdown(f"**Semantic Similarity:** {theme['semantic_similarity']}")
-                                    st.markdown(f"**Matching Keywords:** {theme['matched_keywords']}")
-                                    st.markdown("---")
-                            else:
-                                st.info(f"No themes from the {framework_name} framework detected in this document.")
+                    # Confidence distribution
+                    if 'Confidence' in results_df.columns:
+                        st.write("\nConfidence Distribution:")
+                        st.write(results_df['Confidence'].value_counts())
                     
-                    # Display highlighted text
-                    st.subheader("Highlighted Document")
-                    st.markdown("""
-                    The following document has been highlighted to show the detected themes.
-                    Hover over highlighted sections to see which themes they represent.
-                    """)
+                    # Framework distribution
+                    st.write("\nFramework Distribution:")
+                    st.write(results_df['Framework'].value_counts())
                     
-                    st.markdown(highlighted_html, unsafe_allow_html=True)
+                    # Download options
+                    col1, col2 = st.columns(2)
+                    
+                    with col1:
+                        # Excel download
+                        st.download_button(
+                            "📥 Download Excel Results",
+                            data=export_to_excel(results_df),
+                            file_name="bert_theme_analysis.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                        )
+                    
+                    with col2:
+                        # PDF download
+                        with open(pdf_filename, 'rb') as f:
+                            st.download_button(
+                                "📄 Download PDF Report",
+                                data=f.read(),
+                                file_name=os.path.basename(pdf_filename),
+                                mime="application/pdf"
+                            )
+                    
+                    # Highlighted text preview
+                    st.subheader("Sample Highlighted Text")
+                    if highlighted_texts:
+                        first_record_id = list(highlighted_texts.keys())[0]
+                        st.markdown(highlighted_texts[first_record_id], unsafe_allow_html=True)
                     
                 except Exception as e:
                     st.error(f"Error during BERT analysis: {str(e)}")
                     logging.error(f"BERT analysis error: {e}", exc_info=True)
-    elif st.session_state.get("password_error", False):
-        # Only show error if a password was submitted and rejected
-        st.error("Please enter the correct password to access BERT Analysis.")
+                    
 if __name__ == "__main__":
     try:
         main()
