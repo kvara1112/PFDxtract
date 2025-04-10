@@ -485,7 +485,7 @@ class ThemeAnalyzer:
         # Create results DataFrame
         results_df = pd.DataFrame(results) if results else pd.DataFrame()
     
-    return results_df, highlighted_texts
+        return results_df, highlighted_texts
     def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
         """
         Create a comprehensive PDF report with analysis results
