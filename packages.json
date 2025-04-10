@@ -10,5 +10,7 @@
     "poppler-utils",
     "cmake",
     "libomp-dev"
+    "poppler-utils",
+    "libjpeg-dev"
   ]
 }
