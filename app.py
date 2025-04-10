@@ -4556,13 +4556,12 @@ def main():
                     if key in st.session_state:
                         del st.session_state[key]
                 st.success("All data cleared")
-                st.rerun()
+                st.rerun()  # Use st.rerun() instead of experimental_rerun()
         
         render_footer()
         
     except Exception as e:
         handle_error(e)
-
 
 def check_bert_password():
     """Returns `True` if the user had the correct password for BERT Analysis."""
@@ -4590,7 +4589,7 @@ def check_bert_password():
         
         if password == correct_password:
             st.session_state["bert_password_correct"] = True
-            st.rerun()  # Force a rerun to update the UI
+            st.rerun()  # Use st.rerun() instead of experimental_rerun()
             return True
         else:
             st.error("Incorrect password. Please try again.")
