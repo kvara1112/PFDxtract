@@ -998,8 +998,6 @@ class ThemeAnalyzer:
             
         return output_filename
    
-
-
     def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
         """
         Create a single integrated HTML file with all highlighted records, themes, and framework information
@@ -1028,44 +1026,188 @@ class ThemeAnalyzer:
                     'keywords': matched_keywords
                 })
         
-        # Create HTML content
+        # Create HTML content with modern styling
         html_content = """
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Highlighted Text Analysis with Themes</title>
+            <title>BERT Theme Analysis Report</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
             <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; }
-                h1 { color: #333; border-bottom: 2px solid #333; padding-bottom: 5px; }
-                h2 { color: #444; margin-top: 30px; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
-                .record-container { margin-bottom: 40px; page-break-after: always; }
-                .highlighted-text { margin: 15px 0; padding: 15px; border: 1px solid #ddd; background-color: #fff; }
+                body { 
+                    font-family: Arial, sans-serif; 
+                    line-height: 1.6; 
+                    margin: 0;
+                    padding: 20px;
+                    color: #333;
+                    background-color: #f9f9f9;
+                }
+                h1 { 
+                    color: #2c3e50; 
+                    border-bottom: 3px solid #3498db; 
+                    padding-bottom: 10px; 
+                    margin-top: 30px;
+                    font-weight: 600;
+                }
+                h2 { 
+                    color: #2c3e50; 
+                    margin-top: 30px; 
+                    border-bottom: 2px solid #bdc3c7; 
+                    padding-bottom: 5px; 
+                    font-weight: 600;
+                }
+                h3 {
+                    color: #34495e;
+                    font-weight: 600;
+                    margin-top: 20px;
+                }
+                .record-container { 
+                    margin-bottom: 40px; 
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                    padding: 20px;
+                    page-break-after: always; 
+                }
+                .highlighted-text { 
+                    margin: 15px 0; 
+                    padding: 15px; 
+                    border-radius: 4px;
+                    border: 1px solid #ddd; 
+                    background-color: #fff; 
+                    line-height: 1.7;
+                }
                 .theme-info { margin: 15px 0; }
-                .theme-info table { border-collapse: collapse; width: 100%; }
-                .theme-info th, .theme-info td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                .theme-info th { background-color: #f2f2f2; }
+                .theme-info table { 
+                    border-collapse: collapse; 
+                    width: 100%; 
+                    margin-top: 15px;
+                    border-radius: 4px;
+                    overflow: hidden;
+                }
+                .theme-info th, .theme-info td { 
+                    border: 1px solid #ddd; 
+                    padding: 12px; 
+                    text-align: left; 
+                }
+                .theme-info th { 
+                    background-color: #3498db; 
+                    color: white;
+                    font-weight: 600;
+                }
                 .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
-                .high-confidence { background-color: #C6EFCE; }
-                .medium-confidence { background-color: #FFEB9C; }
-                .low-confidence { background-color: #FFC7CE; }
+                .theme-info tr:hover { background-color: #f1f1f1; }
+                .high-confidence { background-color: #D5F5E3; }  /* Light green */
+                .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
+                .low-confidence { background-color: #FADBD8; }   /* Light red */
+                .report-header {
+                    background-color: #3498db;
+                    color: white;
+                    padding: 30px;
+                    text-align: center;
+                    border-radius: 8px;
+                    margin-bottom: 30px;
+                }
+                .summary-card {
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                    padding: 20px;
+                    margin-bottom: 30px;
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: space-between;
+                }
+                .summary-box {
+                    flex: 1;
+                    min-width: 200px;
+                    padding: 15px;
+                    text-align: center;
+                    border-right: 1px solid #eee;
+                }
+                .summary-box:last-child {
+                    border-right: none;
+                }
+                .summary-number {
+                    font-size: 36px;
+                    font-weight: bold;
+                    color: #3498db;
+                    margin-bottom: 10px;
+                }
+                .summary-label {
+                    font-size: 14px;
+                    color: #7f8c8d;
+                    text-transform: uppercase;
+                }
                 @media print {
                     .record-container { page-break-after: always; }
-                    body { font-size: 12px; }
-                    h1 { font-size: 18px; }
-                    h2 { font-size: 16px; }
+                    body { background-color: white; }
+                    .record-container, .summary-card { box-shadow: none; }
                 }
             </style>
         </head>
         <body>
-            <h1>BERT Analysis Results with Highlighted Text</h1>
+            <div class="report-header">
+                <h1>BERT Theme Analysis Results</h1>
+                <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
+            </div>
+            
+            <div class="summary-card">
+                <div class="summary-box">
+                    <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
+                    <div class="summary-label">Documents Analyzed</div>
+                </div>
+                <div class="summary-box">
+                    <div class="summary-number">""" + str(len(results_df)) + """</div>
+                    <div class="summary-label">Theme Identifications</div>
+                </div>
+                <div class="summary-box">
+                    <div class="summary-number">""" + str(len(results_df['Framework'].unique())) + """</div>
+                    <div class="summary-label">Frameworks</div>
+                </div>
+            </div>
+        """
+        
+        # Add framework summary
+        html_content += """
+            <h2>Framework Summary</h2>
+            <table class="theme-info">
+                <tr>
+                    <th>Framework</th>
+                    <th>Number of Themes</th>
+                    <th>Number of Documents</th>
+                </tr>
+        """
+        
+        for framework in results_df['Framework'].unique():
+            framework_results = results_df[results_df['Framework'] == framework]
+            num_themes = len(framework_results['Theme'].unique())
+            num_docs = len(framework_results['Record ID'].unique())
+            
+            html_content += f"""
+                <tr>
+                    <td>{framework}</td>
+                    <td>{num_themes}</td>
+                    <td>{num_docs}</td>
+                </tr>
+            """
+        
+        html_content += """
+            </table>
         """
         
         # Add each record with its themes and highlighted text
+        html_content += "<h2>Document Analysis</h2>"
+        
         for record_id, themes in report_themes.items():
             if record_id in highlighted_texts:
+                record_title = next((row['Title'] for _, row in results_df.iterrows() 
+                                   if row.get('Record ID') == record_id), f"Document {record_id}")
+                
                 html_content += f"""
                 <div class="record-container">
-                    <h2>Record {record_id}</h2>
+                    <h2>Document: {record_title}</h2>
                     
                     <div class="theme-info">
                         <h3>Identified Themes</h3>
@@ -1122,6 +1264,7 @@ class ThemeAnalyzer:
         
         return html_content
 
+        
 
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
     """BM25 vectorizer implementation"""
@@ -5104,6 +5247,7 @@ def check_bert_password():
         plt.close()
     
     return output_filename    
+    
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Render BERT Analysis tab with theme detection, column selection, and multi-report analysis"""
     st.header("BERT-based Theme Analysis")
