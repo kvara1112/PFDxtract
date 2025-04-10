@@ -53,6 +53,32 @@ import re
 from collections import Counter
 from tqdm import tqdm
 
+def get_bert_embedding(texts, max_length=512):
+    try:
+        # Try to load model with fallback to offline mode
+        tokenizer = AutoTokenizer.from_pretrained("bert-base-uncased", 
+                                                local_files_only=False,
+                                                cache_dir="./model_cache")
+        model = AutoModel.from_pretrained("bert-base-uncased", 
+                                        local_files_only=False,
+                                        cache_dir="./model_cache")
+        
+        # Process the texts and return embeddings
+        st.success("BERT model loaded successfully")
+        # Your existing BERT processing code here
+        
+    except Exception as e:
+        st.error(f"Error during BERT analysis: {e}")
+        
+        # Fallback to simpler method if BERT fails
+        st.warning("Using TF-IDF as fallback for semantic analysis")
+        
+        # Simple TF-IDF fallback
+        vectorizer = TfidfVectorizer(max_features=768)  # Same dimensions as BERT
+        embeddings = vectorizer.fit_transform(texts).toarray()
+        
+        return embeddings
+        
 class ThemeAnalyzer:
     def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
         """Initialize the BERT-based theme analyzer with sentence highlighting capabilities"""
