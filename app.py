@@ -1,3 +1,11 @@
+import asyncio
+import streamlit as st
+
+# Fix for Streamlit event loop
+if st.runtime.exists():
+    if not asyncio.get_event_loop().is_running():
+        asyncio.set_event_loop(asyncio.new_event_loop())
+        
 import streamlit as st
 import pyLDAvis
 import pyLDAvis.sklearn
