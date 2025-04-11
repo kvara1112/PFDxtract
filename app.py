@@ -6202,7 +6202,6 @@ def check_bert_password():
 
     return output_filename
 
-
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function with colored Theme column for text matching"""
     st.header("BERT-based Theme Analysis")
@@ -6304,64 +6303,24 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
         # Define color schemes
         color_schemes = {
             "Pastel": [
-                "#FFD580",
-                "#FFECB3",
-                "#E1F5FE",
-                "#E8F5E9",
-                "#F3E5F5",
-                "#FFF3E0",
-                "#E0F7FA",
-                "#F1F8E9",
-                "#FFF8E1",
-                "#E8EAF6",
+                "#FFD580", "#FFECB3", "#E1F5FE", "#E8F5E9", "#F3E5F5",
+                "#FFF3E0", "#E0F7FA", "#F1F8E9", "#FFF8E1", "#E8EAF6",
             ],
             "Vibrant": [
-                "#FF5733",
-                "#33FF57",
-                "#3357FF",
-                "#F333FF",
-                "#FF33F3",
-                "#33FFF3",
-                "#FFFF33",
-                "#FF3333",
-                "#33FF33",
-                "#3333FF",
+                "#FF5733", "#33FF57", "#3357FF", "#F333FF", "#FF33F3",
+                "#33FFF3", "#FFFF33", "#FF3333", "#33FF33", "#3333FF",
             ],
             "Blues": [
-                "#E3F2FD",
-                "#BBDEFB",
-                "#90CAF9",
-                "#64B5F6",
-                "#42A5F5",
-                "#2196F3",
-                "#1E88E5",
-                "#1976D2",
-                "#1565C0",
-                "#0D47A1",
+                "#E3F2FD", "#BBDEFB", "#90CAF9", "#64B5F6", "#42A5F5",
+                "#2196F3", "#1E88E5", "#1976D2", "#1565C0", "#0D47A1",
             ],
             "Earth Tones": [
-                "#8D6E63",
-                "#A1887F",
-                "#BCAAA4",
-                "#D7CCC8",
-                "#EFEBE9",
-                "#5D4037",
-                "#4E342E",
-                "#3E2723",
-                "#BF360C",
-                "#D84315",
+                "#8D6E63", "#A1887F", "#BCAAA4", "#D7CCC8", "#EFEBE9",
+                "#5D4037", "#4E342E", "#3E2723", "#BF360C", "#D84315",
             ],
             "Distinct": [
-                "#E41A1C",
-                "#377EB8",
-                "#4DAF4A",
-                "#984EA3",
-                "#FF7F00",
-                "#FFFF33",
-                "#A65628",
-                "#F781BF",
-                "#999999",
-                "#66C2A5",
+                "#E41A1C", "#377EB8", "#4DAF4A", "#984EA3", "#FF7F00",
+                "#FFFF33", "#A65628", "#F781BF", "#999999", "#66C2A5",
             ],
         }
 
@@ -6397,18 +6356,11 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     )
 
                     # Set custom configuration
-                    theme_analyzer.config[
-                        "base_similarity_threshold"
-                    ] = similarity_threshold
-
-                    # Set color scheme
+                    theme_analyzer.config["base_similarity_threshold"] = similarity_threshold
                     theme_analyzer.theme_colors = color_schemes[color_scheme]
 
                     # Perform analysis with highlighting
-                    (
-                        results_df,
-                        highlighted_texts,
-                    ) = theme_analyzer.create_detailed_results(
+                    results_df, highlighted_texts = theme_analyzer.create_detailed_results(
                         selected_data, content_column=content_column
                     )
 
@@ -6416,12 +6368,11 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     pdf_filename = f"theme_analysis_report_{timestamp}.pdf"
 
-                    # Create PDF with comprehensive results
+                    # Create PDF
                     pdf_filename = theme_analyzer.convert_html_to_pdf(
                         theme_analyzer.create_highlighted_html(text, theme_highlights), 
                         f"theme_analysis_{timestamp}.pdf"
                     )
-                                        
 
                     # Create HTML report
                     html_content = theme_analyzer._create_integrated_html_for_pdf(
@@ -6432,20 +6383,15 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     with open(html_filename, "w", encoding="utf-8") as f:
                         f.write(html_content)
 
-                    # Create a mapping of theme keys to colors for consistent display
                     theme_colors = {}
                     for _, row in results_df.iterrows():
                         if "Framework" in row and "Theme" in row:
                             theme_key = f"{row['Framework']}_{row['Theme']}"
-                            theme_colors[theme_key] = theme_analyzer._get_theme_color(
-                                theme_key
-                            )
+                            theme_colors[theme_key] = theme_analyzer._get_theme_color(theme_key)
 
-                    # Save results to session state to ensure persistence
+                    # Save results to session state
                     st.session_state.bert_results["results_df"] = results_df
-                    st.session_state.bert_results[
-                        "highlighted_texts"
-                    ] = highlighted_texts
+                    st.session_state.bert_results["highlighted_texts"] = highlighted_texts
                     st.session_state.bert_results["pdf_filename"] = pdf_filename
                     st.session_state.bert_results["html_filename"] = html_filename
                     st.session_state.bert_results["theme_colors"] = theme_colors
@@ -6455,274 +6401,6 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                 except Exception as e:
                     st.error(f"Error during BERT analysis: {str(e)}")
                     logging.error(f"BERT analysis error: {e}", exc_info=True)
-
-        # Always display results if they exist
-        if (
-            "bert_results" in st.session_state
-            and st.session_state.bert_results.get("results_df") is not None
-        ):
-            results_df = st.session_state.bert_results["results_df"]
-            highlighted_texts = st.session_state.bert_results["highlighted_texts"]
-            pdf_filename = st.session_state.bert_results.get("pdf_filename")
-            html_filename = st.session_state.bert_results.get("html_filename")
-            theme_colors = st.session_state.bert_results.get("theme_colors", {})
-
-            st.subheader("Analysis Summary")
-            st.write(f"Total Records Analyzed: {len(highlighted_texts)}")
-            st.write(f"Total Theme Predictions: {len(results_df)}")
-
-            # Confidence distribution
-            if "Confidence" in results_df.columns:
-                st.write("\nConfidence Distribution:")
-                st.write(results_df["Confidence"].value_counts())
-
-            # Framework distribution
-            st.write("\nFramework Distribution:")
-            st.write(results_df["Framework"].value_counts())
-
-            # Create columns for download buttons
-            col1, col2, col3 = st.columns(3)
-
-            # Generate consistent timestamp for filenames
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-            with col1:
-                # Excel download button
-                excel_data = export_to_excel(results_df)
-                st.download_button(
-                    "📥 Download Excel Results",
-                    data=excel_data,
-                    file_name=f"bert_theme_analysis_{timestamp}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="bert_excel_download",
-                )
-
-            with col2:
-                # PDF download button
-                if pdf_filename and os.path.exists(pdf_filename):
-                    with open(pdf_filename, "rb") as f:
-                        pdf_data = f.read()
-
-                    st.download_button(
-                        "📄 Download PDF Report",
-                        data=pdf_data,
-                        file_name=os.path.basename(pdf_filename),
-                        mime="application/pdf",
-                        key="bert_pdf_download",
-                    )
-                else:
-                    st.warning("PDF report not available")
-         with col3:
-            # PDF download button
-            if html_content:  # Use the HTML content generated earlier
-                # Convert HTML to PDF (assuming convert_html_to_pdf returns a filename)
-                pdf_filename = theme_analyzer.convert_html_to_pdf(html_content)
-                
-                if pdf_filename and os.path.exists(pdf_filename):
-                    with open(pdf_filename, "rb") as f:
-                        pdf_data = f.read()
-                    
-                    st.download_button(
-                        "📄 Download PDF Report",
-                        data=pdf_data,
-                        file_name=os.path.basename(pdf_filename),
-                        mime="application/pdf",
-                        key="bert_pdf_download",
-                    )
-                    
-                    # Optional: Clean up the temporary PDF file
-                    os.unlink(pdf_filename)
-                else:
-                    st.warning("PDF report not available")                   
-                   
-
-
-
-            # Show theme color legend
-            if theme_colors:
-                st.subheader("Theme Color Legend")
-                legend_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;'>"
-
-                for theme_key, color in theme_colors.items():
-                    theme_parts = theme_key.split("_", 1)
-                    framework = theme_parts[0] if len(theme_parts) > 0 else ""
-                    theme = theme_parts[1] if len(theme_parts) > 1 else theme_key
-
-                    legend_html += f"""
-                    <div style='display: flex; align-items: center; border: 1px solid #ddd; border-radius: 4px; padding: 5px; background-color: white; min-width: 300px;'>
-                        <div style='width: 20px; height: 20px; background-color: {color}; border: 1px solid #666; margin-right: 10px;'></div>
-                        <div>
-                            <div style='font-weight: bold;'>{framework}</div>
-                            <div>{theme}</div>
-                        </div>
-                    </div>
-                    """
-
-                legend_html += "</div>"
-                st.markdown(legend_html, unsafe_allow_html=True)
-
-            # Show results table with color indicators - CUSTOM HTML TABLE WITH COLORED THEME CELLS
-            st.subheader("Identified Themes")
-
-            # Create a styled HTML table with colored Theme column
-            table_html = """
-            <style>
-                .theme-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    font-family: Arial, sans-serif;
-                }
-                .theme-table th {
-                    background-color: #4a86e8;
-                    color: white;
-                    font-weight: normal;
-                    text-align: left;
-                    padding: 8px 12px;
-                    border: 1px solid #ddd;
-                }
-                .theme-table td {
-                    padding: 8px 12px;
-                    border: 1px solid #ddd;
-                    vertical-align: middle;
-                }
-                .confidence-high {
-                    background-color: #D5F5E3;
-                }
-                .confidence-medium {
-                    background-color: #FCF3CF;
-                }
-                .confidence-low {
-                    background-color: #FADBD8;
-                }
-            </style>
-            
-            <table class="theme-table">
-                <tr>
-                    <th>Framework</th>
-                    <th>Theme</th>
-                    <th>Confidence</th>
-                    <th>Score</th>
-                    <th>Matched Keywords</th>
-                </tr>
-            """
-
-            # Add each row with appropriate styling
-            for _, row in results_df.iterrows():
-                framework = row["Framework"]
-                theme = row["Theme"]
-                confidence = row.get("Confidence", "")
-                score = row.get("Combined Score", 0)
-                keywords = row.get("Matched Keywords", "")
-
-                # Get theme color
-                theme_key = f"{framework}_{theme}"
-                theme_color = theme_colors.get(theme_key, "#cccccc")
-
-                # Set confidence class based on level
-                confidence_class = ""
-                if confidence == "High":
-                    confidence_class = "confidence-high"
-                elif confidence == "Medium":
-                    confidence_class = "confidence-medium"
-                elif confidence == "Low":
-                    confidence_class = "confidence-low"
-
-                # Add the row to the HTML table with colored Theme cell
-                table_html += f"""
-                <tr>
-                    <td>{framework}</td>
-                    <td style="background-color: {theme_color};">{theme}</td>
-                    <td class="{confidence_class}">{confidence}</td>
-                    <td>{score:.3f}</td>
-                    <td>{keywords}</td>
-                </tr>
-                """
-
-            table_html += "</table>"
-
-            # Display the HTML table
-            st.markdown(table_html, unsafe_allow_html=True)
-
-            # Highlighted text preview
-            st.subheader("Sample Highlighted Text")
-            if highlighted_texts:
-                # Create tabs for multiple documents
-                doc_ids = list(highlighted_texts.keys())
-                if len(doc_ids) > 5:
-                    preview_ids = doc_ids[:5]  # Limit preview to 5 documents
-                    st.info(
-                        f"Showing 5 of {len(doc_ids)} documents. Download the full report for all results."
-                    )
-                else:
-                    preview_ids = doc_ids
-
-                tabs = st.tabs([f"Document {i+1}" for i in range(len(preview_ids))])
-
-                for i, (tab, doc_id) in enumerate(zip(tabs, preview_ids)):
-                    with tab:
-                        # Get document title if available
-                        doc_title = next(
-                            (
-                                row["Title"]
-                                for _, row in results_df.iterrows()
-                                if row.get("Record ID") == doc_id
-                            ),
-                            f"Document {i+1}",
-                        )
-
-                        st.markdown(f"### {doc_title}")
-
-                        # Document themes with color indicators - match the main table style
-                        doc_themes = results_df[results_df["Record ID"] == doc_id]
-                        if not doc_themes.empty:
-                            st.markdown("**Identified Themes:**")
-
-                            # Create a matching table for document-specific themes
-                            themes_table = """
-                            <table class="theme-table">
-                                <tr>
-                                    <th>Framework</th>
-                                    <th>Theme</th>
-                                    <th>Confidence</th>
-                                    <th>Matched Keywords</th>
-                                </tr>
-                            """
-
-                            for _, theme_row in doc_themes.iterrows():
-                                framework = theme_row["Framework"]
-                                theme = theme_row["Theme"]
-                                confidence = theme_row.get("Confidence", "N/A")
-                                keywords = theme_row.get("Matched Keywords", "")
-
-                                # Get theme color
-                                theme_key = f"{framework}_{theme}"
-                                theme_color = theme_colors.get(theme_key, "#cccccc")
-
-                                # Set confidence class
-                                confidence_class = ""
-                                if confidence == "High":
-                                    confidence_class = "confidence-high"
-                                elif confidence == "Medium":
-                                    confidence_class = "confidence-medium"
-                                elif confidence == "Low":
-                                    confidence_class = "confidence-low"
-
-                                # Add row to document themes table
-                                themes_table += f"""
-                                <tr>
-                                    <td>{framework}</td>
-                                    <td style="background-color: {theme_color};">{theme}</td>
-                                    <td class="{confidence_class}">{confidence}</td>
-                                    <td>{keywords}</td>
-                                </tr>
-                                """
-
-                            themes_table += "</table>"
-                            st.markdown(themes_table, unsafe_allow_html=True)
-
-                        # Highlighted text
-                        st.markdown("**Highlighted Text:**")
-                        st.markdown(highlighted_texts[doc_id], unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
