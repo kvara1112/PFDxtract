@@ -772,77 +772,6 @@ class ThemeAnalyzer:
     
     # Now let's modify the export_to_excel function to ensure it includes matched sentences
 
-def export_to_excel(df: pd.DataFrame) -> bytes:
-    """
-    Export DataFrame to Excel bytes with proper formatting, including matched sentences
-    """
-    try:
-        if df is None or len(df) == 0:
-            raise ValueError("No data available to export")
-            
-        # Create clean copy for export
-        df_export = df.copy()
-        
-        # Format dates to UK format
-        if 'date_of_report' in df_export.columns:
-            df_export['date_of_report'] = df_export['date_of_report'].dt.strftime('%d/%m/%Y')
-            
-        # Handle list columns (like categories)
-        for col in df_export.columns:
-            if df_export[col].dtype == 'object':
-                df_export[col] = df_export[col].apply(
-                    lambda x: ', '.join(x) if isinstance(x, list) else str(x) if pd.notna(x) else ''
-                )
-        
-        # Create output buffer
-        output = io.BytesIO()
-        
-        # Write to Excel
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_export.to_excel(writer, sheet_name='Reports', index=False)
-            
-            # Get the worksheet
-            worksheet = writer.sheets['Reports']
-            
-            # Auto-adjust column widths
-            for idx, col in enumerate(df_export.columns, 1):
-                # Set larger width for Matched Sentences column
-                if col == 'Matched Sentences':
-                    worksheet.column_dimensions[get_column_letter(idx)].width = 80
-                else:
-                    max_length = max(
-                        df_export[col].astype(str).apply(len).max(),
-                        len(str(col))
-                    )
-                    adjusted_width = min(max_length + 2, 50)
-                    column_letter = get_column_letter(idx)
-                    worksheet.column_dimensions[column_letter].width = adjusted_width
-            
-            # Add filters to header row
-            worksheet.auto_filter.ref = worksheet.dimensions
-            
-            # Freeze the header row
-            worksheet.freeze_panes = 'A2'
-            
-            # Set wrap text for Matched Sentences column
-            matched_sent_col = next((idx for idx, col in enumerate(df_export.columns, 1) 
-                                   if col == 'Matched Sentences'), None)
-            if matched_sent_col:
-                col_letter = get_column_letter(matched_sent_col)
-                for row in range(2, len(df_export) + 2):
-                    cell = worksheet[f"{col_letter}{row}"]
-                    cell.alignment = cell.alignment.copy(wrapText=True)
-                    # Set row height to accommodate wrapped text
-                    worksheet.row_dimensions[row].height = 60
-        
-        # Get the bytes value
-        output.seek(0)
-        return output.getvalue()
-        
-    except Exception as e:
-        logging.error(f"Error exporting to Excel: {e}", exc_info=True)
-        raise Exception(f"Failed to export data to Excel: {str(e)}")
-        
         
     def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
         """
@@ -1353,7 +1282,76 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
         
         return html_content
 
+def export_to_excel(df: pd.DataFrame) -> bytes:
+    """
+    Export DataFrame to Excel bytes with proper formatting, including matched sentences
+    """
+    try:
+        if df is None or len(df) == 0:
+            raise ValueError("No data available to export")
+            
+        # Create clean copy for export
+        df_export = df.copy()
         
+        # Format dates to UK format
+        if 'date_of_report' in df_export.columns:
+            df_export['date_of_report'] = df_export['date_of_report'].dt.strftime('%d/%m/%Y')
+            
+        # Handle list columns (like categories)
+        for col in df_export.columns:
+            if df_export[col].dtype == 'object':
+                df_export[col] = df_export[col].apply(
+                    lambda x: ', '.join(x) if isinstance(x, list) else str(x) if pd.notna(x) else ''
+                )
+        
+        # Create output buffer
+        output = io.BytesIO()
+        
+        # Write to Excel
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_export.to_excel(writer, sheet_name='Reports', index=False)
+            
+            # Get the worksheet
+            worksheet = writer.sheets['Reports']
+            
+            # Auto-adjust column widths
+            for idx, col in enumerate(df_export.columns, 1):
+                # Set larger width for Matched Sentences column
+                if col == 'Matched Sentences':
+                    worksheet.column_dimensions[get_column_letter(idx)].width = 80
+                else:
+                    max_length = max(
+                        df_export[col].astype(str).apply(len).max(),
+                        len(str(col))
+                    )
+                    adjusted_width = min(max_length + 2, 50)
+                    column_letter = get_column_letter(idx)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # Add filters to header row
+            worksheet.auto_filter.ref = worksheet.dimensions
+            
+            # Freeze the header row
+            worksheet.freeze_panes = 'A2'
+            
+            # Set wrap text for Matched Sentences column
+            matched_sent_col = next((idx for idx, col in enumerate(df_export.columns, 1) 
+                                   if col == 'Matched Sentences'), None)
+            if matched_sent_col:
+                col_letter = get_column_letter(matched_sent_col)
+                for row in range(2, len(df_export) + 2):
+                    cell = worksheet[f"{col_letter}{row}"]
+                    cell.alignment = cell.alignment.copy(wrapText=True)
+                    # Set row height to accommodate wrapped text
+                    worksheet.row_dimensions[row].height = 60
+        
+        # Get the bytes value
+        output.seek(0)
+        return output.getvalue()
+        
+    except Exception as e:
+        logging.error(f"Error exporting to Excel: {e}", exc_info=True)
+        raise Exception(f"Failed to export data to Excel: {str(e)}")
 
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
     """BM25 vectorizer implementation"""
