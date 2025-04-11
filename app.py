@@ -31,8 +31,6 @@ from nltk.corpus import stopwords
 from collections import Counter
 from bs4 import BeautifulSoup, Tag
 import json  # Added for JSON export functionality
-import colorsys
-import random
 
 # Initialize NLTK resources
 import nltk
@@ -61,140 +59,6 @@ import re
 from collections import Counter
 from tqdm import tqdm
 
-import colorsys
-import random
-
-class PrecisionColorMapper:
-    def __init__(self):
-        # Predefined color palettes for different frameworks
-        self.framework_color_bases = {
-            "I-SIRch": {
-                "base_hue": 0.6,  # Blue-based
-                "saturation_range": (0.3, 0.7),
-                "lightness_range": (0.7, 0.9)
-            },
-            "House of Commons": {
-                "base_hue": 0.1,  # Orange-based
-                "saturation_range": (0.4, 0.8),
-                "lightness_range": (0.6, 0.8)
-            },
-            "Extended Analysis": {
-                "base_hue": 0.35,  # Green-based
-                "saturation_range": (0.3, 0.7),
-                "lightness_range": (0.7, 0.9)
-            }
-        }
-        
-        # Fallback color palette
-        self.fallback_colors = [
-            "#FFD580", "#E1F5FE", "#E8F5E9", 
-            "#F3E5F5", "#FFF3E0", "#E0F7FA", 
-            "#F1F8E9", "#FFF8E1", "#E8EAF6"
-        ]
-        
-        # Cache for consistent color mapping
-        self.color_cache = {}
-    
-    def _hsv_to_hex(self, hsv_color):
-        """Convert HSV color to HEX"""
-        rgb = colorsys.hsv_to_rgb(*hsv_color)
-        return '#{:02x}{:02x}{:02x}'.format(
-            int(rgb[0] * 255), 
-            int(rgb[1] * 255), 
-            int(rgb[2] * 255)
-        )
-    
-    def get_theme_color(self, framework, theme_name, seed=None):
-        """
-        Generate a consistent, semantically meaningful color for a theme
-        
-        Args:
-            framework (str): Framework name
-            theme_name (str): Specific theme name
-            seed (int, optional): Seed for consistent randomization
-        
-        Returns:
-            str: Hex color code
-        """
-        # Create a cache key
-        cache_key = f"{framework}_{theme_name}"
-        
-        # Return cached color if exists
-        if cache_key in self.color_cache:
-            return self.color_cache[cache_key]
-        
-        # Use seed for consistent randomization
-        if seed is None:
-            seed = hash(cache_key)
-        random.seed(seed)
-        
-        # Fallback to default if framework not found
-        if framework not in self.framework_color_bases:
-            # Use fallback color from list
-            color = self.fallback_colors[hash(cache_key) % len(self.fallback_colors)]
-            self.color_cache[cache_key] = color
-            return color
-        
-        # Get framework color configuration
-        config = self.framework_color_bases[framework]
-        
-        # Generate color variations
-        hue_variation = random.uniform(-0.05, 0.05)
-        sat_variation = random.uniform(0, 0.2)
-        light_variation = random.uniform(0, 0.1)
-        
-        # Base color components
-        base_hue = config['base_hue']
-        
-        # Adjust hue
-        final_hue = (base_hue + hue_variation) % 1.0
-        
-        # Adjust saturation within specified range
-        sat_range = config['saturation_range']
-        final_sat = sat_range[0] + sat_variation * (sat_range[1] - sat_range[0])
-        
-        # Adjust lightness within specified range
-        light_range = config['lightness_range']
-        final_val = light_range[0] + light_variation * (light_range[1] - light_range[0])
-        
-        # Convert to hex and cache
-        color = self._hsv_to_hex((final_hue, final_sat, final_val))
-        self.color_cache[cache_key] = color
-        
-        return color
-
-    def generate_color_legend(self, frameworks_themes):
-        """
-        Generate an HTML color legend
-        
-        Args:
-            frameworks_themes (dict): Dictionary of frameworks and their themes
-        
-        Returns:
-            str: HTML color legend
-        """
-        legend_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px;'>"
-        
-        for framework, themes in frameworks_themes.items():
-            framework_section = f"<div style='border: 1px solid #ddd; padding: 10px; margin: 5px; border-radius: 5px;'>"
-            framework_section += f"<h3>{framework}</h3>"
-            
-            for theme in themes:
-                color = self.get_theme_color(framework, theme)
-                framework_section += f"""
-                <div style='display: flex; align-items: center; margin: 5px 0;'>
-                    <div style='width: 20px; height: 20px; background-color: {color}; 
-                        border: 1px solid #666; margin-right: 10px;'></div>
-                    <span>{theme}</span>
-                </div>
-                """
-            
-            framework_section += "</div>"
-            legend_html += framework_section
-        
-        legend_html += "</div>"
-        return legend_html
-
 
 class ThemeAnalyzer:
     def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
@@ -219,43 +83,47 @@ class ThemeAnalyzer:
             "House of Commons": self._get_house_of_commons_themes(),
             "Extended Analysis": self._get_extended_themes(),
         }
-        self._initialize_color_mapping()
-        
-    def _initialize_color_mapping(self):
-    """
-    Initialize color mapping for themes across all frameworks
-    
-    This method generates a consistent color for each theme in each framework
-    and stores them in the theme_color_map dictionary.
-    """
-    # Create the color mapper
-    self.color_mapper = PrecisionColorMapper()
-    
-    # Reset the theme color map
-    self.theme_color_map = {}
-    
-    # Iterate through all frameworks and their themes
-    for framework_name, themes in self.frameworks.items():
-        for theme in themes:
-            # Create a unique key for each theme
-            theme_key = f"{framework_name}_{theme['name']}"
-            
-            # Generate a consistent color for the theme
-            color = self.color_mapper.get_theme_color(
-                framework=framework_name, 
-                theme_name=theme['name']
-            )
-            
-            # Store the color in the theme_color_map
-            self.theme_color_map[theme_key] = color
 
-    # Optional: Generate a color legend for reference
-    self.color_legend = self.color_mapper.generate_color_legend({
-        framework_name: [theme['name'] for theme in themes]
-        for framework_name, themes in self.frameworks.items()
-    })
-    
+        # Color mapping for themes
+        self.theme_color_map = {}
+        self.theme_colors = [
+            "#FFD580",  # Light orange
+            "#FFECB3",  # Light amber
+            "#E1F5FE",  # Light blue
+            "#E8F5E9",  # Light green
+            "#F3E5F5",  # Light purple
+            "#FFF3E0",  # Light orange
+            "#E0F7FA",  # Light cyan
+            "#F1F8E9",  # Light lime
+            "#FFF8E1",  # Light yellow
+            "#E8EAF6",  # Light indigo
+            "#FCE4EC",  # Light pink
+            "#F5F5DC",  # Beige
+            "#E6E6FA",  # Lavender
+            "#FFFACD",  # Lemon chiffon
+            "#D1E7DD",  # Mint
+            "#F8D7DA",  # Light red
+            "#D1ECF1",  # Teal light
+            "#FFF3CD",  # Light yellow
+            "#D6D8D9",  # Light gray
+            "#CFF4FC",  # Info light
+        ]
 
+        # Pre-assign colors to frameworks
+        self._preassign_framework_colors()
+
+    def _preassign_framework_colors(self):
+        """Preassign colors to each framework for consistent coloring"""
+        # Create a dictionary to track colors used for each framework
+        framework_colors = {}
+
+        # Assign colors to each theme in each framework
+        for framework, themes in self.frameworks.items():
+            for i, theme in enumerate(themes):
+                theme_key = f"{framework}_{theme['name']}"
+                # Assign color from the theme_colors list, cycling if needed
+                color_idx = i % len(self.theme_colors)
+                self.theme_color_map[theme_key] = self.theme_colors[color_idx]
 
     def get_bert_embedding(self, text, max_length=512):
         """Generate BERT embedding for text"""
@@ -445,32 +313,30 @@ class ThemeAnalyzer:
         return "".join(result)
 
     def _get_theme_color(self, theme_key):
-        """
-        Get a consistent color for a specific theme
-        
-        Args:
-            theme_key (str): Formatted as 'Framework_ThemeName'
-        
-        Returns:
-            str: Hex color code
-        """
-        # If color is already in cache, return it
+        """Get a consistent color for a specific theme"""
+        # If this theme already has an assigned color, use it
         if theme_key in self.theme_color_map:
             return self.theme_color_map[theme_key]
-        
-        # Split the theme key into framework and theme
+
+        # Extract framework and theme from the theme_key (format: "framework_theme")
         parts = theme_key.split("_", 1)
-        if len(parts) < 2:
-            return "#cccccc"  # Fallback color
-        
-        framework, theme = parts[0], parts[1]
-        
-        # Generate and cache the color
-        color = self.color_mapper.get_theme_color(framework, theme)
-        self.theme_color_map[theme_key] = color
-        
-        return color
-    
+        framework = parts[0] if len(parts) > 0 else "unknown"
+
+        # Count existing colors for this framework
+        framework_count = sum(
+            1
+            for existing_key in self.theme_color_map
+            if existing_key.startswith(framework + "_")
+        )
+
+        # Assign the next available color from our palette
+        color_idx = framework_count % len(self.theme_colors)
+        assigned_color = self.theme_colors[color_idx]
+
+        # Store the assignment for future consistency
+        self.theme_color_map[theme_key] = assigned_color
+        return assigned_color
+
     def analyze_document(self, text):
         """Analyze document text for themes and highlight sentences containing theme keywords"""
         if not isinstance(text, str) or not text.strip():
@@ -2043,7 +1909,19 @@ class ThemeAnalyzer:
 
         return html_content
 
-        
+    def _preassign_framework_colors(self):
+        """Preassign colors to each framework for consistent coloring"""
+        # Create a dictionary to track colors used for each framework
+        framework_colors = {}
+
+        # Assign colors to each theme in each framework
+        for framework, themes in self.frameworks.items():
+            for i, theme in enumerate(themes):
+                theme_key = f"{framework}_{theme['name']}"
+                # Assign color from the theme_colors list, cycling if needed
+                color_idx = i % len(self.theme_colors)
+                self.theme_color_map[theme_key] = self.theme_colors[color_idx]
+
     def export_to_excel(df: pd.DataFrame) -> bytes:
         """
         Export DataFrame to Excel bytes with proper formatting, including matched sentences
@@ -6279,7 +6157,9 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     )
 
                     # Create HTML report
-                    html_content = theme_analyzer._create_integrated_html_for_pdf(results_df, highlighted_texts)
+                    html_content = theme_analyzer._create_integrated_html_for_pdf(
+                        results_df, highlighted_texts
+                    )
                     html_filename = pdf_filename.replace(".pdf", ".html")
 
                     with open(html_filename, "w", encoding="utf-8") as f:
