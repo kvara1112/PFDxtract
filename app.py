@@ -234,6 +234,144 @@ class ThemeAnalyzer:
         return sorted(positions)
 ######
     def create_highlighted_html(self, text, theme_highlights):
+        """
+        Create HTML with sentences highlighted by theme, 
+        with extracted sentences in the last column and comprehensive theme details
+        """
+        if not text or not theme_highlights:
+            return text
+        
+        # Create HTML structure
+        html_content = """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .highlighted {
+                    background-color: yellow;
+                    font-weight: bold;
+                }
+                .confidence-high {
+                    background-color: #D5F5E3;
+                }
+                .confidence-medium {
+                    background-color: #FCF3CF;
+                }
+                .confidence-low {
+                    background-color: #FADBD8;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Confidence</th>
+                        <th>Semantic Similarity</th>
+                        <th>Combined Score</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentences</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+    
+        # Collect all theme details
+        theme_details = []
+        for theme_key, positions in theme_highlights.items():
+            # Split theme key into framework and theme name
+            try:
+                framework, theme_name = theme_key.split('_', 1)
+            except ValueError:
+                framework = "Unknown"
+                theme_name = theme_key
+    
+            for pos_info in positions:
+                # Ensure we have enough information
+                if len(pos_info) >= 4:
+                    start_pos, end_pos, keywords_str, sentence = pos_info[:4]
+                    
+                    # Additional details if available
+                    semantic_similarity = pos_info[4] if len(pos_info) > 4 else "N/A"
+                    combined_score = pos_info[5] if len(pos_info) > 5 else "N/A"
+                    
+                    # Determine confidence level
+                    if isinstance(combined_score, (int, float)):
+                        if combined_score >= 0.7:
+                            confidence = "High"
+                            confidence_class = "confidence-high"
+                        elif combined_score >= 0.5:
+                            confidence = "Medium"
+                            confidence_class = "confidence-medium"
+                        else:
+                            confidence = "Low"
+                            confidence_class = "confidence-low"
+                    else:
+                        confidence = "Medium"
+                        confidence_class = "confidence-medium"
+    
+                    # Create row for each theme highlight
+                    theme_details.append({
+                        'framework': framework,
+                        'theme': theme_name,
+                        'confidence': confidence,
+                        'confidence_class': confidence_class,
+                        'semantic_similarity': semantic_similarity,
+                        'combined_score': combined_score,
+                        'keywords': keywords_str,
+                        'sentence': sentence,
+                        'highlighted_text': text[start_pos:end_pos] if start_pos < end_pos else sentence
+                    })
+    
+        # Add rows to HTML
+        for detail in theme_details:
+            html_content += f"""
+                    <tr class="{detail['confidence_class']}">
+                        <td>{detail['framework']}</td>
+                        <td>{detail['theme']}</td>
+                        <td>{detail['confidence']}</td>
+                        <td>{detail['semantic_similarity']}</td>
+                        <td>{detail['combined_score']}</td>
+                        <td>{detail['keywords']}</td>
+                        <td>{detail['sentence']}</td>
+                    </tr>
+            """
+    
+        # Close HTML structure
+        html_content += """
+                </tbody>
+            </table>
+        </body>
+        </html>
+        """
+    
+        return html_content
+    
+    def create_highlighted_htmlworks(self, text, theme_highlights):
         """Create HTML with sentences highlighted by theme with improved color consistency"""
         if not text or not theme_highlights:
             return text
