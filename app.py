@@ -1611,38 +1611,35 @@ def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
     that can be easily converted to PDF
     """
     from collections import defaultdict
-
+    
     # Map report IDs to their themes
     report_themes = defaultdict(list)
-
+    
     # Organize the results by report ID
     for _, row in results_df.iterrows():
-        if "Record ID" in row and "Theme" in row and "Framework" in row:
-            record_id = row["Record ID"]
-            framework = row["Framework"]
-            theme = row["Theme"]
-            confidence = row.get("Confidence", "")
-            score = row.get("Combined Score", 0)
-            matched_keywords = row.get("Matched Keywords", "")
-
+        if 'Record ID' in row and 'Theme' in row and 'Framework' in row:
+            record_id = row['Record ID']
+            framework = row['Framework']
+            theme = row['Theme']
+            confidence = row.get('Confidence', '')
+            score = row.get('Combined Score', 0)
+            matched_keywords = row.get('Matched Keywords', '')
+            
             # Get the theme color
             theme_key = f"{framework}_{theme}"
             theme_color = self._get_theme_color(theme_key)
-
-            report_themes[record_id].append(
-                {
-                    "framework": framework,
-                    "theme": theme,
-                    "confidence": confidence,
-                    "score": score,
-                    "keywords": matched_keywords,
-                    "color": theme_color,  # Add the theme color
-                }
-            )
-
+            
+            report_themes[record_id].append({
+                'framework': framework,
+                'theme': theme,
+                'confidence': confidence,
+                'score': score,
+                'keywords': matched_keywords,
+                'color': theme_color  # Add the theme color
+            })
+    
     # Create HTML content with modern styling
-    html_content = (
-        """
+    html_content = """
     <!DOCTYPE html>
     <html>
     <head>
@@ -1773,34 +1770,25 @@ def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
     <body>
         <div class="report-header">
             <h1>BERT Theme Analysis Results</h1>
-            <p>Generated on """
-        + datetime.now().strftime("%d %B %Y, %H:%M")
-        + """</p>
+            <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
         </div>
         
         <div class="summary-card">
             <div class="summary-box">
-                <div class="summary-number">"""
-        + str(len(highlighted_texts))
-        + """</div>
+                <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
                 <div class="summary-label">Documents Analyzed</div>
             </div>
             <div class="summary-box">
-                <div class="summary-number">"""
-        + str(len(results_df))
-        + """</div>
+                <div class="summary-number">""" + str(len(results_df)) + """</div>
                 <div class="summary-label">Theme Identifications</div>
             </div>
             <div class="summary-box">
-                <div class="summary-number">"""
-        + str(len(results_df["Framework"].unique()))
-        + """</div>
+                <div class="summary-number">""" + str(len(results_df['Framework'].unique())) + """</div>
                 <div class="summary-label">Frameworks</div>
             </div>
         </div>
     """
-    )
-
+    
     # Add framework summary
     html_content += """
         <h2>Framework Summary</h2>
@@ -1811,12 +1799,12 @@ def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
                 <th>Number of Documents</th>
             </tr>
     """
-
-    for framework in results_df["Framework"].unique():
-        framework_results = results_df[results_df["Framework"] == framework]
-        num_themes = len(framework_results["Theme"].unique())
-        num_docs = len(framework_results["Record ID"].unique())
-
+    
+    for framework in results_df['Framework'].unique():
+        framework_results = results_df[results_df['Framework'] == framework]
+        num_themes = len(framework_results['Theme'].unique())
+        num_docs = len(framework_results['Record ID'].unique())
+        
         html_content += f"""
             <tr>
                 <td>{framework}</td>
@@ -1824,25 +1812,19 @@ def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
                 <td>{num_docs}</td>
             </tr>
         """
-
+    
     html_content += """
         </table>
     """
-
+    
     # Add each record with its themes and highlighted text
     html_content += "<h2>Document Analysis</h2>"
-
+    
     for record_id, themes in report_themes.items():
         if record_id in highlighted_texts:
-            record_title = next(
-                (
-                    row["Title"]
-                    for _, row in results_df.iterrows()
-                    if row.get("Record ID") == record_id
-                ),
-                f"Document {record_id}",
-            )
-
+            record_title = next((row['Title'] for _, row in results_df.iterrows() 
+                               if row.get('Record ID') == record_id), f"Document {record_id}")
+            
             html_content += f"""
             <div class="record-container">
                 <h2>Document: {record_title}</h2>
@@ -1859,30 +1841,24 @@ def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
                             <th>Color</th>
                         </tr>
             """
-
+            
             # Add theme rows
-            for theme_info in sorted(
-                themes, key=lambda x: (x["framework"], -x.get("score", 0))
-            ):
-                confidence_class = ""
-                if theme_info.get("confidence") == "High":
-                    confidence_class = "high-confidence"
-                elif theme_info.get("confidence") == "Medium":
-                    confidence_class = "medium-confidence"
-                elif theme_info.get("confidence") == "Low":
-                    confidence_class = "low-confidence"
-
+            for theme_info in sorted(themes, key=lambda x: (x['framework'], -x.get('score', 0))):
+                # Use theme color for row styling instead of confidence-based classes
+                theme_color = theme_info['color']
+                theme_style = f'background-color: {theme_color}; opacity: 0.7;'  # Use opacity for a lighter shade
+                
                 html_content += f"""
-                        <tr>
+                        <tr style="{theme_style}">
                             <td>{theme_info['framework']}</td>
                             <td>{theme_info['theme']}</td>
-                            <td class="{confidence_class}">{theme_info.get('confidence', '')}</td>
+                            <td>{theme_info.get('confidence', '')}</td>
                             <td>{round(theme_info.get('score', 0), 3)}</td>
                             <td>{theme_info.get('keywords', '')}</td>
                             <td><div class="theme-color-box" style="background-color:{theme_info['color']};"></div> {theme_info['color']}</td>
                         </tr>
                 """
-
+            
             html_content += """
                     </table>
                 </div>
@@ -1890,20 +1866,20 @@ def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
                 <div class="highlighted-text">
                     <h3>Text with Highlighted Keywords</h3>
             """
-
+            
             # Add highlighted text
             html_content += highlighted_texts[record_id]
-
+            
             html_content += """
                 </div>
             </div>
             """
-
+    
     html_content += """
     </body>
     </html>
     """
-
+    
     return html_content
 
 
