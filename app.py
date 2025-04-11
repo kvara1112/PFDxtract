@@ -58,8 +58,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 import re
 from collections import Counter
 from tqdm import tqdm
-
-
 class ThemeAnalyzer:
     def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
         """Initialize the BERT-based theme analyzer with sentence highlighting capabilities"""
@@ -232,35 +230,37 @@ class ThemeAnalyzer:
                 current_pos += space_count
 
         return sorted(positions)
-    
+
         # Method 1: This should be named exactly as it appears in your class
         def create_highlighted_html(self, text, theme_highlights):
             """Create HTML with sentences highlighted by theme with improved color consistency"""
             if not text or not theme_highlights:
                 return text
-        
+
             # Define a special color for multi-theme sections
             # Using a distinctive purple that stands out from other theme colors
             MULTI_THEME_COLOR = "#9C27B0"  # A distinctive purple color
-        
+
             # Convert highlights to a flat list of positions
             all_positions = []
             for theme_key, positions in theme_highlights.items():
                 theme_color = self._get_theme_color(theme_key)
                 for pos_info in positions:
                     # position format: (start_pos, end_pos, keywords_str, sentence)
-                    all_positions.append((
-                        pos_info[0],  # start position
-                        pos_info[1],  # end position
-                        theme_key,    # theme key
-                        pos_info[2],  # keywords string
-                        pos_info[3],  # original sentence
-                        theme_color   # theme color
-                    ))
-        
+                    all_positions.append(
+                        (
+                            pos_info[0],  # start position
+                            pos_info[1],  # end position
+                            theme_key,  # theme key
+                            pos_info[2],  # keywords string
+                            pos_info[3],  # original sentence
+                            theme_color,  # theme color
+                        )
+                    )
+
             # Sort positions by start position
             all_positions.sort()
-        
+
             # Merge overlapping sentences with multi-theme color
             merged_positions = []
             if all_positions:
@@ -270,46 +270,50 @@ class ThemeAnalyzer:
                         # Create a meaningful theme name combination
                         combined_theme = current[2] + " + " + all_positions[i][2]
                         combined_keywords = current[3] + " + " + all_positions[i][3]
-                        
+
                         # Use special multi-theme color for any overlap
                         combined_color = MULTI_THEME_COLOR
-                        
+
                         # Update current with merged information
                         current = (
-                            current[0],                # Keep original start position
-                            max(current[1], all_positions[i][1]),  # Take the later end position
-                            combined_theme,            # Combined theme names
-                            combined_keywords,         # Combined keywords
-                            current[4],                # Keep original sentence
-                            combined_color             # Use special multi-theme color
+                            current[0],  # Keep original start position
+                            max(
+                                current[1], all_positions[i][1]
+                            ),  # Take the later end position
+                            combined_theme,  # Combined theme names
+                            combined_keywords,  # Combined keywords
+                            current[4],  # Keep original sentence
+                            combined_color,  # Use special multi-theme color
                         )
                     else:
                         merged_positions.append(current)
                         current = all_positions[i]
                 merged_positions.append(current)
-        
+
             # Create highlighted text
             result = []
             last_end = 0
-        
+
             for start, end, theme_key, keywords, sentence, color in merged_positions:
                 # Add text before this highlight
                 if start > last_end:
                     result.append(text[last_end:start])
-        
+
                 # Add highlighted text with tooltip - using consistent style
                 style = f"background-color:{color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
                 tooltip = f"Theme: {theme_key}\nKeywords: {keywords}"
-                result.append(f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>')
-        
+                result.append(
+                    f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>'
+                )
+
                 last_end = end
-        
+
             # Add remaining text
             if last_end < len(text):
                 result.append(text[last_end:])
-        
+
             return "".join(result)
-    
+
         # Method 2: This should be named exactly as it appears in your class
         def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
             """
@@ -318,23 +322,23 @@ class ThemeAnalyzer:
             """
             from collections import defaultdict
             from datetime import datetime
-        
+
             # Define multi-theme color (must match the one in create_highlighted_html)
             MULTI_THEME_COLOR = "#9C27B0"  # A distinctive purple color
-        
+
             # Map report IDs to their themes
             report_themes = defaultdict(list)
-        
+
             # Create a theme-to-color mapping to ensure consistency
             theme_color_map = {}
-        
+
             # First pass: collect all themes and assign colors
             for _, row in results_df.iterrows():
                 if "Record ID" in row and "Theme" in row and "Framework" in row:
                     theme_key = f"{row['Framework']}_{row['Theme']}"
                     if theme_key not in theme_color_map:
                         theme_color_map[theme_key] = self._get_theme_color(theme_key)
-        
+
             # Second pass: build the report data with consistent colors
             for _, row in results_df.iterrows():
                 if "Record ID" in row and "Theme" in row and "Framework" in row:
@@ -344,23 +348,26 @@ class ThemeAnalyzer:
                     confidence = row.get("Confidence", "")
                     score = row.get("Combined Score", 0)
                     matched_keywords = row.get("Matched Keywords", "")
-        
+
                     # Get theme color from our mapping
                     theme_key = f"{framework}_{theme}"
                     theme_color = theme_color_map[theme_key]
-        
-                    report_themes[record_id].append({
-                        "framework": framework,
-                        "theme": theme,
-                        "confidence": confidence,
-                        "score": score,
-                        "keywords": matched_keywords,
-                        "color": theme_color,
-                        "theme_key": theme_key
-                    })
-        
+
+                    report_themes[record_id].append(
+                        {
+                            "framework": framework,
+                            "theme": theme,
+                            "confidence": confidence,
+                            "score": score,
+                            "keywords": matched_keywords,
+                            "color": theme_color,
+                            "theme_key": theme_key,
+                        }
+                    )
+
             # Create HTML content with modern styling
-            html_content = """
+            html_content = (
+                """
                 <!DOCTYPE html>
                 <html>
                 <head>
@@ -498,7 +505,9 @@ class ThemeAnalyzer:
                             margin-bottom: 5px;
                         }
                         .multi-theme-color {
-                            background-color: """ + MULTI_THEME_COLOR + """;
+                            background-color: """
+                + MULTI_THEME_COLOR
+                + """;
                         }
                         @media print {
                             .record-container { page-break-after: always; }
@@ -508,36 +517,54 @@ class ThemeAnalyzer:
                         
                         /* Define theme-specific CSS classes for consistency */
             """
-        
+            )
+
             # Add dynamic CSS classes for each theme
             for theme_key, color in theme_color_map.items():
-                safe_class_name = "theme-" + theme_key.replace(" ", "-").replace("(", "").replace(")", "").replace(",", "").replace(".", "").lower()
+                safe_class_name = (
+                    "theme-"
+                    + theme_key.replace(" ", "-")
+                    .replace("(", "")
+                    .replace(")", "")
+                    .replace(",", "")
+                    .replace(".", "")
+                    .lower()
+                )
                 html_content += f"""
                         .{safe_class_name} {{
                             background-color: {color} !important;
                         }}
                 """
-        
-            html_content += """
+
+            html_content += (
+                """
                     </style>
                 </head>
                 <body>
                     <div class="report-header">
                         <h1>BERT Theme Analysis Results</h1>
-                        <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
+                        <p>Generated on """
+                + datetime.now().strftime("%d %B %Y, %H:%M")
+                + """</p>
                     </div>
                     
                     <div class="summary-card">
                         <div class="summary-box">
-                            <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
+                            <div class="summary-number">"""
+                + str(len(highlighted_texts))
+                + """</div>
                             <div class="summary-label">Documents Analyzed</div>
                         </div>
                         <div class="summary-box">
-                            <div class="summary-number">""" + str(len(results_df)) + """</div>
+                            <div class="summary-number">"""
+                + str(len(results_df))
+                + """</div>
                             <div class="summary-label">Theme Identifications</div>
                         </div>
                         <div class="summary-box">
-                            <div class="summary-number">""" + str(len(results_df["Framework"].unique())) + """</div>
+                            <div class="summary-number">"""
+                + str(len(results_df["Framework"].unique()))
+                + """</div>
                             <div class="summary-label">Frameworks</div>
                         </div>
                     </div>
@@ -551,7 +578,8 @@ class ThemeAnalyzer:
                         </div>
                     </div>
                 """
-        
+            )
+
             # Add framework summary
             html_content += """
                     <h2>Framework Summary</h2>
@@ -562,12 +590,12 @@ class ThemeAnalyzer:
                             <th>Number of Documents</th>
                         </tr>
                 """
-        
+
             for framework in results_df["Framework"].unique():
                 framework_results = results_df[results_df["Framework"] == framework]
                 num_themes = len(framework_results["Theme"].unique())
                 num_docs = len(framework_results["Record ID"].unique())
-        
+
                 html_content += f"""
                         <tr>
                             <td>{framework}</td>
@@ -575,21 +603,25 @@ class ThemeAnalyzer:
                             <td>{num_docs}</td>
                         </tr>
                     """
-        
+
             html_content += """
                     </table>
                 """
-        
+
             # Add each record with its themes and highlighted text
             html_content += "<h2>Document Analysis</h2>"
-        
+
             for record_id, themes in report_themes.items():
                 if record_id in highlighted_texts:
                     record_title = next(
-                        (row["Title"] for _, row in results_df.iterrows() if row.get("Record ID") == record_id),
-                        f"Document {record_id}"
+                        (
+                            row["Title"]
+                            for _, row in results_df.iterrows()
+                            if row.get("Record ID") == record_id
+                        ),
+                        f"Document {record_id}",
                     )
-        
+
                     html_content += f"""
                         <div class="record-container">
                             <h2>Document: {record_title}</h2>
@@ -606,11 +638,13 @@ class ThemeAnalyzer:
                                         <th>Color</th>
                                     </tr>
                         """
-        
+
                     # Add theme rows with consistent styling and no gradients
-                    for theme_info in sorted(themes, key=lambda x: (x["framework"], -x.get("score", 0))):
+                    for theme_info in sorted(
+                        themes, key=lambda x: (x["framework"], -x.get("score", 0))
+                    ):
                         theme_color = theme_info["color"]
-                        
+
                         html_content += f"""
                                     <tr style="background-color: {theme_color};">
                                         <td>{theme_info['framework']}</td>
@@ -621,7 +655,7 @@ class ThemeAnalyzer:
                                         <td><div class="theme-color-box" style="background-color:{theme_color};"></div></td>
                                     </tr>
                             """
-        
+
                     html_content += """
                                 </table>
                             </div>
@@ -629,21 +663,22 @@ class ThemeAnalyzer:
                             <div class="highlighted-text">
                                 <h3>Text with Highlighted Keywords</h3>
                         """
-        
+
                     # Add highlighted text
                     html_content += highlighted_texts[record_id]
-        
+
                     html_content += """
                             </div>
                         </div>
                         """
-        
+
             html_content += """
                 </body>
                 </html>
                 """
-        
+
             return html_content
+
     def _get_theme_color(self, theme_key):
         """Get a consistent color for a specific theme"""
         # If this theme already has an assigned color, use it
@@ -1943,7 +1978,6 @@ class ThemeAnalyzer:
 
         return output_filename
 
-
     def _preassign_framework_colors(self):
         """Preassign colors to each framework for consistent coloring"""
         # Create a dictionary to track colors used for each framework
@@ -1970,9 +2004,9 @@ class ThemeAnalyzer:
 
             # Format dates to UK format
             if "date_of_report" in df_export.columns:
-                df_export["date_of_report"] = df_export[
-                    "date_of_report"
-                ].dt.strftime("%d/%m/%Y")
+                df_export["date_of_report"] = df_export["date_of_report"].dt.strftime(
+                    "%d/%m/%Y"
+                )
 
             # Handle list columns (like categories)
             for col in df_export.columns:
@@ -1999,9 +2033,7 @@ class ThemeAnalyzer:
                 for idx, col in enumerate(df_export.columns, 1):
                     # Set larger width for Matched Sentences column
                     if col == "Matched Sentences":
-                        worksheet.column_dimensions[
-                            get_column_letter(idx)
-                        ].width = 80
+                        worksheet.column_dimensions[get_column_letter(idx)].width = 80
                     else:
                         max_length = max(
                             df_export[col].astype(str).apply(len).max(),
@@ -2043,7 +2075,6 @@ class ThemeAnalyzer:
         except Exception as e:
             logging.error(f"Error exporting to Excel: {e}", exc_info=True)
             raise Exception(f"Failed to export data to Excel: {str(e)}")
-
 
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
     """BM25 vectorizer implementation"""
