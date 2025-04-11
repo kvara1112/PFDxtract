@@ -44,3 +44,4 @@ sentencepiece>=0.1.99
 cython>=0.29
 pytesseract>=0.3.10
 streamlit-chat>=0.0.2  # Optional, if you use Streamlit chat UIs
+weasyprint>=60.1,<61.0
