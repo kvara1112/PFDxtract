@@ -704,32 +704,32 @@ class ThemeAnalyzer:
     
         return html_content
 
-def _ensure_unique_theme_colors(self, results_df):
-    """Ensure all themes have unique colors by checking and reassigning if needed"""
-    # First collect all theme keys
-    theme_keys = set()
-    for _, row in results_df.iterrows():
-        if "Framework" in row and "Theme" in row:
-            theme_key = f"{row['Framework']}_{row['Theme']}"
-            theme_keys.add(theme_key)
-    
-    # Assign colors for any missing themes
-    for theme_key in theme_keys:
-        if theme_key not in self.theme_color_map:
-            self._assign_unique_theme_color(theme_key)
-    
-    # Check for duplicate colors and fix them
-    color_to_themes = defaultdict(list)
-    for theme_key in theme_keys:
-        color = self.theme_color_map[theme_key]
-        color_to_themes[color].append(theme_key)
-    
-    # Reassign colors for themes with duplicates
-    for color, duplicate_themes in color_to_themes.items():
-        if len(duplicate_themes) > 1:
-            # Keep the first theme's color, reassign others
-            for theme_key in duplicate_themes[1:]:
+    def _ensure_unique_theme_colors(self, results_df):
+        """Ensure all themes have unique colors by checking and reassigning if needed"""
+        # First collect all theme keys
+        theme_keys = set()
+        for _, row in results_df.iterrows():
+            if "Framework" in row and "Theme" in row:
+                theme_key = f"{row['Framework']}_{row['Theme']}"
+                theme_keys.add(theme_key)
+        
+        # Assign colors for any missing themes
+        for theme_key in theme_keys:
+            if theme_key not in self.theme_color_map:
                 self._assign_unique_theme_color(theme_key)
+        
+        # Check for duplicate colors and fix them
+        color_to_themes = defaultdict(list)
+        for theme_key in theme_keys:
+            color = self.theme_color_map[theme_key]
+            color_to_themes[color].append(theme_key)
+        
+        # Reassign colors for themes with duplicates
+        for color, duplicate_themes in color_to_themes.items():
+            if len(duplicate_themes) > 1:
+                # Keep the first theme's color, reassign others
+                for theme_key in duplicate_themes[1:]:
+                    self._assign_unique_theme_color(theme_key)
 
     
 
