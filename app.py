@@ -233,82 +233,6 @@ class ThemeAnalyzer:
 
         return sorted(positions)
 
-
-        # Method 1: create_highlighted_html - For creating the highlighted text
-    def create_highlighted_html(self, text, theme_highlights):
-        """Create HTML with sentences highlighted by theme with improved color consistency"""
-        if not text or not theme_highlights:
-            return text
-    
-        # Convert highlights to a flat list of positions
-        all_positions = []
-        for theme_key, positions in theme_highlights.items():
-            theme_color = self._get_theme_color(theme_key)
-            for pos_info in positions:
-                # position format: (start_pos, end_pos, keywords_str, sentence)
-                all_positions.append((
-                    pos_info[0],  # start position
-                    pos_info[1],  # end position
-                    theme_key,    # theme key
-                    pos_info[2],  # keywords string
-                    pos_info[3],  # original sentence
-                    theme_color   # theme color
-                ))
-    
-        # Sort positions by start position
-        all_positions.sort()
-    
-        # Merge overlapping sentences with simplified approach for multiple themes
-        merged_positions = []
-        if all_positions:
-            current = all_positions[0]
-            for i in range(1, len(all_positions)):
-                if all_positions[i][0] <= current[1]:  # Overlap
-                    # Create a meaningful theme name combination
-                    combined_theme = current[2] + " + " + all_positions[i][2]
-                    combined_keywords = current[3] + " + " + all_positions[i][3]
-                    
-                    # Use the FIRST theme's color for consistency instead of gradients
-                    # This makes overlaps less confusing and more consistent
-                    primary_color = current[5]
-                    
-                    # Update current with merged information
-                    current = (
-                        current[0],                # Keep original start position
-                        max(current[1], all_positions[i][1]),  # Take the later end position
-                        combined_theme,            # Combined theme names
-                        combined_keywords,         # Combined keywords
-                        current[4],                # Keep original sentence
-                        primary_color              # Use primary theme color (no gradient)
-                    )
-                else:
-                    merged_positions.append(current)
-                    current = all_positions[i]
-            merged_positions.append(current)
-    
-        # Create highlighted text
-        result = []
-        last_end = 0
-    
-        for start, end, theme_key, keywords, sentence, color in merged_positions:
-            # Add text before this highlight
-            if start > last_end:
-                result.append(text[last_end:start])
-    
-            # Add highlighted text with tooltip - simpler styling
-            style = f"background-color:{color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
-            tooltip = f"Theme: {theme_key}\nKeywords: {keywords}"
-            result.append(f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>')
-    
-            last_end = end
-    
-        # Add remaining text
-        if last_end < len(text):
-            result.append(text[last_end:])
-    
-        return "".join(result)
-    
-    # Method 2: _create_integrated_html_for_pdf - For creating the HTML report
     def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
         """
         Create a single integrated HTML file with all highlighted records, themes, and framework information
@@ -316,6 +240,9 @@ class ThemeAnalyzer:
         """
         from collections import defaultdict
         from datetime import datetime
+    
+        # Define multi-theme color (must match the one in create_highlighted_html)
+        MULTI_THEME_COLOR = "#9C27B0"  # A distinctive purple color
     
         # Map report IDs to their themes
         report_themes = defaultdict(list)
@@ -476,6 +403,25 @@ class ThemeAnalyzer:
                         vertical-align: middle;
                         border: 1px solid #999;
                     }
+                    .legend-container {
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 15px;
+                        margin-bottom: 20px;
+                    }
+                    .legend-title {
+                        font-weight: bold;
+                        margin-bottom: 10px;
+                    }
+                    .legend-item {
+                        display: flex;
+                        align-items: center;
+                        margin-bottom: 5px;
+                    }
+                    .multi-theme-color {
+                        background-color: """ + MULTI_THEME_COLOR + """;
+                    }
                     @media print {
                         .record-container { page-break-after: always; }
                         body { background-color: white; }
@@ -515,6 +461,15 @@ class ThemeAnalyzer:
                     <div class="summary-box">
                         <div class="summary-number">""" + str(len(results_df["Framework"].unique())) + """</div>
                         <div class="summary-label">Frameworks</div>
+                    </div>
+                </div>
+                
+                <!-- Add special color legend -->
+                <div class="legend-container">
+                    <div class="legend-title">Color Legend</div>
+                    <div class="legend-item">
+                        <div class="theme-color-box multi-theme-color"></div>
+                        <div>Multiple Themes (overlapping themes)</div>
                     </div>
                 </div>
             """
@@ -577,7 +532,6 @@ class ThemeAnalyzer:
                 # Add theme rows with consistent styling and no gradients
                 for theme_info in sorted(themes, key=lambda x: (x["framework"], -x.get("score", 0))):
                     theme_color = theme_info["color"]
-                    safe_class_name = "theme-" + theme_info["theme_key"].replace(" ", "-").replace("(", "").replace(")", "").replace(",", "").replace(".", "").lower()
                     
                     html_content += f"""
                                 <tr style="background-color: {theme_color};">
@@ -586,7 +540,7 @@ class ThemeAnalyzer:
                                     <td>{theme_info.get('confidence', '')}</td>
                                     <td>{round(theme_info.get('score', 0), 3)}</td>
                                     <td>{theme_info.get('keywords', '')}</td>
-                                    <td><div class="theme-color-box" style="background-color:{theme_color};"></div> {theme_color}</td>
+                                    <td><div class="theme-color-box" style="background-color:{theme_color};"></div></td>
                                 </tr>
                         """
     
