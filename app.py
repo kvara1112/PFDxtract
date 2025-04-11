@@ -391,7 +391,76 @@ class ThemeAnalyzer:
     
         return html_content
     
-
+    def convert_html_to_pdf(self, html_content, output_filename=None):
+        """
+        Convert the generated HTML to a PDF file
+        
+        Args:
+            html_content (str): HTML content to convert
+            output_filename (str, optional): Filename for the PDF. 
+                                             If None, generates a timestamped filename.
+        
+        Returns:
+            str: Path to the generated PDF file
+        """
+        try:
+            # Import weasyprint
+            from weasyprint import HTML, CSS
+            from datetime import datetime
+            import os
+            
+            # Generate default filename if not provided
+            if output_filename is None:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                output_filename = f"theme_analysis_{timestamp}.pdf"
+            
+            # Ensure the filename ends with .pdf
+            if not output_filename.lower().endswith('.pdf'):
+                output_filename += '.pdf'
+            
+            # Additional CSS to ensure proper PDF rendering
+            additional_css = """
+            @page {
+                size: A4;
+                margin: 1cm;
+            }
+            body {
+                font-family: Arial, sans-serif;
+                font-size: 12pt;
+                line-height: 1.6;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+            }
+            th, td {
+                border: 1px solid #ddd;
+                padding: 8px;
+                text-align: left;
+            }
+            .paragraph-container {
+                page-break-inside: avoid;
+            }
+            """
+            
+            # Create PDF
+            HTML(string=html_content).write_pdf(
+                output_filename, 
+                stylesheets=[CSS(string=additional_css)]
+            )
+            
+            return output_filename
+        
+        except ImportError:
+            # Handle case where weasyprint is not installed
+            st.error("WeasyPrint is not installed. Please install it using 'pip install weasyprint'")
+            return None
+        except Exception as e:
+            # Handle other potential errors
+            st.error(f"Error converting HTML to PDF: {str(e)}")
+            return None
+        
     def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
         """
         Create a single integrated HTML file with all highlighted records, themes, and framework information
