@@ -5247,7 +5247,7 @@ def check_bert_password():
         plt.close()
     
     return output_filename    
-    
+
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Render BERT Analysis tab with theme detection, column selection, and multi-report analysis"""
     st.header("BERT-based Theme Analysis")
@@ -5343,6 +5343,9 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         st.warning("No documents selected for analysis.")
                         return
                     
+                    # Create a container for results that will persist
+                    results_container = st.container()
+                    
                     # Initialize the theme analyzer
                     theme_analyzer = ThemeAnalyzer(model_name="emilyalsentzer/Bio_ClinicalBERT")
                     
@@ -5355,54 +5358,247 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         content_column=content_column
                     )
                     
+                    # Generate timestamp for filenames
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    pdf_filename = f"theme_analysis_report_{timestamp}.pdf"
+                    
                     # Create PDF with comprehensive results
-                    pdf_filename = theme_analyzer.create_comprehensive_pdf(results_df, highlighted_texts)
+                    pdf_file = theme_analyzer.create_comprehensive_pdf(results_df, highlighted_texts, pdf_filename)
                     
-                    # Display summary of results
-                    st.subheader("Analysis Summary")
-                    st.write(f"Total Records Analyzed: {len(selected_data)}")
-                    st.write(f"Total Theme Predictions: {len(results_df)}")
+                    # Create HTML report
+                    html_content = theme_analyzer._create_integrated_html_for_pdf(results_df, highlighted_texts)
+                    html_filename = pdf_filename.replace('.pdf', '.html')
                     
-                    # Confidence distribution
-                    if 'Confidence' in results_df.columns:
-                        st.write("\nConfidence Distribution:")
-                        st.write(results_df['Confidence'].value_counts())
+                    with open(html_filename, "w", encoding="utf-8") as f:
+                        f.write(html_content)
                     
-                    # Framework distribution
-                    st.write("\nFramework Distribution:")
-                    st.write(results_df['Framework'].value_counts())
+                    # Save results to session state to ensure persistence
+                    if 'bert_results' not in st.session_state:
+                        st.session_state.bert_results = {}
                     
-                    # Download options
-                    col1, col2 = st.columns(2)
+                    st.session_state.bert_results['results_df'] = results_df
+                    st.session_state.bert_results['highlighted_texts'] = highlighted_texts
+                    st.session_state.bert_results['pdf_filename'] = pdf_filename
+                    st.session_state.bert_results['html_filename'] = html_filename
                     
-                    with col1:
-                        # Excel download
-                        st.download_button(
-                            "📥 Download Excel Results",
-                            data=export_to_excel(results_df),
-                            file_name="bert_theme_analysis.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-                    
-                    with col2:
-                        # PDF download
-                        with open(pdf_filename, 'rb') as f:
+                    # Display results in container
+                    with results_container:
+                        st.subheader("Analysis Summary")
+                        st.write(f"Total Records Analyzed: {len(selected_data)}")
+                        st.write(f"Total Theme Predictions: {len(results_df)}")
+                        
+                        # Confidence distribution
+                        if 'Confidence' in results_df.columns:
+                            st.write("\nConfidence Distribution:")
+                            st.write(results_df['Confidence'].value_counts())
+                        
+                        # Framework distribution
+                        st.write("\nFramework Distribution:")
+                        st.write(results_df['Framework'].value_counts())
+                        
+                        # Create columns for download buttons
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            # Read Excel data to memory first
+                            excel_data = export_to_excel(results_df)
+                            # Excel download button
+                            st.download_button(
+                                "📥 Download Excel Results",
+                                data=excel_data,
+                                file_name=f"bert_theme_analysis_{timestamp}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key=f"excel_download_{timestamp}"
+                            )
+                        
+                        with col2:
+                            # Read PDF to memory first
+                            with open(pdf_filename, 'rb') as f:
+                                pdf_data = f.read()
+                            
+                            # PDF download button
                             st.download_button(
                                 "📄 Download PDF Report",
-                                data=f.read(),
+                                data=pdf_data,
                                 file_name=os.path.basename(pdf_filename),
-                                mime="application/pdf"
+                                mime="application/pdf",
+                                key=f"pdf_download_{timestamp}"
                             )
-                    
-                    # Highlighted text preview
-                    st.subheader("Sample Highlighted Text")
-                    if highlighted_texts:
-                        first_record_id = list(highlighted_texts.keys())[0]
-                        st.markdown(highlighted_texts[first_record_id], unsafe_allow_html=True)
-                    
+                        
+                        with col3:
+                            # Read HTML to memory first
+                            with open(html_filename, 'rb') as f:
+                                html_data = f.read()
+                            
+                            # HTML report download button
+                            st.download_button(
+                                "🌐 Download HTML Report",
+                                data=html_data,
+                                file_name=os.path.basename(html_filename),
+                                mime="text/html", 
+                                key=f"html_download_{timestamp}"
+                            )
+                        
+                        # Show results table
+                        st.subheader("Theme Analysis Results")
+                        st.dataframe(
+                            results_df,
+                            column_config={
+                                'Record ID': st.column_config.NumberColumn("Record ID"),
+                                'Title': st.column_config.TextColumn("Document Title"),
+                                'Framework': st.column_config.TextColumn("Framework"),
+                                'Theme': st.column_config.TextColumn("Theme"),
+                                'Confidence': st.column_config.TextColumn("Confidence"),
+                                'Combined Score': st.column_config.NumberColumn("Score", format="%.3f"),
+                                'Matched Keywords': st.column_config.TextColumn("Keywords"),
+                            },
+                            hide_index=True,
+                            use_container_width=True
+                        )
+                        
+                        # Highlighted text preview
+                        st.subheader("Sample Highlighted Text")
+                        if highlighted_texts:
+                            # Create tabs for multiple documents
+                            doc_ids = list(highlighted_texts.keys())
+                            if len(doc_ids) > 5:
+                                preview_ids = doc_ids[:5]  # Limit preview to 5 documents
+                                st.info(f"Showing 5 of {len(doc_ids)} documents. Download the full report for all results.")
+                            else:
+                                preview_ids = doc_ids
+                            
+                            tabs = st.tabs([f"Document {i+1}" for i in range(len(preview_ids))])
+                            
+                            for i, (tab, doc_id) in enumerate(zip(tabs, preview_ids)):
+                                with tab:
+                                    # Get document title if available
+                                    doc_title = next((row['Title'] for _, row in results_df.iterrows() 
+                                                   if row.get('Record ID') == doc_id), f"Document {i+1}")
+                                    
+                                    st.markdown(f"### {doc_title}")
+                                    
+                                    # Document themes
+                                    doc_themes = results_df[results_df['Record ID'] == doc_id]
+                                    if not doc_themes.empty:
+                                        st.markdown("**Identified Themes:**")
+                                        for _, theme_row in doc_themes.iterrows():
+                                            confidence_color = "#aaffaa" if theme_row.get('Confidence') == "High" else (
+                                                              "#ffffaa" if theme_row.get('Confidence') == "Medium" else "#ffaaaa")
+                                            st.markdown(
+                                                f"* **{theme_row['Framework']}**: {theme_row['Theme']} "
+                                                f"<span style='background-color:{confidence_color};padding:2px 5px;border-radius:3px;'>"
+                                                f"{theme_row.get('Confidence', 'N/A')}</span>",
+                                                unsafe_allow_html=True
+                                            )
+                                    
+                                    # Highlighted text
+                                    st.markdown("**Highlighted Text:**")
+                                    st.markdown(highlighted_texts[doc_id], unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"Error during BERT analysis: {str(e)}")
                     logging.error(f"BERT analysis error: {e}", exc_info=True)
+        
+        # If there are previous results in session state, display them
+        elif 'bert_results' in st.session_state and st.session_state.bert_results:
+            previous_results = st.session_state.bert_results
+            results_df = previous_results.get('results_df')
+            highlighted_texts = previous_results.get('highlighted_texts')
+            pdf_filename = previous_results.get('pdf_filename')
+            html_filename = previous_results.get('html_filename')
+            
+            if results_df is not None and highlighted_texts is not None:
+                st.success("Showing previous analysis results")
+                
+                st.subheader("Analysis Summary")
+                st.write(f"Total Records Analyzed: {len(highlighted_texts)}")
+                st.write(f"Total Theme Predictions: {len(results_df)}")
+                
+                # Confidence distribution
+                if 'Confidence' in results_df.columns:
+                    st.write("\nConfidence Distribution:")
+                    st.write(results_df['Confidence'].value_counts())
+                
+                # Framework distribution
+                st.write("\nFramework Distribution:")
+                st.write(results_df['Framework'].value_counts())
+                
+                # Create columns for download buttons
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    # Excel download button
+                    excel_data = export_to_excel(results_df)
+                    st.download_button(
+                        "📥 Download Excel Results",
+                        data=excel_data,
+                        file_name=f"bert_theme_analysis_results.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key="excel_download_previous"
+                    )
+                
+                with col2:
+                    # PDF download button - only if file exists
+                    if pdf_filename and os.path.exists(pdf_filename):
+                        with open(pdf_filename, 'rb') as f:
+                            pdf_data = f.read()
+                        
+                        st.download_button(
+                            "📄 Download PDF Report",
+                            data=pdf_data,
+                            file_name=os.path.basename(pdf_filename),
+                            mime="application/pdf",
+                            key="pdf_download_previous"
+                        )
+                    else:
+                        st.warning("PDF report not available from previous session")
+                
+                with col3:
+                    # HTML download button - only if file exists
+                    if html_filename and os.path.exists(html_filename):
+                        with open(html_filename, 'rb') as f:
+                            html_data = f.read()
+                        
+                        st.download_button(
+                            "🌐 Download HTML Report",
+                            data=html_data,
+                            file_name=os.path.basename(html_filename),
+                            mime="text/html",
+                            key="html_download_previous"
+                        )
+                    else:
+                        st.warning("HTML report not available from previous session")
+                
+                # Show results table
+                st.subheader("Theme Analysis Results")
+                st.dataframe(
+                    results_df,
+                    column_config={
+                        'Record ID': st.column_config.NumberColumn("Record ID"),
+                        'Title': st.column_config.TextColumn("Document Title"),
+                        'Framework': st.column_config.TextColumn("Framework"),
+                        'Theme': st.column_config.TextColumn("Theme"),
+                        'Confidence': st.column_config.TextColumn("Confidence"),
+                        'Combined Score': st.column_config.NumberColumn("Score", format="%.3f"),
+                        'Matched Keywords': st.column_config.TextColumn("Keywords"),
+                    },
+                    hide_index=True,
+                    use_container_width=True
+                )
+                
+                # Highlighted text preview (limited)
+                st.subheader("Sample Highlighted Text")
+                if highlighted_texts:
+                    # Show the first document as sample
+                    first_record_id = list(highlighted_texts.keys())[0]
+                    doc_title = next((row['Title'] for _, row in results_df.iterrows() 
+                                   if row.get('Record ID') == first_record_id), f"Document {first_record_id}")
+                    
+                    st.markdown(f"### {doc_title}")
+                    st.markdown(highlighted_texts[first_record_id], unsafe_allow_html=True)
+                    
+                    if len(highlighted_texts) > 1:
+                        st.info(f"Download the full report to view all {len(highlighted_texts)} analyzed documents")
+
                     
 if __name__ == "__main__":
     try:
