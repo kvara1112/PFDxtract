@@ -33,7 +33,16 @@ from bs4 import BeautifulSoup, Tag
 import json  # Added for JSON export functionality
 import colorsys
 import random
-
+from matplotlib.backends.backend_pdf import PdfPages
+from datetime import datetime
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import pandas as pd
+import numpy as np
+import os
+import tempfile
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import Patch
 # Initialize NLTK resources
 import nltk
 
@@ -60,7 +69,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 import re
 from collections import Counter
 from tqdm import tqdm
-
 import colorsys
 import random
 
@@ -1413,16 +1421,6 @@ class ThemeAnalyzer:
         Returns:
             str: Path to the created PDF file
         """
-        from matplotlib.backends.backend_pdf import PdfPages
-        from datetime import datetime
-        import matplotlib.pyplot as plt
-        import matplotlib.gridspec as gridspec
-        import pandas as pd
-        import numpy as np
-        import os
-        import tempfile
-        from matplotlib.colors import LinearSegmentedColormap
-        from matplotlib.patches import Patch
 
         # Generate default filename if not provided
         if output_filename is None:
