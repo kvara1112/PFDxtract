@@ -234,6 +234,164 @@ class ThemeAnalyzer:
         return sorted(positions)
 ######
     def create_highlighted_html(self, text, theme_highlights):
+        """Create HTML with sentences highlighted by theme with improved color consistency"""
+        if not text or not theme_highlights:
+            return text
+        
+        # Convert highlights to a flat list of positions
+        all_positions = []
+        for theme_key, positions in theme_highlights.items():
+            theme_color = self._get_theme_color(theme_key)
+            for pos_info in positions:
+                # position format: (start_pos, end_pos, keywords_str, sentence)
+                all_positions.append((
+                    pos_info[0],  # start position
+                    pos_info[1],  # end position
+                    theme_key,    # theme key
+                    pos_info[2],  # keywords string
+                    pos_info[3],  # original sentence
+                    theme_color   # theme color
+                ))
+        
+        # Sort positions by start position
+        all_positions.sort()
+        
+        # Merge overlapping sentences using primary theme's color
+        merged_positions = []
+        if all_positions:
+            current = all_positions[0]
+            for i in range(1, len(all_positions)):
+                if all_positions[i][0] <= current[1]:  # Overlap
+                    # Create a meaningful theme name combination
+                    combined_theme = current[2] + " + " + all_positions[i][2]
+                    combined_keywords = current[3] + " + " + all_positions[i][3]
+                    
+                    # Use the first theme's color for consistency
+                    combined_color = current[5]
+                    
+                    # Update current with merged information
+                    current = (
+                        current[0],                # Keep original start position
+                        max(current[1], all_positions[i][1]),  # Take the later end position
+                        combined_theme,            # Combined theme names
+                        combined_keywords,         # Combined keywords
+                        current[4],                # Keep original sentence
+                        combined_color             # Use the first theme's color
+                    )
+                else:
+                    merged_positions.append(current)
+                    current = all_positions[i]
+            merged_positions.append(current)
+        
+        # Create highlighted text
+        result = []
+        last_end = 0
+        
+        for start, end, theme_key, keywords, sentence, color in merged_positions:
+            # Add text before this highlight
+            if start > last_end:
+                result.append(text[last_end:start])
+            
+            # Simple styling with solid background color
+            style = f"background-color:{color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
+            tooltip = f"Theme: {theme_key}\nKeywords: {keywords}"
+            result.append(f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>')
+            
+            last_end = end
+        
+        # Add remaining text
+        if last_end < len(text):
+            result.append(text[last_end:])
+        
+        # Create HTML structure
+        html_content = """
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        """
+        
+        # Add the highlighted text
+        html_content += ''.join(result)
+        
+        html_content += """
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+    
+        # Add rows to HTML with color-coded backgrounds
+        for start, end, theme_key, keywords, sentence, color in merged_positions:
+            # Split theme key into framework and theme
+            framework, theme = theme_key.split('_', 1) if '_' in theme_key else (theme_key, theme_key)
+            
+            html_content += f"""
+                    <tr>
+                        <td>{framework}</td>
+                        <td>{theme}</td>
+                        <td style="background-color: {color};">{color}</td>
+                        <td>{keywords}</td>
+                        <td>{sentence}</td>
+                    </tr>
+            """
+    
+        # Close HTML structure
+        html_content += """
+                </tbody>
+            </table>
+        </body>
+        </html>
+        """
+    
+        return html_content
+    
+    def create_highlighted_htmlworks2(self, text, theme_highlights):
         """
         Create HTML with sentences highlighted by theme, 
         with extracted sentences in the last column and comprehensive theme details
