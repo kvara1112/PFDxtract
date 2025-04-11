@@ -245,6 +245,78 @@ class ThemeAnalyzer:
             for pos_info in positions:
                 # position format: (start_pos, end_pos, keywords_str, sentence)
                 all_positions.append((
+                    pos_info[0],  # start position
+                    pos_info[1],  # end position
+                    theme_key,    # theme key
+                    pos_info[2],  # keywords string
+                    pos_info[3],  # original sentence
+                    theme_color   # theme color
+                ))
+    
+        # Sort positions by start position
+        all_positions.sort()
+    
+        # Merge overlapping sentences using primary theme's color
+        merged_positions = []
+        if all_positions:
+            current = all_positions[0]
+            for i in range(1, len(all_positions)):
+                if all_positions[i][0] <= current[1]:  # Overlap
+                    # Create a meaningful theme name combination
+                    combined_theme = current[2] + " + " + all_positions[i][2]
+                    combined_keywords = current[3] + " + " + all_positions[i][3]
+                    
+                    # Use the first theme's color for consistency
+                    combined_color = current[5]
+                    
+                    # Update current with merged information
+                    current = (
+                        current[0],                # Keep original start position
+                        max(current[1], all_positions[i][1]),  # Take the later end position
+                        combined_theme,            # Combined theme names
+                        combined_keywords,         # Combined keywords
+                        current[4],                # Keep original sentence
+                        combined_color             # Use the first theme's color
+                    )
+                else:
+                    merged_positions.append(current)
+                    current = all_positions[i]
+            merged_positions.append(current)
+    
+        # Create highlighted text
+        result = []
+        last_end = 0
+    
+        for start, end, theme_key, keywords, sentence, color in merged_positions:
+            # Add text before this highlight
+            if start > last_end:
+                result.append(text[last_end:start])
+    
+            # Simple styling with solid background color
+            style = f"background-color:{color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
+            tooltip = f"Theme: {theme_key}\nKeywords: {keywords}"
+            result.append(f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>')
+    
+            last_end = end
+    
+        # Add remaining text
+        if last_end < len(text):
+            result.append(text[last_end:])
+    
+        return "".join(result)
+    
+    def create_highlighted_html2(self, text, theme_highlights):
+        """Create HTML with sentences highlighted by theme with improved color consistency"""
+        if not text or not theme_highlights:
+            return text
+    
+        # Convert highlights to a flat list of positions
+        all_positions = []
+        for theme_key, positions in theme_highlights.items():
+            theme_color = self._get_theme_color(theme_key)
+            for pos_info in positions:
+                # position format: (start_pos, end_pos, keywords_str, sentence)
+                all_positions.append((
                     pos_info[0],
                     pos_info[1],
                     theme_key,
