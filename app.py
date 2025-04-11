@@ -230,39 +230,39 @@ class ThemeAnalyzer:
         self._initialize_color_mapping()
         
     def _initialize_color_mapping(self):
-    """
-    Initialize color mapping for themes across all frameworks
+        """
+        Initialize color mapping for themes across all frameworks
+        
+        This method generates a consistent color for each theme in each framework
+        and stores them in the theme_color_map dictionary.
+        """
+        # Create the color mapper
+        self.color_mapper = PrecisionColorMapper()
+        
+        # Reset the theme color map
+        self.theme_color_map = {}
+        
+        # Iterate through all frameworks and their themes
+        for framework_name, themes in self.frameworks.items():
+            for theme in themes:
+                # Create a unique key for each theme
+                theme_key = f"{framework_name}_{theme['name']}"
+                
+                # Generate a consistent color for the theme
+                color = self.color_mapper.get_theme_color(
+                    framework=framework_name, 
+                    theme_name=theme['name']
+                )
+                
+                # Store the color in the theme_color_map
+                self.theme_color_map[theme_key] = color
     
-    This method generates a consistent color for each theme in each framework
-    and stores them in the theme_color_map dictionary.
-    """
-    # Create the color mapper
-    self.color_mapper = PrecisionColorMapper()
-    
-    # Reset the theme color map
-    self.theme_color_map = {}
-    
-    # Iterate through all frameworks and their themes
-    for framework_name, themes in self.frameworks.items():
-        for theme in themes:
-            # Create a unique key for each theme
-            theme_key = f"{framework_name}_{theme['name']}"
-            
-            # Generate a consistent color for the theme
-            color = self.color_mapper.get_theme_color(
-                framework=framework_name, 
-                theme_name=theme['name']
-            )
-            
-            # Store the color in the theme_color_map
-            self.theme_color_map[theme_key] = color
-
-    # Optional: Generate a color legend for reference
-    self.color_legend = self.color_mapper.generate_color_legend({
-        framework_name: [theme['name'] for theme in themes]
-        for framework_name, themes in self.frameworks.items()
-    })
-    
+        # Optional: Generate a color legend for reference
+        self.color_legend = self.color_mapper.generate_color_legend({
+            framework_name: [theme['name'] for theme in themes]
+            for framework_name, themes in self.frameworks.items()
+        })
+        
 
 
     def get_bert_embedding(self, text, max_length=512):
