@@ -63,43 +63,43 @@ class ThemeAnalyzer:
 
         # Configuration settings
         self.config = {
-            'base_similarity_threshold': 0.65,
-            'keyword_match_weight': 0.3,
-            'semantic_similarity_weight': 0.7,
-            'max_themes_per_framework': 5,
-            'context_window_size': 200,
+            "base_similarity_threshold": 0.65,
+            "keyword_match_weight": 0.3,
+            "semantic_similarity_weight": 0.7,
+            "max_themes_per_framework": 5,
+            "context_window_size": 200,
         }
 
         # Initialize frameworks with themes
         self.frameworks = {
-            'I-SIRch': self._get_isirch_framework(),
-            'House of Commons': self._get_house_of_commons_themes(),
-            'Extended Analysis': self._get_extended_themes()
+            "I-SIRch": self._get_isirch_framework(),
+            "House of Commons": self._get_house_of_commons_themes(),
+            "Extended Analysis": self._get_extended_themes(),
         }
 
         # Color mapping for themes
         self.theme_color_map = {}
         self.theme_colors = [
-            '#FFD580',  # Light orange
-            '#FFECB3',  # Light amber
-            '#E1F5FE',  # Light blue
-            '#E8F5E9',  # Light green
-            '#F3E5F5',  # Light purple
-            '#FFF3E0',  # Light orange
-            '#E0F7FA',  # Light cyan
-            '#F1F8E9',  # Light lime
-            '#FFF8E1',  # Light yellow
-            '#E8EAF6',  # Light indigo
-            '#FCE4EC',  # Light pink
-            '#F5F5DC',  # Beige
-            '#E6E6FA',  # Lavender
-            '#FFFACD',  # Lemon chiffon
-            '#D1E7DD',  # Mint
-            '#F8D7DA',  # Light red
-            '#D1ECF1',  # Teal light
-            '#FFF3CD',  # Light yellow
-            '#D6D8D9',  # Light gray
-            '#CFF4FC',  # Info light
+            "#FFD580",  # Light orange
+            "#FFECB3",  # Light amber
+            "#E1F5FE",  # Light blue
+            "#E8F5E9",  # Light green
+            "#F3E5F5",  # Light purple
+            "#FFF3E0",  # Light orange
+            "#E0F7FA",  # Light cyan
+            "#F1F8E9",  # Light lime
+            "#FFF8E1",  # Light yellow
+            "#E8EAF6",  # Light indigo
+            "#FCE4EC",  # Light pink
+            "#F5F5DC",  # Beige
+            "#E6E6FA",  # Lavender
+            "#FFFACD",  # Lemon chiffon
+            "#D1E7DD",  # Mint
+            "#F8D7DA",  # Light red
+            "#D1ECF1",  # Teal light
+            "#FFF3CD",  # Light yellow
+            "#D6D8D9",  # Light gray
+            "#CFF4FC",  # Info light
         ]
 
         # Pre-assign colors to frameworks
@@ -129,7 +129,7 @@ class ThemeAnalyzer:
             return_tensors="pt",
             truncation=True,
             max_length=max_length,
-            padding=True
+            padding=True,
         )
 
         # Get embeddings
@@ -155,14 +155,20 @@ class ThemeAnalyzer:
         context = text[start:end]
         return self.get_bert_embedding(context)
 
-    def _calculate_combined_score(self, semantic_similarity, keyword_count, text_length):
+    def _calculate_combined_score(
+        self, semantic_similarity, keyword_count, text_length
+    ):
         """Calculate combined score that balances semantic similarity and keyword presence"""
         # Normalize keyword count by text length
         normalized_keyword_density = min(1.0, keyword_count / (text_length / 1000))
 
         # Weighted combination
-        keyword_component = normalized_keyword_density * self.config['keyword_match_weight']
-        semantic_component = semantic_similarity * self.config['semantic_similarity_weight']
+        keyword_component = (
+            normalized_keyword_density * self.config["keyword_match_weight"]
+        )
+        semantic_component = (
+            semantic_similarity * self.config["semantic_similarity_weight"]
+        )
 
         return keyword_component + semantic_component
 
@@ -172,7 +178,7 @@ class ThemeAnalyzer:
             return []
 
         # Split text into sentences
-        sentence_endings = r'(?<=[.!?])\s+(?=[A-Z])'
+        sentence_endings = r"(?<=[.!?])\s+(?=[A-Z])"
         sentences = re.split(sentence_endings, text)
 
         # Track character positions and matched sentences
@@ -192,7 +198,7 @@ class ThemeAnalyzer:
                 if keyword and len(keyword) >= 3 and keyword.lower() in sentence_lower:
                     # Check if it's a whole word using word boundaries
                     keyword_lower = keyword.lower()
-                    pattern = r'\b' + re.escape(keyword_lower) + r'\b'
+                    pattern = r"\b" + re.escape(keyword_lower) + r"\b"
                     if re.search(pattern, sentence_lower):
                         matched_keywords.append(keyword)
 
@@ -208,32 +214,43 @@ class ThemeAnalyzer:
             current_pos += len(sentence)
 
             # Account for sentence ending characters and whitespace
-            if current_pos < len(text) and text[current_pos-1] in '.!?':
+            if current_pos < len(text) and text[current_pos - 1] in ".!?":
                 # Check for any whitespace after sentence ending
                 space_count = 0
-                while current_pos + space_count < len(text) and text[current_pos + space_count].isspace():
+                while (
+                    current_pos + space_count < len(text)
+                    and text[current_pos + space_count].isspace()
+                ):
                     space_count += 1
                 current_pos += space_count
 
         return sorted(positions)
 
-    
     def create_highlighted_html(self, text, theme_highlights):
         """Create HTML with sentences highlighted by theme with improved color consistency"""
         if not text or not theme_highlights:
             return text
-    
+
         # Convert highlights to a flat list of positions
         all_positions = []
         for theme_key, positions in theme_highlights.items():
             theme_color = self._get_theme_color(theme_key)
             for pos_info in positions:
                 # position format: (start_pos, end_pos, keywords_str, sentence)
-                all_positions.append((pos_info[0], pos_info[1], theme_key, pos_info[2], pos_info[3], theme_color))
-    
+                all_positions.append(
+                    (
+                        pos_info[0],
+                        pos_info[1],
+                        theme_key,
+                        pos_info[2],
+                        pos_info[3],
+                        theme_color,
+                    )
+                )
+
         # Sort positions by start position
         all_positions.sort()
-    
+
         # Merge overlapping sentences
         merged_positions = []
         if all_positions:
@@ -248,34 +265,40 @@ class ThemeAnalyzer:
                         current[2] + " + " + all_positions[i][2],
                         current[3] + " + " + all_positions[i][3],
                         current[4],  # Keep the sentence
-                        "linear-gradient(135deg, " + current[5] + " 50%, " + all_positions[i][5] + " 50%)"  # Gradient for multiple themes
+                        "linear-gradient(135deg, "
+                        + current[5]
+                        + " 50%, "
+                        + all_positions[i][5]
+                        + " 50%)",  # Gradient for multiple themes
                     )
                 else:
                     merged_positions.append(current)
                     current = all_positions[i]
             merged_positions.append(current)
-    
+
         # Create highlighted text
         result = []
         last_end = 0
-    
+
         for start, end, theme_key, keywords, sentence, color in merged_positions:
             # Add text before this highlight
             if start > last_end:
                 result.append(text[last_end:start])
-    
+
             # Add highlighted text with tooltip
             if "linear-gradient" in color:
                 # Special styling for overlapping themes
                 style = f"background: {color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
             else:
                 style = f"background-color:{color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
-                
+
             tooltip = f"Theme: {theme_key}\nKeywords: {keywords}"
-            result.append(f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>')
-    
+            result.append(
+                f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>'
+            )
+
             last_end = end
-    
+
         # Add remaining text
         if last_end < len(text):
             result.append(text[last_end:])
@@ -289,12 +312,15 @@ class ThemeAnalyzer:
             return self.theme_color_map[theme_key]
 
         # Extract framework and theme from the theme_key (format: "framework_theme")
-        parts = theme_key.split('_', 1)
+        parts = theme_key.split("_", 1)
         framework = parts[0] if len(parts) > 0 else "unknown"
 
         # Count existing colors for this framework
-        framework_count = sum(1 for existing_key in self.theme_color_map
-                           if existing_key.startswith(framework + '_'))
+        framework_count = sum(
+            1
+            for existing_key in self.theme_color_map
+            if existing_key.startswith(framework + "_")
+        )
 
         # Assign the next available color from our palette
         color_idx = framework_count % len(self.theme_colors)
@@ -303,7 +329,7 @@ class ThemeAnalyzer:
         # Store the assignment for future consistency
         self.theme_color_map[theme_key] = assigned_color
         return assigned_color
-    
+
     def analyze_document(self, text):
         """Analyze document text for themes and highlight sentences containing theme keywords"""
         if not isinstance(text, str) or not text.strip():
@@ -324,7 +350,9 @@ class ThemeAnalyzer:
             theme_matches = []
             for theme in framework_theme_list:
                 # Find all sentence positions containing any matching keywords
-                sentence_positions = self._find_sentence_positions(text, theme['keywords'])
+                sentence_positions = self._find_sentence_positions(
+                    text, theme["keywords"]
+                )
 
                 # Extract keywords from sentence positions
                 keyword_matches = []
@@ -337,14 +365,16 @@ class ThemeAnalyzer:
 
                             # Get contextual embeddings for each keyword occurrence
                             context_embedding = self._get_contextual_embedding(
-                                text, keyword, self.config['context_window_size']
+                                text, keyword, self.config["context_window_size"]
                             )
                             match_contexts.append(context_embedding)
 
                 # Calculate semantic similarity with theme description
-                theme_description = theme['name'] + ": " + ", ".join(theme['keywords'])
+                theme_description = theme["name"] + ": " + ", ".join(theme["keywords"])
                 theme_embedding = self.get_bert_embedding(theme_description)
-                theme_doc_similarity = cosine_similarity([document_embedding], [theme_embedding])[0][0]
+                theme_doc_similarity = cosine_similarity(
+                    [document_embedding], [theme_embedding]
+                )[0][0]
 
                 # Calculate context similarities if available
                 context_similarities = []
@@ -354,33 +384,38 @@ class ThemeAnalyzer:
                         context_similarities.append(sim)
 
                 # Use max context similarity if available, otherwise use document similarity
-                max_context_similarity = max(context_similarities) if context_similarities else 0
+                max_context_similarity = (
+                    max(context_similarities) if context_similarities else 0
+                )
                 semantic_similarity = max(theme_doc_similarity, max_context_similarity)
 
                 # Calculate combined score
                 combined_score = self._calculate_combined_score(
-                    semantic_similarity,
-                    len(keyword_matches),
-                    text_length
+                    semantic_similarity, len(keyword_matches), text_length
                 )
 
-                if keyword_matches and combined_score >= self.config['base_similarity_threshold']:
-                    theme_matches.append({
-                        'theme': theme['name'],
-                        'semantic_similarity': round(semantic_similarity, 3),
-                        'combined_score': round(combined_score, 3),
-                        'matched_keywords': ', '.join(keyword_matches),
-                        'keyword_count': len(keyword_matches),
-                        'sentence_positions': sentence_positions  # Store sentence positions for highlighting
-                    })
+                if (
+                    keyword_matches
+                    and combined_score >= self.config["base_similarity_threshold"]
+                ):
+                    theme_matches.append(
+                        {
+                            "theme": theme["name"],
+                            "semantic_similarity": round(semantic_similarity, 3),
+                            "combined_score": round(combined_score, 3),
+                            "matched_keywords": ", ".join(keyword_matches),
+                            "keyword_count": len(keyword_matches),
+                            "sentence_positions": sentence_positions,  # Store sentence positions for highlighting
+                        }
+                    )
 
                     all_keyword_matches.extend(keyword_matches)
 
             # Sort by combined score
-            theme_matches.sort(key=lambda x: x['combined_score'], reverse=True)
+            theme_matches.sort(key=lambda x: x["combined_score"], reverse=True)
 
             # Limit number of themes
-            top_theme_matches = theme_matches[:self.config['max_themes_per_framework']]
+            top_theme_matches = theme_matches[: self.config["max_themes_per_framework"]]
 
             # Store theme matches and their highlighting info
             if top_theme_matches:
@@ -393,24 +428,24 @@ class ThemeAnalyzer:
 
                 for theme_match in top_theme_matches:
                     # Check if this theme adds unique keywords
-                    theme_keywords = set(theme_match['matched_keywords'].split(', '))
+                    theme_keywords = set(theme_match["matched_keywords"].split(", "))
                     unique_keywords = theme_keywords - used_keywords
 
                     # If theme adds unique keywords or has high score, include it
-                    if unique_keywords or theme_match['combined_score'] > 0.75:
+                    if unique_keywords or theme_match["combined_score"] > 0.75:
                         # Store the theme data
                         theme_match_data = {
-                            'theme': theme_match['theme'],
-                            'semantic_similarity': theme_match['semantic_similarity'],
-                            'combined_score': theme_match['combined_score'],
-                            'matched_keywords': theme_match['matched_keywords'],
-                            'keyword_count': theme_match['keyword_count']
+                            "theme": theme_match["theme"],
+                            "semantic_similarity": theme_match["semantic_similarity"],
+                            "combined_score": theme_match["combined_score"],
+                            "matched_keywords": theme_match["matched_keywords"],
+                            "keyword_count": theme_match["keyword_count"],
                         }
                         final_themes.append(theme_match_data)
 
                         # Store the highlighting positions separately
                         theme_key = f"{framework_name}_{theme_match['theme']}"
-                        theme_highlights[theme_key] = theme_match['sentence_positions']
+                        theme_highlights[theme_key] = theme_match["sentence_positions"]
 
                         used_keywords.update(theme_keywords)
 
@@ -420,257 +455,682 @@ class ThemeAnalyzer:
 
         return framework_themes, theme_highlights
 
-
     def _get_isirch_framework(self):
         """I-SIRCh framework themes mapped exactly to the official framework structure"""
         return [
-            {"name": "External - Policy factor",
-            "keywords": ["policy factor", "policy", "factor"]},
-
-            {"name": "External - Societal factor",
-            "keywords": ["societal factor", "societal", "factor"]},
-
-            {"name": "External - Economic factor",
-            "keywords": ["economic factor", "economic", "factor"]},
-
-            {"name": "External - COVID ✓",
-            "keywords": ["covid ✓", "covid"]},
-
-            {"name": "External - Geographical factor (e.g. Location of patient)",
-            "keywords": ["geographical factor", "geographical", "factor", "location of patient"]},
-
-            {"name": "Internal - Physical layout and Environment",
-            "keywords": ["physical layout and environment", "physical", "layout", "environment"]},
-
-            {"name": "Internal - Acuity (e.g., capacity of the maternity unit as a whole)",
-            "keywords": ["acuity", "capacity of the maternity unit as a whole"]},
-
-            {"name": "Internal - Availability (e.g., operating theatres)",
-            "keywords": ["availability", "operating theatres"]},
-
-            {"name": "Internal - Time of day (e.g., night working or day of the week)",
-            "keywords": ["time of day", "time", "night working or day of the week"]},
-
-            {"name": "Organisation - Team culture factor (e.g., patient safety culture)",
-            "keywords": ["team culture factor", "team", "culture", "factor", "patient safety culture"]},
-
-            {"name": "Organisation - Incentive factor (e.g., performance evaluation)",
-            "keywords": ["incentive factor", "incentive", "factor", "performance evaluation"]},
-
-            {"name": "Organisation - Teamworking",
-            "keywords": ["teamworking"]},
-
-            {"name": "Organisation - Communication factor",
-            "keywords": ["communication factor", "communication", "factor"]},
-
-            {"name": "Organisation - Communication factor - Between staff",
-            "keywords": ["between staff", "between", "staff"]},
-
-            {"name": "Organisation - Communication factor - Between staff and patient (verbal)",
-            "keywords": ["between staff and patient", "between", "staff", "patient", "verbal"]},
-
-            {"name": "Organisation - Documentation",
-            "keywords": ["documentation"]},
-
-            {"name": "Organisation - Escalation/referral factor (including fresh eyes reviews)",
-            "keywords": ["escalation/referral factor", "escalation/referral", "factor", "including fresh eyes reviews",
-                        "specialist referral", "delay in escalation", "specialist review", "senior input",
-                        "interdisciplinary referral", "escalation delay", "consultant opinion"]},
-
-            {"name": "Organisation - National and/or local guidance",
-            "keywords": ["national and/or local guidance", "national", "and/or", "local", "guidance",
-                        "national screening", "screening program", "standard implementation",
-                        "standardized screening", "protocol adherence"]},
-
-            {"name": "Organisation - Language barrier",
-            "keywords": ["language barrier", "language", "barrier"]},
-
-            {"name": "Jobs/Task - Assessment, investigation, testing, screening (e.g., holistic review)",
-            "keywords": ["assessment, investigation, testing, screening", "assessment,", "investigation,", "testing,",
-                        "screening", "holistic review", "specimen", "sample", "laboratory", "test result",
-                        "abnormal finding", "test interpretation"]},
-
-            {"name": "Jobs/Task - Care planning",
-            "keywords": ["care planning", "care", "planning"]},
-
-            {"name": "Jobs/Task - Dispensing, administering",
-            "keywords": ["dispensing, administering", "dispensing,", "administering"]},
-
-            {"name": "Jobs/Task - Monitoring",
-            "keywords": ["monitoring"]},
-
-            {"name": "Jobs/Task - Risk assessment",
-            "keywords": ["risk assessment", "risk", "assessment"]},
-
-            {"name": "Jobs/Task - Situation awareness (e.g., loss of helicopter view)",
-            "keywords": ["situation awareness", "situation", "awareness", "loss of helicopter view"]},
-
-            {"name": "Jobs/Task - Obstetric review",
-            "keywords": ["obstetric review", "obstetric", "review"]},
-
-            {"name": "Technologies - Issues",
-            "keywords": ["issues"]},
-
-            {"name": "Technologies - Interpretation (e.g., CTG)",
-            "keywords": ["interpretation", "ctg"]},
-
-            {"name": "Person - Patient (characteristics and performance)",
-            "keywords": ["patient", "characteristics and performance"]},
-
-            {"name": "Person - Patient (characteristics and performance) - Characteristics",
-            "keywords": ["characteristics", "patient characteristics"]},
-
-            {"name": "Person - Patient (characteristics and performance) - Characteristics - Physical characteristics",
-            "keywords": ["physical characteristics", "physical", "characteristics"]},
-
-            {"name": "Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)",
-            "keywords": ["psychological characteristics", "psychological", "characteristics", "stress", "mental health"]},
-
-            {"name": "Person - Patient (characteristics and performance) - Characteristics - Language competence (English)",
-            "keywords": ["language competence", "language", "competence", "english"]},
-
-            {"name": "Person - Patient (characteristics and performance) - Characteristics - Disability (e.g., hearing problems)",
-            "keywords": ["disability", "hearing problems"]},
-
-            {"name": "Person - Patient (characteristics and performance) - Characteristics - Training and education (e.g., attendance at ante-natal classes)",
-            "keywords": ["training and education", "training", "education", "attendance at ante-natal classes"]},
-
-            {"name": "Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)",
-            "keywords": ["record of attendance", "record", "attendance", "failure to attend antenatal classes"]},
-
-            {"name": "Person - Patient (characteristics and performance) - Performance",
-            "keywords": ["performance", "patient performance"]},
-
-            {"name": "Person - Staff (characteristics and performance)",
-            "keywords": ["staff", "characteristics and performance"]},
-
-            {"name": "Person - Staff (characteristics and performance) - Characteristics",
-            "keywords": ["characteristics", "staff characteristics"]},
-
-            {"name": "Person - Staff (characteristics and performance) - Performance",
-            "keywords": ["performance", "staff performance"]}
+            {
+                "name": "External - Policy factor",
+                "keywords": ["policy factor", "policy", "factor"],
+            },
+            {
+                "name": "External - Societal factor",
+                "keywords": ["societal factor", "societal", "factor"],
+            },
+            {
+                "name": "External - Economic factor",
+                "keywords": ["economic factor", "economic", "factor"],
+            },
+            {"name": "External - COVID ✓", "keywords": ["covid ✓", "covid"]},
+            {
+                "name": "External - Geographical factor (e.g. Location of patient)",
+                "keywords": [
+                    "geographical factor",
+                    "geographical",
+                    "factor",
+                    "location of patient",
+                ],
+            },
+            {
+                "name": "Internal - Physical layout and Environment",
+                "keywords": [
+                    "physical layout and environment",
+                    "physical",
+                    "layout",
+                    "environment",
+                ],
+            },
+            {
+                "name": "Internal - Acuity (e.g., capacity of the maternity unit as a whole)",
+                "keywords": ["acuity", "capacity of the maternity unit as a whole"],
+            },
+            {
+                "name": "Internal - Availability (e.g., operating theatres)",
+                "keywords": ["availability", "operating theatres"],
+            },
+            {
+                "name": "Internal - Time of day (e.g., night working or day of the week)",
+                "keywords": ["time of day", "time", "night working or day of the week"],
+            },
+            {
+                "name": "Organisation - Team culture factor (e.g., patient safety culture)",
+                "keywords": [
+                    "team culture factor",
+                    "team",
+                    "culture",
+                    "factor",
+                    "patient safety culture",
+                ],
+            },
+            {
+                "name": "Organisation - Incentive factor (e.g., performance evaluation)",
+                "keywords": [
+                    "incentive factor",
+                    "incentive",
+                    "factor",
+                    "performance evaluation",
+                ],
+            },
+            {"name": "Organisation - Teamworking", "keywords": ["teamworking"]},
+            {
+                "name": "Organisation - Communication factor",
+                "keywords": ["communication factor", "communication", "factor"],
+            },
+            {
+                "name": "Organisation - Communication factor - Between staff",
+                "keywords": ["between staff", "between", "staff"],
+            },
+            {
+                "name": "Organisation - Communication factor - Between staff and patient (verbal)",
+                "keywords": [
+                    "between staff and patient",
+                    "between",
+                    "staff",
+                    "patient",
+                    "verbal",
+                ],
+            },
+            {"name": "Organisation - Documentation", "keywords": ["documentation"]},
+            {
+                "name": "Organisation - Escalation/referral factor (including fresh eyes reviews)",
+                "keywords": [
+                    "escalation/referral factor",
+                    "escalation/referral",
+                    "factor",
+                    "including fresh eyes reviews",
+                    "specialist referral",
+                    "delay in escalation",
+                    "specialist review",
+                    "senior input",
+                    "interdisciplinary referral",
+                    "escalation delay",
+                    "consultant opinion",
+                ],
+            },
+            {
+                "name": "Organisation - National and/or local guidance",
+                "keywords": [
+                    "national and/or local guidance",
+                    "national",
+                    "and/or",
+                    "local",
+                    "guidance",
+                    "national screening",
+                    "screening program",
+                    "standard implementation",
+                    "standardized screening",
+                    "protocol adherence",
+                ],
+            },
+            {
+                "name": "Organisation - Language barrier",
+                "keywords": ["language barrier", "language", "barrier"],
+            },
+            {
+                "name": "Jobs/Task - Assessment, investigation, testing, screening (e.g., holistic review)",
+                "keywords": [
+                    "assessment, investigation, testing, screening",
+                    "assessment,",
+                    "investigation,",
+                    "testing,",
+                    "screening",
+                    "holistic review",
+                    "specimen",
+                    "sample",
+                    "laboratory",
+                    "test result",
+                    "abnormal finding",
+                    "test interpretation",
+                ],
+            },
+            {
+                "name": "Jobs/Task - Care planning",
+                "keywords": ["care planning", "care", "planning"],
+            },
+            {
+                "name": "Jobs/Task - Dispensing, administering",
+                "keywords": [
+                    "dispensing, administering",
+                    "dispensing,",
+                    "administering",
+                ],
+            },
+            {"name": "Jobs/Task - Monitoring", "keywords": ["monitoring"]},
+            {
+                "name": "Jobs/Task - Risk assessment",
+                "keywords": ["risk assessment", "risk", "assessment"],
+            },
+            {
+                "name": "Jobs/Task - Situation awareness (e.g., loss of helicopter view)",
+                "keywords": [
+                    "situation awareness",
+                    "situation",
+                    "awareness",
+                    "loss of helicopter view",
+                ],
+            },
+            {
+                "name": "Jobs/Task - Obstetric review",
+                "keywords": ["obstetric review", "obstetric", "review"],
+            },
+            {"name": "Technologies - Issues", "keywords": ["issues"]},
+            {
+                "name": "Technologies - Interpretation (e.g., CTG)",
+                "keywords": ["interpretation", "ctg"],
+            },
+            {
+                "name": "Person - Patient (characteristics and performance)",
+                "keywords": ["patient", "characteristics and performance"],
+            },
+            {
+                "name": "Person - Patient (characteristics and performance) - Characteristics",
+                "keywords": ["characteristics", "patient characteristics"],
+            },
+            {
+                "name": "Person - Patient (characteristics and performance) - Characteristics - Physical characteristics",
+                "keywords": ["physical characteristics", "physical", "characteristics"],
+            },
+            {
+                "name": "Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)",
+                "keywords": [
+                    "psychological characteristics",
+                    "psychological",
+                    "characteristics",
+                    "stress",
+                    "mental health",
+                ],
+            },
+            {
+                "name": "Person - Patient (characteristics and performance) - Characteristics - Language competence (English)",
+                "keywords": [
+                    "language competence",
+                    "language",
+                    "competence",
+                    "english",
+                ],
+            },
+            {
+                "name": "Person - Patient (characteristics and performance) - Characteristics - Disability (e.g., hearing problems)",
+                "keywords": ["disability", "hearing problems"],
+            },
+            {
+                "name": "Person - Patient (characteristics and performance) - Characteristics - Training and education (e.g., attendance at ante-natal classes)",
+                "keywords": [
+                    "training and education",
+                    "training",
+                    "education",
+                    "attendance at ante-natal classes",
+                ],
+            },
+            {
+                "name": "Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)",
+                "keywords": [
+                    "record of attendance",
+                    "record",
+                    "attendance",
+                    "failure to attend antenatal classes",
+                ],
+            },
+            {
+                "name": "Person - Patient (characteristics and performance) - Performance",
+                "keywords": ["performance", "patient performance"],
+            },
+            {
+                "name": "Person - Staff (characteristics and performance)",
+                "keywords": ["staff", "characteristics and performance"],
+            },
+            {
+                "name": "Person - Staff (characteristics and performance) - Characteristics",
+                "keywords": ["characteristics", "staff characteristics"],
+            },
+            {
+                "name": "Person - Staff (characteristics and performance) - Performance",
+                "keywords": ["performance", "staff performance"],
+            },
         ]
 
     def _get_house_of_commons_themes(self):
         """House of Commons themes mapped exactly to the official document"""
         return [
-            {"name": "Communication",
-            "keywords": ["communication", "dismissed", "listened", "concerns not taken seriously", "concerns", "seriously"]},
-
-            {"name": "Fragmented care",
-            "keywords": ["fragmented care", "fragmented", "care", "spread", "poorly", "communicating", "providers", "no clear coordination", "clear", "coordination"]},
-
-            {"name": "Guidance gaps",
-            "keywords": ["guidance gaps", "guidance", "gaps", "information", "needs", "optimal", "minority"]},
-
-            {"name": "Pre-existing conditions and comorbidities",
-            "keywords": ["pre-existing conditions and comorbidities", "pre-existing", "conditions", "comorbidities", "overrepresented", "ethnic", "minority", "contribute", "higher", "mortality"]},
-
-            {"name": "Inadequate maternity care",
-            "keywords": ["inadequate maternity care", "inadequate", "maternity", "care", "individualized", "culturally", "sensitive"]},
-
-            {"name": "Care quality and access issues",
-            "keywords": ["microaggressions and racism", "microaggressions", "racism", "implicit/explicit", "impacts", "access", "treatment", "quality", "stereotyping"]},
-
-            {"name": "Socioeconomic factors and deprivation",
-            "keywords": ["socioeconomic factors and deprivation", "socioeconomic", "factors", "deprivation", "links to poor outcomes", "links", "outcomes", "minority", "overrepresented", "deprived", "areas"]},
-
-            {"name": "Biases and stereotyping",
-            "keywords": ["biases and stereotyping", "biases", "stereotyping", "perpetuation", "stereotypes", "providers"]},
-
-            {"name": "Consent/agency",
-            "keywords": ["consent/agency", "consent", "agency", "informed consent", "agency over care decisions", "informed", "decisions"]},
-
-            {"name": "Dignity/respect",
-            "keywords": ["dignity/respect", "dignity", "respect", "neglectful", "lacking", "discrimination faced", "discrimination", "faced"]}
+            {
+                "name": "Communication",
+                "keywords": [
+                    "communication",
+                    "dismissed",
+                    "listened",
+                    "concerns not taken seriously",
+                    "concerns",
+                    "seriously",
+                ],
+            },
+            {
+                "name": "Fragmented care",
+                "keywords": [
+                    "fragmented care",
+                    "fragmented",
+                    "care",
+                    "spread",
+                    "poorly",
+                    "communicating",
+                    "providers",
+                    "no clear coordination",
+                    "clear",
+                    "coordination",
+                ],
+            },
+            {
+                "name": "Guidance gaps",
+                "keywords": [
+                    "guidance gaps",
+                    "guidance",
+                    "gaps",
+                    "information",
+                    "needs",
+                    "optimal",
+                    "minority",
+                ],
+            },
+            {
+                "name": "Pre-existing conditions and comorbidities",
+                "keywords": [
+                    "pre-existing conditions and comorbidities",
+                    "pre-existing",
+                    "conditions",
+                    "comorbidities",
+                    "overrepresented",
+                    "ethnic",
+                    "minority",
+                    "contribute",
+                    "higher",
+                    "mortality",
+                ],
+            },
+            {
+                "name": "Inadequate maternity care",
+                "keywords": [
+                    "inadequate maternity care",
+                    "inadequate",
+                    "maternity",
+                    "care",
+                    "individualized",
+                    "culturally",
+                    "sensitive",
+                ],
+            },
+            {
+                "name": "Care quality and access issues",
+                "keywords": [
+                    "microaggressions and racism",
+                    "microaggressions",
+                    "racism",
+                    "implicit/explicit",
+                    "impacts",
+                    "access",
+                    "treatment",
+                    "quality",
+                    "stereotyping",
+                ],
+            },
+            {
+                "name": "Socioeconomic factors and deprivation",
+                "keywords": [
+                    "socioeconomic factors and deprivation",
+                    "socioeconomic",
+                    "factors",
+                    "deprivation",
+                    "links to poor outcomes",
+                    "links",
+                    "outcomes",
+                    "minority",
+                    "overrepresented",
+                    "deprived",
+                    "areas",
+                ],
+            },
+            {
+                "name": "Biases and stereotyping",
+                "keywords": [
+                    "biases and stereotyping",
+                    "biases",
+                    "stereotyping",
+                    "perpetuation",
+                    "stereotypes",
+                    "providers",
+                ],
+            },
+            {
+                "name": "Consent/agency",
+                "keywords": [
+                    "consent/agency",
+                    "consent",
+                    "agency",
+                    "informed consent",
+                    "agency over care decisions",
+                    "informed",
+                    "decisions",
+                ],
+            },
+            {
+                "name": "Dignity/respect",
+                "keywords": [
+                    "dignity/respect",
+                    "dignity",
+                    "respect",
+                    "neglectful",
+                    "lacking",
+                    "discrimination faced",
+                    "discrimination",
+                    "faced",
+                ],
+            },
         ]
 
     def _get_extended_themes(self):
         """Extended Analysis themes with unique concepts not covered in I-SIRCh or House of Commons frameworks"""
         return [
-            {"name": "Procedural and Process Failures",
-            "keywords": ["procedure failure", "process breakdown", "protocol breach", "standard violation", "workflow issue",
-                        "operational failure", "process gap", "procedural deviation", "system failure", "process error",
-                        "workflow disruption", "task failure"]},
-
-            {"name": "Medication safety",
-            "keywords": ["medication safety", "medication", "safety", "drug error", "prescription", "drug administration",
-                        "medication error", "adverse reaction", "medication reconciliation"]},
-
-            {"name": "Resource allocation",
-            "keywords": ["resource allocation", "resource", "allocation", "resource management", "resource constraints",
-                        "prioritisation", "resource distribution", "staffing levels", "staff shortage", "budget constraints"]},
-
-            {"name": "Facility and Equipment Issues",
-            "keywords": ["facility", "equipment", "maintenance", "infrastructure", "device failure", "equipment malfunction",
-                        "equipment availability", "technical failure", "equipment maintenance", "facility limitations"]},
-
-            {"name": "Emergency preparedness",
-            "keywords": ["emergency preparedness", "emergency protocol", "emergency response", "crisis management",
-                        "contingency planning", "disaster readiness", "emergency training", "rapid response"]},
-
-            {"name": "Staff Wellbeing and Burnout",
-            "keywords": ["burnout", "staff wellbeing", "resilience", "psychological safety", "stress management",
-                        "compassion fatigue", "work-life balance", "staff support", "mental health", "emotional burden"]},
-
-            {"name": "Ethical considerations",
-            "keywords": ["ethical dilemma", "ethical decision", "moral distress", "ethical conflict", "value conflict",
-                        "ethics committee", "moral judgment", "conscientious objection", "ethical framework"]},
-
-            {"name": "Diagnostic process",
-            "keywords": ["diagnostic error", "misdiagnosis", "delayed diagnosis", "diagnostic uncertainty", "diagnostic reasoning",
-                        "differential diagnosis", "diagnostic testing", "diagnostic accuracy", "test interpretation"]},
-
-            {"name": "Post-Event Learning and Improvement",
-            "keywords": ["incident learning", "corrective action", "improvement plan", "feedback loop", "lessons learned",
-                        "action tracking", "improvement verification", "learning culture", "incident review",
-                        "recommendation implementation", "systemic improvement", "organisational learning"]},
-
-            {"name": "Electronic Health Record Issues",
-            "keywords": ["electronic health record", "ehr issue", "alert fatigue", "interface design", "copy-paste error",
-                        "dropdown selection", "clinical decision support", "digital documentation", "system integration",
-                        "information retrieval", "data entry error", "electronic alert"]},
-
-            {"name": "Time-Critical Interventions",
-            "keywords": ["time-critical", "delayed intervention", "response time", "golden hour", "deterioration recognition",
-                        "rapid response", "timely treatment", "intervention delay", "time sensitivity",
-                        "critical timing", "delayed recognition", "prompt action", "urgent intervention",
-                        "emergency response", "time-sensitive decision", "immediate action", "rapid assessment"]},
-
-            {"name": "Human Factors and Cognitive Aspects",
-            "keywords": ["cognitive bias", "situational awareness", "attention management", "visual perception",
-                        "cognitive overload", "decision heuristic", "tunnel vision", "confirmation bias",
-                        "fixation error", "anchoring bias", "memory limitation", "cognitive fatigue",
-                        "isolation decision-making", "clinical confidence", "professional authority",
-                        "hierarchical barriers", "professional autonomy"]},
-
-            {"name": "Service Design and Patient Flow",
-            "keywords": ["service design", "patient flow", "care pathway", "bottleneck", "patient journey",
-                        "waiting time", "system design", "process mapping", "patient transfer", "capacity planning",
-                        "workflow design", "service bottleneck"]},
-
-            {"name": "Maternal and Neonatal Risk Factors",
-            "keywords": ["maternal risk", "pregnancy complication", "obstetric risk", "neonatal risk", "fetal risk",
-                        "gestational diabetes", "preeclampsia", "placental issue", "maternal age", "parity",
-                        "previous cesarean", "multiple gestation", "fetal growth restriction", "prematurity",
-                        "congenital anomaly", "birth asphyxia", "maternal obesity", "maternal hypertension",
-                        "maternal infection", "obstetric hemorrhage", "maternal cardiac", "thromboembolism"]},
-
-            {"name": "Private vs. NHS Care Integration",
-            "keywords": ["private care", "private midwife", "private provider", "NHS interface", "care transition",
-                        "private-public interface", "independent provider", "private consultation",
-                        "private-NHS coordination", "privately arranged care", "independent midwife",
-                        "cross-system communication"]},
-
-            {"name": "Peer Support and Supervision",
-            "keywords": ["peer support", "collegial support", "professional isolation", "clinical supervision",
-                        "peer review", "case discussion", "professional feedback", "unsupported decision",
-                        "lack of collegiality", "professional network", "mentoring", "supervision"]},
-
-            {"name": "Diagnostic Testing and Specimen Handling",
-            "keywords": ["specimen", "sample", "test result", "laboratory", "analysis", "interpretation",
-                        "abnormal finding", "discolored", "contamination", "collection", "processing",
-                        "transportation", "storage", "labeling", "amniocentesis", "blood sample"]}
+            {
+                "name": "Procedural and Process Failures",
+                "keywords": [
+                    "procedure failure",
+                    "process breakdown",
+                    "protocol breach",
+                    "standard violation",
+                    "workflow issue",
+                    "operational failure",
+                    "process gap",
+                    "procedural deviation",
+                    "system failure",
+                    "process error",
+                    "workflow disruption",
+                    "task failure",
+                ],
+            },
+            {
+                "name": "Medication safety",
+                "keywords": [
+                    "medication safety",
+                    "medication",
+                    "safety",
+                    "drug error",
+                    "prescription",
+                    "drug administration",
+                    "medication error",
+                    "adverse reaction",
+                    "medication reconciliation",
+                ],
+            },
+            {
+                "name": "Resource allocation",
+                "keywords": [
+                    "resource allocation",
+                    "resource",
+                    "allocation",
+                    "resource management",
+                    "resource constraints",
+                    "prioritisation",
+                    "resource distribution",
+                    "staffing levels",
+                    "staff shortage",
+                    "budget constraints",
+                ],
+            },
+            {
+                "name": "Facility and Equipment Issues",
+                "keywords": [
+                    "facility",
+                    "equipment",
+                    "maintenance",
+                    "infrastructure",
+                    "device failure",
+                    "equipment malfunction",
+                    "equipment availability",
+                    "technical failure",
+                    "equipment maintenance",
+                    "facility limitations",
+                ],
+            },
+            {
+                "name": "Emergency preparedness",
+                "keywords": [
+                    "emergency preparedness",
+                    "emergency protocol",
+                    "emergency response",
+                    "crisis management",
+                    "contingency planning",
+                    "disaster readiness",
+                    "emergency training",
+                    "rapid response",
+                ],
+            },
+            {
+                "name": "Staff Wellbeing and Burnout",
+                "keywords": [
+                    "burnout",
+                    "staff wellbeing",
+                    "resilience",
+                    "psychological safety",
+                    "stress management",
+                    "compassion fatigue",
+                    "work-life balance",
+                    "staff support",
+                    "mental health",
+                    "emotional burden",
+                ],
+            },
+            {
+                "name": "Ethical considerations",
+                "keywords": [
+                    "ethical dilemma",
+                    "ethical decision",
+                    "moral distress",
+                    "ethical conflict",
+                    "value conflict",
+                    "ethics committee",
+                    "moral judgment",
+                    "conscientious objection",
+                    "ethical framework",
+                ],
+            },
+            {
+                "name": "Diagnostic process",
+                "keywords": [
+                    "diagnostic error",
+                    "misdiagnosis",
+                    "delayed diagnosis",
+                    "diagnostic uncertainty",
+                    "diagnostic reasoning",
+                    "differential diagnosis",
+                    "diagnostic testing",
+                    "diagnostic accuracy",
+                    "test interpretation",
+                ],
+            },
+            {
+                "name": "Post-Event Learning and Improvement",
+                "keywords": [
+                    "incident learning",
+                    "corrective action",
+                    "improvement plan",
+                    "feedback loop",
+                    "lessons learned",
+                    "action tracking",
+                    "improvement verification",
+                    "learning culture",
+                    "incident review",
+                    "recommendation implementation",
+                    "systemic improvement",
+                    "organisational learning",
+                ],
+            },
+            {
+                "name": "Electronic Health Record Issues",
+                "keywords": [
+                    "electronic health record",
+                    "ehr issue",
+                    "alert fatigue",
+                    "interface design",
+                    "copy-paste error",
+                    "dropdown selection",
+                    "clinical decision support",
+                    "digital documentation",
+                    "system integration",
+                    "information retrieval",
+                    "data entry error",
+                    "electronic alert",
+                ],
+            },
+            {
+                "name": "Time-Critical Interventions",
+                "keywords": [
+                    "time-critical",
+                    "delayed intervention",
+                    "response time",
+                    "golden hour",
+                    "deterioration recognition",
+                    "rapid response",
+                    "timely treatment",
+                    "intervention delay",
+                    "time sensitivity",
+                    "critical timing",
+                    "delayed recognition",
+                    "prompt action",
+                    "urgent intervention",
+                    "emergency response",
+                    "time-sensitive decision",
+                    "immediate action",
+                    "rapid assessment",
+                ],
+            },
+            {
+                "name": "Human Factors and Cognitive Aspects",
+                "keywords": [
+                    "cognitive bias",
+                    "situational awareness",
+                    "attention management",
+                    "visual perception",
+                    "cognitive overload",
+                    "decision heuristic",
+                    "tunnel vision",
+                    "confirmation bias",
+                    "fixation error",
+                    "anchoring bias",
+                    "memory limitation",
+                    "cognitive fatigue",
+                    "isolation decision-making",
+                    "clinical confidence",
+                    "professional authority",
+                    "hierarchical barriers",
+                    "professional autonomy",
+                ],
+            },
+            {
+                "name": "Service Design and Patient Flow",
+                "keywords": [
+                    "service design",
+                    "patient flow",
+                    "care pathway",
+                    "bottleneck",
+                    "patient journey",
+                    "waiting time",
+                    "system design",
+                    "process mapping",
+                    "patient transfer",
+                    "capacity planning",
+                    "workflow design",
+                    "service bottleneck",
+                ],
+            },
+            {
+                "name": "Maternal and Neonatal Risk Factors",
+                "keywords": [
+                    "maternal risk",
+                    "pregnancy complication",
+                    "obstetric risk",
+                    "neonatal risk",
+                    "fetal risk",
+                    "gestational diabetes",
+                    "preeclampsia",
+                    "placental issue",
+                    "maternal age",
+                    "parity",
+                    "previous cesarean",
+                    "multiple gestation",
+                    "fetal growth restriction",
+                    "prematurity",
+                    "congenital anomaly",
+                    "birth asphyxia",
+                    "maternal obesity",
+                    "maternal hypertension",
+                    "maternal infection",
+                    "obstetric hemorrhage",
+                    "maternal cardiac",
+                    "thromboembolism",
+                ],
+            },
+            {
+                "name": "Private vs. NHS Care Integration",
+                "keywords": [
+                    "private care",
+                    "private midwife",
+                    "private provider",
+                    "NHS interface",
+                    "care transition",
+                    "private-public interface",
+                    "independent provider",
+                    "private consultation",
+                    "private-NHS coordination",
+                    "privately arranged care",
+                    "independent midwife",
+                    "cross-system communication",
+                ],
+            },
+            {
+                "name": "Peer Support and Supervision",
+                "keywords": [
+                    "peer support",
+                    "collegial support",
+                    "professional isolation",
+                    "clinical supervision",
+                    "peer review",
+                    "case discussion",
+                    "professional feedback",
+                    "unsupported decision",
+                    "lack of collegiality",
+                    "professional network",
+                    "mentoring",
+                    "supervision",
+                ],
+            },
+            {
+                "name": "Diagnostic Testing and Specimen Handling",
+                "keywords": [
+                    "specimen",
+                    "sample",
+                    "test result",
+                    "laboratory",
+                    "analysis",
+                    "interpretation",
+                    "abnormal finding",
+                    "discolored",
+                    "contamination",
+                    "collection",
+                    "processing",
+                    "transportation",
+                    "storage",
+                    "labeling",
+                    "amniocentesis",
+                    "blood sample",
+                ],
+            },
         ]
 
     # New methods to add
@@ -683,112 +1143,132 @@ class ThemeAnalyzer:
         else:
             return "Low"
 
-    # First, we need to modify the theme analyzer's create_detailed_results method 
-# to store the matched sentences with each theme detection
+    # First, we need to modify the theme analyzer's create_detailed_results method
+    # to store the matched sentences with each theme detection
 
-    def create_detailed_results(self, data, content_column='Content'):
+    def create_detailed_results(self, data, content_column="Content"):
         """
         Analyze multiple documents and create detailed results with progress tracking.
-        
+
         Args:
             data (pd.DataFrame): DataFrame containing documents
             content_column (str): Name of the column containing text to analyze
-            
+
         Returns:
             Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
         """
         import streamlit as st
-        
+
         results = []
         highlighted_texts = {}
-        
+
         # Create progress tracking elements
         progress_bar = st.progress(0)
         status_text = st.empty()
         doc_count_text = st.empty()
-        
+
         # Calculate total documents to process
         total_docs = len(data)
         doc_count_text.text(f"Processing 0/{total_docs} documents")
-        
+
         # Process each document
         for idx, (i, row) in enumerate(data.iterrows()):
             # Update progress
             progress = (idx + 1) / total_docs
             progress_bar.progress(progress)
-            status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
-            
+            status_text.text(
+                f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}"
+            )
+
             # Skip empty content
-            if pd.isna(row[content_column]) or row[content_column] == '':
+            if pd.isna(row[content_column]) or row[content_column] == "":
                 continue
-                
+
             content = str(row[content_column])
-            
+
             # Analyze themes and get highlights
             framework_themes, theme_highlights = self.analyze_document(content)
-            
+
             # Create highlighted HTML for this document
             highlighted_html = self.create_highlighted_html(content, theme_highlights)
             highlighted_texts[i] = highlighted_html
-            
+
             # Store results for each theme
             theme_count = 0
             for framework_name, themes in framework_themes.items():
                 for theme in themes:
                     theme_count += 1
-                    
+
                     # Extract matched sentences for this theme
                     matched_sentences = []
                     theme_key = f"{framework_name}_{theme['theme']}"
                     if theme_key in theme_highlights:
-                        for start_pos, end_pos, keywords_str, sentence in theme_highlights[theme_key]:
+                        for (
+                            start_pos,
+                            end_pos,
+                            keywords_str,
+                            sentence,
+                        ) in theme_highlights[theme_key]:
                             matched_sentences.append(sentence)
-                    
+
                     # Join sentences if there are any
-                    matched_text = "; ".join(matched_sentences) if matched_sentences else ""
-                    
-                    results.append({
-                        'Record ID': i,
-                        'Title': row.get('Title', f'Document {i}'),
-                        'Framework': framework_name,
-                        'Theme': theme['theme'],
-                        'Confidence': self._get_confidence_label(theme['combined_score']),
-                        'Combined Score': theme['combined_score'],
-                        'Semantic_Similarity': theme['semantic_similarity'],
-                        'Matched Keywords': theme['matched_keywords'],
-                        'Matched Sentences': matched_text  # Add matched sentences to results
-                    })
-            
+                    matched_text = (
+                        "; ".join(matched_sentences) if matched_sentences else ""
+                    )
+
+                    results.append(
+                        {
+                            "Record ID": i,
+                            "Title": row.get("Title", f"Document {i}"),
+                            "Framework": framework_name,
+                            "Theme": theme["theme"],
+                            "Confidence": self._get_confidence_label(
+                                theme["combined_score"]
+                            ),
+                            "Combined Score": theme["combined_score"],
+                            "Semantic_Similarity": theme["semantic_similarity"],
+                            "Matched Keywords": theme["matched_keywords"],
+                            "Matched Sentences": matched_text,  # Add matched sentences to results
+                        }
+                    )
+
             # Update documents processed count with theme info
-            doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
-        
+            doc_count_text.text(
+                f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document."
+            )
+
         # Clear progress indicators
         progress_bar.empty()
         status_text.empty()
-        
+
         # Final count update
         if results:
-            doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
+            doc_count_text.text(
+                f"Completed analysis of {total_docs} documents. Found {len(results)} total themes."
+            )
         else:
-            doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
-        
+            doc_count_text.text(
+                f"Completed analysis, but no themes were identified in the documents."
+            )
+
         # Create results DataFrame
         results_df = pd.DataFrame(results) if results else pd.DataFrame()
-        
+
         return results_df, highlighted_texts
-    
+
     # Now let's modify the export_to_excel function to ensure it includes matched sentences
 
-        
-    def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
+    def create_comprehensive_pdf(
+        self, results_df, highlighted_texts, output_filename=None
+    ):
         """
         Create a comprehensive PDF report with analysis results
-        
+
         Args:
             results_df (pd.DataFrame): Results DataFrame
             highlighted_texts (Dict): Dictionary of highlighted texts
             output_filename (str, optional): Output filename
-            
+
         Returns:
             str: Path to the created PDF file
         """
@@ -802,262 +1282,367 @@ class ThemeAnalyzer:
         import tempfile
         from matplotlib.colors import LinearSegmentedColormap
         from matplotlib.patches import Patch
-        
+
         # Generate default filename if not provided
         if output_filename is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             output_filename = f"theme_analysis_report_{timestamp}.pdf"
-        
+
         # Use a tempfile for matplotlib to avoid file conflicts
-        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as tmpfile:
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmpfile:
             temp_pdf_path = tmpfile.name
-        
+
         # Create PDF with matplotlib
         with PdfPages(temp_pdf_path) as pdf:
             # Title page
             fig = plt.figure(figsize=(12, 10))
-            plt.text(0.5, 0.6, "BERT Theme Analysis Report", 
-                     fontsize=28, ha='center', va='center', weight='bold')
-            plt.text(0.5, 0.5, f"Generated on {datetime.now().strftime('%d %B %Y, %H:%M')}",
-                     fontsize=16, ha='center', va='center')
-            
+            plt.text(
+                0.5,
+                0.6,
+                "BERT Theme Analysis Report",
+                fontsize=28,
+                ha="center",
+                va="center",
+                weight="bold",
+            )
+            plt.text(
+                0.5,
+                0.5,
+                f"Generated on {datetime.now().strftime('%d %B %Y, %H:%M')}",
+                fontsize=16,
+                ha="center",
+                va="center",
+            )
+
             # Add a decorative header bar
-            plt.axhline(y=0.75, xmin=0.1, xmax=0.9, color='#3366CC', linewidth=3)
-            plt.axhline(y=0.35, xmin=0.1, xmax=0.9, color='#3366CC', linewidth=3)
-            
+            plt.axhline(y=0.75, xmin=0.1, xmax=0.9, color="#3366CC", linewidth=3)
+            plt.axhline(y=0.35, xmin=0.1, xmax=0.9, color="#3366CC", linewidth=3)
+
             # Add framework names
             frameworks = self.frameworks.keys()
             framework_text = "Frameworks analyzed: " + ", ".join(frameworks)
-            plt.text(0.5, 0.3, framework_text,
-                     fontsize=14, ha='center', va='center', style='italic')
-            
-            plt.axis('off')
-            pdf.savefig(fig, bbox_inches='tight')
+            plt.text(
+                0.5,
+                0.3,
+                framework_text,
+                fontsize=14,
+                ha="center",
+                va="center",
+                style="italic",
+            )
+
+            plt.axis("off")
+            pdf.savefig(fig, bbox_inches="tight")
             plt.close(fig)
-            
+
             # Summary statistics page
             if not results_df.empty:
                 # Create a summary page with charts
                 fig = plt.figure(figsize=(12, 10))
                 gs = gridspec.GridSpec(3, 2, height_ratios=[1, 2, 2])
-                
+
                 # Header
                 ax_header = plt.subplot(gs[0, :])
-                ax_header.text(0.5, 0.5, "Analysis Summary", 
-                              fontsize=20, ha='center', va='center', weight='bold')
-                ax_header.axis('off')
-                
+                ax_header.text(
+                    0.5,
+                    0.5,
+                    "Analysis Summary",
+                    fontsize=20,
+                    ha="center",
+                    va="center",
+                    weight="bold",
+                )
+                ax_header.axis("off")
+
                 # Document count and metrics
                 ax_metrics = plt.subplot(gs[1, 0])
                 doc_count = len(highlighted_texts)
                 theme_count = len(results_df)
-                frameworks_count = len(results_df['Framework'].unique())
-                
+                frameworks_count = len(results_df["Framework"].unique())
+
                 metrics_text = (
                     f"Total Documents Analyzed: {doc_count}\n"
                     f"Total Theme Predictions: {theme_count}\n"
                     f"Unique Frameworks: {frameworks_count}\n"
                 )
-                
-                if 'Confidence' in results_df.columns:
-                    confidence_counts = results_df['Confidence'].value_counts()
+
+                if "Confidence" in results_df.columns:
+                    confidence_counts = results_df["Confidence"].value_counts()
                     metrics_text += "\nConfidence Levels:\n"
                     for conf, count in confidence_counts.items():
                         metrics_text += f"  {conf}: {count} themes\n"
-                
-                ax_metrics.text(0.1, 0.9, metrics_text, 
-                               fontsize=12, va='top', linespacing=2)
-                ax_metrics.axis('off')
-                
+
+                ax_metrics.text(
+                    0.1, 0.9, metrics_text, fontsize=12, va="top", linespacing=2
+                )
+                ax_metrics.axis("off")
+
                 # Framework distribution chart
                 ax_framework = plt.subplot(gs[1, 1])
                 if not results_df.empty:
-                    framework_counts = results_df['Framework'].value_counts()
-                    bars = ax_framework.bar(framework_counts.index, framework_counts.values, 
-                                          color=['#3366CC', '#DC3912', '#FF9900'])
-                    ax_framework.set_title('Theme Distribution by Framework', fontsize=14)
-                    ax_framework.set_ylabel('Number of Themes')
-                    
+                    framework_counts = results_df["Framework"].value_counts()
+                    bars = ax_framework.bar(
+                        framework_counts.index,
+                        framework_counts.values,
+                        color=["#3366CC", "#DC3912", "#FF9900"],
+                    )
+                    ax_framework.set_title(
+                        "Theme Distribution by Framework", fontsize=14
+                    )
+                    ax_framework.set_ylabel("Number of Themes")
+
                     # Add value labels on bars
                     for bar in bars:
                         height = bar.get_height()
-                        ax_framework.text(bar.get_x() + bar.get_width()/2., height+0.1,
-                                         f'{height:d}', ha='center', fontsize=10)
-                    
-                    ax_framework.spines['top'].set_visible(False)
-                    ax_framework.spines['right'].set_visible(False)
-                    plt.setp(ax_framework.get_xticklabels(), rotation=30, ha='right')
-                
+                        ax_framework.text(
+                            bar.get_x() + bar.get_width() / 2.0,
+                            height + 0.1,
+                            f"{height:d}",
+                            ha="center",
+                            fontsize=10,
+                        )
+
+                    ax_framework.spines["top"].set_visible(False)
+                    ax_framework.spines["right"].set_visible(False)
+                    plt.setp(ax_framework.get_xticklabels(), rotation=30, ha="right")
+
                 # Themes by confidence chart
                 ax_confidence = plt.subplot(gs[2, :])
-                if 'Confidence' in results_df.columns and 'Theme' in results_df.columns:
+                if "Confidence" in results_df.columns and "Theme" in results_df.columns:
                     # Prepare data for stacked bar chart
-                    theme_conf_data = pd.crosstab(results_df['Theme'], results_df['Confidence'])
-                    
+                    theme_conf_data = pd.crosstab(
+                        results_df["Theme"], results_df["Confidence"]
+                    )
+
                     # Select top themes by total count
-                    top_themes = theme_conf_data.sum(axis=1).sort_values(ascending=False).head(10).index
+                    top_themes = (
+                        theme_conf_data.sum(axis=1)
+                        .sort_values(ascending=False)
+                        .head(10)
+                        .index
+                    )
                     theme_conf_data = theme_conf_data.loc[top_themes]
-                    
+
                     # Plot stacked bar chart
-                    confidence_colors = {'High': '#4CAF50', 'Medium': '#FFC107', 'Low': '#F44336'}
-                    
+                    confidence_colors = {
+                        "High": "#4CAF50",
+                        "Medium": "#FFC107",
+                        "Low": "#F44336",
+                    }
+
                     # Get confidence levels present in the data
                     confidence_levels = list(theme_conf_data.columns)
-                    colors = [confidence_colors.get(level, '#999999') for level in confidence_levels]
-                    
-                    theme_conf_data.plot(kind='barh', stacked=True, ax=ax_confidence, 
-                                         color=colors, figsize=(10, 6))
-                    
-                    ax_confidence.set_title('Top Themes by Confidence Level', fontsize=14)
-                    ax_confidence.set_xlabel('Number of Documents')
-                    ax_confidence.set_ylabel('Theme')
-                    
+                    colors = [
+                        confidence_colors.get(level, "#999999")
+                        for level in confidence_levels
+                    ]
+
+                    theme_conf_data.plot(
+                        kind="barh",
+                        stacked=True,
+                        ax=ax_confidence,
+                        color=colors,
+                        figsize=(10, 6),
+                    )
+
+                    ax_confidence.set_title(
+                        "Top Themes by Confidence Level", fontsize=14
+                    )
+                    ax_confidence.set_xlabel("Number of Documents")
+                    ax_confidence.set_ylabel("Theme")
+
                     # Create custom legend
-                    patches = [Patch(color=confidence_colors.get(level, '#999999'), label=level) 
-                              for level in confidence_levels]
-                    ax_confidence.legend(handles=patches, title='Confidence', loc='upper right')
-                    
-                    ax_confidence.spines['top'].set_visible(False)
-                    ax_confidence.spines['right'].set_visible(False)
+                    patches = [
+                        Patch(
+                            color=confidence_colors.get(level, "#999999"), label=level
+                        )
+                        for level in confidence_levels
+                    ]
+                    ax_confidence.legend(
+                        handles=patches, title="Confidence", loc="upper right"
+                    )
+
+                    ax_confidence.spines["top"].set_visible(False)
+                    ax_confidence.spines["right"].set_visible(False)
                 else:
-                    ax_confidence.axis('off')
-                    ax_confidence.text(0.5, 0.5, "Confidence data not available",
-                                      fontsize=14, ha='center', va='center')
-                
+                    ax_confidence.axis("off")
+                    ax_confidence.text(
+                        0.5,
+                        0.5,
+                        "Confidence data not available",
+                        fontsize=14,
+                        ha="center",
+                        va="center",
+                    )
+
                 plt.tight_layout()
-                pdf.savefig(fig, bbox_inches='tight')
+                pdf.savefig(fig, bbox_inches="tight")
                 plt.close(fig)
-            
+
             # Framework-specific pages
             for framework_name in self.frameworks.keys():
                 # Filter results for this framework
-                framework_results = results_df[results_df['Framework'] == framework_name]
-                
+                framework_results = results_df[
+                    results_df["Framework"] == framework_name
+                ]
+
                 if not framework_results.empty:
                     # Create a new page for the framework
                     fig = plt.figure(figsize=(12, 10))
-                    
+
                     # Title
-                    plt.suptitle(f"{framework_name} Framework Analysis", 
-                                fontsize=20, y=0.95, weight='bold')
-                    
+                    plt.suptitle(
+                        f"{framework_name} Framework Analysis",
+                        fontsize=20,
+                        y=0.95,
+                        weight="bold",
+                    )
+
                     # Theme counts
-                    theme_counts = framework_results['Theme'].value_counts().head(15)
-                    
+                    theme_counts = framework_results["Theme"].value_counts().head(15)
+
                     if not theme_counts.empty:
                         plt.subplot(111)
-                        bars = plt.barh(theme_counts.index[::-1], theme_counts.values[::-1], 
-                                       color='#5975A4', alpha=0.8)
-                        
+                        bars = plt.barh(
+                            theme_counts.index[::-1],
+                            theme_counts.values[::-1],
+                            color="#5975A4",
+                            alpha=0.8,
+                        )
+
                         # Add value labels
                         for i, bar in enumerate(bars):
                             width = bar.get_width()
-                            plt.text(width + 0.3, bar.get_y() + bar.get_height()/2,
-                                    f'{width:d}', va='center', fontsize=10)
-                        
-                        plt.xlabel('Number of Documents')
-                        plt.ylabel('Theme')
-                        plt.title(f'Top Themes in {framework_name}', pad=20)
-                        plt.grid(axis='x', linestyle='--', alpha=0.7)
+                            plt.text(
+                                width + 0.3,
+                                bar.get_y() + bar.get_height() / 2,
+                                f"{width:d}",
+                                va="center",
+                                fontsize=10,
+                            )
+
+                        plt.xlabel("Number of Documents")
+                        plt.ylabel("Theme")
+                        plt.title(f"Top Themes in {framework_name}", pad=20)
+                        plt.grid(axis="x", linestyle="--", alpha=0.7)
                         plt.tight_layout(rect=[0, 0, 1, 0.95])  # Adjust for suptitle
-                    
-                    pdf.savefig(fig, bbox_inches='tight')
+
+                    pdf.savefig(fig, bbox_inches="tight")
                     plt.close(fig)
-            
+
             # Sample highlighted documents (text descriptions only)
             if highlighted_texts:
                 # Create document summaries page
                 fig = plt.figure(figsize=(12, 10))
-                plt.suptitle("Document Analysis Summaries", fontsize=20, y=0.95, weight='bold')
-                
+                plt.suptitle(
+                    "Document Analysis Summaries", fontsize=20, y=0.95, weight="bold"
+                )
+
                 # We'll show summaries of a few documents
                 max_docs_to_show = min(3, len(highlighted_texts))
                 docs_to_show = list(highlighted_texts.keys())[:max_docs_to_show]
-                
+
                 # Get theme counts for each document
                 doc_summaries = []
                 for doc_id in docs_to_show:
-                    doc_themes = results_df[results_df['Record ID'] == doc_id]
+                    doc_themes = results_df[results_df["Record ID"] == doc_id]
                     theme_count = len(doc_themes)
-                    frameworks = doc_themes['Framework'].unique()
-                    doc_summaries.append({
-                        'doc_id': doc_id,
-                        'theme_count': theme_count,
-                        'frameworks': ', '.join(frameworks)
-                    })
-                
+                    frameworks = doc_themes["Framework"].unique()
+                    doc_summaries.append(
+                        {
+                            "doc_id": doc_id,
+                            "theme_count": theme_count,
+                            "frameworks": ", ".join(frameworks),
+                        }
+                    )
+
                 # Format as a table-like display
-                plt.axis('off')
+                plt.axis("off")
                 table_text = "Document Analysis Summaries:\n\n"
                 for i, summary in enumerate(doc_summaries):
-                    doc_id = summary['doc_id']
+                    doc_id = summary["doc_id"]
                     table_text += f"Document {i+1} (ID: {doc_id}):\n"
                     table_text += f"  • Identified Themes: {summary['theme_count']}\n"
                     table_text += f"  • Frameworks: {summary['frameworks']}\n\n"
-                
-                plt.text(0.1, 0.8, table_text, fontsize=12, va='top', linespacing=1.5)
-                
+
+                plt.text(0.1, 0.8, table_text, fontsize=12, va="top", linespacing=1.5)
+
                 # Also add a note about the full HTML version
                 note_text = (
                     "Note: A detailed HTML report with highlighted text excerpts has been\n"
                     "created alongside this PDF. The HTML version provides interactive\n"
                     "highlighting of theme-related sentences in each document."
                 )
-                plt.text(0.1, 0.3, note_text, fontsize=12, va='top', 
-                        linespacing=1.5, style='italic', bbox=dict(
-                            facecolor='#F0F0F0', edgecolor='#CCCCCC', 
-                            boxstyle='round,pad=0.5'))
-                
-                pdf.savefig(fig, bbox_inches='tight')
+                plt.text(
+                    0.1,
+                    0.3,
+                    note_text,
+                    fontsize=12,
+                    va="top",
+                    linespacing=1.5,
+                    style="italic",
+                    bbox=dict(
+                        facecolor="#F0F0F0",
+                        edgecolor="#CCCCCC",
+                        boxstyle="round,pad=0.5",
+                    ),
+                )
+
+                pdf.savefig(fig, bbox_inches="tight")
                 plt.close(fig)
-        
+
         # Copy the temp file to the desired output filename
         import shutil
+
         shutil.copy2(temp_pdf_path, output_filename)
-        
+
         # Clean up temp file
         try:
             os.unlink(temp_pdf_path)
         except:
             pass
-            
+
         return output_filename
-   
- def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
+
+
+def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
     """
     Create a single integrated HTML file with all highlighted records, themes, and framework information
     that can be easily converted to PDF
     """
     from collections import defaultdict
-    
+
     # Map report IDs to their themes
     report_themes = defaultdict(list)
-    
+
     # Organize the results by report ID
     for _, row in results_df.iterrows():
-        if 'Record ID' in row and 'Theme' in row and 'Framework' in row:
-            record_id = row['Record ID']
-            framework = row['Framework']
-            theme = row['Theme']
-            confidence = row.get('Confidence', '')
-            score = row.get('Combined Score', 0)
-            matched_keywords = row.get('Matched Keywords', '')
-            
+        if "Record ID" in row and "Theme" in row and "Framework" in row:
+            record_id = row["Record ID"]
+            framework = row["Framework"]
+            theme = row["Theme"]
+            confidence = row.get("Confidence", "")
+            score = row.get("Combined Score", 0)
+            matched_keywords = row.get("Matched Keywords", "")
+
             # Get the theme color
             theme_key = f"{framework}_{theme}"
             theme_color = self._get_theme_color(theme_key)
-            
-            report_themes[record_id].append({
-                'framework': framework,
-                'theme': theme,
-                'confidence': confidence,
-                'score': score,
-                'keywords': matched_keywords,
-                'color': theme_color  # Add the theme color
-            })
-    
+
+            report_themes[record_id].append(
+                {
+                    "framework": framework,
+                    "theme": theme,
+                    "confidence": confidence,
+                    "score": score,
+                    "keywords": matched_keywords,
+                    "color": theme_color,  # Add the theme color
+                }
+            )
+
     # Create HTML content with modern styling
-    html_content = """
+    html_content = (
+        """
     <!DOCTYPE html>
     <html>
     <head>
@@ -1188,25 +1773,34 @@ class ThemeAnalyzer:
     <body>
         <div class="report-header">
             <h1>BERT Theme Analysis Results</h1>
-            <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
+            <p>Generated on """
+        + datetime.now().strftime("%d %B %Y, %H:%M")
+        + """</p>
         </div>
         
         <div class="summary-card">
             <div class="summary-box">
-                <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
+                <div class="summary-number">"""
+        + str(len(highlighted_texts))
+        + """</div>
                 <div class="summary-label">Documents Analyzed</div>
             </div>
             <div class="summary-box">
-                <div class="summary-number">""" + str(len(results_df)) + """</div>
+                <div class="summary-number">"""
+        + str(len(results_df))
+        + """</div>
                 <div class="summary-label">Theme Identifications</div>
             </div>
             <div class="summary-box">
-                <div class="summary-number">""" + str(len(results_df['Framework'].unique())) + """</div>
+                <div class="summary-number">"""
+        + str(len(results_df["Framework"].unique()))
+        + """</div>
                 <div class="summary-label">Frameworks</div>
             </div>
         </div>
     """
-    
+    )
+
     # Add framework summary
     html_content += """
         <h2>Framework Summary</h2>
@@ -1217,12 +1811,12 @@ class ThemeAnalyzer:
                 <th>Number of Documents</th>
             </tr>
     """
-    
-    for framework in results_df['Framework'].unique():
-        framework_results = results_df[results_df['Framework'] == framework]
-        num_themes = len(framework_results['Theme'].unique())
-        num_docs = len(framework_results['Record ID'].unique())
-        
+
+    for framework in results_df["Framework"].unique():
+        framework_results = results_df[results_df["Framework"] == framework]
+        num_themes = len(framework_results["Theme"].unique())
+        num_docs = len(framework_results["Record ID"].unique())
+
         html_content += f"""
             <tr>
                 <td>{framework}</td>
@@ -1230,19 +1824,25 @@ class ThemeAnalyzer:
                 <td>{num_docs}</td>
             </tr>
         """
-    
+
     html_content += """
         </table>
     """
-    
+
     # Add each record with its themes and highlighted text
     html_content += "<h2>Document Analysis</h2>"
-    
+
     for record_id, themes in report_themes.items():
         if record_id in highlighted_texts:
-            record_title = next((row['Title'] for _, row in results_df.iterrows() 
-                               if row.get('Record ID') == record_id), f"Document {record_id}")
-            
+            record_title = next(
+                (
+                    row["Title"]
+                    for _, row in results_df.iterrows()
+                    if row.get("Record ID") == record_id
+                ),
+                f"Document {record_id}",
+            )
+
             html_content += f"""
             <div class="record-container">
                 <h2>Document: {record_title}</h2>
@@ -1259,17 +1859,19 @@ class ThemeAnalyzer:
                             <th>Color</th>
                         </tr>
             """
-            
+
             # Add theme rows
-            for theme_info in sorted(themes, key=lambda x: (x['framework'], -x.get('score', 0))):
-                confidence_class = ''
-                if theme_info.get('confidence') == 'High':
-                    confidence_class = 'high-confidence'
-                elif theme_info.get('confidence') == 'Medium':
-                    confidence_class = 'medium-confidence'
-                elif theme_info.get('confidence') == 'Low':
-                    confidence_class = 'low-confidence'
-                
+            for theme_info in sorted(
+                themes, key=lambda x: (x["framework"], -x.get("score", 0))
+            ):
+                confidence_class = ""
+                if theme_info.get("confidence") == "High":
+                    confidence_class = "high-confidence"
+                elif theme_info.get("confidence") == "Medium":
+                    confidence_class = "medium-confidence"
+                elif theme_info.get("confidence") == "Low":
+                    confidence_class = "low-confidence"
+
                 html_content += f"""
                         <tr>
                             <td>{theme_info['framework']}</td>
@@ -1280,7 +1882,7 @@ class ThemeAnalyzer:
                             <td><div class="theme-color-box" style="background-color:{theme_info['color']};"></div> {theme_info['color']}</td>
                         </tr>
                 """
-            
+
             html_content += """
                     </table>
                 </div>
@@ -1288,21 +1890,22 @@ class ThemeAnalyzer:
                 <div class="highlighted-text">
                     <h3>Text with Highlighted Keywords</h3>
             """
-            
+
             # Add highlighted text
             html_content += highlighted_texts[record_id]
-            
+
             html_content += """
                 </div>
             </div>
             """
-    
+
     html_content += """
     </body>
     </html>
     """
-    
+
     return html_content
+
 
 def _preassign_framework_colors(self):
     """Preassign colors to each framework for consistent coloring"""
@@ -1315,7 +1918,8 @@ def _preassign_framework_colors(self):
             theme_key = f"{framework}_{theme['name']}"
             # Assign color from the theme_colors list, cycling if needed
             color_idx = i % len(self.theme_colors)
-            self.theme_color_map[theme_key] = self.theme_colors[color_idx]   
+            self.theme_color_map[theme_key] = self.theme_colors[color_idx]
+
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """
@@ -1324,54 +1928,65 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
     try:
         if df is None or len(df) == 0:
             raise ValueError("No data available to export")
-            
+
         # Create clean copy for export
         df_export = df.copy()
-        
+
         # Format dates to UK format
-        if 'date_of_report' in df_export.columns:
-            df_export['date_of_report'] = df_export['date_of_report'].dt.strftime('%d/%m/%Y')
-            
+        if "date_of_report" in df_export.columns:
+            df_export["date_of_report"] = df_export["date_of_report"].dt.strftime(
+                "%d/%m/%Y"
+            )
+
         # Handle list columns (like categories)
         for col in df_export.columns:
-            if df_export[col].dtype == 'object':
+            if df_export[col].dtype == "object":
                 df_export[col] = df_export[col].apply(
-                    lambda x: ', '.join(x) if isinstance(x, list) else str(x) if pd.notna(x) else ''
+                    lambda x: ", ".join(x)
+                    if isinstance(x, list)
+                    else str(x)
+                    if pd.notna(x)
+                    else ""
                 )
-        
+
         # Create output buffer
         output = io.BytesIO()
-        
+
         # Write to Excel
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_export.to_excel(writer, sheet_name='Reports', index=False)
-            
+        with pd.ExcelWriter(output, engine="openpyxl") as writer:
+            df_export.to_excel(writer, sheet_name="Reports", index=False)
+
             # Get the worksheet
-            worksheet = writer.sheets['Reports']
-            
+            worksheet = writer.sheets["Reports"]
+
             # Auto-adjust column widths
             for idx, col in enumerate(df_export.columns, 1):
                 # Set larger width for Matched Sentences column
-                if col == 'Matched Sentences':
+                if col == "Matched Sentences":
                     worksheet.column_dimensions[get_column_letter(idx)].width = 80
                 else:
                     max_length = max(
-                        df_export[col].astype(str).apply(len).max(),
-                        len(str(col))
+                        df_export[col].astype(str).apply(len).max(), len(str(col))
                     )
                     adjusted_width = min(max_length + 2, 50)
                     column_letter = get_column_letter(idx)
                     worksheet.column_dimensions[column_letter].width = adjusted_width
-            
+
             # Add filters to header row
             worksheet.auto_filter.ref = worksheet.dimensions
-            
+
             # Freeze the header row
-            worksheet.freeze_panes = 'A2'
-            
+            worksheet.freeze_panes = "A2"
+
             # Set wrap text for Matched Sentences column
-            matched_sent_col = next((idx for idx, col in enumerate(df_export.columns, 1) 
-                                   if col == 'Matched Sentences'), None)
+            matched_sent_col = next(
+                (
+                    idx
+                    for idx, col in enumerate(df_export.columns, 1)
+                    if col == "Matched Sentences"
+                ),
+                None,
+            )
             if matched_sent_col:
                 col_letter = get_column_letter(matched_sent_col)
                 for row in range(2, len(df_export) + 2):
@@ -1379,11 +1994,11 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
                     cell.alignment = cell.alignment.copy(wrapText=True)
                     # Set row height to accommodate wrapped text
                     worksheet.row_dimensions[row].height = 60
-        
+
         # Get the bytes value
         output.seek(0)
         return output.getvalue()
-        
+
     except Exception as e:
         logging.error(f"Error exporting to Excel: {e}", exc_info=True)
         raise Exception(f"Failed to export data to Excel: {str(e)}")
