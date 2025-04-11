@@ -232,32 +232,29 @@ class ThemeAnalyzer:
                 current_pos += space_count
 
         return sorted(positions)
-
     def create_highlighted_html(self, text, theme_highlights):
         """Create HTML with sentences highlighted by theme with improved color consistency"""
         if not text or not theme_highlights:
             return text
-
+    
         # Convert highlights to a flat list of positions
         all_positions = []
         for theme_key, positions in theme_highlights.items():
             theme_color = self._get_theme_color(theme_key)
             for pos_info in positions:
                 # position format: (start_pos, end_pos, keywords_str, sentence)
-                all_positions.append(
-                    (
-                        pos_info[0],
-                        pos_info[1],
-                        theme_key,
-                        pos_info[2],
-                        pos_info[3],
-                        theme_color,
-                    )
-                )
-
+                all_positions.append((
+                    pos_info[0],
+                    pos_info[1],
+                    theme_key,
+                    pos_info[2],
+                    pos_info[3],
+                    theme_color
+                ))
+    
         # Sort positions by start position
         all_positions.sort()
-
+    
         # Merge overlapping sentences
         merged_positions = []
         if all_positions:
@@ -272,44 +269,38 @@ class ThemeAnalyzer:
                         current[2] + " + " + all_positions[i][2],
                         current[3] + " + " + all_positions[i][3],
                         current[4],  # Keep the sentence
-                        "linear-gradient(135deg, "
-                        + current[5]
-                        + " 50%, "
-                        + all_positions[i][5]
-                        + " 50%)",  # Gradient for multiple themes
+                        "linear-gradient(135deg, " + current[5] + " 50%, " + all_positions[i][5] + " 50%)"  # Gradient for multiple themes
                     )
                 else:
                     merged_positions.append(current)
                     current = all_positions[i]
             merged_positions.append(current)
-
+    
         # Create highlighted text
         result = []
         last_end = 0
-
+    
         for start, end, theme_key, keywords, sentence, color in merged_positions:
             # Add text before this highlight
             if start > last_end:
                 result.append(text[last_end:start])
-
+    
             # Add highlighted text with tooltip
             if "linear-gradient" in color:
                 # Special styling for overlapping themes
                 style = f"background: {color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
             else:
                 style = f"background-color:{color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
-
+    
             tooltip = f"Theme: {theme_key}\nKeywords: {keywords}"
-            result.append(
-                f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>'
-            )
-
+            result.append(f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>')
+    
             last_end = end
-
+    
         # Add remaining text
         if last_end < len(text):
             result.append(text[last_end:])
-
+    
         return "".join(result)
 
     def _get_theme_color(self, theme_key):
