@@ -217,6 +217,71 @@ class ThemeAnalyzer:
 
         return sorted(positions)
 
+    
+    def create_highlighted_html(self, text, theme_highlights):
+        """Create HTML with sentences highlighted by theme with improved color consistency"""
+        if not text or not theme_highlights:
+            return text
+    
+        # Convert highlights to a flat list of positions
+        all_positions = []
+        for theme_key, positions in theme_highlights.items():
+            theme_color = self._get_theme_color(theme_key)
+            for pos_info in positions:
+                # position format: (start_pos, end_pos, keywords_str, sentence)
+                all_positions.append((pos_info[0], pos_info[1], theme_key, pos_info[2], pos_info[3], theme_color))
+    
+        # Sort positions by start position
+        all_positions.sort()
+    
+        # Merge overlapping sentences
+        merged_positions = []
+        if all_positions:
+            current = all_positions[0]
+            for i in range(1, len(all_positions)):
+                if all_positions[i][0] <= current[1]:  # Overlap
+                    # For overlaps, we'll now create a more distinctive style
+                    # We'll keep both theme colors in the tooltip for reference
+                    current = (
+                        current[0],
+                        max(current[1], all_positions[i][1]),
+                        current[2] + " + " + all_positions[i][2],
+                        current[3] + " + " + all_positions[i][3],
+                        current[4],  # Keep the sentence
+                        "linear-gradient(135deg, " + current[5] + " 50%, " + all_positions[i][5] + " 50%)"  # Gradient for multiple themes
+                    )
+                else:
+                    merged_positions.append(current)
+                    current = all_positions[i]
+            merged_positions.append(current)
+    
+        # Create highlighted text
+        result = []
+        last_end = 0
+    
+        for start, end, theme_key, keywords, sentence, color in merged_positions:
+            # Add text before this highlight
+            if start > last_end:
+                result.append(text[last_end:start])
+    
+            # Add highlighted text with tooltip
+            if "linear-gradient" in color:
+                # Special styling for overlapping themes
+                style = f"background: {color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
+            else:
+                style = f"background-color:{color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
+                
+            tooltip = f"Theme: {theme_key}\nKeywords: {keywords}"
+            result.append(f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>')
+    
+            last_end = end
+    
+        # Add remaining text
+        if last_end < len(text):
+            result.append(text[last_end:])
+
+        return "".join(result)
+
     def _get_theme_color(self, theme_key):
         """Get a consistent color for a specific theme"""
         # If this theme already has an assigned color, use it
@@ -238,7 +303,7 @@ class ThemeAnalyzer:
         # Store the assignment for future consistency
         self.theme_color_map[theme_key] = assigned_color
         return assigned_color
-
+    
     def analyze_document(self, text):
         """Analyze document text for themes and highlight sentences containing theme keywords"""
         if not isinstance(text, str) or not text.strip():
@@ -355,64 +420,6 @@ class ThemeAnalyzer:
 
         return framework_themes, theme_highlights
 
-    def create_highlighted_html(self, text, theme_highlights):
-        """Create HTML with sentences highlighted by theme"""
-        if not text or not theme_highlights:
-            return text
-
-        # Convert highlights to a flat list of positions
-        all_positions = []
-        for theme_key, positions in theme_highlights.items():
-            theme_color = self._get_theme_color(theme_key)
-            for pos_info in positions:
-                # position format: (start_pos, end_pos, keywords_str, sentence)
-                all_positions.append((pos_info[0], pos_info[1], theme_key, pos_info[2], pos_info[3], theme_color))
-
-        # Sort positions by start position
-        all_positions.sort()
-
-        # Merge overlapping sentences
-        merged_positions = []
-        if all_positions:
-            current = all_positions[0]
-            for i in range(1, len(all_positions)):
-                if all_positions[i][0] <= current[1]:  # Overlap
-                    # Extend current span and combine theme keys
-                    # For overlaps, create a blended highlight effect (use the first theme's color)
-                    current = (
-                        current[0],
-                        max(current[1], all_positions[i][1]),
-                        current[2] + " + " + all_positions[i][2],
-                        current[3] + " + " + all_positions[i][3],
-                        current[4],  # Keep the sentence
-                        current[5]   # Keep the first theme's color
-                    )
-                else:
-                    merged_positions.append(current)
-                    current = all_positions[i]
-            merged_positions.append(current)
-
-        # Create highlighted text
-        result = []
-        last_end = 0
-
-        for start, end, theme_key, keywords, sentence, color in merged_positions:
-            # Add text before this highlight
-            if start > last_end:
-                result.append(text[last_end:start])
-
-            # Add highlighted text with tooltip
-            style = f"background-color:{color}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
-            tooltip = f"Theme: {theme_key}\nKeywords: {keywords}"
-            result.append(f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>')
-
-            last_end = end
-
-        # Add remaining text
-        if last_end < len(text):
-            result.append(text[last_end:])
-
-        return "".join(result)
 
     def _get_isirch_framework(self):
         """I-SIRCh framework themes mapped exactly to the official framework structure"""
@@ -1016,271 +1023,299 @@ class ThemeAnalyzer:
             
         return output_filename
    
-    def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
-        """
-        Create a single integrated HTML file with all highlighted records, themes, and framework information
-        that can be easily converted to PDF
-        """
-        from collections import defaultdict
-        
-        # Map report IDs to their themes
-        report_themes = defaultdict(list)
-        
-        # Organize the results by report ID
-        for _, row in results_df.iterrows():
-            if 'Record ID' in row and 'Theme' in row and 'Framework' in row:
-                record_id = row['Record ID']
-                framework = row['Framework']
-                theme = row['Theme']
-                confidence = row.get('Confidence', '')
-                score = row.get('Combined Score', 0)
-                matched_keywords = row.get('Matched Keywords', '')
-                
-                report_themes[record_id].append({
-                    'framework': framework,
-                    'theme': theme,
-                    'confidence': confidence,
-                    'score': score,
-                    'keywords': matched_keywords
-                })
-        
-        # Create HTML content with modern styling
-        html_content = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>BERT Theme Analysis Report</title>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    line-height: 1.6; 
-                    margin: 0;
-                    padding: 20px;
-                    color: #333;
-                    background-color: #f9f9f9;
-                }
-                h1 { 
-                    color: #2c3e50; 
-                    border-bottom: 3px solid #3498db; 
-                    padding-bottom: 10px; 
-                    margin-top: 30px;
-                    font-weight: 600;
-                }
-                h2 { 
-                    color: #2c3e50; 
-                    margin-top: 30px; 
-                    border-bottom: 2px solid #bdc3c7; 
-                    padding-bottom: 5px; 
-                    font-weight: 600;
-                }
-                h3 {
-                    color: #34495e;
-                    font-weight: 600;
-                    margin-top: 20px;
-                }
-                .record-container { 
-                    margin-bottom: 40px; 
-                    background-color: white;
-                    border-radius: 8px;
-                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                    padding: 20px;
-                    page-break-after: always; 
-                }
-                .highlighted-text { 
-                    margin: 15px 0; 
-                    padding: 15px; 
-                    border-radius: 4px;
-                    border: 1px solid #ddd; 
-                    background-color: #fff; 
-                    line-height: 1.7;
-                }
-                .theme-info { margin: 15px 0; }
-                .theme-info table { 
-                    border-collapse: collapse; 
-                    width: 100%; 
-                    margin-top: 15px;
-                    border-radius: 4px;
-                    overflow: hidden;
-                }
-                .theme-info th, .theme-info td { 
-                    border: 1px solid #ddd; 
-                    padding: 12px; 
-                    text-align: left; 
-                }
-                .theme-info th { 
-                    background-color: #3498db; 
-                    color: white;
-                    font-weight: 600;
-                }
-                .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
-                .theme-info tr:hover { background-color: #f1f1f1; }
-                .high-confidence { background-color: #D5F5E3; }  /* Light green */
-                .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
-                .low-confidence { background-color: #FADBD8; }   /* Light red */
-                .report-header {
-                    background-color: #3498db;
-                    color: white;
-                    padding: 30px;
-                    text-align: center;
-                    border-radius: 8px;
-                    margin-bottom: 30px;
-                }
-                .summary-card {
-                    background-color: white;
-                    border-radius: 8px;
-                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                    padding: 20px;
-                    margin-bottom: 30px;
-                    display: flex;
-                    flex-wrap: wrap;
-                    justify-content: space-between;
-                }
-                .summary-box {
-                    flex: 1;
-                    min-width: 200px;
-                    padding: 15px;
-                    text-align: center;
-                    border-right: 1px solid #eee;
-                }
-                .summary-box:last-child {
-                    border-right: none;
-                }
-                .summary-number {
-                    font-size: 36px;
-                    font-weight: bold;
-                    color: #3498db;
-                    margin-bottom: 10px;
-                }
-                .summary-label {
-                    font-size: 14px;
-                    color: #7f8c8d;
-                    text-transform: uppercase;
-                }
-                @media print {
-                    .record-container { page-break-after: always; }
-                    body { background-color: white; }
-                    .record-container, .summary-card { box-shadow: none; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="report-header">
-                <h1>BERT Theme Analysis Results</h1>
-                <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
-            </div>
+ def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
+    """
+    Create a single integrated HTML file with all highlighted records, themes, and framework information
+    that can be easily converted to PDF
+    """
+    from collections import defaultdict
+    
+    # Map report IDs to their themes
+    report_themes = defaultdict(list)
+    
+    # Organize the results by report ID
+    for _, row in results_df.iterrows():
+        if 'Record ID' in row and 'Theme' in row and 'Framework' in row:
+            record_id = row['Record ID']
+            framework = row['Framework']
+            theme = row['Theme']
+            confidence = row.get('Confidence', '')
+            score = row.get('Combined Score', 0)
+            matched_keywords = row.get('Matched Keywords', '')
             
-            <div class="summary-card">
-                <div class="summary-box">
-                    <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
-                    <div class="summary-label">Documents Analyzed</div>
-                </div>
-                <div class="summary-box">
-                    <div class="summary-number">""" + str(len(results_df)) + """</div>
-                    <div class="summary-label">Theme Identifications</div>
-                </div>
-                <div class="summary-box">
-                    <div class="summary-number">""" + str(len(results_df['Framework'].unique())) + """</div>
-                    <div class="summary-label">Frameworks</div>
-                </div>
+            # Get the theme color
+            theme_key = f"{framework}_{theme}"
+            theme_color = self._get_theme_color(theme_key)
+            
+            report_themes[record_id].append({
+                'framework': framework,
+                'theme': theme,
+                'confidence': confidence,
+                'score': score,
+                'keywords': matched_keywords,
+                'color': theme_color  # Add the theme color
+            })
+    
+    # Create HTML content with modern styling
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>BERT Theme Analysis Report</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <style>
+            body { 
+                font-family: Arial, sans-serif; 
+                line-height: 1.6; 
+                margin: 0;
+                padding: 20px;
+                color: #333;
+                background-color: #f9f9f9;
+            }
+            h1 { 
+                color: #2c3e50; 
+                border-bottom: 3px solid #3498db; 
+                padding-bottom: 10px; 
+                margin-top: 30px;
+                font-weight: 600;
+            }
+            h2 { 
+                color: #2c3e50; 
+                margin-top: 30px; 
+                border-bottom: 2px solid #bdc3c7; 
+                padding-bottom: 5px; 
+                font-weight: 600;
+            }
+            h3 {
+                color: #34495e;
+                font-weight: 600;
+                margin-top: 20px;
+            }
+            .record-container { 
+                margin-bottom: 40px; 
+                background-color: white;
+                border-radius: 8px;
+                box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                padding: 20px;
+                page-break-after: always; 
+            }
+            .highlighted-text { 
+                margin: 15px 0; 
+                padding: 15px; 
+                border-radius: 4px;
+                border: 1px solid #ddd; 
+                background-color: #fff; 
+                line-height: 1.7;
+            }
+            .theme-info { margin: 15px 0; }
+            .theme-info table { 
+                border-collapse: collapse; 
+                width: 100%; 
+                margin-top: 15px;
+                border-radius: 4px;
+                overflow: hidden;
+            }
+            .theme-info th, .theme-info td { 
+                border: 1px solid #ddd; 
+                padding: 12px; 
+                text-align: left; 
+            }
+            .theme-info th { 
+                background-color: #3498db; 
+                color: white;
+                font-weight: 600;
+            }
+            .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
+            .theme-info tr:hover { background-color: #f1f1f1; }
+            .high-confidence { background-color: #D5F5E3; }  /* Light green */
+            .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
+            .low-confidence { background-color: #FADBD8; }   /* Light red */
+            .report-header {
+                background-color: #3498db;
+                color: white;
+                padding: 30px;
+                text-align: center;
+                border-radius: 8px;
+                margin-bottom: 30px;
+            }
+            .summary-card {
+                background-color: white;
+                border-radius: 8px;
+                box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                padding: 20px;
+                margin-bottom: 30px;
+                display: flex;
+                flex-wrap: wrap;
+                justify-content: space-between;
+            }
+            .summary-box {
+                flex: 1;
+                min-width: 200px;
+                padding: 15px;
+                text-align: center;
+                border-right: 1px solid #eee;
+            }
+            .summary-box:last-child {
+                border-right: none;
+            }
+            .summary-number {
+                font-size: 36px;
+                font-weight: bold;
+                color: #3498db;
+                margin-bottom: 10px;
+            }
+            .summary-label {
+                font-size: 14px;
+                color: #7f8c8d;
+                text-transform: uppercase;
+            }
+            .theme-color-box {
+                display: inline-block;
+                width: 20px;
+                height: 20px;
+                margin-right: 5px;
+                vertical-align: middle;
+                border: 1px solid #999;
+            }
+            @media print {
+                .record-container { page-break-after: always; }
+                body { background-color: white; }
+                .record-container, .summary-card { box-shadow: none; }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="report-header">
+            <h1>BERT Theme Analysis Results</h1>
+            <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
+        </div>
+        
+        <div class="summary-card">
+            <div class="summary-box">
+                <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
+                <div class="summary-label">Documents Analyzed</div>
             </div>
-        """
+            <div class="summary-box">
+                <div class="summary-number">""" + str(len(results_df)) + """</div>
+                <div class="summary-label">Theme Identifications</div>
+            </div>
+            <div class="summary-box">
+                <div class="summary-number">""" + str(len(results_df['Framework'].unique())) + """</div>
+                <div class="summary-label">Frameworks</div>
+            </div>
+        </div>
+    """
+    
+    # Add framework summary
+    html_content += """
+        <h2>Framework Summary</h2>
+        <table class="theme-info">
+            <tr>
+                <th>Framework</th>
+                <th>Number of Themes</th>
+                <th>Number of Documents</th>
+            </tr>
+    """
+    
+    for framework in results_df['Framework'].unique():
+        framework_results = results_df[results_df['Framework'] == framework]
+        num_themes = len(framework_results['Theme'].unique())
+        num_docs = len(framework_results['Record ID'].unique())
         
-        # Add framework summary
-        html_content += """
-            <h2>Framework Summary</h2>
-            <table class="theme-info">
-                <tr>
-                    <th>Framework</th>
-                    <th>Number of Themes</th>
-                    <th>Number of Documents</th>
-                </tr>
+        html_content += f"""
+            <tr>
+                <td>{framework}</td>
+                <td>{num_themes}</td>
+                <td>{num_docs}</td>
+            </tr>
         """
-        
-        for framework in results_df['Framework'].unique():
-            framework_results = results_df[results_df['Framework'] == framework]
-            num_themes = len(framework_results['Theme'].unique())
-            num_docs = len(framework_results['Record ID'].unique())
+    
+    html_content += """
+        </table>
+    """
+    
+    # Add each record with its themes and highlighted text
+    html_content += "<h2>Document Analysis</h2>"
+    
+    for record_id, themes in report_themes.items():
+        if record_id in highlighted_texts:
+            record_title = next((row['Title'] for _, row in results_df.iterrows() 
+                               if row.get('Record ID') == record_id), f"Document {record_id}")
             
             html_content += f"""
-                <tr>
-                    <td>{framework}</td>
-                    <td>{num_themes}</td>
-                    <td>{num_docs}</td>
-                </tr>
+            <div class="record-container">
+                <h2>Document: {record_title}</h2>
+                
+                <div class="theme-info">
+                    <h3>Identified Themes</h3>
+                    <table>
+                        <tr>
+                            <th>Framework</th>
+                            <th>Theme</th>
+                            <th>Confidence</th>
+                            <th>Score</th>
+                            <th>Matched Keywords</th>
+                            <th>Color</th>
+                        </tr>
             """
-        
-        html_content += """
-            </table>
-        """
-        
-        # Add each record with its themes and highlighted text
-        html_content += "<h2>Document Analysis</h2>"
-        
-        for record_id, themes in report_themes.items():
-            if record_id in highlighted_texts:
-                record_title = next((row['Title'] for _, row in results_df.iterrows() 
-                                   if row.get('Record ID') == record_id), f"Document {record_id}")
+            
+            # Add theme rows
+            for theme_info in sorted(themes, key=lambda x: (x['framework'], -x.get('score', 0))):
+                confidence_class = ''
+                if theme_info.get('confidence') == 'High':
+                    confidence_class = 'high-confidence'
+                elif theme_info.get('confidence') == 'Medium':
+                    confidence_class = 'medium-confidence'
+                elif theme_info.get('confidence') == 'Low':
+                    confidence_class = 'low-confidence'
                 
                 html_content += f"""
-                <div class="record-container">
-                    <h2>Document: {record_title}</h2>
-                    
-                    <div class="theme-info">
-                        <h3>Identified Themes</h3>
-                        <table>
-                            <tr>
-                                <th>Framework</th>
-                                <th>Theme</th>
-                                <th>Confidence</th>
-                                <th>Score</th>
-                                <th>Matched Keywords</th>
-                            </tr>
+                        <tr>
+                            <td>{theme_info['framework']}</td>
+                            <td>{theme_info['theme']}</td>
+                            <td class="{confidence_class}">{theme_info.get('confidence', '')}</td>
+                            <td>{round(theme_info.get('score', 0), 3)}</td>
+                            <td>{theme_info.get('keywords', '')}</td>
+                            <td><div class="theme-color-box" style="background-color:{theme_info['color']};"></div> {theme_info['color']}</td>
+                        </tr>
                 """
-                
-                # Add theme rows
-                for theme_info in sorted(themes, key=lambda x: (x['framework'], -x.get('score', 0))):
-                    confidence_class = ''
-                    if theme_info.get('confidence') == 'High':
-                        confidence_class = 'high-confidence'
-                    elif theme_info.get('confidence') == 'Medium':
-                        confidence_class = 'medium-confidence'
-                    elif theme_info.get('confidence') == 'Low':
-                        confidence_class = 'low-confidence'
-                    
-                    html_content += f"""
-                            <tr>
-                                <td>{theme_info['framework']}</td>
-                                <td>{theme_info['theme']}</td>
-                                <td class="{confidence_class}">{theme_info.get('confidence', '')}</td>
-                                <td>{round(theme_info.get('score', 0), 3)}</td>
-                                <td>{theme_info.get('keywords', '')}</td>
-                            </tr>
-                    """
-                
-                html_content += """
-                        </table>
-                    </div>
-                    
-                    <div class="highlighted-text">
-                        <h3>Text with Highlighted Keywords</h3>
-                """
-                
-                # Add highlighted text
-                html_content += highlighted_texts[record_id]
-                
-                html_content += """
-                    </div>
+            
+            html_content += """
+                    </table>
                 </div>
-                """
-        
-        html_content += """
-        </body>
-        </html>
-        """
-        
-        return html_content
+                
+                <div class="highlighted-text">
+                    <h3>Text with Highlighted Keywords</h3>
+            """
+            
+            # Add highlighted text
+            html_content += highlighted_texts[record_id]
+            
+            html_content += """
+                </div>
+            </div>
+            """
+    
+    html_content += """
+    </body>
+    </html>
+    """
+    
+    return html_content
+
+def _preassign_framework_colors(self):
+    """Preassign colors to each framework for consistent coloring"""
+    # Create a dictionary to track colors used for each framework
+    framework_colors = {}
+
+    # Assign colors to each theme in each framework
+    for framework, themes in self.frameworks.items():
+        for i, theme in enumerate(themes):
+            theme_key = f"{framework}_{theme['name']}"
+            # Assign color from the theme_colors list, cycling if needed
+            color_idx = i % len(self.theme_colors)
+            self.theme_color_map[theme_key] = self.theme_colors[color_idx]   
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """
@@ -3577,299 +3612,6 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         st.error(f"Error setting up export options: {str(e)}")
         logging.error(f"Export options error: {e}", exc_info=True)
         
-def render_analysis_tab(data: pd.DataFrame = None):
-    """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
-    st.header("Reports Analysis")
-    
-    # Add file upload section at the top
-    st.subheader("Upload Data")
-    uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file", 
-        type=['csv', 'xlsx'],
-        help="Upload previously exported data"
-    )
-    
-    if uploaded_file is not None:
-        try:
-            if uploaded_file.name.endswith('.csv'):
-                data = pd.read_csv(uploaded_file)
-            else:
-                data = pd.read_excel(uploaded_file)
-            
-            # Process uploaded data
-            data = process_scraped_data(data)
-            st.success("File uploaded and processed successfully!")
-            
-            # Update session state
-            st.session_state.uploaded_data = data.copy()
-            st.session_state.data_source = 'uploaded'
-            st.session_state.current_data = data.copy()
-        
-        except Exception as e:
-            st.error(f"Error uploading file: {str(e)}")
-            logging.error(f"File upload error: {e}", exc_info=True)
-            return
-    
-    # Use either uploaded data or passed data
-    if data is None:
-        data = st.session_state.get('current_data')
-    
-    if data is None or len(data) == 0:
-        st.warning("No data available. Please upload a file or scrape reports first.")
-        return
-        
-    try:
-        # Get date range for the data
-        min_date = data['date_of_report'].min().date()
-        max_date = data['date_of_report'].max().date()
-        
-        # Filters sidebar
-        with st.sidebar:
-            st.header("Filters")
-            
-            # Date Range
-            with st.expander("📅 Date Range", expanded=True):
-                col1, col2 = st.columns(2)
-                with col1:
-                    start_date = st.date_input(
-                        "From",
-                        value=min_date,
-                        min_value=min_date,
-                        max_value=max_date,
-                        key="start_date_filter",
-                        format="DD/MM/YYYY"
-                    )
-                with col2:
-                    end_date = st.date_input(
-                        "To",
-                        value=max_date,
-                        min_value=min_date,
-                        max_value=max_date,
-                        key="end_date_filter",
-                        format="DD/MM/YYYY"
-                    )
-            
-            # Document Type Filter
-            doc_type = st.multiselect(
-                "Document Type",
-                ["Report", "Response"],
-                default=["Report", "Response"],
-                key="doc_type_filter",
-                help="Filter by document type"
-            )
-            
-            # Reference Number
-            ref_numbers = sorted(data['ref'].dropna().unique())
-            selected_refs = st.multiselect(
-                "Reference Numbers",
-                options=ref_numbers,
-                key="ref_filter"
-            )
-            
-            # Deceased Name
-            deceased_search = st.text_input(
-                "Deceased Name",
-                key="deceased_filter",
-                help="Enter partial or full name"
-            )
-            
-            # Coroner Name
-            coroner_names = sorted(data['coroner_name'].dropna().unique())
-            selected_coroners = st.multiselect(
-                "Coroner Names",
-                options=coroner_names,
-                key="coroner_filter"
-            )
-            
-            # Coroner Area
-            coroner_areas = sorted(data['coroner_area'].dropna().unique())
-            selected_areas = st.multiselect(
-                "Coroner Areas",
-                options=coroner_areas,
-                key="areas_filter"
-            )
-            
-            # Categories
-            all_categories = set()
-            for cats in data['categories'].dropna():
-                if isinstance(cats, list):
-                    all_categories.update(cats)
-            selected_categories = st.multiselect(
-                "Categories",
-                options=sorted(all_categories),
-                key="categories_filter"
-            )
-            
-            # Reset Filters Button
-            if st.button("🔄 Reset Filters"):
-                for key in st.session_state:
-                    if key.endswith('_filter'):
-                        del st.session_state[key]
-                st.rerun()
-
-        # Apply filters
-        filtered_df = data.copy()
-
-        # Date filter
-        if start_date and end_date:
-            filtered_df = filtered_df[
-                (filtered_df['date_of_report'].dt.date >= start_date) &
-                (filtered_df['date_of_report'].dt.date <= end_date)
-            ]
-
-        # Document type filter
-        if doc_type:
-            filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
-
-        # Reference number filter
-        if selected_refs:
-            filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
-
-        if deceased_search:
-            filtered_df = filtered_df[
-                filtered_df['deceased_name'].fillna('').str.contains(
-                    deceased_search, 
-                    case=False, 
-                    na=False
-                )
-            ]
-
-        if selected_coroners:
-            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
-
-        if selected_areas:
-            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
-
-        if selected_categories:
-            filtered_df = filtered_df[
-                filtered_df['categories'].apply(
-                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
-                )
-            ]
-
-        # Show active filters
-        active_filters = []
-        if start_date != min_date or end_date != max_date:
-            active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
-        if doc_type and doc_type != ["Report", "Response"]:
-            active_filters.append(f"Document Types: {', '.join(doc_type)}")
-        if selected_refs:
-            active_filters.append(f"References: {', '.join(selected_refs)}")
-        if deceased_search:
-            active_filters.append(f"Deceased name contains: {deceased_search}")
-        if selected_coroners:
-            active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
-        if selected_areas:
-            active_filters.append(f"Areas: {', '.join(selected_areas)}")
-        if selected_categories:
-            active_filters.append(f"Categories: {', '.join(selected_categories)}")
-
-        if active_filters:
-            st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
-
-        # Display results
-        st.subheader("Results")
-        st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
-
-        if len(filtered_df) > 0:
-            # Display the dataframe
-            st.dataframe(
-                filtered_df,
-                column_config={
-                    "URL": st.column_config.LinkColumn("Report Link"),
-                    "date_of_report": st.column_config.DateColumn(
-                        "Date of Report",
-                        format="DD/MM/YYYY"
-                    ),
-                    "categories": st.column_config.ListColumn("Categories"),
-                    "Document Type": st.column_config.TextColumn(
-                        "Document Type",
-                        help="Type of document based on PDF filename"
-                    )
-                },
-                hide_index=True
-            )
-
-            # Create tabs for different analyses
-            st.markdown("---")
-            quality_tab, temporal_tab, distribution_tab = st.tabs([
-                "📊 Data Quality Analysis",
-                "📅 Temporal Analysis",
-                "📍 Distribution Analysis"
-            ])
-
-            # Data Quality Analysis Tab
-            with quality_tab:
-                analyze_data_quality(filtered_df)
-
-            # Temporal Analysis Tab
-            with temporal_tab:
-                # Timeline of reports
-                st.subheader("Reports Timeline")
-                plot_timeline(filtered_df)
-                
-                # Monthly distribution
-                st.subheader("Monthly Distribution")
-                plot_monthly_distribution(filtered_df)
-                
-                # Year-over-year comparison
-                st.subheader("Year-over-Year Comparison")
-                plot_yearly_comparison(filtered_df)
-                
-                # Seasonal patterns
-                st.subheader("Seasonal Patterns")
-                seasonal_counts = filtered_df['date_of_report'].dt.month.value_counts().sort_index()
-                month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                fig = px.line(
-                    x=month_names,
-                    y=[seasonal_counts.get(i, 0) for i in range(1, 13)],
-                    markers=True,
-                    labels={'x': 'Month', 'y': 'Number of Reports'},
-                    title='Seasonal Distribution of Reports'
-                )
-                st.plotly_chart(fig, use_container_width=True)
-
-            # Distribution Analysis Tab
-            with distribution_tab:
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.subheader("Reports by Category")
-                    plot_category_distribution(filtered_df)
-                with col2:
-                    st.subheader("Reports by Coroner Area")
-                    plot_coroner_areas(filtered_df)
-
-            # Export options
-            st.markdown("---")
-            st.subheader("Export Options")
-            col1, col2 = st.columns(2)
-            
-            # CSV Export
-            with col1:
-                csv = filtered_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "📥 Download Results (CSV)",
-                    csv,
-                    "filtered_reports.csv",
-                    "text/csv"
-                )
-            
-            # Excel Export
-            with col2:
-                excel_data = export_to_excel(filtered_df)
-                st.download_button(
-                    "📥 Download Results (Excel)",
-                    excel_data,
-                    "filtered_reports.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
-        else:
-            st.warning("No data matches the selected filters.")
-
-    except Exception as e:
-        st.error(f"An error occurred: {str(e)}")
-        logging.error(f"Analysis error: {e}", exc_info=True)
 
 def extract_advanced_topics(
     data: pd.DataFrame, 
@@ -5337,7 +5079,7 @@ def check_bert_password():
 
 
 def render_bert_analysis_tab(data: pd.DataFrame = None):
-    """Render BERT Analysis tab with theme detection, column selection, and multi-report analysis"""
+    """Modified render_bert_analysis_tab function with improved theme color display"""
     st.header("BERT-based Theme Analysis")
     
     # Check password before showing BERT analysis
@@ -5352,7 +5094,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             "Upload CSV or Excel file for BERT Analysis", 
             type=['csv', 'xlsx'],
             help="Upload a file with reports for theme analysis",
-            key="bert_file_uploader"  # Fixed key
+            key="bert_file_uploader"
         )
         
         # If a file is uploaded, process it
@@ -5396,7 +5138,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             options=text_columns,
             index=text_columns.index('Content') if 'Content' in text_columns else 0,
             help="Select the column containing the text you want to analyze",
-            key="bert_content_column"  # Fixed key
+            key="bert_content_column"
         )
         
         # Filtering options
@@ -5407,7 +5149,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             "Analysis Type",
             ["All Reports", "Selected Reports"],
             horizontal=True,
-            key="bert_analysis_type"  # Fixed key
+            key="bert_analysis_type"
         )
         
         if analysis_type == "Selected Reports":
@@ -5416,20 +5158,45 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                 "Choose specific reports to analyze",
                 options=list(range(len(data))),
                 format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
-                key="bert_selected_indices"  # Fixed key
+                key="bert_selected_indices"
             )
             selected_data = data.iloc[selected_indices] if selected_indices else None
         else:
             selected_data = data
         
-        # Highlighting color selection
-        st.subheader("Highlighting Preferences")
-        highlight_color = st.selectbox(
-            "Choose Highlight Color",
-            ["orange", "yellow", "lightblue", "lightgreen"],
+        # Color scheme selection
+        st.subheader("Theme Color Scheme")
+        color_scheme = st.selectbox(
+            "Choose Color Scheme",
+            ["Pastel", "Vibrant", "Blues", "Earth Tones", "Distinct"],
             index=0,
-            key="bert_highlight_color"  # Fixed key
+            help="Select a color scheme for theme highlighting",
+            key="theme_color_scheme"
         )
+        
+        # Define color schemes
+        color_schemes = {
+            "Pastel": [
+                '#FFD580', '#FFECB3', '#E1F5FE', '#E8F5E9', '#F3E5F5', 
+                '#FFF3E0', '#E0F7FA', '#F1F8E9', '#FFF8E1', '#E8EAF6'
+            ],
+            "Vibrant": [
+                '#FF5733', '#33FF57', '#3357FF', '#F333FF', '#FF33F3',
+                '#33FFF3', '#FFFF33', '#FF3333', '#33FF33', '#3333FF'
+            ],
+            "Blues": [
+                '#E3F2FD', '#BBDEFB', '#90CAF9', '#64B5F6', '#42A5F5',
+                '#2196F3', '#1E88E5', '#1976D2', '#1565C0', '#0D47A1'
+            ],
+            "Earth Tones": [
+                '#8D6E63', '#A1887F', '#BCAAA4', '#D7CCC8', '#EFEBE9',
+                '#5D4037', '#4E342E', '#3E2723', '#BF360C', '#D84315'
+            ],
+            "Distinct": [
+                '#E41A1C', '#377EB8', '#4DAF4A', '#984EA3', '#FF7F00',
+                '#FFFF33', '#A65628', '#F781BF', '#999999', '#66C2A5'
+            ]
+        }
         
         # Analysis parameters
         st.subheader("Analysis Parameters")
@@ -5440,11 +5207,11 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             value=0.65,
             step=0.05,
             help="Minimum similarity score for theme detection (higher = more strict)",
-            key="bert_similarity_threshold"  # Fixed key
+            key="bert_similarity_threshold"
         )
         
         # Analysis button
-        run_analysis = st.button("Run BERT Analysis", type="primary", key="bert_run_analysis")  # Fixed key
+        run_analysis = st.button("Run BERT Analysis", type="primary", key="bert_run_analysis")
         
         # Run analysis if button is clicked
         if run_analysis:
@@ -5460,7 +5227,9 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     
                     # Set custom configuration
                     theme_analyzer.config['base_similarity_threshold'] = similarity_threshold
-                    theme_analyzer.theme_colors = [highlight_color] * 20
+                    
+                    # Set color scheme
+                    theme_analyzer.theme_colors = color_schemes[color_scheme]
                     
                     # Perform analysis with highlighting
                     results_df, highlighted_texts = theme_analyzer.create_detailed_results(
@@ -5482,11 +5251,19 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     with open(html_filename, "w", encoding="utf-8") as f:
                         f.write(html_content)
                     
+                    # Create a mapping of theme keys to colors for consistent display
+                    theme_colors = {}
+                    for _, row in results_df.iterrows():
+                        if 'Framework' in row and 'Theme' in row:
+                            theme_key = f"{row['Framework']}_{row['Theme']}"
+                            theme_colors[theme_key] = theme_analyzer._get_theme_color(theme_key)
+                    
                     # Save results to session state to ensure persistence
                     st.session_state.bert_results['results_df'] = results_df
                     st.session_state.bert_results['highlighted_texts'] = highlighted_texts
                     st.session_state.bert_results['pdf_filename'] = pdf_filename
                     st.session_state.bert_results['html_filename'] = html_filename
+                    st.session_state.bert_results['theme_colors'] = theme_colors
                     
                     st.success("Analysis complete!")
                     
@@ -5494,12 +5271,13 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     st.error(f"Error during BERT analysis: {str(e)}")
                     logging.error(f"BERT analysis error: {e}", exc_info=True)
         
-        # Always display results if they exist - KEY CHANGE TO MAINTAIN STATE AFTER DOWNLOADS
+        # Always display results if they exist
         if 'bert_results' in st.session_state and st.session_state.bert_results.get('results_df') is not None:
             results_df = st.session_state.bert_results['results_df']
             highlighted_texts = st.session_state.bert_results['highlighted_texts']
             pdf_filename = st.session_state.bert_results.get('pdf_filename')
             html_filename = st.session_state.bert_results.get('html_filename')
+            theme_colors = st.session_state.bert_results.get('theme_colors', {})
             
             st.subheader("Analysis Summary")
             st.write(f"Total Records Analyzed: {len(highlighted_texts)}")
@@ -5514,25 +5292,25 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             st.write("\nFramework Distribution:")
             st.write(results_df['Framework'].value_counts())
             
-            # Create columns for download buttons with FIXED KEYS
+            # Create columns for download buttons
             col1, col2, col3 = st.columns(3)
             
             # Generate consistent timestamp for filenames
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             
             with col1:
-                # Excel download button with fixed key
+                # Excel download button
                 excel_data = export_to_excel(results_df)
                 st.download_button(
                     "📥 Download Excel Results",
                     data=excel_data,
                     file_name=f"bert_theme_analysis_{timestamp}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="bert_excel_download"  # FIXED KEY
+                    key="bert_excel_download"
                 )
             
             with col2:
-                # PDF download button with fixed key
+                # PDF download button
                 if pdf_filename and os.path.exists(pdf_filename):
                     with open(pdf_filename, 'rb') as f:
                         pdf_data = f.read()
@@ -5542,13 +5320,13 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         data=pdf_data,
                         file_name=os.path.basename(pdf_filename),
                         mime="application/pdf",
-                        key="bert_pdf_download"  # FIXED KEY
+                        key="bert_pdf_download"
                     )
                 else:
                     st.warning("PDF report not available")
             
             with col3:
-                # HTML download button with fixed key
+                # HTML download button
                 if html_filename and os.path.exists(html_filename):
                     with open(html_filename, 'rb') as f:
                         html_data = f.read()
@@ -5558,20 +5336,56 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         data=html_data,
                         file_name=os.path.basename(html_filename),
                         mime="text/html", 
-                        key="bert_html_download"  # FIXED KEY
+                        key="bert_html_download"
                     )
                 else:
                     st.warning("HTML report not available")
             
-            # Show results table
+            # Show color legend if theme colors available
+            if theme_colors:
+                st.subheader("Theme Color Legend")
+                legend_html = "<div style='display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px;'>"
+                
+                for theme_key, color in theme_colors.items():
+                    theme_parts = theme_key.split('_', 1)
+                    framework = theme_parts[0] if len(theme_parts) > 0 else ""
+                    theme = theme_parts[1] if len(theme_parts) > 1 else theme_key
+                    
+                    legend_html += f"""
+                    <div style='display: flex; align-items: center; border: 1px solid #ddd; border-radius: 4px; padding: 5px; background-color: white; min-width: 300px;'>
+                        <div style='width: 20px; height: 20px; background-color: {color}; border: 1px solid #666; margin-right: 10px;'></div>
+                        <div>
+                            <div style='font-weight: bold;'>{framework}</div>
+                            <div>{theme}</div>
+                        </div>
+                    </div>
+                    """
+                
+                legend_html += "</div>"
+                st.markdown(legend_html, unsafe_allow_html=True)
+            
+            # Show results table with color indicators
             st.subheader("Theme Analysis Results")
+            
+            # Create a DataFrame with HTML-formatted color indicators
+            display_df = results_df.copy()
+            display_df['Theme'] = display_df.apply(
+                lambda row: f"<div style='display: flex; align-items: center;'>"
+                           f"<div style='width: 15px; height: 15px; background-color: "
+                           f"{theme_colors.get(f'{row['Framework']}_{row['Theme']}', '#cccccc')}; "
+                           f"border: 1px solid #666; margin-right: 5px;'></div>"
+                           f"<span>{row['Theme']}</span></div>", 
+                axis=1
+            )
+            
+            # Display the DataFrame using custom formatting
             st.dataframe(
-                results_df,
+                display_df,
                 column_config={
                     'Record ID': st.column_config.NumberColumn("Record ID"),
                     'Title': st.column_config.TextColumn("Document Title"),
                     'Framework': st.column_config.TextColumn("Framework"),
-                    'Theme': st.column_config.TextColumn("Theme"),
+                    'Theme': st.column_config.Column("Theme", width="large"),
                     'Confidence': st.column_config.TextColumn("Confidence"),
                     'Combined Score': st.column_config.NumberColumn("Score", format="%.3f"),
                     'Matched Keywords': st.column_config.TextColumn("Keywords"),
@@ -5602,23 +5416,37 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         
                         st.markdown(f"### {doc_title}")
                         
-                        # Document themes
+                        # Document themes with color indicators
                         doc_themes = results_df[results_df['Record ID'] == doc_id]
                         if not doc_themes.empty:
                             st.markdown("**Identified Themes:**")
+                            
+                            themes_html = "<div style='margin-bottom: 20px;'>"
                             for _, theme_row in doc_themes.iterrows():
+                                framework = theme_row['Framework']
+                                theme = theme_row['Theme']
+                                theme_key = f"{framework}_{theme}"
+                                theme_color = theme_colors.get(theme_key, '#cccccc')
+                                
                                 confidence_color = "#aaffaa" if theme_row.get('Confidence') == "High" else (
                                                   "#ffffaa" if theme_row.get('Confidence') == "Medium" else "#ffaaaa")
-                                st.markdown(
-                                    f"* **{theme_row['Framework']}**: {theme_row['Theme']} "
-                                    f"<span style='background-color:{confidence_color};padding:2px 5px;border-radius:3px;'>"
-                                    f"{theme_row.get('Confidence', 'N/A')}</span>",
-                                    unsafe_allow_html=True
-                                )
+                                
+                                themes_html += f"""
+                                <div style='margin-bottom: 8px; display: flex; align-items: center;'>
+                                    <div style='width: 15px; height: 15px; background-color: {theme_color}; 
+                                         border: 1px solid #666; margin-right: 10px;'></div>
+                                    <div><strong>{framework}:</strong> {theme}
+                                    <span style='background-color:{confidence_color};padding:2px 5px;
+                                         border-radius:3px; margin-left: 5px;'>{theme_row.get('Confidence', 'N/A')}</span></div>
+                                </div>
+                                """
                                 
                                 # Display matched sentences if available
                                 if 'Matched Sentences' in theme_row and theme_row['Matched Sentences']:
-                                    st.markdown(f"  *Matching text: {theme_row['Matched Sentences']}*")
+                                    themes_html += f"<div style='margin-left: 25px; font-style: italic; margin-bottom: 10px;'>{theme_row['Matched Sentences']}</div>"
+                            
+                            themes_html += "</div>"
+                            st.markdown(themes_html, unsafe_allow_html=True)
                         
                         # Highlighted text
                         st.markdown("**Highlighted Text:**")
