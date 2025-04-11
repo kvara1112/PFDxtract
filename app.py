@@ -6512,12 +6512,16 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     )
                 else:
                     st.warning("PDF report not available")
-                    
          with col3:
-                # PDF download button
+            # PDF download button
+            if html_content:  # Use the HTML content generated earlier
+                # Convert HTML to PDF (assuming convert_html_to_pdf returns a filename)
+                pdf_filename = theme_analyzer.convert_html_to_pdf(html_content)
+                
                 if pdf_filename and os.path.exists(pdf_filename):
                     with open(pdf_filename, "rb") as f:
                         pdf_data = f.read()
+                    
                     st.download_button(
                         "📄 Download PDF Report",
                         data=pdf_data,
@@ -6525,8 +6529,12 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         mime="application/pdf",
                         key="bert_pdf_download",
                     )
+                    
+                    # Optional: Clean up the temporary PDF file
+                    os.unlink(pdf_filename)
                 else:
-                    st.warning("PDF report not available")           
+                    st.warning("PDF report not available")                   
+                   
 
 
 
