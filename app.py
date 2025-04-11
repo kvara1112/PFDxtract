@@ -30,7 +30,6 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter
 from bs4 import BeautifulSoup, Tag
-from datetime import datetime
 import json  # Added for JSON export functionality
 # Initialize NLTK resources
 import nltk 
@@ -105,465 +104,6 @@ class ThemeAnalyzer:
 
         # Pre-assign colors to frameworks
         self._preassign_framework_colors()
-
-
-
-
-         
-    def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
-        """
-        Create a single integrated HTML file with all highlighted records, themes, and framework information
-        that can be easily converted to PDF
-        """
-        from collections import defaultdict
-        
-        # Map report IDs to their themes and metadata
-        report_themes = defaultdict(list)
-        report_metadata = {}
-        
-        # Define field mapping for standardization
-        field_mapping = {
-            'Ref': 'Report ID',
-            'ref': 'Report ID',
-            'report_id': 'Report ID',
-            'ReportID': 'Report ID',
-            'date_of_report': 'Date of Report',
-            'Date_of_report': 'Date of Report',
-            'Date': 'Date of Report',
-            'report_date': 'Date of Report',
-            'date': 'Date of Report',
-            'year': 'Year',
-            'coroner_name': 'Coroner Name',
-            'coroner': 'Coroner Name',
-            'coroner area': 'Coroner Area',
-            'coroner_area': 'Coroner Area',
-            'area': 'Coroner Area',
-            'deceased_name': 'Deceased Name',
-            'deceased': 'Deceased Name',
-            'death_type': 'Death Type'
-        }
-        
-        # Function to extract metadata from row
-        def extract_metadata(row):
-            metadata = {}
-            
-            # Process all columns in the row
-            for col in row.index:
-                # Skip if null or empty
-                if pd.isna(row[col]) or row[col] == '':
-                    continue
-                    
-                # Standardize field names if in mapping
-                if col in field_mapping:
-                    field_name = field_mapping[col]
-                    metadata[field_name] = row[col]
-                # Keep as is if not in mapping
-                else:
-                    metadata[col] = row[col]
-                    
-            # Format date if it's a datetime
-            if 'Date of Report' in metadata and pd.api.types.is_datetime64_any_dtype(metadata['Date of Report']):
-                metadata['Date of Report'] = metadata['Date of Report'].strftime('%d/%m/%Y')
-                
-            # Extract Year from Date if missing
-            if 'Year' not in metadata and 'Date of Report' in metadata:
-                try:
-                    date_str = str(metadata['Date of Report'])
-                    if '/' in date_str:
-                        # Assume UK format (DD/MM/YYYY)
-                        metadata['Year'] = date_str.split('/')[-1]
-                except:
-                    pass
-                    
-            return metadata
-        
-        # First pass: Extract metadata for each record
-        for record_id in results_df['Record ID'].unique():
-            # Get a row for this record
-            record_row = results_df[results_df['Record ID'] == record_id].iloc[0]
-            report_metadata[record_id] = extract_metadata(record_row)
-        
-        # Second pass: Organize theme info by record
-        for _, row in results_df.iterrows():
-            if 'Record ID' in row and 'Theme' in row and 'Framework' in row:
-                record_id = row['Record ID']
-                framework = row['Framework']
-                theme = row['Theme']
-                confidence = row.get('Confidence', '')
-                score = row.get('Combined Score', 0)
-                matched_keywords = row.get('Matched Keywords', '')
-                matched_sentences = row.get('Matched Sentences', '')
-                
-                report_themes[record_id].append({
-                    'framework': framework,
-                    'theme': theme,
-                    'confidence': confidence,
-                    'score': score,
-                    'keywords': matched_keywords,
-                    'matched_sentences': matched_sentences
-                })
-        
-        # Create HTML content with modern styling and PDF conversion capabilities
-        html_content = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>BERT Theme Analysis Report</title>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <!-- Include html2pdf.js from CDN -->
-            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-            <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    line-height: 1.6; 
-                    margin: 0;
-                    padding: 20px;
-                    color: #333;
-                    background-color: #f9f9f9;
-                }
-                h1 { 
-                    color: #2c3e50; 
-                    border-bottom: 3px solid #3498db; 
-                    padding-bottom: 10px; 
-                    margin-top: 30px;
-                    font-weight: 600;
-                }
-                h2 { 
-                    color: #2c3e50; 
-                    margin-top: 30px; 
-                    border-bottom: 2px solid #bdc3c7; 
-                    padding-bottom: 5px; 
-                    font-weight: 600;
-                }
-                h3 {
-                    color: #34495e;
-                    font-weight: 600;
-                    margin-top: 20px;
-                }
-                .record-container { 
-                    margin-bottom: 40px; 
-                    background-color: white;
-                    border-radius: 8px;
-                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                    padding: 20px;
-                    page-break-after: always; 
-                }
-                .highlighted-text { 
-                    margin: 15px 0; 
-                    padding: 15px; 
-                    border-radius: 4px;
-                    border: 1px solid #ddd; 
-                    background-color: #fff; 
-                    line-height: 1.7;
-                }
-                .theme-info { margin: 15px 0; }
-                .theme-info table { 
-                    border-collapse: collapse; 
-                    width: 100%; 
-                    margin-top: 15px;
-                    border-radius: 4px;
-                    overflow: hidden;
-                }
-                .theme-info th, .theme-info td { 
-                    border: 1px solid #ddd; 
-                    padding: 12px; 
-                    text-align: left; 
-                }
-                .theme-info th { 
-                    background-color: #3498db; 
-                    color: white;
-                    font-weight: 600;
-                }
-                .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
-                .theme-info tr:hover { background-color: #f1f1f1; }
-                .high-confidence { background-color: #D5F5E3; }  /* Light green */
-                .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
-                .low-confidence { background-color: #FADBD8; }   /* Light red */
-                .report-header {
-                    background-color: #3498db;
-                    color: white;
-                    padding: 30px;
-                    text-align: center;
-                    border-radius: 8px;
-                    margin-bottom: 30px;
-                }
-                .summary-card {
-                    background-color: white;
-                    border-radius: 8px;
-                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                    padding: 20px;
-                    margin-bottom: 30px;
-                    display: flex;
-                    flex-wrap: wrap;
-                    justify-content: space-between;
-                }
-                .summary-box {
-                    flex: 1;
-                    min-width: 200px;
-                    padding: 15px;
-                    text-align: center;
-                    border-right: 1px solid #eee;
-                }
-                .summary-box:last-child {
-                    border-right: none;
-                }
-                .summary-number {
-                    font-size: 36px;
-                    font-weight: bold;
-                    color: #3498db;
-                    margin-bottom: 10px;
-                }
-                .summary-label {
-                    font-size: 14px;
-                    color: #7f8c8d;
-                    text-transform: uppercase;
-                }
-                .pdf-button {
-                    position: fixed;
-                    top: 20px;
-                    right: 20px;
-                    background-color: #3498db;
-                    color: white;
-                    padding: 10px 15px;
-                    border-radius: 5px;
-                    cursor: pointer;
-                    font-weight: bold;
-                    z-index: 1000;
-                    border: none;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-                }
-                .pdf-button:hover {
-                    background-color: #2980b9;
-                }
-                .metadata-table {
-                    width: 100%;
-                    margin-bottom: 20px;
-                    border-collapse: collapse;
-                }
-                .metadata-table th {
-                    background-color: #f2f2f2;
-                    text-align: left;
-                    padding: 8px;
-                    width: 180px;
-                    font-weight: bold;
-                    border: 1px solid #ddd;
-                }
-                .metadata-table td {
-                    padding: 8px;
-                    border: 1px solid #ddd;
-                }
-                @media print {
-                    .pdf-button { display: none; }
-                    .record-container { page-break-after: always; }
-                    body { background-color: white; }
-                    .record-container, .summary-card { box-shadow: none; }
-                }
-            </style>
-        </head>
-        <body>
-            <!-- PDF Download Button -->
-            <button class="pdf-button" onclick="generatePDF()">Download as PDF</button>
-            
-            <!-- Content div that will be converted to PDF -->
-            <div id="content">
-                <div class="report-header">
-                    <h1>BERT Theme Analysis Results</h1>
-                    <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
-                </div>
-                
-                <div class="summary-card">
-                    <div class="summary-box">
-                        <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
-                        <div class="summary-label">Documents Analyzed</div>
-                    </div>
-                    <div class="summary-box">
-                        <div class="summary-number">""" + str(len(results_df)) + """</div>
-                        <div class="summary-label">Theme Identifications</div>
-                    </div>
-                    <div class="summary-box">
-                        <div class="summary-number">""" + str(len(results_df['Framework'].unique())) + """</div>
-                        <div class="summary-label">Frameworks</div>
-                    </div>
-                </div>
-            
-                <!-- Framework Summary -->
-                <h2>Framework Summary</h2>
-                <table class="theme-info">
-                    <tr>
-                        <th>Framework</th>
-                        <th>Number of Themes</th>
-                        <th>Number of Documents</th>
-                    </tr>
-        """
-        
-        for framework in results_df['Framework'].unique():
-            framework_results = results_df[results_df['Framework'] == framework]
-            num_themes = len(framework_results['Theme'].unique())
-            num_docs = len(framework_results['Record ID'].unique())
-            
-            html_content += f"""
-                <tr>
-                    <td>{framework}</td>
-                    <td>{num_themes}</td>
-                    <td>{num_docs}</td>
-                </tr>
-            """
-        
-        html_content += """
-            </table>
-        
-            <!-- Document Analysis -->
-            <h2>Document Analysis</h2>
-        """
-        
-        # Priority order for metadata fields display
-        metadata_priority = [
-            'Report ID', 
-            'Date of Report', 
-            'Year',
-            'Coroner Name',
-            'Coroner Area',
-            'Deceased Name',
-            'Death Type'
-        ]
-        
-        for record_id, themes in report_themes.items():
-            if record_id in highlighted_texts:
-                record_title = next((row['Title'] for _, row in results_df.iterrows() 
-                                   if row.get('Record ID') == record_id), f"Document {record_id}")
-                
-                # Get metadata for this record
-                metadata = report_metadata.get(record_id, {})
-                
-                html_content += f"""
-                <div class="record-container">
-                    <h2>Document: {record_title}</h2>
-                    
-                    <!-- Metadata table -->
-                    <table class="metadata-table">
-                """
-                
-                # First add metadata fields in priority order
-                for field in metadata_priority:
-                    if field in metadata:
-                        value = metadata[field]
-                        # Format if it's a datetime
-                        if pd.api.types.is_datetime64_any_dtype(value):
-                            value = value.strftime('%d/%m/%Y')
-                        html_content += f"""
-                        <tr>
-                            <th>{field}</th>
-                            <td>{value}</td>
-                        </tr>
-                        """
-                
-                # Then add any additional metadata fields not in priority list
-                for field, value in metadata.items():
-                    if field not in metadata_priority and field != 'Title' and field != 'Record ID':
-                        # Format if it's a datetime
-                        if pd.api.types.is_datetime64_any_dtype(value):
-                            value = value.strftime('%d/%m/%Y')
-                        html_content += f"""
-                        <tr>
-                            <th>{field}</th>
-                            <td>{value}</td>
-                        </tr>
-                        """
-                
-                html_content += """
-                    </table>
-                    
-                    <div class="theme-info">
-                        <h3>Identified Themes</h3>
-                        <table>
-                            <tr>
-                                <th>Framework</th>
-                                <th>Theme</th>
-                                <th>Confidence</th>
-                                <th>Score</th>
-                                <th>Matched Keywords</th>
-                            </tr>
-                """
-                
-                # Add theme rows
-                for theme_info in sorted(themes, key=lambda x: (x['framework'], -x.get('score', 0))):
-                    confidence_class = ''
-                    if theme_info.get('confidence') == 'High':
-                        confidence_class = 'high-confidence'
-                    elif theme_info.get('confidence') == 'Medium':
-                        confidence_class = 'medium-confidence'
-                    elif theme_info.get('confidence') == 'Low':
-                        confidence_class = 'low-confidence'
-                    
-                    html_content += f"""
-                            <tr>
-                                <td>{theme_info['framework']}</td>
-                                <td>{theme_info['theme']}</td>
-                                <td class="{confidence_class}">{theme_info.get('confidence', '')}</td>
-                                <td>{round(theme_info.get('score', 0), 3)}</td>
-                                <td>{theme_info.get('keywords', '')}</td>
-                            </tr>
-                    """
-                    
-                    # If there are matched sentences, add a row for them
-                    if 'matched_sentences' in theme_info and theme_info['matched_sentences']:
-                        html_content += f"""
-                            <tr>
-                                <td colspan="5"><strong>Matched Sentences:</strong> {theme_info['matched_sentences']}</td>
-                            </tr>
-                        """
-                
-                html_content += """
-                        </table>
-                    </div>
-                    
-                    <div class="highlighted-text">
-                        <h3>Text with Highlighted Keywords</h3>
-                """
-                
-                # Add highlighted text
-                html_content += highlighted_texts[record_id]
-                
-                html_content += """
-                    </div>
-                </div>
-                """
-        
-        # Add JavaScript for PDF conversion
-        html_content += """
-            </div> <!-- End of content div -->
-            
-            <script>
-                function generatePDF() {
-                    // Set up options for PDF generation
-                    const opt = {
-                        margin: 10,
-                        filename: 'theme_analysis_report_""" + datetime.now().strftime("%Y%m%d_%H%M%S") + """.pdf',
-                        image: { type: 'jpeg', quality: 0.98 },
-                        html2canvas: { scale: 2, useCORS: true },
-                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                    };
-                    
-                    // Get the content element
-                    const element = document.getElementById('content');
-                    
-                    // Hide the PDF button temporarily during generation
-                    const button = document.querySelector('.pdf-button');
-                    button.style.display = 'none';
-                    
-                    // Generate the PDF
-                    html2pdf().set(opt).from(element).save().then(() => {
-                        // Show the button again after PDF is generated
-                        button.style.display = 'block';
-                    });
-                }
-            </script>
-        </body>
-        </html>
-        """
-        
-        return html_content
 
     def _preassign_framework_colors(self):
         """Preassign colors to each framework for consistent coloring"""
@@ -814,7 +354,7 @@ class ThemeAnalyzer:
                 framework_themes[framework_name] = []
 
         return framework_themes, theme_highlights
-        
+
     def create_highlighted_html(self, text, theme_highlights):
         """Create HTML with sentences highlighted by theme"""
         if not text or not theme_highlights:
@@ -1136,6 +676,84 @@ class ThemeAnalyzer:
         else:
             return "Low"
 
+    def create_detailed_results(self, data, content_column='Content'):
+        """
+        Analyze multiple documents and create detailed results with progress tracking.
+        
+        Args:
+            data (pd.DataFrame): DataFrame containing documents
+            content_column (str): Name of the column containing text to analyze
+            
+        Returns:
+            Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
+        """
+        import streamlit as st
+        
+        results = []
+        highlighted_texts = {}
+        
+        # Create progress tracking elements
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        doc_count_text = st.empty()
+        
+        # Calculate total documents to process
+        total_docs = len(data)
+        doc_count_text.text(f"Processing 0/{total_docs} documents")
+        
+        # Process each document
+        for idx, (i, row) in enumerate(data.iterrows()):
+            # Update progress
+            progress = (idx + 1) / total_docs
+            progress_bar.progress(progress)
+            status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
+            
+            # Skip empty content
+            if pd.isna(row[content_column]) or row[content_column] == '':
+                continue
+                
+            content = str(row[content_column])
+            
+            # Analyze themes and get highlights
+            framework_themes, theme_highlights = self.analyze_document(content)
+            
+            # Create highlighted HTML for this document
+            highlighted_html = self.create_highlighted_html(content, theme_highlights)
+            highlighted_texts[i] = highlighted_html
+            
+            # Store results for each theme
+            theme_count = 0
+            for framework_name, themes in framework_themes.items():
+                for theme in themes:
+                    theme_count += 1
+                    results.append({
+                        'Record ID': i,
+                        'Title': row.get('Title', f'Document {i}'),
+                        'Framework': framework_name,
+                        'Theme': theme['theme'],
+                        'Confidence': self._get_confidence_label(theme['combined_score']),
+                        'Combined Score': theme['combined_score'],
+                        'Semantic_Similarity': theme['semantic_similarity'],
+                        'Matched Keywords': theme['matched_keywords']
+                    })
+            
+            # Update documents processed count with theme info
+            doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
+        
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        
+        # Final count update
+        if results:
+            doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
+        else:
+            doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
+        
+        # Create results DataFrame
+        results_df = pd.DataFrame(results) if results else pd.DataFrame()
+        
+        return results_df, highlighted_texts
         
     def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
         """
@@ -1380,145 +998,274 @@ class ThemeAnalyzer:
             
         return output_filename
    
-
-def export_to_excel(df: pd.DataFrame) -> bytes:
-    """
-    Export DataFrame to Excel bytes with proper formatting, including all required metadata fields
-    """
-    try:
-        if df is None or len(df) == 0:
-            raise ValueError("No data available to export")
-            
-        # Create clean copy for export
-        df_export = df.copy()
+    def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
+        """
+        Create a single integrated HTML file with all highlighted records, themes, and framework information
+        that can be easily converted to PDF
+        """
+        from collections import defaultdict
         
-        # Important fields to ensure are in the export
-        important_fields = {
-            'Report ID': ['Report ID', 'report_id', 'ReportID', 'Ref', 'ref'],
-            'Date of Report': ['date_of_report', 'Date_of_report', 'report_date', 'Date', 'date'],
-            'Year': ['Year', 'year'],
-            'Coroner Name': ['coroner_name', 'Coroner Name', 'coroner name', 'coroner'],
-            'Coroner Area': ['coroner_area', 'Coroner Area', 'coroner area', 'area']
-        }
+        # Map report IDs to their themes
+        report_themes = defaultdict(list)
         
-        # Function to find and standardize column names
-        def find_and_standardize_column(standard_name, possible_names):
-            # First check if any of the possible names exist in the DataFrame
-            found_col = None
-            for col_name in possible_names:
-                if col_name in df_export.columns:
-                    found_col = col_name
-                    break
-                    
-            # If found and not already using the standard name, rename it
-            if found_col and found_col != standard_name:
-                df_export.rename(columns={found_col: standard_name}, inplace=True)
-                return True
-            elif found_col and found_col == standard_name:
-                return True  # Already using standard name
-            return False
-        
-        # Apply the standardization for each important field
-        for standard_name, possible_names in important_fields.items():
-            find_and_standardize_column(standard_name, possible_names)
-        
-        # Extract Year from Date of Report if Year is missing but Date is available
-        if 'Date of Report' in df_export.columns and 'Year' not in df_export.columns:
-            try:
-                # First check if date is already a datetime
-                if pd.api.types.is_datetime64_any_dtype(df_export['Date of Report']):
-                    df_export['Year'] = df_export['Date of Report'].dt.year
-                else:
-                    # Try to convert to datetime first
-                    df_export['Year'] = pd.to_datetime(df_export['Date of Report']).dt.year
-            except:
-                # If conversion fails, don't add Year column
-                pass
-        
-        # Format dates to UK format
-        if 'Date of Report' in df_export.columns:
-            if pd.api.types.is_datetime64_any_dtype(df_export['Date of Report']):
-                df_export['Date of Report'] = df_export['Date of Report'].dt.strftime('%d/%m/%Y')
-            else:
-                # Try to convert to datetime first, then format
-                try:
-                    df_export['Date of Report'] = pd.to_datetime(df_export['Date of Report']).dt.strftime('%d/%m/%Y')
-                except:
-                    # If conversion fails, leave as is
-                    pass
-            
-        # Handle list columns (like categories)
-        for col in df_export.columns:
-            if df_export[col].dtype == 'object':
-                df_export[col] = df_export[col].apply(
-                    lambda x: ', '.join(x) if isinstance(x, list) else str(x) if pd.notna(x) else ''
-                )
-        
-        # Reorder columns to put important fields first
-        # First collect all available important fields in the order we want
-        ordered_cols = []
-        for field in ['Report ID', 'Date of Report', 'Year', 'Coroner Name', 'Coroner Area']:
-            if field in df_export.columns:
-                ordered_cols.append(field)
+        # Organize the results by report ID
+        for _, row in results_df.iterrows():
+            if 'Record ID' in row and 'Theme' in row and 'Framework' in row:
+                record_id = row['Record ID']
+                framework = row['Framework']
+                theme = row['Theme']
+                confidence = row.get('Confidence', '')
+                score = row.get('Combined Score', 0)
+                matched_keywords = row.get('Matched Keywords', '')
                 
-        # Add remaining columns
-        remaining_cols = [col for col in df_export.columns if col not in ordered_cols]
-        final_col_order = ordered_cols + remaining_cols
+                report_themes[record_id].append({
+                    'framework': framework,
+                    'theme': theme,
+                    'confidence': confidence,
+                    'score': score,
+                    'keywords': matched_keywords
+                })
         
-        # Reorder the DataFrame
-        df_export = df_export[final_col_order]
+        # Create HTML content with modern styling
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>BERT Theme Analysis Report</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    line-height: 1.6; 
+                    margin: 0;
+                    padding: 20px;
+                    color: #333;
+                    background-color: #f9f9f9;
+                }
+                h1 { 
+                    color: #2c3e50; 
+                    border-bottom: 3px solid #3498db; 
+                    padding-bottom: 10px; 
+                    margin-top: 30px;
+                    font-weight: 600;
+                }
+                h2 { 
+                    color: #2c3e50; 
+                    margin-top: 30px; 
+                    border-bottom: 2px solid #bdc3c7; 
+                    padding-bottom: 5px; 
+                    font-weight: 600;
+                }
+                h3 {
+                    color: #34495e;
+                    font-weight: 600;
+                    margin-top: 20px;
+                }
+                .record-container { 
+                    margin-bottom: 40px; 
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                    padding: 20px;
+                    page-break-after: always; 
+                }
+                .highlighted-text { 
+                    margin: 15px 0; 
+                    padding: 15px; 
+                    border-radius: 4px;
+                    border: 1px solid #ddd; 
+                    background-color: #fff; 
+                    line-height: 1.7;
+                }
+                .theme-info { margin: 15px 0; }
+                .theme-info table { 
+                    border-collapse: collapse; 
+                    width: 100%; 
+                    margin-top: 15px;
+                    border-radius: 4px;
+                    overflow: hidden;
+                }
+                .theme-info th, .theme-info td { 
+                    border: 1px solid #ddd; 
+                    padding: 12px; 
+                    text-align: left; 
+                }
+                .theme-info th { 
+                    background-color: #3498db; 
+                    color: white;
+                    font-weight: 600;
+                }
+                .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
+                .theme-info tr:hover { background-color: #f1f1f1; }
+                .high-confidence { background-color: #D5F5E3; }  /* Light green */
+                .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
+                .low-confidence { background-color: #FADBD8; }   /* Light red */
+                .report-header {
+                    background-color: #3498db;
+                    color: white;
+                    padding: 30px;
+                    text-align: center;
+                    border-radius: 8px;
+                    margin-bottom: 30px;
+                }
+                .summary-card {
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                    padding: 20px;
+                    margin-bottom: 30px;
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: space-between;
+                }
+                .summary-box {
+                    flex: 1;
+                    min-width: 200px;
+                    padding: 15px;
+                    text-align: center;
+                    border-right: 1px solid #eee;
+                }
+                .summary-box:last-child {
+                    border-right: none;
+                }
+                .summary-number {
+                    font-size: 36px;
+                    font-weight: bold;
+                    color: #3498db;
+                    margin-bottom: 10px;
+                }
+                .summary-label {
+                    font-size: 14px;
+                    color: #7f8c8d;
+                    text-transform: uppercase;
+                }
+                @media print {
+                    .record-container { page-break-after: always; }
+                    body { background-color: white; }
+                    .record-container, .summary-card { box-shadow: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="report-header">
+                <h1>BERT Theme Analysis Results</h1>
+                <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
+            </div>
+            
+            <div class="summary-card">
+                <div class="summary-box">
+                    <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
+                    <div class="summary-label">Documents Analyzed</div>
+                </div>
+                <div class="summary-box">
+                    <div class="summary-number">""" + str(len(results_df)) + """</div>
+                    <div class="summary-label">Theme Identifications</div>
+                </div>
+                <div class="summary-box">
+                    <div class="summary-number">""" + str(len(results_df['Framework'].unique())) + """</div>
+                    <div class="summary-label">Frameworks</div>
+                </div>
+            </div>
+        """
         
-        # Create output buffer
-        output = io.BytesIO()
+        # Add framework summary
+        html_content += """
+            <h2>Framework Summary</h2>
+            <table class="theme-info">
+                <tr>
+                    <th>Framework</th>
+                    <th>Number of Themes</th>
+                    <th>Number of Documents</th>
+                </tr>
+        """
         
-        # Write to Excel
-        with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df_export.to_excel(writer, sheet_name='Reports', index=False)
+        for framework in results_df['Framework'].unique():
+            framework_results = results_df[results_df['Framework'] == framework]
+            num_themes = len(framework_results['Theme'].unique())
+            num_docs = len(framework_results['Record ID'].unique())
             
-            # Get the worksheet
-            worksheet = writer.sheets['Reports']
-            
-            # Auto-adjust column widths
-            for idx, col in enumerate(df_export.columns, 1):
-                # Set larger width for Matched Sentences column
-                if col == 'Matched Sentences':
-                    worksheet.column_dimensions[get_column_letter(idx)].width = 80
-                else:
-                    max_length = max(
-                        df_export[col].astype(str).apply(len).max(),
-                        len(str(col))
-                    )
-                    adjusted_width = min(max_length + 2, 50)
-                    column_letter = get_column_letter(idx)
-                    worksheet.column_dimensions[column_letter].width = adjusted_width
-            
-            # Add filters to header row
-            worksheet.auto_filter.ref = worksheet.dimensions
-            
-            # Freeze the header row
-            worksheet.freeze_panes = 'A2'
-            
-            # Set wrap text for Matched Sentences column
-            matched_sent_col = next((idx for idx, col in enumerate(df_export.columns, 1) 
-                                   if col == 'Matched Sentences'), None)
-            if matched_sent_col:
-                col_letter = get_column_letter(matched_sent_col)
-                for row in range(2, len(df_export) + 2):
-                    cell = worksheet[f"{col_letter}{row}"]
-                    cell.alignment = cell.alignment.copy(wrapText=True)
-                    # Set row height to accommodate wrapped text
-                    worksheet.row_dimensions[row].height = 60
+            html_content += f"""
+                <tr>
+                    <td>{framework}</td>
+                    <td>{num_themes}</td>
+                    <td>{num_docs}</td>
+                </tr>
+            """
         
-        # Get the bytes value
-        output.seek(0)
-        return output.getvalue()
+        html_content += """
+            </table>
+        """
         
-    except Exception as e:
-        logging.error(f"Error exporting to Excel: {e}", exc_info=True)
-        raise Exception(f"Failed to export data to Excel: {str(e)}")
+        # Add each record with its themes and highlighted text
+        html_content += "<h2>Document Analysis</h2>"
+        
+        for record_id, themes in report_themes.items():
+            if record_id in highlighted_texts:
+                record_title = next((row['Title'] for _, row in results_df.iterrows() 
+                                   if row.get('Record ID') == record_id), f"Document {record_id}")
+                
+                html_content += f"""
+                <div class="record-container">
+                    <h2>Document: {record_title}</h2>
+                    
+                    <div class="theme-info">
+                        <h3>Identified Themes</h3>
+                        <table>
+                            <tr>
+                                <th>Framework</th>
+                                <th>Theme</th>
+                                <th>Confidence</th>
+                                <th>Score</th>
+                                <th>Matched Keywords</th>
+                            </tr>
+                """
+                
+                # Add theme rows
+                for theme_info in sorted(themes, key=lambda x: (x['framework'], -x.get('score', 0))):
+                    confidence_class = ''
+                    if theme_info.get('confidence') == 'High':
+                        confidence_class = 'high-confidence'
+                    elif theme_info.get('confidence') == 'Medium':
+                        confidence_class = 'medium-confidence'
+                    elif theme_info.get('confidence') == 'Low':
+                        confidence_class = 'low-confidence'
+                    
+                    html_content += f"""
+                            <tr>
+                                <td>{theme_info['framework']}</td>
+                                <td>{theme_info['theme']}</td>
+                                <td class="{confidence_class}">{theme_info.get('confidence', '')}</td>
+                                <td>{round(theme_info.get('score', 0), 3)}</td>
+                                <td>{theme_info.get('keywords', '')}</td>
+                            </tr>
+                    """
+                
+                html_content += """
+                        </table>
+                    </div>
+                    
+                    <div class="highlighted-text">
+                        <h3>Text with Highlighted Keywords</h3>
+                """
+                
+                # Add highlighted text
+                html_content += highlighted_texts[record_id]
+                
+                html_content += """
+                    </div>
+                </div>
+                """
+        
+        html_content += """
+        </body>
+        </html>
+        """
+        
+        return html_content
 
+        
 
-    
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
     """BM25 vectorizer implementation"""
     def __init__(
@@ -3743,9 +3490,300 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         st.error(f"Error setting up export options: {str(e)}")
         logging.error(f"Export options error: {e}", exc_info=True)
         
+def render_analysis_tab(data: pd.DataFrame = None):
+    """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
+    st.header("Reports Analysis")
+    
+    # Add file upload section at the top
+    st.subheader("Upload Data")
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file", 
+        type=['csv', 'xlsx'],
+        help="Upload previously exported data"
+    )
+    
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                data = pd.read_csv(uploaded_file)
+            else:
+                data = pd.read_excel(uploaded_file)
+            
+            # Process uploaded data
+            data = process_scraped_data(data)
+            st.success("File uploaded and processed successfully!")
+            
+            # Update session state
+            st.session_state.uploaded_data = data.copy()
+            st.session_state.data_source = 'uploaded'
+            st.session_state.current_data = data.copy()
+        
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            logging.error(f"File upload error: {e}", exc_info=True)
+            return
+    
+    # Use either uploaded data or passed data
+    if data is None:
+        data = st.session_state.get('current_data')
+    
+    if data is None or len(data) == 0:
+        st.warning("No data available. Please upload a file or scrape reports first.")
+        return
+        
+    try:
+        # Get date range for the data
+        min_date = data['date_of_report'].min().date()
+        max_date = data['date_of_report'].max().date()
+        
+        # Filters sidebar
+        with st.sidebar:
+            st.header("Filters")
+            
+            # Date Range
+            with st.expander("📅 Date Range", expanded=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_date = st.date_input(
+                        "From",
+                        value=min_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="start_date_filter",
+                        format="DD/MM/YYYY"
+                    )
+                with col2:
+                    end_date = st.date_input(
+                        "To",
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="end_date_filter",
+                        format="DD/MM/YYYY"
+                    )
+            
+            # Document Type Filter
+            doc_type = st.multiselect(
+                "Document Type",
+                ["Report", "Response"],
+                default=["Report", "Response"],
+                key="doc_type_filter",
+                help="Filter by document type"
+            )
+            
+            # Reference Number
+            ref_numbers = sorted(data['ref'].dropna().unique())
+            selected_refs = st.multiselect(
+                "Reference Numbers",
+                options=ref_numbers,
+                key="ref_filter"
+            )
+            
+            # Deceased Name
+            deceased_search = st.text_input(
+                "Deceased Name",
+                key="deceased_filter",
+                help="Enter partial or full name"
+            )
+            
+            # Coroner Name
+            coroner_names = sorted(data['coroner_name'].dropna().unique())
+            selected_coroners = st.multiselect(
+                "Coroner Names",
+                options=coroner_names,
+                key="coroner_filter"
+            )
+            
+            # Coroner Area
+            coroner_areas = sorted(data['coroner_area'].dropna().unique())
+            selected_areas = st.multiselect(
+                "Coroner Areas",
+                options=coroner_areas,
+                key="areas_filter"
+            )
+            
+            # Categories
+            all_categories = set()
+            for cats in data['categories'].dropna():
+                if isinstance(cats, list):
+                    all_categories.update(cats)
+            selected_categories = st.multiselect(
+                "Categories",
+                options=sorted(all_categories),
+                key="categories_filter"
+            )
+            
+            # Reset Filters Button
+            if st.button("🔄 Reset Filters"):
+                for key in st.session_state:
+                    if key.endswith('_filter'):
+                        del st.session_state[key]
+                st.rerun()
 
+        # Apply filters
+        filtered_df = data.copy()
 
-          
+        # Date filter
+        if start_date and end_date:
+            filtered_df = filtered_df[
+                (filtered_df['date_of_report'].dt.date >= start_date) &
+                (filtered_df['date_of_report'].dt.date <= end_date)
+            ]
+
+        # Document type filter
+        if doc_type:
+            filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
+
+        # Reference number filter
+        if selected_refs:
+            filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
+
+        if deceased_search:
+            filtered_df = filtered_df[
+                filtered_df['deceased_name'].fillna('').str.contains(
+                    deceased_search, 
+                    case=False, 
+                    na=False
+                )
+            ]
+
+        if selected_coroners:
+            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
+
+        if selected_areas:
+            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
+
+        if selected_categories:
+            filtered_df = filtered_df[
+                filtered_df['categories'].apply(
+                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
+                )
+            ]
+
+        # Show active filters
+        active_filters = []
+        if start_date != min_date or end_date != max_date:
+            active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
+        if doc_type and doc_type != ["Report", "Response"]:
+            active_filters.append(f"Document Types: {', '.join(doc_type)}")
+        if selected_refs:
+            active_filters.append(f"References: {', '.join(selected_refs)}")
+        if deceased_search:
+            active_filters.append(f"Deceased name contains: {deceased_search}")
+        if selected_coroners:
+            active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+        if selected_areas:
+            active_filters.append(f"Areas: {', '.join(selected_areas)}")
+        if selected_categories:
+            active_filters.append(f"Categories: {', '.join(selected_categories)}")
+
+        if active_filters:
+            st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
+
+        # Display results
+        st.subheader("Results")
+        st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
+
+        if len(filtered_df) > 0:
+            # Display the dataframe
+            st.dataframe(
+                filtered_df,
+                column_config={
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "date_of_report": st.column_config.DateColumn(
+                        "Date of Report",
+                        format="DD/MM/YYYY"
+                    ),
+                    "categories": st.column_config.ListColumn("Categories"),
+                    "Document Type": st.column_config.TextColumn(
+                        "Document Type",
+                        help="Type of document based on PDF filename"
+                    )
+                },
+                hide_index=True
+            )
+
+            # Create tabs for different analyses
+            st.markdown("---")
+            quality_tab, temporal_tab, distribution_tab = st.tabs([
+                "📊 Data Quality Analysis",
+                "📅 Temporal Analysis",
+                "📍 Distribution Analysis"
+            ])
+
+            # Data Quality Analysis Tab
+            with quality_tab:
+                analyze_data_quality(filtered_df)
+
+            # Temporal Analysis Tab
+            with temporal_tab:
+                # Timeline of reports
+                st.subheader("Reports Timeline")
+                plot_timeline(filtered_df)
+                
+                # Monthly distribution
+                st.subheader("Monthly Distribution")
+                plot_monthly_distribution(filtered_df)
+                
+                # Year-over-year comparison
+                st.subheader("Year-over-Year Comparison")
+                plot_yearly_comparison(filtered_df)
+                
+                # Seasonal patterns
+                st.subheader("Seasonal Patterns")
+                seasonal_counts = filtered_df['date_of_report'].dt.month.value_counts().sort_index()
+                month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                fig = px.line(
+                    x=month_names,
+                    y=[seasonal_counts.get(i, 0) for i in range(1, 13)],
+                    markers=True,
+                    labels={'x': 'Month', 'y': 'Number of Reports'},
+                    title='Seasonal Distribution of Reports'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Distribution Analysis Tab
+            with distribution_tab:
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.subheader("Reports by Category")
+                    plot_category_distribution(filtered_df)
+                with col2:
+                    st.subheader("Reports by Coroner Area")
+                    plot_coroner_areas(filtered_df)
+
+            # Export options
+            st.markdown("---")
+            st.subheader("Export Options")
+            col1, col2 = st.columns(2)
+            
+            # CSV Export
+            with col1:
+                csv = filtered_df.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Download Results (CSV)",
+                    csv,
+                    "filtered_reports.csv",
+                    "text/csv"
+                )
+            
+            # Excel Export
+            with col2:
+                excel_data = export_to_excel(filtered_df)
+                st.download_button(
+                    "📥 Download Results (Excel)",
+                    excel_data,
+                    "filtered_reports.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+        else:
+            st.warning("No data matches the selected filters.")
+
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        logging.error(f"Analysis error: {e}", exc_info=True)
+
 def extract_advanced_topics(
     data: pd.DataFrame, 
     num_topics: int = 5, 
@@ -5216,17 +5254,12 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
     
     # Check password before showing BERT analysis
     if check_bert_password():
-        # Ensure the bert_results dictionary exists in session state
-        if 'bert_results' not in st.session_state:
-            st.session_state.bert_results = {}
-            
         # File upload section
         st.subheader("Upload Data")
         uploaded_file = st.file_uploader(
             "Upload CSV or Excel file for BERT Analysis", 
             type=['csv', 'xlsx'],
-            help="Upload a file with reports for theme analysis",
-            key="bert_file_uploader"  # Fixed key
+            help="Upload a file with reports for theme analysis"
         )
         
         # If a file is uploaded, process it
@@ -5268,9 +5301,8 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
         content_column = st.selectbox(
             "Choose the column to analyze:",
             options=text_columns,
-            index=text_columns.index('Content') if 'Content' in text_columns else 0,
-            help="Select the column containing the text you want to analyze",
-            key="bert_content_column"  # Fixed key
+            index=0,
+            help="Select the column containing the text you want to analyze"
         )
         
         # Filtering options
@@ -5280,8 +5312,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
         analysis_type = st.radio(
             "Analysis Type",
             ["All Reports", "Selected Reports"],
-            horizontal=True,
-            key="bert_analysis_type"  # Fixed key
+            horizontal=True
         )
         
         if analysis_type == "Selected Reports":
@@ -5289,8 +5320,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             selected_indices = st.multiselect(
                 "Choose specific reports to analyze",
                 options=list(range(len(data))),
-                format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
-                key="bert_selected_indices"  # Fixed key
+                format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})"
             )
             selected_data = data.iloc[selected_indices] if selected_indices else None
         else:
@@ -5301,27 +5331,11 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
         highlight_color = st.selectbox(
             "Choose Highlight Color",
             ["orange", "yellow", "lightblue", "lightgreen"],
-            index=0,
-            key="bert_highlight_color"  # Fixed key
-        )
-        
-        # Analysis parameters
-        st.subheader("Analysis Parameters")
-        similarity_threshold = st.slider(
-            "Similarity Threshold",
-            min_value=0.3,
-            max_value=0.9,
-            value=0.65,
-            step=0.05,
-            help="Minimum similarity score for theme detection (higher = more strict)",
-            key="bert_similarity_threshold"  # Fixed key
+            index=0
         )
         
         # Analysis button
-        run_analysis = st.button("Run BERT Analysis", type="primary", key="bert_run_analysis")  # Fixed key
-        
-        # Run analysis if button is clicked
-        if run_analysis:
+        if st.button("Run BERT Analysis", type="primary"):
             with st.spinner("Performing BERT Theme Analysis..."):
                 try:
                     # Validate data selection
@@ -5329,28 +5343,20 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         st.warning("No documents selected for analysis.")
                         return
                     
+                    # Create a container for results that will persist
+                    results_container = st.container()
+                    
                     # Initialize the theme analyzer
                     theme_analyzer = ThemeAnalyzer(model_name="emilyalsentzer/Bio_ClinicalBERT")
                     
-                    # Set custom configuration
-                    theme_analyzer.config['base_similarity_threshold'] = similarity_threshold
-                    theme_analyzer.theme_colors = [highlight_color] * 20
+                    # Set highlighting color
+                    theme_analyzer.config['highlight_color'] = highlight_color
                     
                     # Perform analysis with highlighting
                     results_df, highlighted_texts = theme_analyzer.create_detailed_results(
                         selected_data,
                         content_column=content_column
                     )
-                    
-                    # Add Report ID to results if available in the original data
-                    report_id_columns = ['Report ID', 'report_id', 'ReportID', 'Ref', 'ref']
-                    for col in report_id_columns:
-                        if col in selected_data.columns:
-                            # Create a mapping from Record ID to Report ID
-                            record_to_report_id = dict(zip(selected_data.index, selected_data[col]))
-                            # Add Report ID column to results_df
-                            results_df['Report ID'] = results_df['Record ID'].map(record_to_report_id)
-                            break
                     
                     # Generate timestamp for filenames
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -5359,7 +5365,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     # Create PDF with comprehensive results
                     pdf_file = theme_analyzer.create_comprehensive_pdf(results_df, highlighted_texts, pdf_filename)
                     
-                    # Create HTML report with PDF download capability
+                    # Create HTML report
                     html_content = theme_analyzer._create_integrated_html_for_pdf(results_df, highlighted_texts)
                     html_filename = pdf_filename.replace('.pdf', '.html')
                     
@@ -5367,325 +5373,141 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         f.write(html_content)
                     
                     # Save results to session state to ensure persistence
+                    if 'bert_results' not in st.session_state:
+                        st.session_state.bert_results = {}
+                    
                     st.session_state.bert_results['results_df'] = results_df
                     st.session_state.bert_results['highlighted_texts'] = highlighted_texts
                     st.session_state.bert_results['pdf_filename'] = pdf_filename
                     st.session_state.bert_results['html_filename'] = html_filename
                     
-                    st.success("Analysis complete!")
-                    
+                    # Display results in container
+                    with results_container:
+                        st.subheader("Analysis Summary")
+                        st.write(f"Total Records Analyzed: {len(selected_data)}")
+                        st.write(f"Total Theme Predictions: {len(results_df)}")
+                        
+                        # Confidence distribution
+                        if 'Confidence' in results_df.columns:
+                            st.write("\nConfidence Distribution:")
+                            st.write(results_df['Confidence'].value_counts())
+                        
+                        # Framework distribution
+                        st.write("\nFramework Distribution:")
+                        st.write(results_df['Framework'].value_counts())
+                        
+                        # Create columns for download buttons
+                        col1, col2, col3 = st.columns(3)
+                        
+                        with col1:
+                            # Read Excel data to memory first
+                            excel_data = export_to_excel(results_df)
+                            # Excel download button
+                            st.download_button(
+                                "📥 Download Excel Results",
+                                data=excel_data,
+                                file_name=f"bert_theme_analysis_{timestamp}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                key=f"excel_download_{timestamp}"
+                            )
+                        
+                        with col2:
+                            # Read PDF to memory first
+                            with open(pdf_filename, 'rb') as f:
+                                pdf_data = f.read()
+                            
+                            # PDF download button
+                            st.download_button(
+                                "📄 Download PDF Report",
+                                data=pdf_data,
+                                file_name=os.path.basename(pdf_filename),
+                                mime="application/pdf",
+                                key=f"pdf_download_{timestamp}"
+                            )
+                        
+                        with col3:
+                            # Read HTML to memory first
+                            with open(html_filename, 'rb') as f:
+                                html_data = f.read()
+                            
+                            # HTML report download button
+                            st.download_button(
+                                "🌐 Download HTML Report",
+                                data=html_data,
+                                file_name=os.path.basename(html_filename),
+                                mime="text/html", 
+                                key=f"html_download_{timestamp}"
+                            )
+                        
+                        # Show results table
+                        st.subheader("Theme Analysis Results")
+                        st.dataframe(
+                            results_df,
+                            column_config={
+                                'Record ID': st.column_config.NumberColumn("Record ID"),
+                                'Title': st.column_config.TextColumn("Document Title"),
+                                'Framework': st.column_config.TextColumn("Framework"),
+                                'Theme': st.column_config.TextColumn("Theme"),
+                                'Confidence': st.column_config.TextColumn("Confidence"),
+                                'Combined Score': st.column_config.NumberColumn("Score", format="%.3f"),
+                                'Matched Keywords': st.column_config.TextColumn("Keywords"),
+                            },
+                            hide_index=True,
+                            use_container_width=True
+                        )
+                        
+                        # Highlighted text preview
+                        st.subheader("Sample Highlighted Text")
+                        if highlighted_texts:
+                            # Create tabs for multiple documents
+                            doc_ids = list(highlighted_texts.keys())
+                            if len(doc_ids) > 5:
+                                preview_ids = doc_ids[:5]  # Limit preview to 5 documents
+                                st.info(f"Showing 5 of {len(doc_ids)} documents. Download the full report for all results.")
+                            else:
+                                preview_ids = doc_ids
+                            
+                            tabs = st.tabs([f"Document {i+1}" for i in range(len(preview_ids))])
+                            
+                            for i, (tab, doc_id) in enumerate(zip(tabs, preview_ids)):
+                                with tab:
+                                    # Get document title if available
+                                    doc_title = next((row['Title'] for _, row in results_df.iterrows() 
+                                                   if row.get('Record ID') == doc_id), f"Document {i+1}")
+                                    
+                                    st.markdown(f"### {doc_title}")
+                                    
+                                    # Document themes
+                                    doc_themes = results_df[results_df['Record ID'] == doc_id]
+                                    if not doc_themes.empty:
+                                        st.markdown("**Identified Themes:**")
+                                        for _, theme_row in doc_themes.iterrows():
+                                            confidence_color = "#aaffaa" if theme_row.get('Confidence') == "High" else (
+                                                              "#ffffaa" if theme_row.get('Confidence') == "Medium" else "#ffaaaa")
+                                            st.markdown(
+                                                f"* **{theme_row['Framework']}**: {theme_row['Theme']} "
+                                                f"<span style='background-color:{confidence_color};padding:2px 5px;border-radius:3px;'>"
+                                                f"{theme_row.get('Confidence', 'N/A')}</span>",
+                                                unsafe_allow_html=True
+                                            )
+                                    
+                                    # Highlighted text
+                                    st.markdown("**Highlighted Text:**")
+                                    st.markdown(highlighted_texts[doc_id], unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"Error during BERT analysis: {str(e)}")
                     logging.error(f"BERT analysis error: {e}", exc_info=True)
         
-        # Always display results if they exist - KEY CHANGE TO MAINTAIN STATE AFTER DOWNLOADS
-        if 'bert_results' in st.session_state and st.session_state.bert_results.get('results_df') is not None:
-            results_df = st.session_state.bert_results['results_df']
-            highlighted_texts = st.session_state.bert_results['highlighted_texts']
-            pdf_filename = st.session_state.bert_results.get('pdf_filename')
-            html_filename = st.session_state.bert_results.get('html_filename')
+        # If there are previous results in session state, display them
+        elif 'bert_results' in st.session_state and st.session_state.bert_results:
+            previous_results = st.session_state.bert_results
+            results_df = previous_results.get('results_df')
+            highlighted_texts = previous_results.get('highlighted_texts')
+            pdf_filename = previous_results.get('pdf_filename')
+            html_filename = previous_results.get('html_filename')
             
-            st.subheader("Analysis Summary")
-            st.write(f"Total Records Analyzed: {len(highlighted_texts)}")
-            st.write(f"Total Theme Predictions: {len(results_df)}")
-            
-            # Confidence distribution
-            if 'Confidence' in results_df.columns:
-                st.write("\nConfidence Distribution:")
-                st.write(results_df['Confidence'].value_counts())
-            
-            # Framework distribution
-            st.write("\nFramework Distribution:")
-            st.write(results_df['Framework'].value_counts())
-            
-            # Create columns for download buttons with FIXED KEYS
-            col1, col2, col3, col4 = st.columns(4)
-            
-            # Generate consistent timestamp for filenames
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            with col1:
-                # Excel download button with fixed key
-                excel_data = export_to_excel(results_df)
-                st.download_button(
-                    "📥 Download Excel Results",
-                    data=excel_data,
-                    file_name=f"bert_theme_analysis_{timestamp}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="bert_excel_download"  # FIXED KEY
-                )
-            
-            with col2:
-                # PDF download button with fixed key
-                if pdf_filename and os.path.exists(pdf_filename):
-                    with open(pdf_filename, 'rb') as f:
-                        pdf_data = f.read()
-                    
-                    st.download_button(
-                        "📄 Download PDF Report",
-                        data=pdf_data,
-                        file_name=os.path.basename(pdf_filename),
-                        mime="application/pdf",
-                        key="bert_pdf_download"  # FIXED KEY
-                    )
-                else:
-                    st.warning("PDF report not available")
-            
-            with col3:
-                # HTML download button with fixed key
-                if html_filename and os.path.exists(html_filename):
-                    with open(html_filename, 'rb') as f:
-                        html_data = f.read()
-                    
-                    st.download_button(
-                        "🌐 Download HTML Report",
-                        data=html_data,
-                        file_name=os.path.basename(html_filename),
-                        mime="text/html", 
-                        key="bert_html_download"  # FIXED KEY
-                    )
-                else:
-                    st.warning("HTML report not available")
-                    
-            with col4:
-                # Info about interactive PDF conversion
-                if html_filename and os.path.exists(html_filename):
-                    st.info("The HTML report includes a button to convert to PDF directly in your browser")
-            
-            # Show results table
-            st.subheader("Theme Analysis Results")
-            st.dataframe(
-                results_df,
-                column_config={
-                    'Record ID': st.column_config.NumberColumn("Record ID"),
-                    'Title': st.column_config.TextColumn("Document Title"),
-                    'Framework': st.column_config.TextColumn("Framework"),
-                    'Theme': st.column_config.TextColumn("Theme"),
-                    'Confidence': st.column_config.TextColumn("Confidence"),
-                    'Combined Score': st.column_config.NumberColumn("Score", format="%.3f"),
-                    'Matched Keywords': st.column_config.TextColumn("Keywords"),
-                    'Report ID': st.column_config.TextColumn("Report ID"),
-                    'Matched Sentences': st.column_config.TextColumn("Matching Sentences")
-                },
-                hide_index=True,
-                use_container_width=True
-            )
-            
-            # Highlighted text preview
-            st.subheader("Sample Highlighted Text")
-            if highlighted_texts:
-                # Create tabs for multiple documents
-                doc_ids = list(highlighted_texts.keys())
-                if len(doc_ids) > 5:
-                    preview_ids = doc_ids[:5]  # Limit preview to 5 documents
-                    st.info(f"Showing 5 of {len(doc_ids)} documents. Download the full report for all results.")
-                else:
-                    preview_ids = doc_ids
-                
-                tabs = st.tabs([f"Document {i+1}" for i in range(len(preview_ids))])
-                
-                for i, (tab, doc_id) in enumerate(zip(tabs, preview_ids)):
-                    with tab:
-                        # Get document title if available
-                        doc_title = next((row['Title'] for _, row in results_df.iterrows() 
-                                       if row.get('Record ID') == doc_id), f"Document {i+1}")
-                        
-                        # Get Report ID if available
-                        report_id = next((row.get('Report ID', '') for _, row in results_df.iterrows() 
-                                       if row.get('Record ID') == doc_id), '')
-                        
-                        # Display title and optional Report ID
-                        if report_id:
-                            st.markdown(f"### {doc_title} (Report ID: {report_id})")
-                        else:
-                            st.markdown(f"### {doc_title}")
-                        
-                        # Document themes
-                        doc_themes = results_df[results_df['Record ID'] == doc_id]
-                        if not doc_themes.empty:
-                            st.markdown("**Identified Themes:**")
-                            for _, theme_row in doc_themes.iterrows():
-                                confidence_color = "#aaffaa" if theme_row.get('Confidence') == "High" else (
-                                                  "#ffffaa" if theme_row.get('Confidence') == "Medium" else "#ffaaaa")
-                                st.markdown(
-                                    f"* **{theme_row['Framework']}**: {theme_row['Theme']} "
-                                    f"<span style='background-color:{confidence_color};padding:2px 5px;border-radius:3px;'>"
-                                    f"{theme_row.get('Confidence', 'N/A')}</span>",
-                                    unsafe_allow_html=True
-                                )
-                                
-                                # Display matched sentences if available
-                                if 'Matched Sentences' in theme_row and theme_row['Matched Sentences']:
-                                    st.markdown(f"  *Matching text: {theme_row['Matched Sentences']}*")
-                        
-                        # Highlighted text
-                        st.markdown("**Highlighted Text:**")
-                        st.markdown(highlighted_texts[doc_id], unsafe_allow_html=True)
-
-    def render_bert_analysis_tab(data: pd.DataFrame = None):
-        """Render BERT Analysis tab with theme detection, column selection, and multi-report analysis"""
-        st.header("BERT-based Theme Analysis")
-        
-        # Check password before showing BERT analysis
-        if check_bert_password():
-            # Ensure the bert_results dictionary exists in session state
-            if 'bert_results' not in st.session_state:
-                st.session_state.bert_results = {}
-                
-            # File upload section
-            st.subheader("Upload Data")
-            uploaded_file = st.file_uploader(
-                "Upload CSV or Excel file for BERT Analysis", 
-                type=['csv', 'xlsx'],
-                help="Upload a file with reports for theme analysis",
-                key="bert_file_uploader"  # Fixed key
-            )
-            
-            # If a file is uploaded, process it
-            if uploaded_file is not None:
-                try:
-                    if uploaded_file.name.endswith('.csv'):
-                        uploaded_data = pd.read_csv(uploaded_file)
-                    else:
-                        uploaded_data = pd.read_excel(uploaded_file)
-                    
-                    # Process the uploaded data
-                    uploaded_data = process_scraped_data(uploaded_data)
-                    
-                    # Update the data reference
-                    data = uploaded_data
-                    
-                    st.success("File uploaded and processed successfully!")
-                except Exception as e:
-                    st.error(f"Error uploading file: {str(e)}")
-                    return
-            
-            # Check if data is available
-            if data is None or len(data) == 0:
-                st.warning("No data available. Please upload a file or ensure existing data is loaded.")
-                return
-            
-            # Column selection for analysis
-            st.subheader("Select Analysis Column")
-            
-            # Find text columns (object/string type)
-            text_columns = data.select_dtypes(include=['object']).columns.tolist()
-            
-            # If no text columns found
-            if not text_columns:
-                st.error("No text columns found in the dataset.")
-                return
-            
-            # Column selection with dropdown
-            content_column = st.selectbox(
-                "Choose the column to analyze:",
-                options=text_columns,
-                index=text_columns.index('Content') if 'Content' in text_columns else 0,
-                help="Select the column containing the text you want to analyze",
-                key="bert_content_column"  # Fixed key
-            )
-            
-            # Filtering options
-            st.subheader("Select Documents to Analyze")
-            
-            # Option to select all or specific records
-            analysis_type = st.radio(
-                "Analysis Type",
-                ["All Reports", "Selected Reports"],
-                horizontal=True,
-                key="bert_analysis_type"  # Fixed key
-            )
-            
-            if analysis_type == "Selected Reports":
-                # Multi-select for reports
-                selected_indices = st.multiselect(
-                    "Choose specific reports to analyze",
-                    options=list(range(len(data))),
-                    format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
-                    key="bert_selected_indices"  # Fixed key
-                )
-                selected_data = data.iloc[selected_indices] if selected_indices else None
-            else:
-                selected_data = data
-            
-            # Highlighting color selection
-            st.subheader("Highlighting Preferences")
-            highlight_color = st.selectbox(
-                "Choose Highlight Color",
-                ["orange", "yellow", "lightblue", "lightgreen"],
-                index=0,
-                key="bert_highlight_color"  # Fixed key
-            )
-            
-            # Analysis parameters
-            st.subheader("Analysis Parameters")
-            similarity_threshold = st.slider(
-                "Similarity Threshold",
-                min_value=0.3,
-                max_value=0.9,
-                value=0.65,
-                step=0.05,
-                help="Minimum similarity score for theme detection (higher = more strict)",
-                key="bert_similarity_threshold"  # Fixed key
-            )
-            
-            # Analysis button
-            run_analysis = st.button("Run BERT Analysis", type="primary", key="bert_run_analysis")  # Fixed key
-            
-            # Run analysis if button is clicked
-            if run_analysis:
-                with st.spinner("Performing BERT Theme Analysis..."):
-                    try:
-                        # Validate data selection
-                        if selected_data is None or len(selected_data) == 0:
-                            st.warning("No documents selected for analysis.")
-                            return
-                        
-                        # Initialize the theme analyzer
-                        theme_analyzer = ThemeAnalyzer(model_name="emilyalsentzer/Bio_ClinicalBERT")
-                        
-                        # Set custom configuration
-                        theme_analyzer.config['base_similarity_threshold'] = similarity_threshold
-                        theme_analyzer.theme_colors = [highlight_color] * 20
-                        
-                        # Perform analysis with highlighting
-                        results_df, highlighted_texts = theme_analyzer.create_detailed_results(
-                            selected_data,
-                            content_column=content_column
-                        )
-                        
-                        # Generate timestamp for filenames
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        pdf_filename = f"theme_analysis_report_{timestamp}.pdf"
-                        
-                        # Create PDF with comprehensive results
-                        pdf_file = theme_analyzer.create_comprehensive_pdf(results_df, highlighted_texts, pdf_filename)
-                        
-                        # Create HTML report
-                        html_content = theme_analyzer._create_integrated_html_for_pdf(results_df, highlighted_texts)
-                        html_filename = pdf_filename.replace('.pdf', '.html')
-                        
-                        with open(html_filename, "w", encoding="utf-8") as f:
-                            f.write(html_content)
-                        
-                        # Save results to session state to ensure persistence
-                        st.session_state.bert_results['results_df'] = results_df
-                        st.session_state.bert_results['highlighted_texts'] = highlighted_texts
-                        st.session_state.bert_results['pdf_filename'] = pdf_filename
-                        st.session_state.bert_results['html_filename'] = html_filename
-                        
-                        st.success("Analysis complete!")
-                        
-                    except Exception as e:
-                        st.error(f"Error during BERT analysis: {str(e)}")
-                        logging.error(f"BERT analysis error: {e}", exc_info=True)
-            
-            # Always display results if they exist - KEY CHANGE TO MAINTAIN STATE AFTER DOWNLOADS
-            if 'bert_results' in st.session_state and st.session_state.bert_results.get('results_df') is not None:
-                results_df = st.session_state.bert_results['results_df']
-                highlighted_texts = st.session_state.bert_results['highlighted_texts']
-                pdf_filename = st.session_state.bert_results.get('pdf_filename')
-                html_filename = st.session_state.bert_results.get('html_filename')
+            if results_df is not None and highlighted_texts is not None:
+                st.success("Showing previous analysis results")
                 
                 st.subheader("Analysis Summary")
                 st.write(f"Total Records Analyzed: {len(highlighted_texts)}")
@@ -5700,25 +5522,22 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                 st.write("\nFramework Distribution:")
                 st.write(results_df['Framework'].value_counts())
                 
-                # Create columns for download buttons with FIXED KEYS
+                # Create columns for download buttons
                 col1, col2, col3 = st.columns(3)
                 
-                # Generate consistent timestamp for filenames
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                
                 with col1:
-                    # Excel download button with fixed key
+                    # Excel download button
                     excel_data = export_to_excel(results_df)
                     st.download_button(
                         "📥 Download Excel Results",
                         data=excel_data,
-                        file_name=f"bert_theme_analysis_{timestamp}.xlsx",
+                        file_name=f"bert_theme_analysis_results.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key="bert_excel_download"  # FIXED KEY
+                        key="excel_download_previous"
                     )
                 
                 with col2:
-                    # PDF download button with fixed key
+                    # PDF download button - only if file exists
                     if pdf_filename and os.path.exists(pdf_filename):
                         with open(pdf_filename, 'rb') as f:
                             pdf_data = f.read()
@@ -5728,13 +5547,13 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                             data=pdf_data,
                             file_name=os.path.basename(pdf_filename),
                             mime="application/pdf",
-                            key="bert_pdf_download"  # FIXED KEY
+                            key="pdf_download_previous"
                         )
                     else:
-                        st.warning("PDF report not available")
+                        st.warning("PDF report not available from previous session")
                 
                 with col3:
-                    # HTML download button with fixed key
+                    # HTML download button - only if file exists
                     if html_filename and os.path.exists(html_filename):
                         with open(html_filename, 'rb') as f:
                             html_data = f.read()
@@ -5743,11 +5562,11 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                             "🌐 Download HTML Report",
                             data=html_data,
                             file_name=os.path.basename(html_filename),
-                            mime="text/html", 
-                            key="bert_html_download"  # FIXED KEY
+                            mime="text/html",
+                            key="html_download_previous"
                         )
                     else:
-                        st.warning("HTML report not available")
+                        st.warning("HTML report not available from previous session")
                 
                 # Show results table
                 st.subheader("Theme Analysis Results")
@@ -5761,177 +5580,26 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         'Confidence': st.column_config.TextColumn("Confidence"),
                         'Combined Score': st.column_config.NumberColumn("Score", format="%.3f"),
                         'Matched Keywords': st.column_config.TextColumn("Keywords"),
-                        'Matched Sentences': st.column_config.TextColumn("Matching Sentences")
                     },
                     hide_index=True,
                     use_container_width=True
                 )
                 
-                # Highlighted text preview
+                # Highlighted text preview (limited)
                 st.subheader("Sample Highlighted Text")
                 if highlighted_texts:
-                    # Create tabs for multiple documents
-                    doc_ids = list(highlighted_texts.keys())
-                    if len(doc_ids) > 5:
-                        preview_ids = doc_ids[:5]  # Limit preview to 5 documents
-                        st.info(f"Showing 5 of {len(doc_ids)} documents. Download the full report for all results.")
-                    else:
-                        preview_ids = doc_ids
+                    # Show the first document as sample
+                    first_record_id = list(highlighted_texts.keys())[0]
+                    doc_title = next((row['Title'] for _, row in results_df.iterrows() 
+                                   if row.get('Record ID') == first_record_id), f"Document {first_record_id}")
                     
-                    tabs = st.tabs([f"Document {i+1}" for i in range(len(preview_ids))])
+                    st.markdown(f"### {doc_title}")
+                    st.markdown(highlighted_texts[first_record_id], unsafe_allow_html=True)
                     
-                    for i, (tab, doc_id) in enumerate(zip(tabs, preview_ids)):
-                        with tab:
-                            # Get document title if available
-                            doc_title = next((row['Title'] for _, row in results_df.iterrows() 
-                                           if row.get('Record ID') == doc_id), f"Document {i+1}")
-                            
-                            st.markdown(f"### {doc_title}")
-                            
-                            # Document themes
-                            doc_themes = results_df[results_df['Record ID'] == doc_id]
-                            if not doc_themes.empty:
-                                st.markdown("**Identified Themes:**")
-                                for _, theme_row in doc_themes.iterrows():
-                                    confidence_color = "#aaffaa" if theme_row.get('Confidence') == "High" else (
-                                                      "#ffffaa" if theme_row.get('Confidence') == "Medium" else "#ffaaaa")
-                                    st.markdown(
-                                        f"* **{theme_row['Framework']}**: {theme_row['Theme']} "
-                                        f"<span style='background-color:{confidence_color};padding:2px 5px;border-radius:3px;'>"
-                                        f"{theme_row.get('Confidence', 'N/A')}</span>",
-                                        unsafe_allow_html=True
-                                    )
-                                    
-                                    # Display matched sentences if available
-                                    if 'Matched Sentences' in theme_row and theme_row['Matched Sentences']:
-                                        st.markdown(f"  *Matching text: {theme_row['Matched Sentences']}*")
-                            
-                            # Highlighted text
-                            st.markdown("**Highlighted Text:**")
-                            st.markdown(highlighted_texts[doc_id], unsafe_allow_html=True)
+                    if len(highlighted_texts) > 1:
+                        st.info(f"Download the full report to view all {len(highlighted_texts)} analyzed documents")
 
-    def create_detailed_results(self, data, content_column='Content'):
-        results = []
-        highlighted_texts = {}
-        
-        # Create progress tracking elements
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        doc_count_text = st.empty()
-        
-        # Calculate total documents to process
-        total_docs = len(data)
-        doc_count_text.text(f"Processing 0/{total_docs} documents")
-        
-        # List of important metadata fields to capture
-        metadata_fields = [
-            'Report ID', 'report_id', 'ReportID', 'Ref', 'ref',  # Report ID variations
-            'date_of_report', 'Date_of_report', 'Date',  # Date variations
-            'Year', 'year',  # Year variations
-            'coroner_name', 'Coroner Name', 'coroner',  # Coroner name variations
-            'coroner_area', 'Coroner Area', 'area',  # Coroner area variations
-            'deceased_name', 'Deceased Name', 'deceased',  # Deceased name variations
-            'Death Type', 'death_type'  # Death type variations
-        ]
-        
-        # Process each document
-        for idx, (i, row) in enumerate(data.iterrows()):
-            # Update progress
-            progress = (idx + 1) / total_docs
-            progress_bar.progress(progress)
-            status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
-            
-            # Skip empty content
-            if pd.isna(row[content_column]) or row[content_column] == '':
-                continue
-                
-            content = str(row[content_column])
-            
-            # Analyze themes and get highlights
-            framework_themes, theme_highlights = self.analyze_document(content)
-            
-            # Create highlighted HTML for this document
-            highlighted_html = self.create_highlighted_html(content, theme_highlights)
-            highlighted_texts[i] = highlighted_html
-            
-            # Store results for each theme
-            theme_count = 0
-            for framework_name, themes in framework_themes.items():
-                for theme in themes:
-                    theme_count += 1
                     
-                    # Extract matched sentences for this theme
-                    matched_sentences = []
-                    theme_key = f"{framework_name}_{theme['theme']}"
-                    if theme_key in theme_highlights:
-                        for start_pos, end_pos, keywords_str, sentence in theme_highlights[theme_key]:
-                            matched_sentences.append(sentence)
-                    
-                    # Join sentences if there are any
-                    matched_text = "; ".join(matched_sentences) if matched_sentences else ""
-                    
-                    # Create base result with theme information
-                    result = {
-                        'Record ID': i,
-                        'Title': row.get('Title', f'Document {i}'),
-                        'Framework': framework_name,
-                        'Theme': theme['theme'],
-                        'Confidence': self._get_confidence_label(theme['combined_score']),
-                        'Combined Score': theme['combined_score'],
-                        'Semantic_Similarity': theme['semantic_similarity'],
-                        'Matched Keywords': theme['matched_keywords'],
-                        'Matched Sentences': matched_text
-                    }
-                    
-                    # Add metadata fields if they exist in the original data
-                    for field in metadata_fields:
-                        if field in row and pd.notna(row[field]):
-                            result[field] = row[field]
-                    
-                    # Standardize common field names
-                    field_mapping = {
-                        'Ref': 'Report ID',
-                        'ref': 'Report ID',
-                        'report_id': 'Report ID',
-                        'ReportID': 'Report ID',
-                        'date_of_report': 'Date of Report',
-                        'Date_of_report': 'Date of Report',
-                        'Date': 'Date of Report',
-                        'year': 'Year',
-                        'coroner_name': 'Coroner Name',
-                        'coroner': 'Coroner Name',
-                        'coroner_area': 'Coroner Area',
-                        'area': 'Coroner Area',
-                        'deceased_name': 'Deceased Name',
-                        'deceased': 'Deceased Name',
-                        'death_type': 'Death Type'
-                    }
-                    
-                    # Apply field mapping for standardization
-                    for old_field, new_field in field_mapping.items():
-                        if old_field in result and old_field != new_field:
-                            result[new_field] = result[old_field]
-                            del result[old_field]
-                    
-                    results.append(result)
-            
-            # Update documents processed count with theme info
-            doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
-        
-        # Clear progress indicators
-        progress_bar.empty()
-        status_text.empty()
-        
-        # Final count update
-        if results:
-            doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
-        else:
-            doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
-        
-        # Create results DataFrame
-        results_df = pd.DataFrame(results) if results else pd.DataFrame()
-        
-        return results_df, highlighted_texts
 if __name__ == "__main__":
     try:
         main()
