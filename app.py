@@ -58,6 +58,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 import re
 from collections import Counter
 from tqdm import tqdm
+from collections import defaultdict  # Add this import here
+
 class ThemeAnalyzer:
     def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
         """Initialize the BERT-based theme analyzer with sentence highlighting capabilities"""
@@ -704,8 +706,11 @@ class ThemeAnalyzer:
     
         return html_content
 
+
     def _ensure_unique_theme_colors(self, results_df):
         """Ensure all themes have unique colors by checking and reassigning if needed"""
+        from collections import defaultdict  # Add this import
+        
         # First collect all theme keys
         theme_keys = set()
         for _, row in results_df.iterrows():
@@ -730,6 +735,7 @@ class ThemeAnalyzer:
                 # Keep the first theme's color, reassign others
                 for theme_key in duplicate_themes[1:]:
                     self._assign_unique_theme_color(theme_key)
+
 
     
 
