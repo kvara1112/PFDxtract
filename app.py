@@ -729,6 +729,7 @@ class ThemeAnalyzer:
                     results.append({
                         'Record ID': i,
                         'Title': row.get('Title', f'Document {i}'),
+                        'Report year': row.get('Year', f'Document {i}'),
                         'Framework': framework_name,
                         'Theme': theme['theme'],
                         'Confidence': self._get_confidence_label(theme['combined_score']),
