@@ -6156,7 +6156,6 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
 
                     # Create HTML report
                     html_content = _create_integrated_html_for_pdf(results_df, highlighted_texts, theme_analyzer.theme_color_map)
-                    )
                     html_filename = pdf_filename.replace(".pdf", ".html")
 
                     with open(html_filename, "w", encoding="utf-8") as f:
