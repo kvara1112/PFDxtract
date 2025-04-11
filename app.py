@@ -5690,9 +5690,8 @@ def check_bert_password():
     
     return output_filename    
 
-
 def render_bert_analysis_tab(data: pd.DataFrame = None):
-    """Modified render_bert_analysis_tab function with improved theme color display"""
+    """Modified render_bert_analysis_tab function with separate color column for themes"""
     st.header("BERT-based Theme Analysis")
     
     # Check password before showing BERT analysis
@@ -5980,16 +5979,39 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             # Show results table with color indicators
             st.subheader("Theme Analysis Results")
             
-            # Create a DataFrame with HTML-formatted color indicators
+            # Add a separate color column to the DataFrame
             display_df = results_df.copy()
-            display_df['Theme'] = display_df.apply(
-                lambda row: f"<div style='display: flex; align-items: center;'>"
-                           f"<div style='width: 15px; height: 15px; background-color: "
+            
+            # Create a confidence color mapping
+            confidence_colors = {
+                "High": "#D5F5E3",    # Light green for high confidence
+                "Medium": "#FCF3CF",  # Light yellow for medium confidence
+                "Low": "#FADBD8"      # Light red for low confidence
+            }
+            
+            # Add Color column with color boxes
+            display_df['Color'] = display_df.apply(
+                lambda row: f"<div style='width: 20px; height: 20px; background-color: "
                            f"{theme_colors.get(f'{row['Framework']}_{row['Theme']}', '#cccccc')}; "
-                           f"border: 1px solid #666; margin-right: 5px;'></div>"
-                           f"<span>{row['Theme']}</span></div>", 
+                           f"border: 1px solid #666; margin: 0 auto;'></div>", 
                 axis=1
             )
+            
+            # Color the Confidence column based on confidence level
+            if 'Confidence' in display_df.columns:
+                display_df['Confidence'] = display_df.apply(
+                    lambda row: f"<div style='background-color: {confidence_colors.get(row['Confidence'], '#ffffff')}; "
+                               f"padding: 4px 8px; border-radius: 4px; text-align: center;'>{row['Confidence']}</div>",
+                    axis=1
+                )
+            
+            # Reorder columns to put Color near the Theme
+            if 'Theme' in display_df.columns and 'Color' in display_df.columns:
+                cols = list(display_df.columns)
+                theme_idx = cols.index('Theme')
+                cols.remove('Color')
+                cols.insert(theme_idx + 1, 'Color')
+                display_df = display_df[cols]
             
             # Display the DataFrame using custom formatting
             st.dataframe(
@@ -5998,8 +6020,9 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     'Record ID': st.column_config.NumberColumn("Record ID"),
                     'Title': st.column_config.TextColumn("Document Title"),
                     'Framework': st.column_config.TextColumn("Framework"),
-                    'Theme': st.column_config.Column("Theme", width="large"),
-                    'Confidence': st.column_config.TextColumn("Confidence"),
+                    'Theme': st.column_config.TextColumn("Theme"),
+                    'Color': st.column_config.Column("Color", width="small"),
+                    'Confidence': st.column_config.Column("Confidence", width="medium"),
                     'Combined Score': st.column_config.NumberColumn("Score", format="%.3f"),
                     'Matched Keywords': st.column_config.TextColumn("Keywords"),
                     'Matched Sentences': st.column_config.TextColumn("Matching Sentences")
@@ -6034,36 +6057,46 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         if not doc_themes.empty:
                             st.markdown("**Identified Themes:**")
                             
-                            themes_html = "<div style='margin-bottom: 20px;'>"
+                            # Create a table for themes with color boxes
+                            themes_table = "<table style='width: 100%; border-collapse: collapse; margin-bottom: 20px;'>"
+                            themes_table += "<tr><th style='text-align: left; padding: 8px; border-bottom: 1px solid #ddd;'>Framework</th>"
+                            themes_table += "<th style='text-align: left; padding: 8px; border-bottom: 1px solid #ddd;'>Theme</th>"
+                            themes_table += "<th style='text-align: center; padding: 8px; border-bottom: 1px solid #ddd;'>Color</th>"
+                            themes_table += "<th style='text-align: center; padding: 8px; border-bottom: 1px solid #ddd;'>Confidence</th>"
+                            themes_table += "<th style='text-align: left; padding: 8px; border-bottom: 1px solid #ddd;'>Matched Keywords</th></tr>"
+                            
                             for _, theme_row in doc_themes.iterrows():
                                 framework = theme_row['Framework']
                                 theme = theme_row['Theme']
                                 theme_key = f"{framework}_{theme}"
                                 theme_color = theme_colors.get(theme_key, '#cccccc')
+                                confidence = theme_row.get('Confidence', 'N/A')
+                                keywords = theme_row.get('Matched Keywords', '')
                                 
-                                confidence_color = "#aaffaa" if theme_row.get('Confidence') == "High" else (
-                                                  "#ffffaa" if theme_row.get('Confidence') == "Medium" else "#ffaaaa")
+                                # Set confidence background color
+                                confidence_bg = confidence_colors.get(confidence, '#ffffff')
                                 
-                                themes_html += f"""
-                                <div style='margin-bottom: 8px; display: flex; align-items: center;'>
-                                    <div style='width: 15px; height: 15px; background-color: {theme_color}; 
-                                         border: 1px solid #666; margin-right: 10px;'></div>
-                                    <div><strong>{framework}:</strong> {theme}
-                                    <span style='background-color:{confidence_color};padding:2px 5px;
-                                         border-radius:3px; margin-left: 5px;'>{theme_row.get('Confidence', 'N/A')}</span></div>
-                                </div>
-                                """
-                                
-                                # Display matched sentences if available
-                                if 'Matched Sentences' in theme_row and theme_row['Matched Sentences']:
-                                    themes_html += f"<div style='margin-left: 25px; font-style: italic; margin-bottom: 10px;'>{theme_row['Matched Sentences']}</div>"
+                                # Add row to table
+                                themes_table += f"<tr>"
+                                themes_table += f"<td style='padding: 8px; border-bottom: 1px solid #eee;'>{framework}</td>"
+                                themes_table += f"<td style='padding: 8px; border-bottom: 1px solid #eee;'>{theme}</td>"
+                                themes_table += f"<td style='padding: 8px; border-bottom: 1px solid #eee; text-align: center;'>"
+                                themes_table += f"<div style='width: 20px; height: 20px; background-color: {theme_color}; border: 1px solid #666; margin: 0 auto;'></div></td>"
+                                themes_table += f"<td style='padding: 8px; border-bottom: 1px solid #eee; text-align: center;'>"
+                                themes_table += f"<span style='background-color: {confidence_bg}; padding: 4px 8px; border-radius: 4px;'>{confidence}</span></td>"
+                                themes_table += f"<td style='padding: 8px; border-bottom: 1px solid #eee;'>{keywords}</td>"
+                                themes_table += f"</tr>"
                             
-                            themes_html += "</div>"
-                            st.markdown(themes_html, unsafe_allow_html=True)
+                            themes_table += "</table>"
+                            st.markdown(themes_table, unsafe_allow_html=True)
                         
                         # Highlighted text
                         st.markdown("**Highlighted Text:**")
                         st.markdown(highlighted_texts[doc_id], unsafe_allow_html=True)
+
+
+
+
 if __name__ == "__main__":
     try:
         main()
