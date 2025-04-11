@@ -108,128 +108,7 @@ class ThemeAnalyzer:
 
 
 
-     def create_detailed_results(self, data, content_column='Content'):
-        results = []
-        highlighted_texts = {}
-        
-        # Create progress tracking elements
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        doc_count_text = st.empty()
-        
-        # Calculate total documents to process
-        total_docs = len(data)
-        doc_count_text.text(f"Processing 0/{total_docs} documents")
-        
-        # List of important metadata fields to capture
-        metadata_fields = [
-            'Report ID', 'report_id', 'ReportID', 'Ref', 'ref',  # Report ID variations
-            'date_of_report', 'Date_of_report', 'Date',  # Date variations
-            'Year', 'year',  # Year variations
-            'coroner_name', 'Coroner Name', 'coroner',  # Coroner name variations
-            'coroner_area', 'Coroner Area', 'area',  # Coroner area variations
-            'deceased_name', 'Deceased Name', 'deceased',  # Deceased name variations
-            'Death Type', 'death_type'  # Death type variations
-        ]
-        
-        # Process each document
-        for idx, (i, row) in enumerate(data.iterrows()):
-            # Update progress
-            progress = (idx + 1) / total_docs
-            progress_bar.progress(progress)
-            status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
-            
-            # Skip empty content
-            if pd.isna(row[content_column]) or row[content_column] == '':
-                continue
-                
-            content = str(row[content_column])
-            
-            # Analyze themes and get highlights
-            framework_themes, theme_highlights = self.analyze_document(content)
-            
-            # Create highlighted HTML for this document
-            highlighted_html = self.create_highlighted_html(content, theme_highlights)
-            highlighted_texts[i] = highlighted_html
-            
-            # Store results for each theme
-            theme_count = 0
-            for framework_name, themes in framework_themes.items():
-                for theme in themes:
-                    theme_count += 1
-                    
-                    # Extract matched sentences for this theme
-                    matched_sentences = []
-                    theme_key = f"{framework_name}_{theme['theme']}"
-                    if theme_key in theme_highlights:
-                        for start_pos, end_pos, keywords_str, sentence in theme_highlights[theme_key]:
-                            matched_sentences.append(sentence)
-                    
-                    # Join sentences if there are any
-                    matched_text = "; ".join(matched_sentences) if matched_sentences else ""
-                    
-                    # Create base result with theme information
-                    result = {
-                        'Record ID': i,
-                        'Title': row.get('Title', f'Document {i}'),
-                        'Framework': framework_name,
-                        'Theme': theme['theme'],
-                        'Confidence': self._get_confidence_label(theme['combined_score']),
-                        'Combined Score': theme['combined_score'],
-                        'Semantic_Similarity': theme['semantic_similarity'],
-                        'Matched Keywords': theme['matched_keywords'],
-                        'Matched Sentences': matched_text
-                    }
-                    
-                    # Add metadata fields if they exist in the original data
-                    for field in metadata_fields:
-                        if field in row and pd.notna(row[field]):
-                            result[field] = row[field]
-                    
-                    # Standardize common field names
-                    field_mapping = {
-                        'Ref': 'Report ID',
-                        'ref': 'Report ID',
-                        'report_id': 'Report ID',
-                        'ReportID': 'Report ID',
-                        'date_of_report': 'Date of Report',
-                        'Date_of_report': 'Date of Report',
-                        'Date': 'Date of Report',
-                        'year': 'Year',
-                        'coroner_name': 'Coroner Name',
-                        'coroner': 'Coroner Name',
-                        'coroner_area': 'Coroner Area',
-                        'area': 'Coroner Area',
-                        'deceased_name': 'Deceased Name',
-                        'deceased': 'Deceased Name',
-                        'death_type': 'Death Type'
-                    }
-                    
-                    # Apply field mapping for standardization
-                    for old_field, new_field in field_mapping.items():
-                        if old_field in result and old_field != new_field:
-                            result[new_field] = result[old_field]
-                            del result[old_field]
-                    
-                    results.append(result)
-            
-            # Update documents processed count with theme info
-            doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
-        
-        # Clear progress indicators
-        progress_bar.empty()
-        status_text.empty()
-        
-        # Final count update
-        if results:
-            doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
-        else:
-            doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
-        
-        # Create results DataFrame
-        results_df = pd.DataFrame(results) if results else pd.DataFrame()
-        
-        return results_df, highlighted_texts
+
          
     def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
         """
@@ -935,7 +814,7 @@ class ThemeAnalyzer:
                 framework_themes[framework_name] = []
 
         return framework_themes, theme_highlights
-
+        
     def create_highlighted_html(self, text, theme_highlights):
         """Create HTML with sentences highlighted by theme"""
         if not text or not theme_highlights:
@@ -5930,7 +5809,129 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                             # Highlighted text
                             st.markdown("**Highlighted Text:**")
                             st.markdown(highlighted_texts[doc_id], unsafe_allow_html=True)
-                        
+
+    def create_detailed_results(self, data, content_column='Content'):
+        results = []
+        highlighted_texts = {}
+        
+        # Create progress tracking elements
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        doc_count_text = st.empty()
+        
+        # Calculate total documents to process
+        total_docs = len(data)
+        doc_count_text.text(f"Processing 0/{total_docs} documents")
+        
+        # List of important metadata fields to capture
+        metadata_fields = [
+            'Report ID', 'report_id', 'ReportID', 'Ref', 'ref',  # Report ID variations
+            'date_of_report', 'Date_of_report', 'Date',  # Date variations
+            'Year', 'year',  # Year variations
+            'coroner_name', 'Coroner Name', 'coroner',  # Coroner name variations
+            'coroner_area', 'Coroner Area', 'area',  # Coroner area variations
+            'deceased_name', 'Deceased Name', 'deceased',  # Deceased name variations
+            'Death Type', 'death_type'  # Death type variations
+        ]
+        
+        # Process each document
+        for idx, (i, row) in enumerate(data.iterrows()):
+            # Update progress
+            progress = (idx + 1) / total_docs
+            progress_bar.progress(progress)
+            status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
+            
+            # Skip empty content
+            if pd.isna(row[content_column]) or row[content_column] == '':
+                continue
+                
+            content = str(row[content_column])
+            
+            # Analyze themes and get highlights
+            framework_themes, theme_highlights = self.analyze_document(content)
+            
+            # Create highlighted HTML for this document
+            highlighted_html = self.create_highlighted_html(content, theme_highlights)
+            highlighted_texts[i] = highlighted_html
+            
+            # Store results for each theme
+            theme_count = 0
+            for framework_name, themes in framework_themes.items():
+                for theme in themes:
+                    theme_count += 1
+                    
+                    # Extract matched sentences for this theme
+                    matched_sentences = []
+                    theme_key = f"{framework_name}_{theme['theme']}"
+                    if theme_key in theme_highlights:
+                        for start_pos, end_pos, keywords_str, sentence in theme_highlights[theme_key]:
+                            matched_sentences.append(sentence)
+                    
+                    # Join sentences if there are any
+                    matched_text = "; ".join(matched_sentences) if matched_sentences else ""
+                    
+                    # Create base result with theme information
+                    result = {
+                        'Record ID': i,
+                        'Title': row.get('Title', f'Document {i}'),
+                        'Framework': framework_name,
+                        'Theme': theme['theme'],
+                        'Confidence': self._get_confidence_label(theme['combined_score']),
+                        'Combined Score': theme['combined_score'],
+                        'Semantic_Similarity': theme['semantic_similarity'],
+                        'Matched Keywords': theme['matched_keywords'],
+                        'Matched Sentences': matched_text
+                    }
+                    
+                    # Add metadata fields if they exist in the original data
+                    for field in metadata_fields:
+                        if field in row and pd.notna(row[field]):
+                            result[field] = row[field]
+                    
+                    # Standardize common field names
+                    field_mapping = {
+                        'Ref': 'Report ID',
+                        'ref': 'Report ID',
+                        'report_id': 'Report ID',
+                        'ReportID': 'Report ID',
+                        'date_of_report': 'Date of Report',
+                        'Date_of_report': 'Date of Report',
+                        'Date': 'Date of Report',
+                        'year': 'Year',
+                        'coroner_name': 'Coroner Name',
+                        'coroner': 'Coroner Name',
+                        'coroner_area': 'Coroner Area',
+                        'area': 'Coroner Area',
+                        'deceased_name': 'Deceased Name',
+                        'deceased': 'Deceased Name',
+                        'death_type': 'Death Type'
+                    }
+                    
+                    # Apply field mapping for standardization
+                    for old_field, new_field in field_mapping.items():
+                        if old_field in result and old_field != new_field:
+                            result[new_field] = result[old_field]
+                            del result[old_field]
+                    
+                    results.append(result)
+            
+            # Update documents processed count with theme info
+            doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
+        
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        
+        # Final count update
+        if results:
+            doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
+        else:
+            doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
+        
+        # Create results DataFrame
+        results_df = pd.DataFrame(results) if results else pd.DataFrame()
+        
+        return results_df, highlighted_texts
 if __name__ == "__main__":
     try:
         main()
