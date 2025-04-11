@@ -676,22 +676,8 @@ class ThemeAnalyzer:
         else:
             return "Low"
 
-    # First, we need to modify the theme analyzer's create_detailed_results method 
-# to store the matched sentences with each theme detection
 
     def create_detailed_results(self, data, content_column='Content'):
-        """
-        Analyze multiple documents and create detailed results with progress tracking.
-        
-        Args:
-            data (pd.DataFrame): DataFrame containing documents
-            content_column (str): Name of the column containing text to analyze
-            
-        Returns:
-            Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
-        """
-        import streamlit as st
-        
         results = []
         highlighted_texts = {}
         
@@ -703,6 +689,17 @@ class ThemeAnalyzer:
         # Calculate total documents to process
         total_docs = len(data)
         doc_count_text.text(f"Processing 0/{total_docs} documents")
+        
+        # List of important metadata fields to capture
+        metadata_fields = [
+            'Report ID', 'report_id', 'ReportID', 'Ref', 'ref',  # Report ID variations
+            'date_of_report', 'Date_of_report', 'Date',  # Date variations
+            'Year', 'year',  # Year variations
+            'coroner_name', 'Coroner Name', 'coroner',  # Coroner name variations
+            'coroner_area', 'Coroner Area', 'area',  # Coroner area variations
+            'deceased_name', 'Deceased Name', 'deceased',  # Deceased name variations
+            'Death Type', 'death_type'  # Death type variations
+        ]
         
         # Process each document
         for idx, (i, row) in enumerate(data.iterrows()):
@@ -740,7 +737,8 @@ class ThemeAnalyzer:
                     # Join sentences if there are any
                     matched_text = "; ".join(matched_sentences) if matched_sentences else ""
                     
-                    results.append({
+                    # Create base result with theme information
+                    result = {
                         'Record ID': i,
                         'Title': row.get('Title', f'Document {i}'),
                         'Framework': framework_name,
@@ -749,8 +747,40 @@ class ThemeAnalyzer:
                         'Combined Score': theme['combined_score'],
                         'Semantic_Similarity': theme['semantic_similarity'],
                         'Matched Keywords': theme['matched_keywords'],
-                        'Matched Sentences': matched_text  # Add matched sentences to results
-                    })
+                        'Matched Sentences': matched_text
+                    }
+                    
+                    # Add metadata fields if they exist in the original data
+                    for field in metadata_fields:
+                        if field in row and pd.notna(row[field]):
+                            result[field] = row[field]
+                    
+                    # Standardize common field names
+                    field_mapping = {
+                        'Ref': 'Report ID',
+                        'ref': 'Report ID',
+                        'report_id': 'Report ID',
+                        'ReportID': 'Report ID',
+                        'date_of_report': 'Date of Report',
+                        'Date_of_report': 'Date of Report',
+                        'Date': 'Date of Report',
+                        'year': 'Year',
+                        'coroner_name': 'Coroner Name',
+                        'coroner': 'Coroner Name',
+                        'coroner_area': 'Coroner Area',
+                        'area': 'Coroner Area',
+                        'deceased_name': 'Deceased Name',
+                        'deceased': 'Deceased Name',
+                        'death_type': 'Death Type'
+                    }
+                    
+                    # Apply field mapping for standardization
+                    for old_field, new_field in field_mapping.items():
+                        if old_field in result and old_field != new_field:
+                            result[new_field] = result[old_field]
+                            del result[old_field]
+                    
+                    results.append(result)
             
             # Update documents processed count with theme info
             doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
@@ -769,9 +799,6 @@ class ThemeAnalyzer:
         results_df = pd.DataFrame(results) if results else pd.DataFrame()
         
         return results_df, highlighted_texts
-    
-    # Now let's modify the export_to_excel function to ensure it includes matched sentences
-
         
     def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
         """
@@ -1281,10 +1308,9 @@ class ThemeAnalyzer:
         """
         
         return html_content
-
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """
-    Export DataFrame to Excel bytes with proper formatting, including matched sentences and Report ID
+    Export DataFrame to Excel bytes with proper formatting, including all required metadata fields
     """
     try:
         if df is None or len(df) == 0:
@@ -1293,29 +1319,60 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
         # Create clean copy for export
         df_export = df.copy()
         
-        # Handle Report ID - check various possible column names
-        report_id_columns = ['Report ID', 'report_id', 'ReportID', 'Ref', 'ref']
-        found_report_id = False
+        # Important fields to ensure are in the export
+        important_fields = {
+            'Report ID': ['Report ID', 'report_id', 'ReportID', 'Ref', 'ref'],
+            'Date of Report': ['date_of_report', 'Date_of_report', 'report_date', 'Date', 'date'],
+            'Year': ['Year', 'year'],
+            'Coroner Name': ['coroner_name', 'Coroner Name', 'coroner name', 'coroner'],
+            'Coroner Area': ['coroner_area', 'Coroner Area', 'coroner area', 'area']
+        }
         
-        for col in report_id_columns:
-            if col in df_export.columns:
-                # Rename column to standardized "Report ID" if it's not already named that
-                if col != 'Report ID':
-                    df_export.rename(columns={col: 'Report ID'}, inplace=True)
-                found_report_id = True
-                break
+        # Function to find and standardize column names
+        def find_and_standardize_column(standard_name, possible_names):
+            # First check if any of the possible names exist in the DataFrame
+            found_col = None
+            for col_name in possible_names:
+                if col_name in df_export.columns:
+                    found_col = col_name
+                    break
+                    
+            # If found and not already using the standard name, rename it
+            if found_col and found_col != standard_name:
+                df_export.rename(columns={found_col: standard_name}, inplace=True)
+                return True
+            elif found_col and found_col == standard_name:
+                return True  # Already using standard name
+            return False
         
-        # If no report ID column found but 'ref' exists in data, copy it
-        if not found_report_id:
-            # Check if there's a metadata column with report ID information
-            if any('ref' in str(col).lower() for col in df_export.columns):
-                # Find the first column that has 'ref' in its name
-                ref_col = next(col for col in df_export.columns if 'ref' in str(col).lower())
-                df_export['Report ID'] = df_export[ref_col]
-            
+        # Apply the standardization for each important field
+        for standard_name, possible_names in important_fields.items():
+            find_and_standardize_column(standard_name, possible_names)
+        
+        # Extract Year from Date of Report if Year is missing but Date is available
+        if 'Date of Report' in df_export.columns and 'Year' not in df_export.columns:
+            try:
+                # First check if date is already a datetime
+                if pd.api.types.is_datetime64_any_dtype(df_export['Date of Report']):
+                    df_export['Year'] = df_export['Date of Report'].dt.year
+                else:
+                    # Try to convert to datetime first
+                    df_export['Year'] = pd.to_datetime(df_export['Date of Report']).dt.year
+            except:
+                # If conversion fails, don't add Year column
+                pass
+        
         # Format dates to UK format
-        if 'date_of_report' in df_export.columns:
-            df_export['date_of_report'] = df_export['date_of_report'].dt.strftime('%d/%m/%Y')
+        if 'Date of Report' in df_export.columns:
+            if pd.api.types.is_datetime64_any_dtype(df_export['Date of Report']):
+                df_export['Date of Report'] = df_export['Date of Report'].dt.strftime('%d/%m/%Y')
+            else:
+                # Try to convert to datetime first, then format
+                try:
+                    df_export['Date of Report'] = pd.to_datetime(df_export['Date of Report']).dt.strftime('%d/%m/%Y')
+                except:
+                    # If conversion fails, leave as is
+                    pass
             
         # Handle list columns (like categories)
         for col in df_export.columns:
@@ -1323,6 +1380,20 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
                 df_export[col] = df_export[col].apply(
                     lambda x: ', '.join(x) if isinstance(x, list) else str(x) if pd.notna(x) else ''
                 )
+        
+        # Reorder columns to put important fields first
+        # First collect all available important fields in the order we want
+        ordered_cols = []
+        for field in ['Report ID', 'Date of Report', 'Year', 'Coroner Name', 'Coroner Area']:
+            if field in df_export.columns:
+                ordered_cols.append(field)
+                
+        # Add remaining columns
+        remaining_cols = [col for col in df_export.columns if col not in ordered_cols]
+        final_col_order = ordered_cols + remaining_cols
+        
+        # Reorder the DataFrame
+        df_export = df_export[final_col_order]
         
         # Create output buffer
         output = io.BytesIO()
@@ -1372,6 +1443,7 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
     except Exception as e:
         logging.error(f"Error exporting to Excel: {e}", exc_info=True)
         raise Exception(f"Failed to export data to Excel: {str(e)}")
+        
 
 def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
     """
