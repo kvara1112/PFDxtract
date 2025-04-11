@@ -1611,401 +1611,403 @@ class ThemeAnalyzer:
 
         return output_filename
 
-
-# Add this method inside the ThemeAnalyzer class
-def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
-    """
-    Create a single integrated HTML file with all highlighted records, themes, and framework information
-    that can be easily converted to PDF
-    """
-    from collections import defaultdict
-
-    # Map report IDs to their themes
-    report_themes = defaultdict(list)
-
-    # Organize the results by report ID
-    for _, row in results_df.iterrows():
-        if "Record ID" in row and "Theme" in row and "Framework" in row:
-            record_id = row["Record ID"]
-            framework = row["Framework"]
-            theme = row["Theme"]
-            confidence = row.get("Confidence", "")
-            score = row.get("Combined Score", 0)
-            matched_keywords = row.get("Matched Keywords", "")
-
-            # Get the theme color
-            theme_key = f"{framework}_{theme}"
-            theme_color = self._get_theme_color(theme_key)
-
-            report_themes[record_id].append(
-                {
-                    "framework": framework,
-                    "theme": theme,
-                    "confidence": confidence,
-                    "score": score,
-                    "keywords": matched_keywords,
-                    "color": theme_color,  # Add the theme color
-                }
-            )
-
-    # Create HTML content with modern styling
-    html_content = (
+    # Add this method inside the ThemeAnalyzer class
+    def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
         """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>BERT Theme Analysis Report</title>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <style>
-            body { 
-                font-family: Arial, sans-serif; 
-                line-height: 1.6; 
-                margin: 0;
-                padding: 20px;
-                color: #333;
-                background-color: #f9f9f9;
-            }
-            h1 { 
-                color: #2c3e50; 
-                border-bottom: 3px solid #3498db; 
-                padding-bottom: 10px; 
-                margin-top: 30px;
-                font-weight: 600;
-            }
-            h2 { 
-                color: #2c3e50; 
-                margin-top: 30px; 
-                border-bottom: 2px solid #bdc3c7; 
-                padding-bottom: 5px; 
-                font-weight: 600;
-            }
-            h3 {
-                color: #34495e;
-                font-weight: 600;
-                margin-top: 20px;
-            }
-            .record-container { 
-                margin-bottom: 40px; 
-                background-color: white;
-                border-radius: 8px;
-                box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                padding: 20px;
-                page-break-after: always; 
-            }
-            .highlighted-text { 
-                margin: 15px 0; 
-                padding: 15px; 
-                border-radius: 4px;
-                border: 1px solid #ddd; 
-                background-color: #fff; 
-                line-height: 1.7;
-            }
-            .theme-info { margin: 15px 0; }
-            .theme-info table { 
-                border-collapse: collapse; 
-                width: 100%; 
-                margin-top: 15px;
-                border-radius: 4px;
-                overflow: hidden;
-            }
-            .theme-info th, .theme-info td { 
-                border: 1px solid #ddd; 
-                padding: 12px; 
-                text-align: left; 
-            }
-            .theme-info th { 
-                background-color: #3498db; 
-                color: white;
-                font-weight: 600;
-            }
-            .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
-            .theme-info tr:hover { background-color: #f1f1f1; }
-            .high-confidence { background-color: #D5F5E3; }  /* Light green */
-            .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
-            .low-confidence { background-color: #FADBD8; }   /* Light red */
-            .report-header {
-                background-color: #3498db;
-                color: white;
-                padding: 30px;
-                text-align: center;
-                border-radius: 8px;
-                margin-bottom: 30px;
-            }
-            .summary-card {
-                background-color: white;
-                border-radius: 8px;
-                box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                padding: 20px;
-                margin-bottom: 30px;
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: space-between;
-            }
-            .summary-box {
-                flex: 1;
-                min-width: 200px;
-                padding: 15px;
-                text-align: center;
-                border-right: 1px solid #eee;
-            }
-            .summary-box:last-child {
-                border-right: none;
-            }
-            .summary-number {
-                font-size: 36px;
-                font-weight: bold;
-                color: #3498db;
-                margin-bottom: 10px;
-            }
-            .summary-label {
-                font-size: 14px;
-                color: #7f8c8d;
-                text-transform: uppercase;
-            }
-            .theme-color-box {
-                display: inline-block;
-                width: 20px;
-                height: 20px;
-                margin-right: 5px;
-                vertical-align: middle;
-                border: 1px solid #999;
-            }
-            @media print {
-                .record-container { page-break-after: always; }
-                body { background-color: white; }
-                .record-container, .summary-card { box-shadow: none; }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="report-header">
-            <h1>BERT Theme Analysis Results</h1>
-            <p>Generated on """
-        + datetime.now().strftime("%d %B %Y, %H:%M")
-        + """</p>
-        </div>
-        
-        <div class="summary-card">
-            <div class="summary-box">
-                <div class="summary-number">"""
-        + str(len(highlighted_texts))
-        + """</div>
-                <div class="summary-label">Documents Analyzed</div>
-            </div>
-            <div class="summary-box">
-                <div class="summary-number">"""
-        + str(len(results_df))
-        + """</div>
-                <div class="summary-label">Theme Identifications</div>
-            </div>
-            <div class="summary-box">
-                <div class="summary-number">"""
-        + str(len(results_df["Framework"].unique()))
-        + """</div>
-                <div class="summary-label">Frameworks</div>
-            </div>
-        </div>
-    """
-    )
-
-    # Add framework summary
-    html_content += """
-        <h2>Framework Summary</h2>
-        <table class="theme-info">
-            <tr>
-                <th>Framework</th>
-                <th>Number of Themes</th>
-                <th>Number of Documents</th>
-            </tr>
-    """
-
-    for framework in results_df["Framework"].unique():
-        framework_results = results_df[results_df["Framework"] == framework]
-        num_themes = len(framework_results["Theme"].unique())
-        num_docs = len(framework_results["Record ID"].unique())
-
-        html_content += f"""
-            <tr>
-                <td>{framework}</td>
-                <td>{num_themes}</td>
-                <td>{num_docs}</td>
-            </tr>
+        Create a single integrated HTML file with all highlighted records, themes, and framework information
+        that can be easily converted to PDF
         """
+        from collections import defaultdict
 
-    html_content += """
-        </table>
-    """
+        # Map report IDs to their themes
+        report_themes = defaultdict(list)
 
-    # Add each record with its themes and highlighted text
-    html_content += "<h2>Document Analysis</h2>"
+        # Organize the results by report ID
+        for _, row in results_df.iterrows():
+            if "Record ID" in row and "Theme" in row and "Framework" in row:
+                record_id = row["Record ID"]
+                framework = row["Framework"]
+                theme = row["Theme"]
+                confidence = row.get("Confidence", "")
+                score = row.get("Combined Score", 0)
+                matched_keywords = row.get("Matched Keywords", "")
 
-    for record_id, themes in report_themes.items():
-        if record_id in highlighted_texts:
-            record_title = next(
-                (
-                    row["Title"]
-                    for _, row in results_df.iterrows()
-                    if row.get("Record ID") == record_id
-                ),
-                f"Document {record_id}",
-            )
+                # Get the theme color
+                theme_key = f"{framework}_{theme}"
+                theme_color = self._get_theme_color(theme_key)
 
-            html_content += f"""
-            <div class="record-container">
-                <h2>Document: {record_title}</h2>
-                
-                <div class="theme-info">
-                    <h3>Identified Themes</h3>
-                    <table>
-                        <tr>
-                            <th>Framework</th>
-                            <th>Theme</th>
-                            <th>Confidence</th>
-                            <th>Score</th>
-                            <th>Matched Keywords</th>
-                            <th>Color</th>
-                        </tr>
-            """
-
-            # Add theme rows
-            for theme_info in sorted(
-                themes, key=lambda x: (x["framework"], -x.get("score", 0))
-            ):
-                # Use theme color for row styling instead of confidence-based classes
-                theme_color = theme_info["color"]
-                theme_style = f"background-color: {theme_color}; opacity: 0.7;"  # Use opacity for a lighter shade
-
-                html_content += f"""
-                        <tr style="{theme_style}">
-                            <td>{theme_info['framework']}</td>
-                            <td>{theme_info['theme']}</td>
-                            <td>{theme_info.get('confidence', '')}</td>
-                            <td>{round(theme_info.get('score', 0), 3)}</td>
-                            <td>{theme_info.get('keywords', '')}</td>
-                            <td><div class="theme-color-box" style="background-color:{theme_info['color']};"></div> {theme_info['color']}</td>
-                        </tr>
-                """
-
-            html_content += """
-                    </table>
-                </div>
-                
-                <div class="highlighted-text">
-                    <h3>Text with Highlighted Keywords</h3>
-            """
-
-            # Add highlighted text
-            html_content += highlighted_texts[record_id]
-
-            html_content += """
-                </div>
-            </div>
-            """
-
-    html_content += """
-    </body>
-    </html>
-    """
-
-    return html_content
-
-
-def _preassign_framework_colors(self):
-    """Preassign colors to each framework for consistent coloring"""
-    # Create a dictionary to track colors used for each framework
-    framework_colors = {}
-
-    # Assign colors to each theme in each framework
-    for framework, themes in self.frameworks.items():
-        for i, theme in enumerate(themes):
-            theme_key = f"{framework}_{theme['name']}"
-            # Assign color from the theme_colors list, cycling if needed
-            color_idx = i % len(self.theme_colors)
-            self.theme_color_map[theme_key] = self.theme_colors[color_idx]
-
-
-def export_to_excel(df: pd.DataFrame) -> bytes:
-    """
-    Export DataFrame to Excel bytes with proper formatting, including matched sentences
-    """
-    try:
-        if df is None or len(df) == 0:
-            raise ValueError("No data available to export")
-
-        # Create clean copy for export
-        df_export = df.copy()
-
-        # Format dates to UK format
-        if "date_of_report" in df_export.columns:
-            df_export["date_of_report"] = df_export["date_of_report"].dt.strftime(
-                "%d/%m/%Y"
-            )
-
-        # Handle list columns (like categories)
-        for col in df_export.columns:
-            if df_export[col].dtype == "object":
-                df_export[col] = df_export[col].apply(
-                    lambda x: ", ".join(x)
-                    if isinstance(x, list)
-                    else str(x)
-                    if pd.notna(x)
-                    else ""
+                report_themes[record_id].append(
+                    {
+                        "framework": framework,
+                        "theme": theme,
+                        "confidence": confidence,
+                        "score": score,
+                        "keywords": matched_keywords,
+                        "color": theme_color,  # Add the theme color
+                    }
                 )
 
-        # Create output buffer
-        output = io.BytesIO()
+        # Create HTML content with modern styling
+        html_content = (
+            """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>BERT Theme Analysis Report</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    line-height: 1.6; 
+                    margin: 0;
+                    padding: 20px;
+                    color: #333;
+                    background-color: #f9f9f9;
+                }
+                h1 { 
+                    color: #2c3e50; 
+                    border-bottom: 3px solid #3498db; 
+                    padding-bottom: 10px; 
+                    margin-top: 30px;
+                    font-weight: 600;
+                }
+                h2 { 
+                    color: #2c3e50; 
+                    margin-top: 30px; 
+                    border-bottom: 2px solid #bdc3c7; 
+                    padding-bottom: 5px; 
+                    font-weight: 600;
+                }
+                h3 {
+                    color: #34495e;
+                    font-weight: 600;
+                    margin-top: 20px;
+                }
+                .record-container { 
+                    margin-bottom: 40px; 
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                    padding: 20px;
+                    page-break-after: always; 
+                }
+                .highlighted-text { 
+                    margin: 15px 0; 
+                    padding: 15px; 
+                    border-radius: 4px;
+                    border: 1px solid #ddd; 
+                    background-color: #fff; 
+                    line-height: 1.7;
+                }
+                .theme-info { margin: 15px 0; }
+                .theme-info table { 
+                    border-collapse: collapse; 
+                    width: 100%; 
+                    margin-top: 15px;
+                    border-radius: 4px;
+                    overflow: hidden;
+                }
+                .theme-info th, .theme-info td { 
+                    border: 1px solid #ddd; 
+                    padding: 12px; 
+                    text-align: left; 
+                }
+                .theme-info th { 
+                    background-color: #3498db; 
+                    color: white;
+                    font-weight: 600;
+                }
+                .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
+                .theme-info tr:hover { background-color: #f1f1f1; }
+                .high-confidence { background-color: #D5F5E3; }  /* Light green */
+                .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
+                .low-confidence { background-color: #FADBD8; }   /* Light red */
+                .report-header {
+                    background-color: #3498db;
+                    color: white;
+                    padding: 30px;
+                    text-align: center;
+                    border-radius: 8px;
+                    margin-bottom: 30px;
+                }
+                .summary-card {
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                    padding: 20px;
+                    margin-bottom: 30px;
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: space-between;
+                }
+                .summary-box {
+                    flex: 1;
+                    min-width: 200px;
+                    padding: 15px;
+                    text-align: center;
+                    border-right: 1px solid #eee;
+                }
+                .summary-box:last-child {
+                    border-right: none;
+                }
+                .summary-number {
+                    font-size: 36px;
+                    font-weight: bold;
+                    color: #3498db;
+                    margin-bottom: 10px;
+                }
+                .summary-label {
+                    font-size: 14px;
+                    color: #7f8c8d;
+                    text-transform: uppercase;
+                }
+                .theme-color-box {
+                    display: inline-block;
+                    width: 20px;
+                    height: 20px;
+                    margin-right: 5px;
+                    vertical-align: middle;
+                    border: 1px solid #999;
+                }
+                @media print {
+                    .record-container { page-break-after: always; }
+                    body { background-color: white; }
+                    .record-container, .summary-card { box-shadow: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="report-header">
+                <h1>BERT Theme Analysis Results</h1>
+                <p>Generated on """
+            + datetime.now().strftime("%d %B %Y, %H:%M")
+            + """</p>
+            </div>
+            
+            <div class="summary-card">
+                <div class="summary-box">
+                    <div class="summary-number">"""
+            + str(len(highlighted_texts))
+            + """</div>
+                    <div class="summary-label">Documents Analyzed</div>
+                </div>
+                <div class="summary-box">
+                    <div class="summary-number">"""
+            + str(len(results_df))
+            + """</div>
+                    <div class="summary-label">Theme Identifications</div>
+                </div>
+                <div class="summary-box">
+                    <div class="summary-number">"""
+            + str(len(results_df["Framework"].unique()))
+            + """</div>
+                    <div class="summary-label">Frameworks</div>
+                </div>
+            </div>
+        """
+        )
 
-        # Write to Excel
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df_export.to_excel(writer, sheet_name="Reports", index=False)
+        # Add framework summary
+        html_content += """
+            <h2>Framework Summary</h2>
+            <table class="theme-info">
+                <tr>
+                    <th>Framework</th>
+                    <th>Number of Themes</th>
+                    <th>Number of Documents</th>
+                </tr>
+        """
 
-            # Get the worksheet
-            worksheet = writer.sheets["Reports"]
+        for framework in results_df["Framework"].unique():
+            framework_results = results_df[results_df["Framework"] == framework]
+            num_themes = len(framework_results["Theme"].unique())
+            num_docs = len(framework_results["Record ID"].unique())
 
-            # Auto-adjust column widths
-            for idx, col in enumerate(df_export.columns, 1):
-                # Set larger width for Matched Sentences column
-                if col == "Matched Sentences":
-                    worksheet.column_dimensions[get_column_letter(idx)].width = 80
-                else:
-                    max_length = max(
-                        df_export[col].astype(str).apply(len).max(), len(str(col))
+            html_content += f"""
+                <tr>
+                    <td>{framework}</td>
+                    <td>{num_themes}</td>
+                    <td>{num_docs}</td>
+                </tr>
+            """
+
+        html_content += """
+            </table>
+        """
+
+        # Add each record with its themes and highlighted text
+        html_content += "<h2>Document Analysis</h2>"
+
+        for record_id, themes in report_themes.items():
+            if record_id in highlighted_texts:
+                record_title = next(
+                    (
+                        row["Title"]
+                        for _, row in results_df.iterrows()
+                        if row.get("Record ID") == record_id
+                    ),
+                    f"Document {record_id}",
+                )
+
+                html_content += f"""
+                <div class="record-container">
+                    <h2>Document: {record_title}</h2>
+                    
+                    <div class="theme-info">
+                        <h3>Identified Themes</h3>
+                        <table>
+                            <tr>
+                                <th>Framework</th>
+                                <th>Theme</th>
+                                <th>Confidence</th>
+                                <th>Score</th>
+                                <th>Matched Keywords</th>
+                                <th>Color</th>
+                            </tr>
+                """
+
+                # Add theme rows
+                for theme_info in sorted(
+                    themes, key=lambda x: (x["framework"], -x.get("score", 0))
+                ):
+                    # Use theme color for row styling instead of confidence-based classes
+                    theme_color = theme_info["color"]
+                    theme_style = f"background-color: {theme_color}; opacity: 0.7;"  # Use opacity for a lighter shade
+
+                    html_content += f"""
+                            <tr style="{theme_style}">
+                                <td>{theme_info['framework']}</td>
+                                <td>{theme_info['theme']}</td>
+                                <td>{theme_info.get('confidence', '')}</td>
+                                <td>{round(theme_info.get('score', 0), 3)}</td>
+                                <td>{theme_info.get('keywords', '')}</td>
+                                <td><div class="theme-color-box" style="background-color:{theme_info['color']};"></div> {theme_info['color']}</td>
+                            </tr>
+                    """
+
+                html_content += """
+                        </table>
+                    </div>
+                    
+                    <div class="highlighted-text">
+                        <h3>Text with Highlighted Keywords</h3>
+                """
+
+                # Add highlighted text
+                html_content += highlighted_texts[record_id]
+
+                html_content += """
+                    </div>
+                </div>
+                """
+
+        html_content += """
+        </body>
+        </html>
+        """
+
+        return html_content
+
+    def _preassign_framework_colors(self):
+        """Preassign colors to each framework for consistent coloring"""
+        # Create a dictionary to track colors used for each framework
+        framework_colors = {}
+
+        # Assign colors to each theme in each framework
+        for framework, themes in self.frameworks.items():
+            for i, theme in enumerate(themes):
+                theme_key = f"{framework}_{theme['name']}"
+                # Assign color from the theme_colors list, cycling if needed
+                color_idx = i % len(self.theme_colors)
+                self.theme_color_map[theme_key] = self.theme_colors[color_idx]
+
+    def export_to_excel(df: pd.DataFrame) -> bytes:
+        """
+        Export DataFrame to Excel bytes with proper formatting, including matched sentences
+        """
+        try:
+            if df is None or len(df) == 0:
+                raise ValueError("No data available to export")
+
+            # Create clean copy for export
+            df_export = df.copy()
+
+            # Format dates to UK format
+            if "date_of_report" in df_export.columns:
+                df_export["date_of_report"] = df_export[
+                    "date_of_report"
+                ].dt.strftime("%d/%m/%Y")
+
+            # Handle list columns (like categories)
+            for col in df_export.columns:
+                if df_export[col].dtype == "object":
+                    df_export[col] = df_export[col].apply(
+                        lambda x: ", ".join(x)
+                        if isinstance(x, list)
+                        else str(x)
+                        if pd.notna(x)
+                        else ""
                     )
-                    adjusted_width = min(max_length + 2, 50)
-                    column_letter = get_column_letter(idx)
-                    worksheet.column_dimensions[column_letter].width = adjusted_width
 
-            # Add filters to header row
-            worksheet.auto_filter.ref = worksheet.dimensions
+            # Create output buffer
+            output = io.BytesIO()
 
-            # Freeze the header row
-            worksheet.freeze_panes = "A2"
+            # Write to Excel
+            with pd.ExcelWriter(output, engine="openpyxl") as writer:
+                df_export.to_excel(writer, sheet_name="Reports", index=False)
 
-            # Set wrap text for Matched Sentences column
-            matched_sent_col = next(
-                (
-                    idx
-                    for idx, col in enumerate(df_export.columns, 1)
-                    if col == "Matched Sentences"
-                ),
-                None,
-            )
-            if matched_sent_col:
-                col_letter = get_column_letter(matched_sent_col)
-                for row in range(2, len(df_export) + 2):
-                    cell = worksheet[f"{col_letter}{row}"]
-                    cell.alignment = cell.alignment.copy(wrapText=True)
-                    # Set row height to accommodate wrapped text
-                    worksheet.row_dimensions[row].height = 60
+                # Get the worksheet
+                worksheet = writer.sheets["Reports"]
 
-        # Get the bytes value
-        output.seek(0)
-        return output.getvalue()
+                # Auto-adjust column widths
+                for idx, col in enumerate(df_export.columns, 1):
+                    # Set larger width for Matched Sentences column
+                    if col == "Matched Sentences":
+                        worksheet.column_dimensions[
+                            get_column_letter(idx)
+                        ].width = 80
+                    else:
+                        max_length = max(
+                            df_export[col].astype(str).apply(len).max(),
+                            len(str(col)),
+                        )
+                        adjusted_width = min(max_length + 2, 50)
+                        column_letter = get_column_letter(idx)
+                        worksheet.column_dimensions[
+                            column_letter
+                        ].width = adjusted_width
 
-    except Exception as e:
-        logging.error(f"Error exporting to Excel: {e}", exc_info=True)
-        raise Exception(f"Failed to export data to Excel: {str(e)}")
+                # Add filters to header row
+                worksheet.auto_filter.ref = worksheet.dimensions
+
+                # Freeze the header row
+                worksheet.freeze_panes = "A2"
+
+                # Set wrap text for Matched Sentences column
+                matched_sent_col = next(
+                    (
+                        idx
+                        for idx, col in enumerate(df_export.columns, 1)
+                        if col == "Matched Sentences"
+                    ),
+                    None,
+                )
+                if matched_sent_col:
+                    col_letter = get_column_letter(matched_sent_col)
+                    for row in range(2, len(df_export) + 2):
+                        cell = worksheet[f"{col_letter}{row}"]
+                        cell.alignment = cell.alignment.copy(wrapText=True)
+                        # Set row height to accommodate wrapped text
+                        worksheet.row_dimensions[row].height = 60
+
+            # Get the bytes value
+            output.seek(0)
+            return output.getvalue()
+
+        except Exception as e:
+            logging.error(f"Error exporting to Excel: {e}", exc_info=True)
+            raise Exception(f"Failed to export data to Excel: {str(e)}")
 
 
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
