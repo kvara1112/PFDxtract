@@ -6512,22 +6512,21 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     )
                 else:
                     st.warning("PDF report not available")
-
             with col3:
-                # HTML download button
-                if html_filename and os.path.exists(html_filename):
-                    with open(html_filename, "rb") as f:
-                        html_data = f.read()
-
+                # PDF download button
+                if pdf_filename and os.path.exists(pdf_filename):
+                    with open(pdf_filename, "rb") as f:
+                        pdf_data = f.read()
                     st.download_button(
-                        "🌐 Download HTML Report",
-                        data=html_data,
-                        file_name=os.path.basename(html_filename),
-                        mime="text/html",
-                        key="bert_html_download",
+                        "📄 Download PDF Report",
+                        data=pdf_data,
+                        file_name=os.path.basename(pdf_filename),
+                        mime="application/pdf",
+                        key="bert_pdf_download",
                     )
                 else:
-                    st.warning("HTML report not available")
+                    st.warning("PDF report not available")
+        
 
             # Show theme color legend
             if theme_colors:
