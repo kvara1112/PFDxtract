@@ -676,84 +676,173 @@ class ThemeAnalyzer:
         else:
             return "Low"
 
-    def create_detailed_results(self, data, content_column='Content'):
-        """
-        Analyze multiple documents and create detailed results with progress tracking.
+    # First, we need to modify the theme analyzer's create_detailed_results method 
+# to store the matched sentences with each theme detection
+
+def create_detailed_results(self, data, content_column='Content'):
+    """
+    Analyze multiple documents and create detailed results with progress tracking.
+    
+    Args:
+        data (pd.DataFrame): DataFrame containing documents
+        content_column (str): Name of the column containing text to analyze
         
-        Args:
-            data (pd.DataFrame): DataFrame containing documents
-            content_column (str): Name of the column containing text to analyze
+    Returns:
+        Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
+    """
+    import streamlit as st
+    
+    results = []
+    highlighted_texts = {}
+    
+    # Create progress tracking elements
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    doc_count_text = st.empty()
+    
+    # Calculate total documents to process
+    total_docs = len(data)
+    doc_count_text.text(f"Processing 0/{total_docs} documents")
+    
+    # Process each document
+    for idx, (i, row) in enumerate(data.iterrows()):
+        # Update progress
+        progress = (idx + 1) / total_docs
+        progress_bar.progress(progress)
+        status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
+        
+        # Skip empty content
+        if pd.isna(row[content_column]) or row[content_column] == '':
+            continue
             
-        Returns:
-            Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
-        """
-        import streamlit as st
+        content = str(row[content_column])
         
-        results = []
-        highlighted_texts = {}
+        # Analyze themes and get highlights
+        framework_themes, theme_highlights = self.analyze_document(content)
         
-        # Create progress tracking elements
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        doc_count_text = st.empty()
+        # Create highlighted HTML for this document
+        highlighted_html = self.create_highlighted_html(content, theme_highlights)
+        highlighted_texts[i] = highlighted_html
         
-        # Calculate total documents to process
-        total_docs = len(data)
-        doc_count_text.text(f"Processing 0/{total_docs} documents")
-        
-        # Process each document
-        for idx, (i, row) in enumerate(data.iterrows()):
-            # Update progress
-            progress = (idx + 1) / total_docs
-            progress_bar.progress(progress)
-            status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
-            
-            # Skip empty content
-            if pd.isna(row[content_column]) or row[content_column] == '':
-                continue
+        # Store results for each theme
+        theme_count = 0
+        for framework_name, themes in framework_themes.items():
+            for theme in themes:
+                theme_count += 1
                 
-            content = str(row[content_column])
-            
-            # Analyze themes and get highlights
-            framework_themes, theme_highlights = self.analyze_document(content)
-            
-            # Create highlighted HTML for this document
-            highlighted_html = self.create_highlighted_html(content, theme_highlights)
-            highlighted_texts[i] = highlighted_html
-            
-            # Store results for each theme
-            theme_count = 0
-            for framework_name, themes in framework_themes.items():
-                for theme in themes:
-                    theme_count += 1
-                    results.append({
-                        'Record ID': i,
-                        'Title': row.get('Title', f'Document {i}'),
-                        'Framework': framework_name,
-                        'Theme': theme['theme'],
-                        'Confidence': self._get_confidence_label(theme['combined_score']),
-                        'Combined Score': theme['combined_score'],
-                        'Semantic_Similarity': theme['semantic_similarity'],
-                        'Matched Keywords': theme['matched_keywords']
-                    })
-            
-            # Update documents processed count with theme info
-            doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
+                # Extract matched sentences for this theme
+                matched_sentences = []
+                theme_key = f"{framework_name}_{theme['theme']}"
+                if theme_key in theme_highlights:
+                    for start_pos, end_pos, keywords_str, sentence in theme_highlights[theme_key]:
+                        matched_sentences.append(sentence)
+                
+                # Join sentences if there are any
+                matched_text = "; ".join(matched_sentences) if matched_sentences else ""
+                
+                results.append({
+                    'Record ID': i,
+                    'Title': row.get('Title', f'Document {i}'),
+                    'Framework': framework_name,
+                    'Theme': theme['theme'],
+                    'Confidence': self._get_confidence_label(theme['combined_score']),
+                    'Combined Score': theme['combined_score'],
+                    'Semantic_Similarity': theme['semantic_similarity'],
+                    'Matched Keywords': theme['matched_keywords'],
+                    'Matched Sentences': matched_text  # Add matched sentences to results
+                })
         
-        # Clear progress indicators
-        progress_bar.empty()
-        status_text.empty()
+        # Update documents processed count with theme info
+        doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
+    
+    # Clear progress indicators
+    progress_bar.empty()
+    status_text.empty()
+    
+    # Final count update
+    if results:
+        doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
+    else:
+        doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
+    
+    # Create results DataFrame
+    results_df = pd.DataFrame(results) if results else pd.DataFrame()
+    
+    return results_df, highlighted_texts
+
+# Now let's modify the export_to_excel function to ensure it includes matched sentences
+
+def export_to_excel(df: pd.DataFrame) -> bytes:
+    """
+    Export DataFrame to Excel bytes with proper formatting, including matched sentences
+    """
+    try:
+        if df is None or len(df) == 0:
+            raise ValueError("No data available to export")
+            
+        # Create clean copy for export
+        df_export = df.copy()
         
-        # Final count update
-        if results:
-            doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
-        else:
-            doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
+        # Format dates to UK format
+        if 'date_of_report' in df_export.columns:
+            df_export['date_of_report'] = df_export['date_of_report'].dt.strftime('%d/%m/%Y')
+            
+        # Handle list columns (like categories)
+        for col in df_export.columns:
+            if df_export[col].dtype == 'object':
+                df_export[col] = df_export[col].apply(
+                    lambda x: ', '.join(x) if isinstance(x, list) else str(x) if pd.notna(x) else ''
+                )
         
-        # Create results DataFrame
-        results_df = pd.DataFrame(results) if results else pd.DataFrame()
+        # Create output buffer
+        output = io.BytesIO()
         
-        return results_df, highlighted_texts
+        # Write to Excel
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df_export.to_excel(writer, sheet_name='Reports', index=False)
+            
+            # Get the worksheet
+            worksheet = writer.sheets['Reports']
+            
+            # Auto-adjust column widths
+            for idx, col in enumerate(df_export.columns, 1):
+                # Set larger width for Matched Sentences column
+                if col == 'Matched Sentences':
+                    worksheet.column_dimensions[get_column_letter(idx)].width = 80
+                else:
+                    max_length = max(
+                        df_export[col].astype(str).apply(len).max(),
+                        len(str(col))
+                    )
+                    adjusted_width = min(max_length + 2, 50)
+                    column_letter = get_column_letter(idx)
+                    worksheet.column_dimensions[column_letter].width = adjusted_width
+            
+            # Add filters to header row
+            worksheet.auto_filter.ref = worksheet.dimensions
+            
+            # Freeze the header row
+            worksheet.freeze_panes = 'A2'
+            
+            # Set wrap text for Matched Sentences column
+            matched_sent_col = next((idx for idx, col in enumerate(df_export.columns, 1) 
+                                   if col == 'Matched Sentences'), None)
+            if matched_sent_col:
+                col_letter = get_column_letter(matched_sent_col)
+                for row in range(2, len(df_export) + 2):
+                    cell = worksheet[f"{col_letter}{row}"]
+                    cell.alignment = cell.alignment.copy(wrapText=True)
+                    # Set row height to accommodate wrapped text
+                    worksheet.row_dimensions[row].height = 60
+        
+        # Get the bytes value
+        output.seek(0)
+        return output.getvalue()
+        
+    except Exception as e:
+        logging.error(f"Error exporting to Excel: {e}", exc_info=True)
+        raise Exception(f"Failed to export data to Excel: {str(e)}")
+        
         
     def create_comprehensive_pdf(self, results_df, highlighted_texts, output_filename=None):
         """
@@ -5248,6 +5337,7 @@ def check_bert_password():
     
     return output_filename    
 
+
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Render BERT Analysis tab with theme detection, column selection, and multi-report analysis"""
     st.header("BERT-based Theme Analysis")
@@ -5343,6 +5433,18 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             key="bert_highlight_color"  # Fixed key
         )
         
+        # Analysis parameters
+        st.subheader("Analysis Parameters")
+        similarity_threshold = st.slider(
+            "Similarity Threshold",
+            min_value=0.3,
+            max_value=0.9,
+            value=0.65,
+            step=0.05,
+            help="Minimum similarity score for theme detection (higher = more strict)",
+            key="bert_similarity_threshold"  # Fixed key
+        )
+        
         # Analysis button
         run_analysis = st.button("Run BERT Analysis", type="primary", key="bert_run_analysis")  # Fixed key
         
@@ -5358,7 +5460,8 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     # Initialize the theme analyzer
                     theme_analyzer = ThemeAnalyzer(model_name="emilyalsentzer/Bio_ClinicalBERT")
                     
-                    # Set highlighting color
+                    # Set custom configuration
+                    theme_analyzer.config['base_similarity_threshold'] = similarity_threshold
                     theme_analyzer.theme_colors = [highlight_color] * 20
                     
                     # Perform analysis with highlighting
@@ -5474,6 +5577,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     'Confidence': st.column_config.TextColumn("Confidence"),
                     'Combined Score': st.column_config.NumberColumn("Score", format="%.3f"),
                     'Matched Keywords': st.column_config.TextColumn("Keywords"),
+                    'Matched Sentences': st.column_config.TextColumn("Matching Sentences")
                 },
                 hide_index=True,
                 use_container_width=True
@@ -5513,11 +5617,14 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                                     f"{theme_row.get('Confidence', 'N/A')}</span>",
                                     unsafe_allow_html=True
                                 )
+                                
+                                # Display matched sentences if available
+                                if 'Matched Sentences' in theme_row and theme_row['Matched Sentences']:
+                                    st.markdown(f"  *Matching text: {theme_row['Matched Sentences']}*")
                         
                         # Highlighted text
                         st.markdown("**Highlighted Text:**")
                         st.markdown(highlighted_texts[doc_id], unsafe_allow_html=True)
-                    
 if __name__ == "__main__":
     try:
         main()
