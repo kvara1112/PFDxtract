@@ -104,6 +104,461 @@ class ThemeAnalyzer:
 
         # Pre-assign colors to frameworks
         self._preassign_framework_colors()
+        
+    def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
+        """
+        Create a single integrated HTML file with all highlighted records, themes, and framework information
+        that can be easily converted to PDF
+        """
+        from collections import defaultdict
+        
+        # Map report IDs to their themes and metadata
+        report_themes = defaultdict(list)
+        report_metadata = {}
+        
+        # Define field mapping for standardization
+        field_mapping = {
+            'Ref': 'Report ID',
+            'ref': 'Report ID',
+            'report_id': 'Report ID',
+            'ReportID': 'Report ID',
+            'date_of_report': 'Date of Report',
+            'Date_of_report': 'Date of Report',
+            'Date': 'Date of Report',
+            'report_date': 'Date of Report',
+            'date': 'Date of Report',
+            'year': 'Year',
+            'coroner_name': 'Coroner Name',
+            'coroner': 'Coroner Name',
+            'coroner area': 'Coroner Area',
+            'coroner_area': 'Coroner Area',
+            'area': 'Coroner Area',
+            'deceased_name': 'Deceased Name',
+            'deceased': 'Deceased Name',
+            'death_type': 'Death Type'
+        }
+        
+        # Function to extract metadata from row
+        def extract_metadata(row):
+            metadata = {}
+            
+            # Process all columns in the row
+            for col in row.index:
+                # Skip if null or empty
+                if pd.isna(row[col]) or row[col] == '':
+                    continue
+                    
+                # Standardize field names if in mapping
+                if col in field_mapping:
+                    field_name = field_mapping[col]
+                    metadata[field_name] = row[col]
+                # Keep as is if not in mapping
+                else:
+                    metadata[col] = row[col]
+                    
+            # Format date if it's a datetime
+            if 'Date of Report' in metadata and pd.api.types.is_datetime64_any_dtype(metadata['Date of Report']):
+                metadata['Date of Report'] = metadata['Date of Report'].strftime('%d/%m/%Y')
+                
+            # Extract Year from Date if missing
+            if 'Year' not in metadata and 'Date of Report' in metadata:
+                try:
+                    date_str = str(metadata['Date of Report'])
+                    if '/' in date_str:
+                        # Assume UK format (DD/MM/YYYY)
+                        metadata['Year'] = date_str.split('/')[-1]
+                except:
+                    pass
+                    
+            return metadata
+        
+        # First pass: Extract metadata for each record
+        for record_id in results_df['Record ID'].unique():
+            # Get a row for this record
+            record_row = results_df[results_df['Record ID'] == record_id].iloc[0]
+            report_metadata[record_id] = extract_metadata(record_row)
+        
+        # Second pass: Organize theme info by record
+        for _, row in results_df.iterrows():
+            if 'Record ID' in row and 'Theme' in row and 'Framework' in row:
+                record_id = row['Record ID']
+                framework = row['Framework']
+                theme = row['Theme']
+                confidence = row.get('Confidence', '')
+                score = row.get('Combined Score', 0)
+                matched_keywords = row.get('Matched Keywords', '')
+                matched_sentences = row.get('Matched Sentences', '')
+                
+                report_themes[record_id].append({
+                    'framework': framework,
+                    'theme': theme,
+                    'confidence': confidence,
+                    'score': score,
+                    'keywords': matched_keywords,
+                    'matched_sentences': matched_sentences
+                })
+        
+        # Create HTML content with modern styling and PDF conversion capabilities
+        html_content = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>BERT Theme Analysis Report</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1">
+            <!-- Include html2pdf.js from CDN -->
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    line-height: 1.6; 
+                    margin: 0;
+                    padding: 20px;
+                    color: #333;
+                    background-color: #f9f9f9;
+                }
+                h1 { 
+                    color: #2c3e50; 
+                    border-bottom: 3px solid #3498db; 
+                    padding-bottom: 10px; 
+                    margin-top: 30px;
+                    font-weight: 600;
+                }
+                h2 { 
+                    color: #2c3e50; 
+                    margin-top: 30px; 
+                    border-bottom: 2px solid #bdc3c7; 
+                    padding-bottom: 5px; 
+                    font-weight: 600;
+                }
+                h3 {
+                    color: #34495e;
+                    font-weight: 600;
+                    margin-top: 20px;
+                }
+                .record-container { 
+                    margin-bottom: 40px; 
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                    padding: 20px;
+                    page-break-after: always; 
+                }
+                .highlighted-text { 
+                    margin: 15px 0; 
+                    padding: 15px; 
+                    border-radius: 4px;
+                    border: 1px solid #ddd; 
+                    background-color: #fff; 
+                    line-height: 1.7;
+                }
+                .theme-info { margin: 15px 0; }
+                .theme-info table { 
+                    border-collapse: collapse; 
+                    width: 100%; 
+                    margin-top: 15px;
+                    border-radius: 4px;
+                    overflow: hidden;
+                }
+                .theme-info th, .theme-info td { 
+                    border: 1px solid #ddd; 
+                    padding: 12px; 
+                    text-align: left; 
+                }
+                .theme-info th { 
+                    background-color: #3498db; 
+                    color: white;
+                    font-weight: 600;
+                }
+                .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
+                .theme-info tr:hover { background-color: #f1f1f1; }
+                .high-confidence { background-color: #D5F5E3; }  /* Light green */
+                .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
+                .low-confidence { background-color: #FADBD8; }   /* Light red */
+                .report-header {
+                    background-color: #3498db;
+                    color: white;
+                    padding: 30px;
+                    text-align: center;
+                    border-radius: 8px;
+                    margin-bottom: 30px;
+                }
+                .summary-card {
+                    background-color: white;
+                    border-radius: 8px;
+                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                    padding: 20px;
+                    margin-bottom: 30px;
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: space-between;
+                }
+                .summary-box {
+                    flex: 1;
+                    min-width: 200px;
+                    padding: 15px;
+                    text-align: center;
+                    border-right: 1px solid #eee;
+                }
+                .summary-box:last-child {
+                    border-right: none;
+                }
+                .summary-number {
+                    font-size: 36px;
+                    font-weight: bold;
+                    color: #3498db;
+                    margin-bottom: 10px;
+                }
+                .summary-label {
+                    font-size: 14px;
+                    color: #7f8c8d;
+                    text-transform: uppercase;
+                }
+                .pdf-button {
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background-color: #3498db;
+                    color: white;
+                    padding: 10px 15px;
+                    border-radius: 5px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    z-index: 1000;
+                    border: none;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+                }
+                .pdf-button:hover {
+                    background-color: #2980b9;
+                }
+                .metadata-table {
+                    width: 100%;
+                    margin-bottom: 20px;
+                    border-collapse: collapse;
+                }
+                .metadata-table th {
+                    background-color: #f2f2f2;
+                    text-align: left;
+                    padding: 8px;
+                    width: 180px;
+                    font-weight: bold;
+                    border: 1px solid #ddd;
+                }
+                .metadata-table td {
+                    padding: 8px;
+                    border: 1px solid #ddd;
+                }
+                @media print {
+                    .pdf-button { display: none; }
+                    .record-container { page-break-after: always; }
+                    body { background-color: white; }
+                    .record-container, .summary-card { box-shadow: none; }
+                }
+            </style>
+        </head>
+        <body>
+            <!-- PDF Download Button -->
+            <button class="pdf-button" onclick="generatePDF()">Download as PDF</button>
+            
+            <!-- Content div that will be converted to PDF -->
+            <div id="content">
+                <div class="report-header">
+                    <h1>BERT Theme Analysis Results</h1>
+                    <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
+                </div>
+                
+                <div class="summary-card">
+                    <div class="summary-box">
+                        <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
+                        <div class="summary-label">Documents Analyzed</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-number">""" + str(len(results_df)) + """</div>
+                        <div class="summary-label">Theme Identifications</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-number">""" + str(len(results_df['Framework'].unique())) + """</div>
+                        <div class="summary-label">Frameworks</div>
+                    </div>
+                </div>
+            
+                <!-- Framework Summary -->
+                <h2>Framework Summary</h2>
+                <table class="theme-info">
+                    <tr>
+                        <th>Framework</th>
+                        <th>Number of Themes</th>
+                        <th>Number of Documents</th>
+                    </tr>
+        """
+        
+        for framework in results_df['Framework'].unique():
+            framework_results = results_df[results_df['Framework'] == framework]
+            num_themes = len(framework_results['Theme'].unique())
+            num_docs = len(framework_results['Record ID'].unique())
+            
+            html_content += f"""
+                <tr>
+                    <td>{framework}</td>
+                    <td>{num_themes}</td>
+                    <td>{num_docs}</td>
+                </tr>
+            """
+        
+        html_content += """
+            </table>
+        
+            <!-- Document Analysis -->
+            <h2>Document Analysis</h2>
+        """
+        
+        # Priority order for metadata fields display
+        metadata_priority = [
+            'Report ID', 
+            'Date of Report', 
+            'Year',
+            'Coroner Name',
+            'Coroner Area',
+            'Deceased Name',
+            'Death Type'
+        ]
+        
+        for record_id, themes in report_themes.items():
+            if record_id in highlighted_texts:
+                record_title = next((row['Title'] for _, row in results_df.iterrows() 
+                                   if row.get('Record ID') == record_id), f"Document {record_id}")
+                
+                # Get metadata for this record
+                metadata = report_metadata.get(record_id, {})
+                
+                html_content += f"""
+                <div class="record-container">
+                    <h2>Document: {record_title}</h2>
+                    
+                    <!-- Metadata table -->
+                    <table class="metadata-table">
+                """
+                
+                # First add metadata fields in priority order
+                for field in metadata_priority:
+                    if field in metadata:
+                        value = metadata[field]
+                        # Format if it's a datetime
+                        if pd.api.types.is_datetime64_any_dtype(value):
+                            value = value.strftime('%d/%m/%Y')
+                        html_content += f"""
+                        <tr>
+                            <th>{field}</th>
+                            <td>{value}</td>
+                        </tr>
+                        """
+                
+                # Then add any additional metadata fields not in priority list
+                for field, value in metadata.items():
+                    if field not in metadata_priority and field != 'Title' and field != 'Record ID':
+                        # Format if it's a datetime
+                        if pd.api.types.is_datetime64_any_dtype(value):
+                            value = value.strftime('%d/%m/%Y')
+                        html_content += f"""
+                        <tr>
+                            <th>{field}</th>
+                            <td>{value}</td>
+                        </tr>
+                        """
+                
+                html_content += """
+                    </table>
+                    
+                    <div class="theme-info">
+                        <h3>Identified Themes</h3>
+                        <table>
+                            <tr>
+                                <th>Framework</th>
+                                <th>Theme</th>
+                                <th>Confidence</th>
+                                <th>Score</th>
+                                <th>Matched Keywords</th>
+                            </tr>
+                """
+                
+                # Add theme rows
+                for theme_info in sorted(themes, key=lambda x: (x['framework'], -x.get('score', 0))):
+                    confidence_class = ''
+                    if theme_info.get('confidence') == 'High':
+                        confidence_class = 'high-confidence'
+                    elif theme_info.get('confidence') == 'Medium':
+                        confidence_class = 'medium-confidence'
+                    elif theme_info.get('confidence') == 'Low':
+                        confidence_class = 'low-confidence'
+                    
+                    html_content += f"""
+                            <tr>
+                                <td>{theme_info['framework']}</td>
+                                <td>{theme_info['theme']}</td>
+                                <td class="{confidence_class}">{theme_info.get('confidence', '')}</td>
+                                <td>{round(theme_info.get('score', 0), 3)}</td>
+                                <td>{theme_info.get('keywords', '')}</td>
+                            </tr>
+                    """
+                    
+                    # If there are matched sentences, add a row for them
+                    if 'matched_sentences' in theme_info and theme_info['matched_sentences']:
+                        html_content += f"""
+                            <tr>
+                                <td colspan="5"><strong>Matched Sentences:</strong> {theme_info['matched_sentences']}</td>
+                            </tr>
+                        """
+                
+                html_content += """
+                        </table>
+                    </div>
+                    
+                    <div class="highlighted-text">
+                        <h3>Text with Highlighted Keywords</h3>
+                """
+                
+                # Add highlighted text
+                html_content += highlighted_texts[record_id]
+                
+                html_content += """
+                    </div>
+                </div>
+                """
+        
+        # Add JavaScript for PDF conversion
+        html_content += """
+            </div> <!-- End of content div -->
+            
+            <script>
+                function generatePDF() {
+                    // Set up options for PDF generation
+                    const opt = {
+                        margin: 10,
+                        filename: 'theme_analysis_report_""" + datetime.now().strftime("%Y%m%d_%H%M%S") + """.pdf',
+                        image: { type: 'jpeg', quality: 0.98 },
+                        html2canvas: { scale: 2, useCORS: true },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+                    };
+                    
+                    // Get the content element
+                    const element = document.getElementById('content');
+                    
+                    // Hide the PDF button temporarily during generation
+                    const button = document.querySelector('.pdf-button');
+                    button.style.display = 'none';
+                    
+                    // Generate the PDF
+                    html2pdf().set(opt).from(element).save().then(() => {
+                        // Show the button again after PDF is generated
+                        button.style.display = 'block';
+                    });
+                }
+            </script>
+        </body>
+        </html>
+        """
+        
+        return html_content
 
     def _preassign_framework_colors(self):
         """Preassign colors to each framework for consistent coloring"""
@@ -1180,461 +1635,6 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
         logging.error(f"Error exporting to Excel: {e}", exc_info=True)
         raise Exception(f"Failed to export data to Excel: {str(e)}")
 
-
-def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
-    """
-    Create a single integrated HTML file with all highlighted records, themes, and framework information
-    that can be easily converted to PDF
-    """
-    from collections import defaultdict
-    
-    # Map report IDs to their themes and metadata
-    report_themes = defaultdict(list)
-    report_metadata = {}
-    
-    # Define field mapping for standardization
-    field_mapping = {
-        'Ref': 'Report ID',
-        'ref': 'Report ID',
-        'report_id': 'Report ID',
-        'ReportID': 'Report ID',
-        'date_of_report': 'Date of Report',
-        'Date_of_report': 'Date of Report',
-        'Date': 'Date of Report',
-        'report_date': 'Date of Report',
-        'date': 'Date of Report',
-        'year': 'Year',
-        'coroner_name': 'Coroner Name',
-        'coroner': 'Coroner Name',
-        'coroner area': 'Coroner Area',
-        'coroner_area': 'Coroner Area',
-        'area': 'Coroner Area',
-        'deceased_name': 'Deceased Name',
-        'deceased': 'Deceased Name',
-        'death_type': 'Death Type'
-    }
-    
-    # Function to extract metadata from row
-    def extract_metadata(row):
-        metadata = {}
-        
-        # Process all columns in the row
-        for col in row.index:
-            # Skip if null or empty
-            if pd.isna(row[col]) or row[col] == '':
-                continue
-                
-            # Standardize field names if in mapping
-            if col in field_mapping:
-                field_name = field_mapping[col]
-                metadata[field_name] = row[col]
-            # Keep as is if not in mapping
-            else:
-                metadata[col] = row[col]
-                
-        # Format date if it's a datetime
-        if 'Date of Report' in metadata and pd.api.types.is_datetime64_any_dtype(metadata['Date of Report']):
-            metadata['Date of Report'] = metadata['Date of Report'].strftime('%d/%m/%Y')
-            
-        # Extract Year from Date if missing
-        if 'Year' not in metadata and 'Date of Report' in metadata:
-            try:
-                date_str = str(metadata['Date of Report'])
-                if '/' in date_str:
-                    # Assume UK format (DD/MM/YYYY)
-                    metadata['Year'] = date_str.split('/')[-1]
-            except:
-                pass
-                
-        return metadata
-    
-    # First pass: Extract metadata for each record
-    for record_id in results_df['Record ID'].unique():
-        # Get a row for this record
-        record_row = results_df[results_df['Record ID'] == record_id].iloc[0]
-        report_metadata[record_id] = extract_metadata(record_row)
-    
-    # Second pass: Organize theme info by record
-    for _, row in results_df.iterrows():
-        if 'Record ID' in row and 'Theme' in row and 'Framework' in row:
-            record_id = row['Record ID']
-            framework = row['Framework']
-            theme = row['Theme']
-            confidence = row.get('Confidence', '')
-            score = row.get('Combined Score', 0)
-            matched_keywords = row.get('Matched Keywords', '')
-            matched_sentences = row.get('Matched Sentences', '')
-            
-            report_themes[record_id].append({
-                'framework': framework,
-                'theme': theme,
-                'confidence': confidence,
-                'score': score,
-                'keywords': matched_keywords,
-                'matched_sentences': matched_sentences
-            })
-    
-    # Create HTML content with modern styling and PDF conversion capabilities
-    html_content = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>BERT Theme Analysis Report</title>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <!-- Include html2pdf.js from CDN -->
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-        <style>
-            body { 
-                font-family: Arial, sans-serif; 
-                line-height: 1.6; 
-                margin: 0;
-                padding: 20px;
-                color: #333;
-                background-color: #f9f9f9;
-            }
-            h1 { 
-                color: #2c3e50; 
-                border-bottom: 3px solid #3498db; 
-                padding-bottom: 10px; 
-                margin-top: 30px;
-                font-weight: 600;
-            }
-            h2 { 
-                color: #2c3e50; 
-                margin-top: 30px; 
-                border-bottom: 2px solid #bdc3c7; 
-                padding-bottom: 5px; 
-                font-weight: 600;
-            }
-            h3 {
-                color: #34495e;
-                font-weight: 600;
-                margin-top: 20px;
-            }
-            .record-container { 
-                margin-bottom: 40px; 
-                background-color: white;
-                border-radius: 8px;
-                box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                padding: 20px;
-                page-break-after: always; 
-            }
-            .highlighted-text { 
-                margin: 15px 0; 
-                padding: 15px; 
-                border-radius: 4px;
-                border: 1px solid #ddd; 
-                background-color: #fff; 
-                line-height: 1.7;
-            }
-            .theme-info { margin: 15px 0; }
-            .theme-info table { 
-                border-collapse: collapse; 
-                width: 100%; 
-                margin-top: 15px;
-                border-radius: 4px;
-                overflow: hidden;
-            }
-            .theme-info th, .theme-info td { 
-                border: 1px solid #ddd; 
-                padding: 12px; 
-                text-align: left; 
-            }
-            .theme-info th { 
-                background-color: #3498db; 
-                color: white;
-                font-weight: 600;
-            }
-            .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
-            .theme-info tr:hover { background-color: #f1f1f1; }
-            .high-confidence { background-color: #D5F5E3; }  /* Light green */
-            .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
-            .low-confidence { background-color: #FADBD8; }   /* Light red */
-            .report-header {
-                background-color: #3498db;
-                color: white;
-                padding: 30px;
-                text-align: center;
-                border-radius: 8px;
-                margin-bottom: 30px;
-            }
-            .summary-card {
-                background-color: white;
-                border-radius: 8px;
-                box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                padding: 20px;
-                margin-bottom: 30px;
-                display: flex;
-                flex-wrap: wrap;
-                justify-content: space-between;
-            }
-            .summary-box {
-                flex: 1;
-                min-width: 200px;
-                padding: 15px;
-                text-align: center;
-                border-right: 1px solid #eee;
-            }
-            .summary-box:last-child {
-                border-right: none;
-            }
-            .summary-number {
-                font-size: 36px;
-                font-weight: bold;
-                color: #3498db;
-                margin-bottom: 10px;
-            }
-            .summary-label {
-                font-size: 14px;
-                color: #7f8c8d;
-                text-transform: uppercase;
-            }
-            .pdf-button {
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                background-color: #3498db;
-                color: white;
-                padding: 10px 15px;
-                border-radius: 5px;
-                cursor: pointer;
-                font-weight: bold;
-                z-index: 1000;
-                border: none;
-                box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            }
-            .pdf-button:hover {
-                background-color: #2980b9;
-            }
-            .metadata-table {
-                width: 100%;
-                margin-bottom: 20px;
-                border-collapse: collapse;
-            }
-            .metadata-table th {
-                background-color: #f2f2f2;
-                text-align: left;
-                padding: 8px;
-                width: 180px;
-                font-weight: bold;
-                border: 1px solid #ddd;
-            }
-            .metadata-table td {
-                padding: 8px;
-                border: 1px solid #ddd;
-            }
-            @media print {
-                .pdf-button { display: none; }
-                .record-container { page-break-after: always; }
-                body { background-color: white; }
-                .record-container, .summary-card { box-shadow: none; }
-            }
-        </style>
-    </head>
-    <body>
-        <!-- PDF Download Button -->
-        <button class="pdf-button" onclick="generatePDF()">Download as PDF</button>
-        
-        <!-- Content div that will be converted to PDF -->
-        <div id="content">
-            <div class="report-header">
-                <h1>BERT Theme Analysis Results</h1>
-                <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
-            </div>
-            
-            <div class="summary-card">
-                <div class="summary-box">
-                    <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
-                    <div class="summary-label">Documents Analyzed</div>
-                </div>
-                <div class="summary-box">
-                    <div class="summary-number">""" + str(len(results_df)) + """</div>
-                    <div class="summary-label">Theme Identifications</div>
-                </div>
-                <div class="summary-box">
-                    <div class="summary-number">""" + str(len(results_df['Framework'].unique())) + """</div>
-                    <div class="summary-label">Frameworks</div>
-                </div>
-            </div>
-        
-            <!-- Framework Summary -->
-            <h2>Framework Summary</h2>
-            <table class="theme-info">
-                <tr>
-                    <th>Framework</th>
-                    <th>Number of Themes</th>
-                    <th>Number of Documents</th>
-                </tr>
-    """
-    
-    for framework in results_df['Framework'].unique():
-        framework_results = results_df[results_df['Framework'] == framework]
-        num_themes = len(framework_results['Theme'].unique())
-        num_docs = len(framework_results['Record ID'].unique())
-        
-        html_content += f"""
-            <tr>
-                <td>{framework}</td>
-                <td>{num_themes}</td>
-                <td>{num_docs}</td>
-            </tr>
-        """
-    
-    html_content += """
-        </table>
-    
-        <!-- Document Analysis -->
-        <h2>Document Analysis</h2>
-    """
-    
-    # Priority order for metadata fields display
-    metadata_priority = [
-        'Report ID', 
-        'Date of Report', 
-        'Year',
-        'Coroner Name',
-        'Coroner Area',
-        'Deceased Name',
-        'Death Type'
-    ]
-    
-    for record_id, themes in report_themes.items():
-        if record_id in highlighted_texts:
-            record_title = next((row['Title'] for _, row in results_df.iterrows() 
-                               if row.get('Record ID') == record_id), f"Document {record_id}")
-            
-            # Get metadata for this record
-            metadata = report_metadata.get(record_id, {})
-            
-            html_content += f"""
-            <div class="record-container">
-                <h2>Document: {record_title}</h2>
-                
-                <!-- Metadata table -->
-                <table class="metadata-table">
-            """
-            
-            # First add metadata fields in priority order
-            for field in metadata_priority:
-                if field in metadata:
-                    value = metadata[field]
-                    # Format if it's a datetime
-                    if pd.api.types.is_datetime64_any_dtype(value):
-                        value = value.strftime('%d/%m/%Y')
-                    html_content += f"""
-                    <tr>
-                        <th>{field}</th>
-                        <td>{value}</td>
-                    </tr>
-                    """
-            
-            # Then add any additional metadata fields not in priority list
-            for field, value in metadata.items():
-                if field not in metadata_priority and field != 'Title' and field != 'Record ID':
-                    # Format if it's a datetime
-                    if pd.api.types.is_datetime64_any_dtype(value):
-                        value = value.strftime('%d/%m/%Y')
-                    html_content += f"""
-                    <tr>
-                        <th>{field}</th>
-                        <td>{value}</td>
-                    </tr>
-                    """
-            
-            html_content += """
-                </table>
-                
-                <div class="theme-info">
-                    <h3>Identified Themes</h3>
-                    <table>
-                        <tr>
-                            <th>Framework</th>
-                            <th>Theme</th>
-                            <th>Confidence</th>
-                            <th>Score</th>
-                            <th>Matched Keywords</th>
-                        </tr>
-            """
-            
-            # Add theme rows
-            for theme_info in sorted(themes, key=lambda x: (x['framework'], -x.get('score', 0))):
-                confidence_class = ''
-                if theme_info.get('confidence') == 'High':
-                    confidence_class = 'high-confidence'
-                elif theme_info.get('confidence') == 'Medium':
-                    confidence_class = 'medium-confidence'
-                elif theme_info.get('confidence') == 'Low':
-                    confidence_class = 'low-confidence'
-                
-                html_content += f"""
-                        <tr>
-                            <td>{theme_info['framework']}</td>
-                            <td>{theme_info['theme']}</td>
-                            <td class="{confidence_class}">{theme_info.get('confidence', '')}</td>
-                            <td>{round(theme_info.get('score', 0), 3)}</td>
-                            <td>{theme_info.get('keywords', '')}</td>
-                        </tr>
-                """
-                
-                # If there are matched sentences, add a row for them
-                if 'matched_sentences' in theme_info and theme_info['matched_sentences']:
-                    html_content += f"""
-                        <tr>
-                            <td colspan="5"><strong>Matched Sentences:</strong> {theme_info['matched_sentences']}</td>
-                        </tr>
-                    """
-            
-            html_content += """
-                    </table>
-                </div>
-                
-                <div class="highlighted-text">
-                    <h3>Text with Highlighted Keywords</h3>
-            """
-            
-            # Add highlighted text
-            html_content += highlighted_texts[record_id]
-            
-            html_content += """
-                </div>
-            </div>
-            """
-    
-    # Add JavaScript for PDF conversion
-    html_content += """
-        </div> <!-- End of content div -->
-        
-        <script>
-            function generatePDF() {
-                // Set up options for PDF generation
-                const opt = {
-                    margin: 10,
-                    filename: 'theme_analysis_report_""" + datetime.now().strftime("%Y%m%d_%H%M%S") + """.pdf',
-                    image: { type: 'jpeg', quality: 0.98 },
-                    html2canvas: { scale: 2, useCORS: true },
-                    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-                };
-                
-                // Get the content element
-                const element = document.getElementById('content');
-                
-                // Hide the PDF button temporarily during generation
-                const button = document.querySelector('.pdf-button');
-                button.style.display = 'none';
-                
-                // Generate the PDF
-                html2pdf().set(opt).from(element).save().then(() => {
-                    // Show the button again after PDF is generated
-                    button.style.display = 'block';
-                });
-            }
-        </script>
-    </body>
-    </html>
-    """
-    
-    return html_content
 
     
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
