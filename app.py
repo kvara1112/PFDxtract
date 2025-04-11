@@ -679,98 +679,98 @@ class ThemeAnalyzer:
     # First, we need to modify the theme analyzer's create_detailed_results method 
 # to store the matched sentences with each theme detection
 
-def create_detailed_results(self, data, content_column='Content'):
-    """
-    Analyze multiple documents and create detailed results with progress tracking.
-    
-    Args:
-        data (pd.DataFrame): DataFrame containing documents
-        content_column (str): Name of the column containing text to analyze
+    def create_detailed_results(self, data, content_column='Content'):
+        """
+        Analyze multiple documents and create detailed results with progress tracking.
         
-    Returns:
-        Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
-    """
-    import streamlit as st
-    
-    results = []
-    highlighted_texts = {}
-    
-    # Create progress tracking elements
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    doc_count_text = st.empty()
-    
-    # Calculate total documents to process
-    total_docs = len(data)
-    doc_count_text.text(f"Processing 0/{total_docs} documents")
-    
-    # Process each document
-    for idx, (i, row) in enumerate(data.iterrows()):
-        # Update progress
-        progress = (idx + 1) / total_docs
-        progress_bar.progress(progress)
-        status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
-        
-        # Skip empty content
-        if pd.isna(row[content_column]) or row[content_column] == '':
-            continue
+        Args:
+            data (pd.DataFrame): DataFrame containing documents
+            content_column (str): Name of the column containing text to analyze
             
-        content = str(row[content_column])
+        Returns:
+            Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
+        """
+        import streamlit as st
         
-        # Analyze themes and get highlights
-        framework_themes, theme_highlights = self.analyze_document(content)
+        results = []
+        highlighted_texts = {}
         
-        # Create highlighted HTML for this document
-        highlighted_html = self.create_highlighted_html(content, theme_highlights)
-        highlighted_texts[i] = highlighted_html
+        # Create progress tracking elements
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        doc_count_text = st.empty()
         
-        # Store results for each theme
-        theme_count = 0
-        for framework_name, themes in framework_themes.items():
-            for theme in themes:
-                theme_count += 1
+        # Calculate total documents to process
+        total_docs = len(data)
+        doc_count_text.text(f"Processing 0/{total_docs} documents")
+        
+        # Process each document
+        for idx, (i, row) in enumerate(data.iterrows()):
+            # Update progress
+            progress = (idx + 1) / total_docs
+            progress_bar.progress(progress)
+            status_text.text(f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}")
+            
+            # Skip empty content
+            if pd.isna(row[content_column]) or row[content_column] == '':
+                continue
                 
-                # Extract matched sentences for this theme
-                matched_sentences = []
-                theme_key = f"{framework_name}_{theme['theme']}"
-                if theme_key in theme_highlights:
-                    for start_pos, end_pos, keywords_str, sentence in theme_highlights[theme_key]:
-                        matched_sentences.append(sentence)
-                
-                # Join sentences if there are any
-                matched_text = "; ".join(matched_sentences) if matched_sentences else ""
-                
-                results.append({
-                    'Record ID': i,
-                    'Title': row.get('Title', f'Document {i}'),
-                    'Framework': framework_name,
-                    'Theme': theme['theme'],
-                    'Confidence': self._get_confidence_label(theme['combined_score']),
-                    'Combined Score': theme['combined_score'],
-                    'Semantic_Similarity': theme['semantic_similarity'],
-                    'Matched Keywords': theme['matched_keywords'],
-                    'Matched Sentences': matched_text  # Add matched sentences to results
-                })
+            content = str(row[content_column])
+            
+            # Analyze themes and get highlights
+            framework_themes, theme_highlights = self.analyze_document(content)
+            
+            # Create highlighted HTML for this document
+            highlighted_html = self.create_highlighted_html(content, theme_highlights)
+            highlighted_texts[i] = highlighted_html
+            
+            # Store results for each theme
+            theme_count = 0
+            for framework_name, themes in framework_themes.items():
+                for theme in themes:
+                    theme_count += 1
+                    
+                    # Extract matched sentences for this theme
+                    matched_sentences = []
+                    theme_key = f"{framework_name}_{theme['theme']}"
+                    if theme_key in theme_highlights:
+                        for start_pos, end_pos, keywords_str, sentence in theme_highlights[theme_key]:
+                            matched_sentences.append(sentence)
+                    
+                    # Join sentences if there are any
+                    matched_text = "; ".join(matched_sentences) if matched_sentences else ""
+                    
+                    results.append({
+                        'Record ID': i,
+                        'Title': row.get('Title', f'Document {i}'),
+                        'Framework': framework_name,
+                        'Theme': theme['theme'],
+                        'Confidence': self._get_confidence_label(theme['combined_score']),
+                        'Combined Score': theme['combined_score'],
+                        'Semantic_Similarity': theme['semantic_similarity'],
+                        'Matched Keywords': theme['matched_keywords'],
+                        'Matched Sentences': matched_text  # Add matched sentences to results
+                    })
+            
+            # Update documents processed count with theme info
+            doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
         
-        # Update documents processed count with theme info
-        doc_count_text.text(f"Processed {idx + 1}/{total_docs} documents. Found {theme_count} themes in current document.")
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        
+        # Final count update
+        if results:
+            doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
+        else:
+            doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
+        
+        # Create results DataFrame
+        results_df = pd.DataFrame(results) if results else pd.DataFrame()
+        
+        return results_df, highlighted_texts
     
-    # Clear progress indicators
-    progress_bar.empty()
-    status_text.empty()
-    
-    # Final count update
-    if results:
-        doc_count_text.text(f"Completed analysis of {total_docs} documents. Found {len(results)} total themes.")
-    else:
-        doc_count_text.text(f"Completed analysis, but no themes were identified in the documents.")
-    
-    # Create results DataFrame
-    results_df = pd.DataFrame(results) if results else pd.DataFrame()
-    
-    return results_df, highlighted_texts
-
-# Now let's modify the export_to_excel function to ensure it includes matched sentences
+    # Now let's modify the export_to_excel function to ensure it includes matched sentences
 
 def export_to_excel(df: pd.DataFrame) -> bytes:
     """
