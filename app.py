@@ -1179,7 +1179,8 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
     except Exception as e:
         logging.error(f"Error exporting to Excel: {e}", exc_info=True)
         raise Exception(f"Failed to export data to Excel: {str(e)}")
-        
+
+
 def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
     """
     Create a single integrated HTML file with all highlighted records, themes, and framework information
@@ -1634,6 +1635,8 @@ def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
     """
     
     return html_content
+
+    
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
     """BM25 vectorizer implementation"""
     def __init__(
