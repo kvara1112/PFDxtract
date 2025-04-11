@@ -6417,9 +6417,11 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     pdf_filename = f"theme_analysis_report_{timestamp}.pdf"
 
                     # Create PDF with comprehensive results
-                    pdf_file = theme_analyzer.create_comprehensive_pdf(
-                        results_df, highlighted_texts, pdf_filename
+                    pdf_filename = theme_analyzer.convert_html_to_pdf(
+                        theme_analyzer.create_highlighted_html(text, theme_highlights), 
+                        f"theme_analysis_{timestamp}.pdf"
                     )
+                                        
 
                     # Create HTML report
                     html_content = theme_analyzer._create_integrated_html_for_pdf(
