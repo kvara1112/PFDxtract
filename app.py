@@ -58,7 +58,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 import re
 from collections import Counter
 from tqdm import tqdm
-from collections import defaultdict  # Add this import here
+from collections import defaultdict  
 
 class ThemeAnalyzer:
     def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
@@ -238,13 +238,6 @@ class ThemeAnalyzer:
         if not text or not theme_highlights:
             return text
     
-        # Make sure we have a complete theme color map
-        all_theme_keys = list(theme_highlights.keys())
-        for theme_key in all_theme_keys:
-            if theme_key not in self.theme_color_map:
-                # Assign new unique color if necessary
-                self._assign_unique_theme_color(theme_key)
-        
         # Convert highlights to a flat list of positions
         all_positions = []
         for theme_key, positions in theme_highlights.items():
@@ -252,18 +245,18 @@ class ThemeAnalyzer:
             for pos_info in positions:
                 # position format: (start_pos, end_pos, keywords_str, sentence)
                 all_positions.append((
-                    pos_info[0],  # start position
-                    pos_info[1],  # end position
-                    theme_key,    # theme key
-                    pos_info[2],  # keywords string
-                    pos_info[3],  # original sentence
-                    theme_color   # theme color
+                    pos_info[0],
+                    pos_info[1],
+                    theme_key,
+                    pos_info[2],
+                    pos_info[3] if len(pos_info) > 3 else "",
+                    theme_color
                 ))
     
         # Sort positions by start position
         all_positions.sort()
     
-        # Merge overlapping sentences with gradient approach
+        # Merge overlapping sentences
         merged_positions = []
         if all_positions:
             current = all_positions[0]
@@ -273,17 +266,9 @@ class ThemeAnalyzer:
                     combined_theme = current[2] + " + " + all_positions[i][2]
                     combined_keywords = current[3] + " + " + all_positions[i][3]
                     
-                    # Keep track of all themes and colors for this overlap
-                    theme_info = current[2].split(" + ")
-                    color_info = [current[5]]
-                    
-                    # Add new theme and color if not already included
-                    new_theme = all_positions[i][2]
-                    new_color = all_positions[i][5]
-                    
-                    if new_theme not in theme_info:
-                        theme_info.append(new_theme)
-                        color_info.append(new_color)
+                    # Create simple diagonal gradient for 2 colors
+                    color1 = current[5]
+                    color2 = all_positions[i][5]
                     
                     # Update current with merged information
                     current = (
@@ -292,7 +277,7 @@ class ThemeAnalyzer:
                         combined_theme,            # Combined theme names
                         combined_keywords,         # Combined keywords
                         current[4],                # Keep original sentence
-                        color_info                 # All theme colors (as a list)
+                        [color1, color2]           # Store both colors
                     )
                 else:
                     merged_positions.append(current)
@@ -308,16 +293,18 @@ class ThemeAnalyzer:
             if start > last_end:
                 result.append(text[last_end:start])
     
-            # Add highlighted text with tooltip using gradients for multiple themes
-            if isinstance(color_info, list) and len(color_info) > 1:
-                # Calculate gradient stops for multiple colors
-                num_colors = len(color_info)
-                gradient_css = self._create_gradient_css(color_info)
-                style = f"background: {gradient_css}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
+            # Add highlighted text with tooltip
+            if isinstance(color_info, list):
+                # Create a simple gradient CSS
+                if len(color_info) == 1:
+                    style = f"background-color:{color_info[0]}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
+                else:
+                    # Use a simple diagonal gradient
+                    style = f"background: linear-gradient(135deg, {color_info[0]} 50%, {color_info[1]} 50%); border:1px solid #666; border-radius:2px; padding:1px 2px;"
             else:
-                # For single theme, use solid background
-                style = f"background-color:{color_info if isinstance(color_info, str) else color_info[0]}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
-                
+                # Single color
+                style = f"background-color:{color_info}; border:1px solid #666; border-radius:2px; padding:1px 2px;"
+            
             tooltip = f"Theme: {theme_key}\nKeywords: {keywords}"
             result.append(f'<span style="{style}" title="{tooltip}">{text[start:end]}</span>')
     
@@ -328,59 +315,7 @@ class ThemeAnalyzer:
             result.append(text[last_end:])
     
         return "".join(result)
-
-    def _create_gradient_css(self, colors):
-        """Create a CSS gradient string from a list of colors
-        
-        For 2 colors: simple diagonal gradient
-        For 3+ colors: striped gradient with equal divisions
-        """
-        if len(colors) == 2:
-            # Simple diagonal gradient for 2 colors
-            return f"linear-gradient(135deg, {colors[0]} 50%, {colors[1]} 50%)"
-        else:
-            # Create striped gradient for 3+ colors
-            stops = []
-            segment_size = 100.0 / len(colors)
-            
-            for i, color in enumerate(colors):
-                start = i * segment_size
-                end = (i + 1) * segment_size
-                
-                # Add color stop
-                stops.append(f"{color} {start:.1f}%")
-                stops.append(f"{color} {end:.1f}%")
-            
-            return f"linear-gradient(135deg, {', '.join(stops)})"
-
-    def _assign_unique_theme_color(self, theme_key):
-        """Assign a unique color to a theme, ensuring no duplicates"""
-        # Get currently used colors
-        used_colors = set(self.theme_color_map.values())
-        
-        # Find an unused color from our palette
-        for color in self.theme_colors:
-            if color not in used_colors:
-                self.theme_color_map[theme_key] = color
-                return
-        
-        # If all colors are used, generate a new unique color
-        import random
-        
-        def random_hex_color():
-            """Generate a random pastel color that's visually distinct"""
-            # Higher base value (200) ensures lighter/pastel colors
-            r = random.randint(180, 240)
-            g = random.randint(180, 240)
-            b = random.randint(180, 240)
-            return f"#{r:02x}{g:02x}{b:02x}"
-        
-        # Generate colors until we find one that's not too similar to existing ones
-        while True:
-            new_color = random_hex_color()
-            if new_color not in used_colors:
-                self.theme_color_map[theme_key] = new_color
-                break
+    
     
     def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
         """
@@ -705,11 +640,10 @@ class ThemeAnalyzer:
             """
     
         return html_content
-
-
+    
     def _ensure_unique_theme_colors(self, results_df):
         """Ensure all themes have unique colors by checking and reassigning if needed"""
-        from collections import defaultdict  # Add this import
+        from collections import defaultdict
         
         # First collect all theme keys
         theme_keys = set()
@@ -735,9 +669,63 @@ class ThemeAnalyzer:
                 # Keep the first theme's color, reassign others
                 for theme_key in duplicate_themes[1:]:
                     self._assign_unique_theme_color(theme_key)
-
+    
+    def _assign_unique_theme_color(self, theme_key):
+        """Assign a unique color to a theme, ensuring no duplicates"""
+        # Get currently used colors
+        used_colors = set(self.theme_color_map.values())
+        
+        # Find an unused color from our palette
+        for color in self.theme_colors:
+            if color not in used_colors:
+                self.theme_color_map[theme_key] = color
+                return
+        
+        # If all colors are used, generate a new unique color
+        import random
+        
+        def random_hex_color():
+            """Generate a random pastel color that's visually distinct"""
+            # Higher base value (200) ensures lighter/pastel colors
+            r = random.randint(180, 240)
+            g = random.randint(180, 240)
+            b = random.randint(180, 240)
+            return f"#{r:02x}{g:02x}{b:02x}"
+        
+        # Generate colors until we find one that's not too similar to existing ones
+        while True:
+            new_color = random_hex_color()
+            if new_color not in used_colors:
+                self.theme_color_map[theme_key] = new_color
+                break
 
     
+    def _create_gradient_css(self, colors):
+        """Create a CSS gradient string from a list of colors
+        
+        For 2 colors: simple diagonal gradient
+        For 3+ colors: striped gradient with equal divisions
+        """
+        if len(colors) == 2:
+            # Simple diagonal gradient for 2 colors
+            return f"linear-gradient(135deg, {colors[0]} 50%, {colors[1]} 50%)"
+        else:
+            # Create striped gradient for 3+ colors
+            stops = []
+            segment_size = 100.0 / len(colors)
+            
+            for i, color in enumerate(colors):
+                start = i * segment_size
+                end = (i + 1) * segment_size
+                
+                # Add color stop
+                stops.append(f"{color} {start:.1f}%")
+                stops.append(f"{color} {end:.1f}%")
+            
+            return f"linear-gradient(135deg, {', '.join(stops)})"
+
+
+
 
 ######
 
