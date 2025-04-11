@@ -327,382 +327,382 @@ class ThemeAnalyzer:
     
         return "".join(result)
 
-def _create_gradient_css(self, colors):
-    """Create a CSS gradient string from a list of colors
-    
-    For 2 colors: simple diagonal gradient
-    For 3+ colors: striped gradient with equal divisions
-    """
-    if len(colors) == 2:
-        # Simple diagonal gradient for 2 colors
-        return f"linear-gradient(135deg, {colors[0]} 50%, {colors[1]} 50%)"
-    else:
-        # Create striped gradient for 3+ colors
-        stops = []
-        segment_size = 100.0 / len(colors)
+    def _create_gradient_css(self, colors):
+        """Create a CSS gradient string from a list of colors
         
-        for i, color in enumerate(colors):
-            start = i * segment_size
-            end = (i + 1) * segment_size
+        For 2 colors: simple diagonal gradient
+        For 3+ colors: striped gradient with equal divisions
+        """
+        if len(colors) == 2:
+            # Simple diagonal gradient for 2 colors
+            return f"linear-gradient(135deg, {colors[0]} 50%, {colors[1]} 50%)"
+        else:
+            # Create striped gradient for 3+ colors
+            stops = []
+            segment_size = 100.0 / len(colors)
             
-            # Add color stop
-            stops.append(f"{color} {start:.1f}%")
-            stops.append(f"{color} {end:.1f}%")
-        
-        return f"linear-gradient(135deg, {', '.join(stops)})"
-
-def _assign_unique_theme_color(self, theme_key):
-    """Assign a unique color to a theme, ensuring no duplicates"""
-    # Get currently used colors
-    used_colors = set(self.theme_color_map.values())
-    
-    # Find an unused color from our palette
-    for color in self.theme_colors:
-        if color not in used_colors:
-            self.theme_color_map[theme_key] = color
-            return
-    
-    # If all colors are used, generate a new unique color
-    import random
-    
-    def random_hex_color():
-        """Generate a random pastel color that's visually distinct"""
-        # Higher base value (200) ensures lighter/pastel colors
-        r = random.randint(180, 240)
-        g = random.randint(180, 240)
-        b = random.randint(180, 240)
-        return f"#{r:02x}{g:02x}{b:02x}"
-    
-    # Generate colors until we find one that's not too similar to existing ones
-    while True:
-        new_color = random_hex_color()
-        if new_color not in used_colors:
-            self.theme_color_map[theme_key] = new_color
-            break
-
-def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
-    """
-    Create a single integrated HTML file with all highlighted records, themes, and framework information
-    that can be easily converted to PDF
-    """
-    from collections import defaultdict
-    from datetime import datetime
-
-    # Map report IDs to their themes
-    report_themes = defaultdict(list)
-    
-    # Ensure all themes have unique colors
-    self._ensure_unique_theme_colors(results_df)
-
-    # Build the report data with consistent colors
-    for _, row in results_df.iterrows():
-        if "Record ID" in row and "Theme" in row and "Framework" in row:
-            record_id = row["Record ID"]
-            framework = row["Framework"]
-            theme = row["Theme"]
-            confidence = row.get("Confidence", "")
-            score = row.get("Combined Score", 0)
-            matched_keywords = row.get("Matched Keywords", "")
-
-            # Get theme color from our mapping
-            theme_key = f"{framework}_{theme}"
-            theme_color = self._get_theme_color(theme_key)
-
-            report_themes[record_id].append({
-                "framework": framework,
-                "theme": theme,
-                "confidence": confidence,
-                "score": score,
-                "keywords": matched_keywords,
-                "color": theme_color,
-                "theme_key": theme_key
-            })
-
-    # Create HTML content with modern styling
-    html_content = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>BERT Theme Analysis Report</title>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <style>
-                body { 
-                    font-family: Arial, sans-serif; 
-                    line-height: 1.6; 
-                    margin: 0;
-                    padding: 20px;
-                    color: #333;
-                    background-color: #f9f9f9;
-                }
-                h1 { 
-                    color: #2c3e50; 
-                    border-bottom: 3px solid #3498db; 
-                    padding-bottom: 10px; 
-                    margin-top: 30px;
-                    font-weight: 600;
-                }
-                h2 { 
-                    color: #2c3e50; 
-                    margin-top: 30px; 
-                    border-bottom: 2px solid #bdc3c7; 
-                    padding-bottom: 5px; 
-                    font-weight: 600;
-                }
-                h3 {
-                    color: #34495e;
-                    font-weight: 600;
-                    margin-top: 20px;
-                }
-                .record-container { 
-                    margin-bottom: 40px; 
-                    background-color: white;
-                    border-radius: 8px;
-                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                    padding: 20px;
-                    page-break-after: always; 
-                }
-                .highlighted-text { 
-                    margin: 15px 0; 
-                    padding: 15px; 
-                    border-radius: 4px;
-                    border: 1px solid #ddd; 
-                    background-color: #fff; 
-                    line-height: 1.7;
-                }
-                .theme-info { margin: 15px 0; }
-                .theme-info table { 
-                    border-collapse: collapse; 
-                    width: 100%; 
-                    margin-top: 15px;
-                    border-radius: 4px;
-                    overflow: hidden;
-                }
-                .theme-info th, .theme-info td { 
-                    border: 1px solid #ddd; 
-                    padding: 12px; 
-                    text-align: left; 
-                }
-                .theme-info th { 
-                    background-color: #3498db; 
-                    color: white;
-                    font-weight: 600;
-                }
-                .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
-                .theme-info tr:hover { background-color: #f1f1f1; }
-                .high-confidence { background-color: #D5F5E3; }  /* Light green */
-                .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
-                .low-confidence { background-color: #FADBD8; }   /* Light red */
-                .report-header {
-                    background-color: #3498db;
-                    color: white;
-                    padding: 30px;
-                    text-align: center;
-                    border-radius: 8px;
-                    margin-bottom: 30px;
-                }
-                .summary-card {
-                    background-color: white;
-                    border-radius: 8px;
-                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                    padding: 20px;
-                    margin-bottom: 30px;
-                    display: flex;
-                    flex-wrap: wrap;
-                    justify-content: space-between;
-                }
-                .summary-box {
-                    flex: 1;
-                    min-width: 200px;
-                    padding: 15px;
-                    text-align: center;
-                    border-right: 1px solid #eee;
-                }
-                .summary-box:last-child {
-                    border-right: none;
-                }
-                .summary-number {
-                    font-size: 36px;
-                    font-weight: bold;
-                    color: #3498db;
-                    margin-bottom: 10px;
-                }
-                .summary-label {
-                    font-size: 14px;
-                    color: #7f8c8d;
-                    text-transform: uppercase;
-                }
-                .theme-color-box {
-                    display: inline-block;
-                    width: 20px;
-                    height: 20px;
-                    margin-right: 5px;
-                    vertical-align: middle;
-                    border: 1px solid #999;
-                }
-                .legend-container {
-                    background-color: white;
-                    border-radius: 8px;
-                    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-                    padding: 15px;
-                    margin-bottom: 20px;
-                }
-                .legend-title {
-                    font-weight: bold;
-                    margin-bottom: 10px;
-                }
-                .legend-item {
-                    display: flex;
-                    align-items: center;
-                    margin-bottom: 5px;
-                }
-                @media print {
-                    .record-container { page-break-after: always; }
-                    body { background-color: white; }
-                    .record-container, .summary-card { box-shadow: none; }
-                }
+            for i, color in enumerate(colors):
+                start = i * segment_size
+                end = (i + 1) * segment_size
                 
-                /* Define theme-specific CSS classes for consistency */
-    """
+                # Add color stop
+                stops.append(f"{color} {start:.1f}%")
+                stops.append(f"{color} {end:.1f}%")
+            
+            return f"linear-gradient(135deg, {', '.join(stops)})"
 
-    # Add dynamic CSS classes for each theme
-    theme_keys = set()
-    for _, row in results_df.iterrows():
-        if "Framework" in row and "Theme" in row:
-            theme_keys.add(f"{row['Framework']}_{row['Theme']}")
+    def _assign_unique_theme_color(self, theme_key):
+        """Assign a unique color to a theme, ensuring no duplicates"""
+        # Get currently used colors
+        used_colors = set(self.theme_color_map.values())
+        
+        # Find an unused color from our palette
+        for color in self.theme_colors:
+            if color not in used_colors:
+                self.theme_color_map[theme_key] = color
+                return
+        
+        # If all colors are used, generate a new unique color
+        import random
+        
+        def random_hex_color():
+            """Generate a random pastel color that's visually distinct"""
+            # Higher base value (200) ensures lighter/pastel colors
+            r = random.randint(180, 240)
+            g = random.randint(180, 240)
+            b = random.randint(180, 240)
+            return f"#{r:02x}{g:02x}{b:02x}"
+        
+        # Generate colors until we find one that's not too similar to existing ones
+        while True:
+            new_color = random_hex_color()
+            if new_color not in used_colors:
+                self.theme_color_map[theme_key] = new_color
+                break
     
-    for theme_key in theme_keys:
-        color = self._get_theme_color(theme_key)
-        safe_class_name = "theme-" + theme_key.replace(" ", "-").replace("(", "").replace(")", "").replace(",", "").replace(".", "").lower()
-        html_content += f"""
-                .{safe_class_name} {{
-                    background-color: {color} !important;
-                }}
+    def _create_integrated_html_for_pdf(self, results_df, highlighted_texts):
         """
-
-    html_content += """
-            </style>
-        </head>
-        <body>
-            <div class="report-header">
-                <h1>BERT Theme Analysis Results</h1>
-                <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
-            </div>
-            
-            <div class="summary-card">
-                <div class="summary-box">
-                    <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
-                    <div class="summary-label">Documents Analyzed</div>
-                </div>
-                <div class="summary-box">
-                    <div class="summary-number">""" + str(len(results_df)) + """</div>
-                    <div class="summary-label">Theme Identifications</div>
-                </div>
-                <div class="summary-box">
-                    <div class="summary-number">""" + str(len(results_df["Framework"].unique())) + """</div>
-                    <div class="summary-label">Frameworks</div>
-                </div>
-            </div>
-            
-            <!-- Add legend explaining gradients -->
-            <div class="legend-container">
-                <div class="legend-title">Theme Color Guide</div>
-                <div>When text contains multiple themes, a gradient background is used to show all applicable themes. Check the tooltip for details.</div>
-            </div>
+        Create a single integrated HTML file with all highlighted records, themes, and framework information
+        that can be easily converted to PDF
         """
-
-    # Add framework summary
-    html_content += """
-            <h2>Framework Summary</h2>
-            <table class="theme-info">
-                <tr>
-                    <th>Framework</th>
-                    <th>Number of Themes</th>
-                    <th>Number of Documents</th>
-                </tr>
+        from collections import defaultdict
+        from datetime import datetime
+    
+        # Map report IDs to their themes
+        report_themes = defaultdict(list)
+        
+        # Ensure all themes have unique colors
+        self._ensure_unique_theme_colors(results_df)
+    
+        # Build the report data with consistent colors
+        for _, row in results_df.iterrows():
+            if "Record ID" in row and "Theme" in row and "Framework" in row:
+                record_id = row["Record ID"]
+                framework = row["Framework"]
+                theme = row["Theme"]
+                confidence = row.get("Confidence", "")
+                score = row.get("Combined Score", 0)
+                matched_keywords = row.get("Matched Keywords", "")
+    
+                # Get theme color from our mapping
+                theme_key = f"{framework}_{theme}"
+                theme_color = self._get_theme_color(theme_key)
+    
+                report_themes[record_id].append({
+                    "framework": framework,
+                    "theme": theme,
+                    "confidence": confidence,
+                    "score": score,
+                    "keywords": matched_keywords,
+                    "color": theme_color,
+                    "theme_key": theme_key
+                })
+    
+        # Create HTML content with modern styling
+        html_content = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>BERT Theme Analysis Report</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        line-height: 1.6; 
+                        margin: 0;
+                        padding: 20px;
+                        color: #333;
+                        background-color: #f9f9f9;
+                    }
+                    h1 { 
+                        color: #2c3e50; 
+                        border-bottom: 3px solid #3498db; 
+                        padding-bottom: 10px; 
+                        margin-top: 30px;
+                        font-weight: 600;
+                    }
+                    h2 { 
+                        color: #2c3e50; 
+                        margin-top: 30px; 
+                        border-bottom: 2px solid #bdc3c7; 
+                        padding-bottom: 5px; 
+                        font-weight: 600;
+                    }
+                    h3 {
+                        color: #34495e;
+                        font-weight: 600;
+                        margin-top: 20px;
+                    }
+                    .record-container { 
+                        margin-bottom: 40px; 
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 20px;
+                        page-break-after: always; 
+                    }
+                    .highlighted-text { 
+                        margin: 15px 0; 
+                        padding: 15px; 
+                        border-radius: 4px;
+                        border: 1px solid #ddd; 
+                        background-color: #fff; 
+                        line-height: 1.7;
+                    }
+                    .theme-info { margin: 15px 0; }
+                    .theme-info table { 
+                        border-collapse: collapse; 
+                        width: 100%; 
+                        margin-top: 15px;
+                        border-radius: 4px;
+                        overflow: hidden;
+                    }
+                    .theme-info th, .theme-info td { 
+                        border: 1px solid #ddd; 
+                        padding: 12px; 
+                        text-align: left; 
+                    }
+                    .theme-info th { 
+                        background-color: #3498db; 
+                        color: white;
+                        font-weight: 600;
+                    }
+                    .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
+                    .theme-info tr:hover { background-color: #f1f1f1; }
+                    .high-confidence { background-color: #D5F5E3; }  /* Light green */
+                    .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
+                    .low-confidence { background-color: #FADBD8; }   /* Light red */
+                    .report-header {
+                        background-color: #3498db;
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                        border-radius: 8px;
+                        margin-bottom: 30px;
+                    }
+                    .summary-card {
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 20px;
+                        margin-bottom: 30px;
+                        display: flex;
+                        flex-wrap: wrap;
+                        justify-content: space-between;
+                    }
+                    .summary-box {
+                        flex: 1;
+                        min-width: 200px;
+                        padding: 15px;
+                        text-align: center;
+                        border-right: 1px solid #eee;
+                    }
+                    .summary-box:last-child {
+                        border-right: none;
+                    }
+                    .summary-number {
+                        font-size: 36px;
+                        font-weight: bold;
+                        color: #3498db;
+                        margin-bottom: 10px;
+                    }
+                    .summary-label {
+                        font-size: 14px;
+                        color: #7f8c8d;
+                        text-transform: uppercase;
+                    }
+                    .theme-color-box {
+                        display: inline-block;
+                        width: 20px;
+                        height: 20px;
+                        margin-right: 5px;
+                        vertical-align: middle;
+                        border: 1px solid #999;
+                    }
+                    .legend-container {
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 15px;
+                        margin-bottom: 20px;
+                    }
+                    .legend-title {
+                        font-weight: bold;
+                        margin-bottom: 10px;
+                    }
+                    .legend-item {
+                        display: flex;
+                        align-items: center;
+                        margin-bottom: 5px;
+                    }
+                    @media print {
+                        .record-container { page-break-after: always; }
+                        body { background-color: white; }
+                        .record-container, .summary-card { box-shadow: none; }
+                    }
+                    
+                    /* Define theme-specific CSS classes for consistency */
         """
-
-    for framework in results_df["Framework"].unique():
-        framework_results = results_df[results_df["Framework"] == framework]
-        num_themes = len(framework_results["Theme"].unique())
-        num_docs = len(framework_results["Record ID"].unique())
-
-        html_content += f"""
-                <tr>
-                    <td>{framework}</td>
-                    <td>{num_themes}</td>
-                    <td>{num_docs}</td>
-                </tr>
-            """
-
-    html_content += """
-            </table>
-        """
-
-    # Add each record with its themes and highlighted text
-    html_content += "<h2>Document Analysis</h2>"
-
-    for record_id, themes in report_themes.items():
-        if record_id in highlighted_texts:
-            record_title = next(
-                (row["Title"] for _, row in results_df.iterrows() if row.get("Record ID") == record_id),
-                f"Document {record_id}"
-            )
-
+    
+        # Add dynamic CSS classes for each theme
+        theme_keys = set()
+        for _, row in results_df.iterrows():
+            if "Framework" in row and "Theme" in row:
+                theme_keys.add(f"{row['Framework']}_{row['Theme']}")
+        
+        for theme_key in theme_keys:
+            color = self._get_theme_color(theme_key)
+            safe_class_name = "theme-" + theme_key.replace(" ", "-").replace("(", "").replace(")", "").replace(",", "").replace(".", "").lower()
             html_content += f"""
-                <div class="record-container">
-                    <h2>Document: {record_title}</h2>
-                    
-                    <div class="theme-info">
-                        <h3>Identified Themes</h3>
-                        <table>
-                            <tr>
-                                <th>Framework</th>
-                                <th>Theme</th>
-                                <th>Confidence</th>
-                                <th>Score</th>
-                                <th>Matched Keywords</th>
-                                <th>Color</th>
-                            </tr>
-                """
-
-            # Add theme rows with consistent styling and no gradients
-            for theme_info in sorted(themes, key=lambda x: (x["framework"], -x.get("score", 0))):
-                theme_color = theme_info["color"]
+                    .{safe_class_name} {{
+                        background-color: {color} !important;
+                    }}
+            """
+    
+        html_content += """
+                </style>
+            </head>
+            <body>
+                <div class="report-header">
+                    <h1>BERT Theme Analysis Results</h1>
+                    <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
+                </div>
                 
-                html_content += f"""
-                            <tr style="background-color: {theme_color};">
-                                <td>{theme_info['framework']}</td>
-                                <td>{theme_info['theme']}</td>
-                                <td>{theme_info.get('confidence', '')}</td>
-                                <td>{round(theme_info.get('score', 0), 3)}</td>
-                                <td>{theme_info.get('keywords', '')}</td>
-                                <td><div class="theme-color-box" style="background-color:{theme_color};"></div></td>
-                            </tr>
-                    """
-
-            html_content += """
-                        </table>
+                <div class="summary-card">
+                    <div class="summary-box">
+                        <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
+                        <div class="summary-label">Documents Analyzed</div>
                     </div>
-                    
-                    <div class="highlighted-text">
-                        <h3>Text with Highlighted Keywords</h3>
-                """
-
-            # Add highlighted text
-            html_content += highlighted_texts[record_id]
-
-            html_content += """
+                    <div class="summary-box">
+                        <div class="summary-number">""" + str(len(results_df)) + """</div>
+                        <div class="summary-label">Theme Identifications</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-number">""" + str(len(results_df["Framework"].unique())) + """</div>
+                        <div class="summary-label">Frameworks</div>
                     </div>
                 </div>
+                
+                <!-- Add legend explaining gradients -->
+                <div class="legend-container">
+                    <div class="legend-title">Theme Color Guide</div>
+                    <div>When text contains multiple themes, a gradient background is used to show all applicable themes. Check the tooltip for details.</div>
+                </div>
+            """
+    
+        # Add framework summary
+        html_content += """
+                <h2>Framework Summary</h2>
+                <table class="theme-info">
+                    <tr>
+                        <th>Framework</th>
+                        <th>Number of Themes</th>
+                        <th>Number of Documents</th>
+                    </tr>
+            """
+    
+        for framework in results_df["Framework"].unique():
+            framework_results = results_df[results_df["Framework"] == framework]
+            num_themes = len(framework_results["Theme"].unique())
+            num_docs = len(framework_results["Record ID"].unique())
+    
+            html_content += f"""
+                    <tr>
+                        <td>{framework}</td>
+                        <td>{num_themes}</td>
+                        <td>{num_docs}</td>
+                    </tr>
                 """
-
-    html_content += """
-        </body>
-        </html>
-        """
-
-    return html_content
+    
+        html_content += """
+                </table>
+            """
+    
+        # Add each record with its themes and highlighted text
+        html_content += "<h2>Document Analysis</h2>"
+    
+        for record_id, themes in report_themes.items():
+            if record_id in highlighted_texts:
+                record_title = next(
+                    (row["Title"] for _, row in results_df.iterrows() if row.get("Record ID") == record_id),
+                    f"Document {record_id}"
+                )
+    
+                html_content += f"""
+                    <div class="record-container">
+                        <h2>Document: {record_title}</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    """
+    
+                # Add theme rows with consistent styling and no gradients
+                for theme_info in sorted(themes, key=lambda x: (x["framework"], -x.get("score", 0))):
+                    theme_color = theme_info["color"]
+                    
+                    html_content += f"""
+                                <tr style="background-color: {theme_color};">
+                                    <td>{theme_info['framework']}</td>
+                                    <td>{theme_info['theme']}</td>
+                                    <td>{theme_info.get('confidence', '')}</td>
+                                    <td>{round(theme_info.get('score', 0), 3)}</td>
+                                    <td>{theme_info.get('keywords', '')}</td>
+                                    <td><div class="theme-color-box" style="background-color:{theme_color};"></div></td>
+                                </tr>
+                        """
+    
+                html_content += """
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    """
+    
+                # Add highlighted text
+                html_content += highlighted_texts[record_id]
+    
+                html_content += """
+                        </div>
+                    </div>
+                    """
+    
+        html_content += """
+            </body>
+            </html>
+            """
+    
+        return html_content
 
 def _ensure_unique_theme_colors(self, results_df):
     """Ensure all themes have unique colors by checking and reassigning if needed"""
