@@ -6316,6 +6316,7 @@ def check_password():
         st.error("Please enter the correct password to access the application.")
     
     return False
+    
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function without password check"""
     st.header("BERT-based Theme Analysis")
@@ -6553,8 +6554,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     st.warning("HTML report not available")
 
 
-        
-
+    
 
 if __name__ == "__main__":
     try:
