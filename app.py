@@ -6275,15 +6275,6 @@ def main():
         handle_error(e)
 
 
-if __name__ == "__main__":
-    try:
-        main()
-    except Exception as e:
-        st.error("Critical Error")
-        st.error(str(e))
-        logging.critical(f"Application crash: {e}", exc_info=True)
-        
-
 def check_password():
     """Returns `True` if the user had the correct password."""
     
@@ -6561,6 +6552,8 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                 else:
                     st.warning("HTML report not available")
 
+
+        
 
 
 if __name__ == "__main__":
