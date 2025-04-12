@@ -446,8 +446,7 @@ class BERTResultsAnalyzer:
                         file_name=f"merged_bert_reduced_{timestamp}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         key=f"download_reduced_excel_{unique_id}",
-                    )    
-
+                    )
 
 ###########################
 class ThemeAnalyzer:
