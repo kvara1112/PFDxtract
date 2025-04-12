@@ -267,186 +267,98 @@ class BERTResultsAnalyzer:
         st.write(f"Columns: {', '.join(merged_df.columns)}")
 
     def _provide_download_options(self):
-            """Provide options to download the current data."""
-            if self.data is None or len(self.data) == 0:
-                return
+        """Provide options to download the current data."""
+        if self.data is None or len(self.data) == 0:
+            return
+        
+        st.subheader("Download Merged Data")
+        
+        # Deduplicate data by Record ID before download if requested
+        dedup_download = st.checkbox("Remove duplicate Record IDs before download (keep only first occurrence)", value=True)
+        
+        download_data = self.data
+        if dedup_download and 'Record ID' in self.data.columns:
+            download_data = self.data.drop_duplicates(subset=['Record ID'], keep='first')
+            st.info(f"Download will contain {len(download_data)} rows after removing duplicate Record IDs (original had {len(self.data)} rows)")
+        
+        # Prepare the reduced dataset with essential columns
+        reduced_data = download_data.copy()
+        
+        # Get list of available essential columns
+        available_essential_cols = [col for col in self.essential_columns if col in reduced_data.columns]
+        if available_essential_cols:
+            reduced_data = reduced_data[available_essential_cols]
+            st.success(f"Reduced dataset includes these columns: {', '.join(available_essential_cols)}")
+        else:
+            st.warning("None of the essential columns found in the data. Will provide full dataset only.")
+            reduced_data = None
+        
+        # Full Dataset Section
+        st.markdown("### Full Dataset")
+        full_col1, full_col2 = st.columns(2)
+        
+        # Use persistent placeholders for download buttons
+        full_csv_placeholder = full_col1.empty()
+        full_excel_placeholder = full_col2.empty()
+        
+        # Generate timestamp for unique filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # CSV download button for full data
+        csv_data = download_data.to_csv(index=False).encode('utf-8')
+        full_csv_placeholder.download_button(
+            "📥 Download Full Dataset (CSV)",
+            data=csv_data,
+            file_name=f"merged_bert_full_{timestamp}.csv",
+            mime="text/csv",
+            key="download_full_csv_persistent"
+        )
+        
+        # Excel download button for full data
+        excel_buffer_full = io.BytesIO()
+        download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
+        excel_buffer_full.seek(0)
+        
+        full_excel_placeholder.download_button(
+            "📥 Download Full Dataset (Excel)",
+            data=excel_buffer_full,
+            file_name=f"merged_bert_full_{timestamp}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key="download_full_excel_persistent"
+        )
+        
+        # Only show reduced dataset options if we have essential columns
+        if reduced_data is not None:
+            st.markdown("### Reduced Dataset (Essential Columns)")
+            reduced_col1, reduced_col2 = st.columns(2)
             
-            st.subheader("Download Merged Data")
+            # Placeholders for reduced dataset download buttons
+            reduced_csv_placeholder = reduced_col1.empty()
+            reduced_excel_placeholder = reduced_col2.empty()
             
-            # Deduplicate data by Record ID before download if requested
-            dedup_download = st.checkbox("Remove duplicate Record IDs before download (keep only first occurrence)", value=True)
-            
-            download_data = self.data
-            if dedup_download and 'Record ID' in self.data.columns:
-                download_data = self.data.drop_duplicates(subset=['Record ID'], keep='first')
-                st.info(f"Download will contain {len(download_data)} rows after removing duplicate Record IDs (original had {len(self.data)} rows)")
-            
-            # Prepare the reduced dataset with essential columns
-            reduced_data = download_data.copy()
-            
-            # Get list of available essential columns
-            available_essential_cols = [col for col in self.essential_columns if col in reduced_data.columns]
-            if available_essential_cols:
-                reduced_data = reduced_data[available_essential_cols]
-                st.success(f"Reduced dataset includes these columns: {', '.join(available_essential_cols)}")
-            else:
-                st.warning("None of the essential columns found in the data. Will provide full dataset only.")
-                reduced_data = None
-            
-            # Full Dataset Section
-            st.markdown("### Full Dataset")
-            full_col1, full_col2 = st.columns(2)
-            
-            # Use persistent placeholders for download buttons
-            full_csv_placeholder = full_col1.empty()
-            full_excel_placeholder = full_col2.empty()
-            
-            # Generate timestamp for unique filenames
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            
-            # CSV download button for full data
-            csv_data = download_data.to_csv(index=False).encode('utf-8')
-            full_csv_placeholder.download_button(
-                "📥 Download Full Dataset (CSV)",
-                data=csv_data,
-                file_name=f"merged_bert_full_{timestamp}.csv",
+            # CSV download button for reduced data
+            reduced_csv_data = reduced_data.to_csv(index=False).encode('utf-8')
+            reduced_csv_placeholder.download_button(
+                "📥 Download Reduced Dataset (CSV)",
+                data=reduced_csv_data,
+                file_name=f"merged_bert_reduced_{timestamp}.csv",
                 mime="text/csv",
-                key="download_full_csv_persistent"
+                key="download_reduced_csv_persistent"
             )
             
-            # Excel download button for full data
-            excel_buffer_full = io.BytesIO()
-            download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
-            excel_buffer_full.seek(0)
+            # Excel download button for reduced data
+            excel_buffer_reduced = io.BytesIO()
+            reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
+            excel_buffer_reduced.seek(0)
             
-            full_excel_placeholder.download_button(
-                "📥 Download Full Dataset (Excel)",
-                data=excel_buffer_full,
-                file_name=f"merged_bert_full_{timestamp}.xlsx",
+            reduced_excel_placeholder.download_button(
+                "📥 Download Reduced Dataset (Excel)",
+                data=excel_buffer_reduced,
+                file_name=f"merged_bert_reduced_{timestamp}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_full_excel_persistent"
+                key="download_reduced_excel_persistent"
             )
             
-            # Only show reduced dataset options if we have essential columns
-            if reduced_data is not None:
-                st.markdown("### Reduced Dataset (Essential Columns)")
-                reduced_col1, reduced_col2 = st.columns(2)
-                
-                # Placeholders for reduced dataset download buttons
-                reduced_csv_placeholder = reduced_col1.empty()
-                reduced_excel_placeholder = reduced_col2.empty()
-                
-                # CSV download button for reduced data
-                reduced_csv_data = reduced_data.to_csv(index=False).encode('utf-8')
-                reduced_csv_placeholder.download_button(
-                    "📥 Download Reduced Dataset (CSV)",
-                    data=reduced_csv_data,
-                    file_name=f"merged_bert_reduced_{timestamp}.csv",
-                    mime="text/csv",
-                    key="download_reduced_csv_persistent"
-                )
-                
-                # Excel download button for reduced data
-                excel_buffer_reduced = io.BytesIO()
-                reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
-                excel_buffer_reduced.seek(0)
-                
-                reduced_excel_placeholder.download_button(
-                    "📥 Download Reduced Dataset (Excel)",
-                    data=excel_buffer_reduced,
-                    file_name=f"merged_bert_reduced_{timestamp}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="download_reduced_excel_persistent"
-                )def _provide_download_options(self):
-            """Provide options to download the current data."""
-            if self.data is None or len(self.data) == 0:
-                return
-            
-            st.subheader("Download Merged Data")
-            
-            # Generate timestamp and random suffix for unique keys
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-            unique_id = f"{timestamp}_{random_suffix}"
-            
-            # Deduplicate data by Record ID before download if requested
-            dedup_download = st.checkbox("Remove duplicate Record IDs before download (keep only first occurrence)", value=True)
-            
-            download_data = self.data
-            if dedup_download and 'Record ID' in self.data.columns:
-                download_data = self.data.drop_duplicates(subset=['Record ID'], keep='first')
-                st.info(f"Download will contain {len(download_data)} rows after removing duplicate Record IDs (original had {len(self.data)} rows)")
-            
-            # Prepare the reduced dataset with essential columns
-            reduced_data = download_data.copy()
-            
-            # Get list of available essential columns
-            available_essential_cols = [col for col in self.essential_columns if col in reduced_data.columns]
-            if available_essential_cols:
-                reduced_data = reduced_data[available_essential_cols]
-                st.success(f"Reduced dataset includes these columns: {', '.join(available_essential_cols)}")
-            else:
-                st.warning("None of the essential columns found in the data. Will provide full dataset only.")
-                reduced_data = None
-            
-            # Full Dataset Section
-            st.markdown("### Full Dataset")
-            full_col1, full_col2 = st.columns(2)
-            
-            with full_col1:
-                # CSV download button for full data
-                csv_data = download_data.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "📥 Download Full Dataset (CSV)",
-                    data=csv_data,
-                    file_name=f"merged_bert_full_{timestamp}.csv",
-                    mime="text/csv",
-                    key=f"download_full_csv_{unique_id}",
-                )
-            
-            with full_col2:
-                # Excel download button for full data
-                excel_buffer_full = io.BytesIO()
-                download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
-                excel_buffer_full.seek(0)
-                
-                st.download_button(
-                    "📥 Download Full Dataset (Excel)",
-                    data=excel_buffer_full,
-                    file_name=f"merged_bert_full_{timestamp}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"download_full_excel_{unique_id}",
-                )
-            
-            # Only show reduced dataset options if we have essential columns
-            if reduced_data is not None:
-                st.markdown("### Reduced Dataset (Essential Columns)")
-                reduced_col1, reduced_col2 = st.columns(2)
-                
-                with reduced_col1:
-                    # CSV download button for reduced data
-                    reduced_csv_data = reduced_data.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        "📥 Download Reduced Dataset (CSV)",
-                        data=reduced_csv_data,
-                        file_name=f"merged_bert_reduced_{timestamp}.csv",
-                        mime="text/csv",
-                        key=f"download_reduced_csv_{unique_id}",
-                    )
-                
-                with reduced_col2:
-                    # Excel download button for reduced data
-                    excel_buffer_reduced = io.BytesIO()
-                    reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
-                    excel_buffer_reduced.seek(0)
-                    
-                    st.download_button(
-                        "📥 Download Reduced Dataset (Excel)",
-                        data=excel_buffer_reduced,
-                        file_name=f"merged_bert_reduced_{timestamp}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key=f"download_reduced_excel_{unique_id}",
-                    )
 
 ###########################
 class ThemeAnalyzer:
