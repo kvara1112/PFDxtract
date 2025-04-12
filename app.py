@@ -66,67 +66,23 @@ import numpy as np
 import io
 from datetime import datetime
 import logging
-
+######
 class BERTResultsAnalyzer:
-    """
-    A class for analyzing BERT theme analysis results, focused on file merging 
-    and downloading functionalities.
-    """
+    """Class for merging BERT theme analysis results files."""
     
     def __init__(self):
         """Initialize the analyzer with default settings."""
         self.data = None
-        self.merged_data = None
-        self.frameworks = []
-        self.themes = []
     
     def render_analyzer_ui(self):
-        """Render the main UI for the BERT results analysis page."""
-        st.header("BERT Results Analysis")
+        """Render the file merger UI."""
+        st.header("BERT Results File Merger")
         st.markdown("""
-        This tool allows you to upload, merge, and analyze BERT theme analysis results.
+        This tool allows you to merge multiple BERT theme analysis results files.
         """)
         
         # File upload section
-        st.subheader("Upload BERT Results")
-        
-        upload_type = st.radio(
-            "Select upload option:",
-            ["Single File", "Multiple Files (Merge)"],
-            horizontal=True,
-            key="bert_upload_type"
-        )
-        
-        # Display appropriate upload interface based on selection
-        if upload_type == "Single File":
-            self._render_single_file_upload()
-        else:
-            self._render_multiple_file_upload()
-            
-        # Only show analysis UI if data is loaded
-        if self.data is not None:
-            st.markdown("---")
-            st.success(f"Data loaded successfully! {len(self.data)} records are available for analysis.")
-            self._show_validation_notice()
-    
-    def _render_single_file_upload(self):
-        """Render interface for single file upload."""
-        uploaded_file = st.file_uploader(
-            "Upload BERT analysis results file",
-            type=["csv", "xlsx"],
-            help="Upload a CSV or Excel file containing BERT theme analysis results",
-            key="bert_single_uploader"
-        )
-        
-        if uploaded_file is not None:
-            try:
-                # Process the uploaded file
-                self._process_uploaded_file(uploaded_file)
-                st.success(f"File loaded successfully! Found {len(self.data)} records.")
-                
-            except Exception as e:
-                st.error(f"Error processing file: {str(e)}")
-                logging.error(f"File processing error: {e}", exc_info=True)
+        self._render_multiple_file_upload()
     
     def _render_multiple_file_upload(self):
         """Render interface for multiple file upload and merging."""
@@ -134,7 +90,7 @@ class BERTResultsAnalyzer:
             "Upload multiple BERT analysis files",
             type=["csv", "xlsx"],
             accept_multiple_files=True,
-            help="Upload multiple CSV or Excel files to merge them for analysis",
+            help="Upload multiple CSV or Excel files to merge them",
             key="bert_multi_uploader"
         )
         
@@ -176,12 +132,12 @@ class BERTResultsAnalyzer:
                     if drop_duplicates:
                         duplicate_columns = st.text_input(
                             "Columns for Duplicate Check",
-                            value="Record ID, Theme",
+                            value="Record ID",
                             help="Comma-separated list of columns to check for duplicates"
                         )
             
             # Button to process the files
-            if st.button("Process Files", key="merge_files_button"):
+            if st.button("Merge Files", key="merge_files_button"):
                 try:
                     with st.spinner("Processing and merging files..."):
                         if merge_method == "Stack (Append)":
@@ -198,6 +154,7 @@ class BERTResultsAnalyzer:
                         # Now processed_data is in self.data
                         if self.data is not None:
                             st.success(f"Files merged successfully! Final dataset has {len(self.data)} records.")
+                            self._provide_download_options()
                         else:
                             st.error("File merging resulted in empty data. Please check your files.")
                             
@@ -205,226 +162,9 @@ class BERTResultsAnalyzer:
                     st.error(f"Error merging files: {str(e)}")
                     logging.error(f"File merging error: {e}", exc_info=True)
     
-    def _normalize_and_align_columns(self, df):
-        """
-        Normalize and align columns in the dataframe to the required structure.
-        
-        This method performs case-insensitive column matching and handles 
-        various common column naming variations.
-        
-        Args:
-            df: Input DataFrame
-            
-        Returns:
-            DataFrame with normalized and aligned columns
-        """
-        # Define the EXACT required columns for final output
-        required_columns = [
-            'Title', 'URL', 'Content', 'date_of_report', 
-            'deceased_name', 'coroner_name', 'coroner_area', 'categories',
-            'Report ID', 'Deceased Name', 'Death Type', 'Year', 'Extracted_Concerns'
-        ]
-        
-        # Analysis-specific required columns
-        analysis_columns = ['Record ID', 'Theme', 'Framework']
-        
-        # Create standardized column mapping (case-insensitive)
-        standard_mapping = {
-            # Main requirement columns
-            'title': 'Title',
-            'url': 'URL',
-            'content': 'Content',
-            'date_of_report': 'date_of_report',
-            'date of report': 'date_of_report',
-            'report date': 'date_of_report',
-            'deceased_name': 'deceased_name', 
-            'deceased name': 'deceased_name',
-            'coroner_name': 'coroner_name',
-            'coroner name': 'coroner_name',
-            'coroner_area': 'coroner_area',
-            'coroner area': 'coroner_area',
-            'categories': 'categories',
-            'category': 'categories',
-            'report id': 'Report ID',
-            'report_id': 'Report ID',
-            'id': 'Report ID',
-            'deceased name': 'Deceased Name',
-            'death type': 'Death Type',
-            'year': 'Year',
-            'extracted_concerns': 'Extracted_Concerns',
-            'extracted concerns': 'Extracted_Concerns',
-            'concerns': 'Extracted_Concerns',
-            
-            # Analysis-specific columns
-            'record id': 'Record ID',
-            'record_id': 'Record ID',
-            'theme': 'Theme',
-            'framework': 'Framework'
-        }
-        
-        # Create a new DataFrame for the aligned data
-        aligned_df = pd.DataFrame()
-        
-        # Create a mapping of input column names to standard column names
-        column_map = {}
-        
-        # Track which columns were found
-        found_columns = []
-        missing_columns = []
-        
-        # First pass: exact matches (preserving case)
-        for col in df.columns:
-            if col in required_columns or col in analysis_columns:
-                column_map[col] = col
-                found_columns.append(col)
-        
-        # Second pass: case-insensitive and variation matching
-        for col in df.columns:
-            if col in column_map:
-                continue  # Already mapped
-                
-            # Try lowercase matching
-            col_lower = col.lower()
-            if col_lower in standard_mapping:
-                target_col = standard_mapping[col_lower]
-                
-                # Skip if we already found this target column
-                if target_col in found_columns:
-                    continue
-                    
-                column_map[col] = target_col
-                found_columns.append(target_col)
-        
-        # Apply the mapping to create the aligned dataframe
-        for original_col, standard_col in column_map.items():
-            aligned_df[standard_col] = df[original_col]
-        
-        # Add empty columns for missing required columns
-        all_req_cols = set(required_columns + analysis_columns)
-        missing_columns = [col for col in all_req_cols if col not in aligned_df.columns]
-        
-        for col in missing_columns:
-            aligned_df[col] = np.nan
-        
-        # Report on column alignment
-        st.write(f"Found {len(found_columns)} of {len(all_req_cols)} required columns")
-        if missing_columns:
-            st.info(f"Added empty columns for: {', '.join(missing_columns)}")
-        
-        # For each column that was mapped, show the mapping
-        if column_map:
-            mappings = [f"'{orig}' → '{std}'" for orig, std in column_map.items() if orig != std]
-            if mappings:
-                st.write(f"Applied column mappings: {', '.join(mappings)}")
-        
-        return aligned_df
-    
-    def _process_uploaded_file(self, file):
-        """Process a single uploaded file with improved column handling."""
-        try:
-            st.info(f"Processing file: {file.name}")
-            
-            # Determine file type and read
-            if file.name.endswith('.csv'):
-                df = pd.read_csv(file)
-            else:
-                df = pd.read_excel(file)
-            
-            st.success(f"File loaded successfully: {len(df)} rows, {len(df.columns)} columns")
-            
-            # Add source filename
-            df['Source File'] = file.name
-            
-            # Normalize and align columns
-            aligned_df = self._normalize_and_align_columns(df)
-            
-            # Validate required columns for analysis
-            required_analysis_columns = ['Record ID', 'Theme', 'Framework']
-            missing_analysis_columns = [col for col in required_analysis_columns 
-                                        if col not in aligned_df.columns or aligned_df[col].isna().all()]
-            
-            if missing_analysis_columns:
-                st.warning(f"Missing some analysis columns: {', '.join(missing_analysis_columns)}")
-            
-            # Store the data
-            self.data = aligned_df
-            
-            # Show column summary
-            st.subheader("Data Overview")
-            
-            # Show data types and missing value counts
-            col1, col2 = st.columns(2)
-            with col1:
-                st.write("Data Types:")
-                st.write(aligned_df.dtypes)
-            
-            with col2:
-                st.write("Missing Values:")
-                missing_counts = aligned_df.isnull().sum()
-                missing_pct = (missing_counts / len(aligned_df) * 100).round(2)
-                missing_df = pd.DataFrame({
-                    'Count': missing_counts,
-                    'Percentage': missing_pct
-                })
-                st.write(missing_df)
-            
-            # Extract frameworks and themes if available
-            if 'Framework' in aligned_df.columns and not aligned_df['Framework'].isna().all():
-                self.frameworks = sorted(aligned_df['Framework'].dropna().unique())
-            
-            if 'Theme' in aligned_df.columns and not aligned_df['Theme'].isna().all():
-                self.themes = sorted(aligned_df['Theme'].dropna().unique())
-            
-            return aligned_df
-            
-        except Exception as e:
-            st.error(f"Error processing file: {str(e)}")
-            logging.error(f"Error in _process_uploaded_file: {e}", exc_info=True)
-            raise
-    
     def _merge_files_stack(self, files, duplicate_cols=None):
-        """
-        Merge multiple files by stacking (appending) them, aligning columns as specified.
-        Creates a new table with ONLY the specified columns.
-        
-        Args:
-            files: List of uploaded files
-            duplicate_cols: Columns to use for removing duplicates
-        """
+        """Merge multiple files by stacking (appending) them."""
         dfs = []
-        
-        # Define the EXACT required columns for the final result
-        required_columns = [
-            'Title', 'URL', 'Content', 'date_of_report', 
-            'deceased_name', 'coroner_name', 'coroner_area', 'categories',
-            'Report ID', 'Deceased Name', 'Death Type', 'Year', 'Extracted_Concerns'
-        ]
-        
-        # Analysis-specific required columns
-        analysis_columns = ['Record ID', 'Theme', 'Framework']
-        
-        # All required columns combined
-        all_required_columns = required_columns + analysis_columns
-        
-        # Column mapping to handle variations in column names
-        column_mapping = {
-            # Common variations in column names
-            'date': 'date_of_report',
-            'Date': 'date_of_report',
-            'report_date': 'date_of_report',
-            'deceased': 'deceased_name',
-            'Deceased': 'Deceased Name',
-            'coroner': 'coroner_name',
-            'Coroner': 'coroner_name',
-            'area': 'coroner_area',
-            'Area': 'coroner_area',
-            'category': 'categories',
-            'Category': 'categories',
-            'id': 'Report ID',
-            'ID': 'Report ID',
-            'death_type': 'Death Type',
-            'concerns': 'Extracted_Concerns'
-        }
         
         for file_index, file in enumerate(files):
             try:
@@ -440,73 +180,26 @@ class BERTResultsAnalyzer:
                 # Add source filename
                 df['Source File'] = file.name
                 
-                # Create a new dataframe with only the required columns
-                aligned_df = pd.DataFrame()
-                
-                # Track which columns were found and aligned
-                found_columns = []
-                
-                # First, try direct column matches
-                for req_col in all_required_columns:
-                    if req_col in df.columns:
-                        aligned_df[req_col] = df[req_col]
-                        found_columns.append(req_col)
-                
-                # Next, try variations using the mapping
-                for orig_col in df.columns:
-                    # Skip columns we've already mapped
-                    if orig_col in found_columns or orig_col in aligned_df.columns:
-                        continue
-                    
-                    # Check if this is a variation of a required column
-                    if orig_col in column_mapping and column_mapping[orig_col] in all_required_columns:
-                        target_col = column_mapping[orig_col]
-                        # Only add if we haven't found this column yet
-                        if target_col not in aligned_df.columns:
-                            aligned_df[target_col] = df[orig_col]
-                            found_columns.append(target_col)
-                            st.write(f"Mapped '{orig_col}' to '{target_col}'")
-                
-                # Add source file column
-                aligned_df['Source File'] = file.name
-                
-                # Add empty columns for any missing required columns
-                missing_columns = [col for col in all_required_columns if col not in aligned_df.columns]
-                for col in missing_columns:
-                    aligned_df[col] = np.nan
-                
-                # Report on column alignment
-                st.write(f"Found {len(found_columns)} of {len(all_required_columns)} required columns")
-                if missing_columns:
-                    st.warning(f"Missing columns (added as empty): {', '.join(missing_columns)}")
-                
                 # Add to the list of dataframes
-                dfs.append(aligned_df)
+                dfs.append(df)
                 
             except Exception as e:
                 st.warning(f"Error processing file {file.name}: {str(e)}")
-                logging.error(f"File processing error: {e}", exc_info=True)
                 continue
         
         if not dfs:
             raise ValueError("No valid files to merge")
         
-        # Combine all aligned dataframes
+        # Combine all dataframes
         merged_df = pd.concat(dfs, ignore_index=True)
-        
-        # Ensure final dataframe has ONLY the required columns plus Source File
-        final_columns = all_required_columns + ['Source File']
-        # Filter to only include columns that exist
-        existing_columns = [col for col in final_columns if col in merged_df.columns]
-        final_df = merged_df[existing_columns]
         
         # Remove duplicates if specified
         if duplicate_cols:
-            valid_dup_cols = [col for col in duplicate_cols if col in final_df.columns]
+            valid_dup_cols = [col for col in duplicate_cols if col in merged_df.columns]
             if valid_dup_cols:
-                before_count = len(final_df)
-                final_df = final_df.drop_duplicates(subset=valid_dup_cols, keep='first')
-                after_count = len(final_df)
+                before_count = len(merged_df)
+                merged_df = merged_df.drop_duplicates(subset=valid_dup_cols, keep='first')
+                after_count = len(merged_df)
                 
                 if before_count > after_count:
                     st.success(f"Removed {before_count - after_count} duplicate records based on {', '.join(valid_dup_cols)}")
@@ -514,104 +207,30 @@ class BERTResultsAnalyzer:
                 st.warning(f"Specified duplicate columns {duplicate_cols} not found in the merged data")
         
         # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
-        if 'Record ID' in final_df.columns:
-            before_count = len(final_df)
-            final_df = final_df.drop_duplicates(subset=['Record ID'], keep='first')
-            after_count = len(final_df)
+        if 'Record ID' in merged_df.columns:
+            before_count = len(merged_df)
+            merged_df = merged_df.drop_duplicates(subset=['Record ID'], keep='first')
+            after_count = len(merged_df)
             
             if before_count > after_count:
                 st.success(f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)")
         
         # Store the result
-        self.data = final_df
+        self.data = merged_df
         
         # Show summary of the merged data
         st.subheader("Merged Data Summary")
-        st.write(f"Total rows: {len(final_df)}")
-        st.write(f"Columns: {', '.join(final_df.columns)}")
-        
-        # Show data types and missing value counts
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("Data Types:")
-            st.write(final_df.dtypes)
-        
-        with col2:
-            st.write("Missing Values:")
-            missing_counts = final_df.isnull().sum()
-            missing_pct = (missing_counts / len(final_df) * 100).round(2)
-            missing_df = pd.DataFrame({
-                'Count': missing_counts,
-                'Percentage': missing_pct
-            })
-            st.write(missing_df)
-        
-        # Provide download options
-        self._provide_download_options()
-        
-        # Extract frameworks and themes if available
-        if 'Framework' in final_df.columns and not final_df['Framework'].isna().all():
-            self.frameworks = sorted(final_df['Framework'].dropna().unique())
-        
-        if 'Theme' in final_df.columns and not final_df['Theme'].isna().all():
-            self.themes = sorted(final_df['Theme'].dropna().unique())
-        
-        return final_df
+        st.write(f"Total rows: {len(merged_df)}")
+        st.write(f"Columns: {', '.join(merged_df.columns)}")
     
     def _merge_files_join(self, files, key_column, join_type):
-        """
-        Merge multiple files by joining them on a key column, creating a new table
-        with ONLY the specified columns.
-        
-        Args:
-            files: List of uploaded files
-            key_column: Column to join on
-            join_type: Type of join (inner, outer, left, right)
-        """
+        """Merge multiple files by joining them on a key column."""
         if len(files) < 2:
             raise ValueError("Need at least two files for a join operation")
         
         dfs = []
-        aligned_dfs = []
         
-        # Define the EXACT required columns for the final result
-        required_columns = [
-            'Title', 'URL', 'Content', 'date_of_report', 
-            'deceased_name', 'coroner_name', 'coroner_area', 'categories',
-            'Report ID', 'Deceased Name', 'Death Type', 'Year', 'Extracted_Concerns'
-        ]
-        
-        # Analysis-specific required columns
-        analysis_columns = ['Record ID', 'Theme', 'Framework']
-        
-        # All required columns combined
-        all_required_columns = required_columns + analysis_columns
-        
-        # Column mapping to handle variations in column names
-        column_mapping = {
-            # Common variations in column names
-            'date': 'date_of_report',
-            'Date': 'date_of_report',
-            'report_date': 'date_of_report',
-            'deceased': 'deceased_name',
-            'Deceased': 'Deceased Name',
-            'coroner': 'coroner_name',
-            'Coroner': 'coroner_name',
-            'area': 'coroner_area',
-            'Area': 'coroner_area',
-            'category': 'categories',
-            'Category': 'categories',
-            'id': 'Report ID',
-            'ID': 'Report ID',
-            'death_type': 'Death Type',
-            'concerns': 'Extracted_Concerns',
-            'record id': 'Record ID',
-            'record_id': 'Record ID',
-            'theme': 'Theme',
-            'framework': 'Framework'
-        }
-        
-        # Read all files and create aligned dataframes
+        # Read all files
         for file_index, file in enumerate(files):
             try:
                 # Read file
@@ -620,7 +239,7 @@ class BERTResultsAnalyzer:
                 else:
                     df = pd.read_excel(file)
                 
-                # Store original dataframe
+                # Store dataframe
                 dfs.append(df)
                 
                 # Display file information
@@ -628,88 +247,24 @@ class BERTResultsAnalyzer:
                 
                 # Verify key column exists
                 if key_column not in df.columns:
-                    # Try to find a close match or alternative
-                    possible_matches = [col for col in df.columns if key_column.lower() in col.lower()]
-                    if possible_matches:
-                        key_col_in_file = possible_matches[0]
-                        st.warning(f"Key column '{key_column}' not found exactly. Using '{key_col_in_file}' instead.")
-                        # Create a copy of the column with the expected name
-                        df[key_column] = df[key_col_in_file]
-                    else:
-                        raise ValueError(f"Key column '{key_column}' not found in {file.name} and no suitable alternative found")
-                
-                # Create a new dataframe with only the required columns plus key column
-                aligned_df = pd.DataFrame()
-                
-                # Make sure we have the key column
-                aligned_df[key_column] = df[key_column]
-                
-                # Track which columns were found and aligned
-                found_columns = [key_column]
-                
-                # First, try direct column matches
-                for req_col in all_required_columns:
-                    if req_col in df.columns and req_col != key_column:
-                        aligned_df[req_col] = df[req_col]
-                        found_columns.append(req_col)
-                
-                # Next, try variations using the mapping
-                for orig_col in df.columns:
-                    # Skip columns we've already mapped
-                    if orig_col in found_columns or orig_col in aligned_df.columns:
-                        continue
-                    
-                    # Check if this is a variation of a required column
-                    if orig_col.lower() in column_mapping and column_mapping[orig_col.lower()] in all_required_columns:
-                        target_col = column_mapping[orig_col.lower()]
-                        # Only add if we haven't found this column yet
-                        if target_col not in aligned_df.columns:
-                            aligned_df[target_col] = df[orig_col]
-                            found_columns.append(target_col)
-                            st.write(f"Mapped '{orig_col}' to '{target_col}'")
-                
-                # Add source file column
-                aligned_df['Source File'] = file.name
-                
-                # Add empty columns for any missing required columns
-                missing_columns = [col for col in all_required_columns if col not in aligned_df.columns]
-                for col in missing_columns:
-                    aligned_df[col] = np.nan
-                
-                # Report on column alignment
-                st.write(f"Found {len(found_columns) - 1} of {len(all_required_columns)} required columns")
-                if missing_columns:
-                    st.warning(f"Missing columns (added as empty): {', '.join(missing_columns)}")
-                
-                # Add to the list of aligned dataframes
-                aligned_dfs.append(aligned_df)
+                    raise ValueError(f"Key column '{key_column}' not found in {file.name}")
                 
             except Exception as e:
                 st.warning(f"Error processing file {file.name}: {str(e)}")
-                logging.error(f"File processing error: {e}", exc_info=True)
                 continue
         
-        if len(aligned_dfs) < 2:
+        if len(dfs) < 2:
             raise ValueError("Need at least two valid files for a join operation")
         
-        # Start with the first aligned dataframe
-        result = aligned_dfs[0]
+        # Start with the first dataframe
+        result = dfs[0]
         
         # Join with each subsequent dataframe
-        for i, df in enumerate(aligned_dfs[1:], 1):
-            # Show merge statistics before merge
+        for i, df in enumerate(dfs[1:], 1):
+            # Show merge statistics
             st.write(f"Merging with file {i+1}:")
             st.write(f"  - Left DataFrame: {len(result)} rows")
             st.write(f"  - Right DataFrame: {len(df)} rows")
-            st.write(f"  - Join type: {join_type}")
-            st.write(f"  - Join key: {key_column}")
-            
-            # Count matching keys
-            left_keys = set(result[key_column].dropna())
-            right_keys = set(df[key_column].dropna())
-            matching_keys = left_keys.intersection(right_keys)
-            
-            st.write(f"  - Matching keys: {len(matching_keys)} ({len(matching_keys)/len(left_keys)*100:.1f}% of left, {len(matching_keys)/len(right_keys)*100:.1f}% of right)")
             
             # To avoid duplicate column names, add suffixes
             result = result.merge(
@@ -722,180 +277,29 @@ class BERTResultsAnalyzer:
             # Show merge results
             st.write(f"  - Result: {len(result)} rows")
         
-        # Prepare final columns (required columns + key column + Source File)
-        final_columns = all_required_columns + ['Source File']
-        if key_column not in all_required_columns:
-            final_columns.append(key_column)
-        
-        # Process each required column - take the first non-null value from any version
-        final_df = pd.DataFrame(index=result.index)
-        
-        for col in final_columns:
-            # Get all versions of this column (original and suffixed versions)
-            col_versions = [c for c in result.columns if c == col or c.startswith(f"{col}_")]
-            
-            if not col_versions:
-                # Column not found in any version
-                final_df[col] = np.nan
-            elif len(col_versions) == 1:
-                # Only one version - use as is
-                final_df[col] = result[col_versions[0]]
-            else:
-                # Multiple versions - coalesce (take first non-null)
-                final_df[col] = result[col_versions[0]]
-                for other_col in col_versions[1:]:
-                    final_df[col] = final_df[col].combine_first(result[other_col])
-        
         # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
-        if 'Record ID' in final_df.columns:
-            before_count = len(final_df)
-            final_df = final_df.drop_duplicates(subset=['Record ID'], keep='first')
-            after_count = len(final_df)
+        if key_column == 'Record ID':
+            before_count = len(result)
+            result = result.drop_duplicates(subset=['Record ID'], keep='first')
+            after_count = len(result)
             
             if before_count > after_count:
                 st.success(f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)")
         
+        # Store the result
+        self.data = result
+        
         # Show summary of the merged data
         st.subheader("Merged Data Summary")
-        st.write(f"Total rows: {len(final_df)}")
-        st.write(f"Columns: {', '.join(final_df.columns)}")
-        
-        # Show data types and missing value counts
-        col1, col2 = st.columns(2)
-        with col1:
-            st.write("Data Types:")
-            st.write(final_df.dtypes)
-        
-        with col2:
-            st.write("Missing Values:")
-            missing_counts = final_df.isnull().sum()
-            missing_pct = (missing_counts / len(final_df) * 100).round(2)
-            missing_df = pd.DataFrame({
-                'Count': missing_counts,
-                'Percentage': missing_pct
-            })
-            st.write(missing_df)
-        
-        # Provide download options
-        self._provide_download_options()
-        
-        # Store the result
-        self.data = final_df
-        
-        # Extract frameworks and themes if available
-        if 'Framework' in final_df.columns and not final_df['Framework'].isna().all():
-            self.frameworks = sorted(final_df['Framework'].dropna().unique())
-        
-        if 'Theme' in final_df.columns and not final_df['Theme'].isna().all():
-            self.themes = sorted(final_df['Theme'].dropna().unique())
-        
-        return final_df
-    
-    def _show_validation_notice(self):
-        """Show a comprehensive notice about data validation and perform basic cleaning checks."""
-        st.warning("""
-        ⚠️ **Important Notice:** Please check the Excel file for any manual cleaning it might need 
-        before proceeding with the analysis. This will ensure the most accurate results.
-        """)
-        
-        if self.data is None:
-            return
-            
-        # Perform data validation checks
-        st.subheader("Data Validation Checks")
-        
-        validation_issues = []
-        
-        # Check 1: Missing theme data
-        if 'Theme' in self.data.columns:
-            missing_themes = self.data['Theme'].isna().sum()
-            if missing_themes > 0:
-                pct_missing = (missing_themes / len(self.data) * 100).round(2)
-                validation_issues.append(f"Missing Theme values: {missing_themes} rows ({pct_missing}%)")
-        
-        # Check 2: Missing framework data
-        if 'Framework' in self.data.columns:
-            missing_frameworks = self.data['Framework'].isna().sum()
-            if missing_frameworks > 0:
-                pct_missing = (missing_frameworks / len(self.data) * 100).round(2)
-                validation_issues.append(f"Missing Framework values: {missing_frameworks} rows ({pct_missing}%)")
-        
-        # Check 3: Missing Record ID
-        if 'Record ID' in self.data.columns:
-            missing_ids = self.data['Record ID'].isna().sum()
-            if missing_ids > 0:
-                pct_missing = (missing_ids / len(self.data) * 100).round(2)
-                validation_issues.append(f"Missing Record ID values: {missing_ids} rows ({pct_missing}%)")
-        
-        # Check 4: Check for duplicates
-        if 'Record ID' in self.data.columns and 'Theme' in self.data.columns:
-            duplicate_ids = self.data.duplicated(subset=['Record ID', 'Theme'], keep=False).sum()
-            if duplicate_ids > 0:
-                pct_duplicates = (duplicate_ids / len(self.data) * 100).round(2)
-                validation_issues.append(f"Duplicate Record ID/Theme combinations: {duplicate_ids} rows ({pct_duplicates}%)")
-        
-        # Check 5: Inconsistent themes within the same framework
-        if 'Framework' in self.data.columns and 'Theme' in self.data.columns:
-            framework_theme_counts = self.data.groupby('Framework')['Theme'].nunique()
-            unusual_theme_counts = framework_theme_counts[framework_theme_counts > 15]
-            if not unusual_theme_counts.empty:
-                for framework, count in unusual_theme_counts.items():
-                    validation_issues.append(f"Framework '{framework}' has {count} unique themes, which seems high")
-        
-        # Check 6: Date formatting issues
-        if 'date_of_report' in self.data.columns:
-            try:
-                # Check if we need to convert to datetime
-                if not pd.api.types.is_datetime64_any_dtype(self.data['date_of_report']):
-                    non_empty_dates = self.data['date_of_report'].dropna()
-                    if not non_empty_dates.empty:
-                        try:
-                            pd.to_datetime(non_empty_dates, errors='raise')
-                        except:
-                            validation_issues.append("Some date_of_report values are not in a recognized date format")
-            except Exception as e:
-                validation_issues.append(f"Error checking date formats: {str(e)}")
-        
-        # Display validation results
-        if validation_issues:
-            st.error("Found the following data quality issues:")
-            for issue in validation_issues:
-                st.warning(f"• {issue}")
-                
-            st.info("Consider addressing these issues before proceeding with analysis.")
-            
-            # Offer automated cleaning options
-            st.subheader("Data Cleaning Options")
-            
-            # Option to remove rows with missing Theme or Framework
-            if 'Theme' in self.data.columns and 'Framework' in self.data.columns:
-                if missing_themes > 0 or missing_frameworks > 0:
-                    if st.button("Remove rows with missing Theme or Framework", key="clean_missing_themes"):
-                        self.data = self.data.dropna(subset=['Theme', 'Framework'])
-                        st.success(f"Removed rows with missing Theme or Framework. {len(self.data)} rows remaining.")
-            
-            # Option to deduplicate by Record ID (keeping the first occurrence)
-            if 'Record ID' in self.data.columns:
-                if st.button("Remove duplicate Record IDs (keep first occurrence only)", key="dedup_record_ids"):
-                    before_count = len(self.data)
-                    self.data = self.data.drop_duplicates(subset=['Record ID'], keep='first')
-                    after_count = len(self.data)
-                    removed = before_count - after_count
-                    st.success(f"Removed {removed} duplicate Record ID rows. {after_count} rows remaining.")
-                    # Update download options after cleaning
-                    self._provide_download_options()
-        else:
-            st.success("No major data quality issues detected.")
-        
-        # Provide download options for the data
-        self._provide_download_options()
+        st.write(f"Total rows: {len(result)}")
+        st.write(f"Columns: {', '.join(result.columns)}")
     
     def _provide_download_options(self):
         """Provide options to download the current data."""
         if self.data is None or len(self.data) == 0:
             return
         
-        st.subheader("Download Processed Data")
+        st.subheader("Download Merged Data")
         
         # Generate timestamp for filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -917,7 +321,7 @@ class BERTResultsAnalyzer:
             st.download_button(
                 "📥 Download as CSV",
                 data=csv_data,
-                file_name=f"bert_results_{timestamp}.csv",
+                file_name=f"merged_bert_results_{timestamp}.csv",
                 mime="text/csv",
                 key="download_csv"
             )
@@ -931,7 +335,7 @@ class BERTResultsAnalyzer:
             st.download_button(
                 "📥 Download as Excel",
                 data=excel_buffer,
-                file_name=f"bert_results_{timestamp}.xlsx",
+                file_name=f"merged_bert_results_{timestamp}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="download_excel"
             )
@@ -7710,7 +7114,6 @@ def check_app_password():
     
     return False
 
-# Add this function to your app.py
 
 def render_bert_file_merger():
     """Render the BERT file merger tab in the Streamlit app."""
