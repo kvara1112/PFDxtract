@@ -2605,7 +2605,52 @@ def clean_text(text: str) -> str:
         logging.error(f"Error in clean_text: {e}")
         return ""
 
-
+def extract_concern_text(content):
+    """Extract concern text from PFD report content"""
+    if pd.isna(content) or not isinstance(content, str):
+        return ""
+    
+    # Keywords to identify sections with concerns
+    concern_identifiers = [
+        "CORONER'S CONCERNS",
+        "MATTERS OF CONCERN",
+        "The MATTERS OF CONCERN",
+        "HEALTHCARE SAFETY CONCERNS",
+        "SAFETY CONCERNS",
+        "PATIENT SAFETY ISSUES",
+        "HSIB FINDINGS",
+        "INVESTIGATION FINDINGS",
+        "THE CORONER'S MATTER OF CONCERN",
+        "Matters of Concern"
+    ]
+    
+    content_lower = content.lower()
+    
+    for identifier in concern_identifiers:
+        identifier_lower = identifier.lower()
+        if identifier_lower in content_lower:
+            # Find position
+            start_pos = content_lower.find(identifier_lower)
+            start_idx = start_pos + len(identifier)
+            
+            # Find end markers
+            end_markers = ["ACTION SHOULD BE TAKEN", "RECOMMENDATION", "CONCLUSIONS", "NEXT STEPS"]
+            end_idx = float('inf')
+            
+            for marker in end_markers:
+                marker_lower = marker.lower()
+                temp_pos = content_lower.find(marker_lower, start_idx)
+                if temp_pos != -1 and temp_pos < end_idx:
+                    end_idx = temp_pos
+            
+            if end_idx != float('inf'):
+                return content[start_idx:end_idx].strip()
+            else:
+                # No end marker found, get a reasonable chunk
+                return content[start_idx:start_idx + 2000].strip()
+    
+    return ""  # No identifier found
+    
 def extract_metadata(content: str) -> dict:
     """
     Extract structured metadata from report content with improved category handling.
@@ -3000,7 +3045,7 @@ def get_total_pages(url: str) -> Tuple[int, int]:
 
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data with metadata extraction"""
+    """Process and clean scraped data with metadata extraction and concern extraction"""
     try:
         if df is None or len(df) == 0:
             return pd.DataFrame()
@@ -3019,6 +3064,9 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
                 # Extract metadata using existing function
                 content = str(row.get("Content", ""))
                 metadata = extract_metadata(content)
+
+                # Extract concerns text
+                processed_row["Extracted_Concerns"] = extract_concern_text(content)
 
                 # Update row with metadata
                 processed_row.update(metadata)
@@ -3066,7 +3114,6 @@ def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
         return df
-
 
 def get_category_slug(category: str) -> str:
     """Generate proper category slug for the website's URL structure"""
@@ -4512,20 +4559,36 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
 
             # Auto-adjust column widths
             for idx, col in enumerate(df_export.columns, 1):
-                max_length = max(
-                    df_export[col].astype(str).apply(len).max(), len(str(col))
-                )
-                adjusted_width = min(max_length + 2, 50)
-                column_letter = get_column_letter(
-                    idx
-                )  # Use openpyxl's get_column_letter
-                worksheet.column_dimensions[column_letter].width = adjusted_width
+                # Set larger width for Content and Extracted_Concerns columns
+                if col in ["Content", "Extracted_Concerns"]:
+                    worksheet.column_dimensions[get_column_letter(idx)].width = 80
+                else:
+                    max_length = max(
+                        df_export[col].astype(str).apply(len).max(),
+                        len(str(col)),
+                    )
+                    adjusted_width = min(max_length + 2, 50)
+                    column_letter = get_column_letter(idx)
+                    worksheet.column_dimensions[
+                        column_letter
+                    ].width = adjusted_width
 
             # Add filters to header row
             worksheet.auto_filter.ref = worksheet.dimensions
 
             # Freeze the header row
             worksheet.freeze_panes = "A2"
+
+            # Set wrap text for Content and Extracted_Concerns columns
+            for column_name in ["Content", "Extracted_Concerns"]:
+                if column_name in df_export.columns:
+                    col_idx = df_export.columns.get_loc(column_name) + 1
+                    col_letter = get_column_letter(col_idx)
+                    for row in range(2, len(df_export) + 2):
+                        cell = worksheet[f"{col_letter}{row}"]
+                        cell.alignment = cell.alignment.copy(wrapText=True)
+                        # Set row height to accommodate wrapped text
+                        worksheet.row_dimensions[row].height = 60
 
         # Get the bytes value
         output.seek(0)
@@ -4534,6 +4597,7 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
     except Exception as e:
         logging.error(f"Error exporting to Excel: {e}", exc_info=True)
         raise Exception(f"Failed to export data to Excel: {str(e)}")
+        
 
 
 def show_export_options(df: pd.DataFrame, prefix: str):
