@@ -6195,7 +6195,14 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
 
 
 def main():
-    """Updated main application entry point."""
+    """Updated main application entry point with password protection."""
+    
+    # Check password first
+    if not check_password():
+        # If password is incorrect, don't show the rest of the app
+        return
+    
+    # Continue with normal application flow if password is correct
     initialize_session_state()
 
     st.title("UK Judiciary PFD Reports Analysis")
@@ -6239,8 +6246,8 @@ def main():
                 render_topic_summary_tab(st.session_state.current_data)
 
         elif current_tab == "🔬 BERT Analysis":
-            if check_bert_password():
-                render_bert_analysis_tab(st.session_state.current_data)
+            # No need for password check here anymore
+            render_bert_analysis_tab(st.session_state.current_data)
 
         # Sidebar data management
         with st.sidebar:
@@ -6268,6 +6275,55 @@ def main():
         handle_error(e)
 
 
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        st.error("Critical Error")
+        st.error(str(e))
+        logging.critical(f"Application crash: {e}", exc_info=True)
+        
+
+def check_password():
+    """Returns `True` if the user had the correct password."""
+    
+    # Initialize session state variables if they don't exist
+    if "password_correct" not in st.session_state:
+        st.session_state["password_correct"] = False
+    if "password_attempted" not in st.session_state:
+        st.session_state["password_attempted"] = False
+        
+    # If already authenticated, return True
+    if st.session_state["password_correct"]:
+        return True
+    
+    # Password entry form
+    with st.form("password_form"):
+        st.markdown("## PFD Reports Analysis Tool")
+        st.markdown("Please enter the password to access the application.")
+        
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Login")
+    
+    if submitted:
+        st.session_state["password_attempted"] = True
+        # Get the correct password from secrets or use default
+        correct_password = st.secrets.get("app_password", "amazing246")
+        
+        if password == correct_password:
+            st.session_state["password_correct"] = True
+            st.rerun()
+            return True
+        else:
+            st.error("Incorrect password. Please try again.")
+            return False
+            
+    # Show error only if password has been attempted
+    if st.session_state["password_attempted"] and not st.session_state["password_correct"]:
+        st.error("Please enter the correct password to access the application.")
+    
+    return False
+    
 def check_bert_password():
     """Returns `True` if the user had the correct password for BERT Analysis."""
     # Initialize session state variables if they don't exist
@@ -6369,19 +6425,17 @@ def check_bert_password():
     return output_filename
 
 def render_bert_analysis_tab(data: pd.DataFrame = None):
-    """Modified render_bert_analysis_tab function that focuses only on displaying the results table with themes and sentences"""
+    """Modified render_bert_analysis_tab function without password check"""
     st.header("BERT-based Theme Analysis")
 
-    # Check password before showing BERT analysis
-    if check_bert_password():
-        # Ensure the bert_results dictionary exists in session state
-        if "bert_results" not in st.session_state:
-            st.session_state.bert_results = {}
+    # Ensure the bert_results dictionary exists in session state
+    if "bert_results" not in st.session_state:
+        st.session_state.bert_results = {}
+    
+    # Track if BERT model is initialized
+    if "bert_initialized" not in st.session_state:
+        st.session_state.bert_initialized = False
         
-        # Track if BERT model is initialized
-        if "bert_initialized" not in st.session_state:
-            st.session_state.bert_initialized = False
-
         # File upload section
         st.subheader("Upload Data")
         uploaded_file = st.file_uploader(
