@@ -6307,59 +6307,10 @@ def check_password():
     
     if submitted:
         st.session_state["password_attempted"] = True
-        # Get the correct password from secrets or use default
-        correct_password = st.secrets.get("app_password", "amazing246")
         
-        if password == correct_password:
-            st.session_state["password_correct"] = True
-            st.rerun()
-            return True
-        else:
-            st.error("Incorrect password. Please try again.")
-            return False
-            
-    # Show error only if password has been attempted
-    if st.session_state["password_attempted"] and not st.session_state["password_correct"]:
-        st.error("Please enter the correct password to access the application.")
-    
-    return False
- 
-def check_password():
-    """Returns `True` if the user had the correct password."""
-    
-    # Initialize session state variables if they don't exist
-    if "password_correct" not in st.session_state:
-        st.session_state["password_correct"] = False
-    if "password_attempted" not in st.session_state:
-        st.session_state["password_attempted"] = False
-        
-    # If already authenticated, return True
-    if st.session_state["password_correct"]:
-        return True
-    
-    # Password entry form
-    with st.form("password_form"):
-        st.markdown("## PFD Reports Analysis Tool")
-        st.markdown("Please enter the password to access the application.")
-        
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Login")
-    
-    if submitted:
-        st.session_state["password_attempted"] = True
-        
-        # Prioritize secrets configuration
-        try:
-            # First, try to get password from Streamlit secrets
-            correct_password = st.secrets.get("app_password")
-            
-            # If no secret is found, fall back to a default
-            if not correct_password:
-                correct_password = "amazing246"
-        
-        except Exception:
-            # Fallback to default if secrets are not properly configured
-            correct_password = "amazing246"
+        # Retrieve password from Streamlit secrets
+        # IMPORTANT: Set this in .streamlit/secrets.toml
+        correct_password = st.secrets.get("app_password")
         
         if password == correct_password:
             st.session_state["password_correct"] = True
