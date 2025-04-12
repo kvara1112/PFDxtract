@@ -7119,9 +7119,6 @@ def render_bert_file_merger():
     """Render the BERT file merger tab in the Streamlit app."""
     st.title("BERT Results File Merger")
     
-    # Create an instance of the analyzer
-    from bert_results_analyzer import BERTResultsAnalyzer
-    
     # Render the analyzer UI
     analyzer = BERTResultsAnalyzer()
     analyzer.render_analyzer_ui()
