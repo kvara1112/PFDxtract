@@ -266,6 +266,7 @@ class BERTResultsAnalyzer:
         st.write(f"Total rows: {len(merged_df)}")
         st.write(f"Columns: {', '.join(merged_df.columns)}")
     
+
     def _provide_download_options(self):
         """Provide options to download the current data."""
         if self.data is None or len(self.data) == 0:
@@ -284,92 +285,76 @@ class BERTResultsAnalyzer:
             download_data = self.data.drop_duplicates(subset=['Record ID'], keep='first')
             st.info(f"Download will contain {len(download_data)} rows after removing duplicate Record IDs (original had {len(self.data)} rows)")
         
-        # Store both datasets in session state
-        st.session_state.bert_download_full = download_data
-        
         # Prepare the reduced dataset with essential columns
         reduced_data = download_data.copy()
+        
+        # Get list of available essential columns
         available_essential_cols = [col for col in self.essential_columns if col in reduced_data.columns]
         if available_essential_cols:
             reduced_data = reduced_data[available_essential_cols]
             st.success(f"Reduced dataset includes these columns: {', '.join(available_essential_cols)}")
-            st.session_state.bert_download_reduced = reduced_data
         else:
             st.warning("None of the essential columns found in the data. Will provide full dataset only.")
-            st.session_state.bert_download_reduced = None
+            reduced_data = None
         
-        # IMPORTANT: Use containers for better UI stability
-        download_container = st.container()
+        # Full Dataset Section
+        st.markdown("### Full Dataset")
+        full_col1, full_col2 = st.columns(2)
         
-        with download_container:
-            col1, col2 = st.columns(2)
+        with full_col1:
+            # CSV download button for full data
+            csv_data = download_data.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                "📥 Download Full Dataset (CSV)",
+                data=csv_data,
+                file_name=f"merged_bert_full_{timestamp}.csv",
+                mime="text/csv",
+                key="download_full_csv_fixed",
+            )
+        
+        with full_col2:
+            # Excel download button for full data
+            excel_buffer_full = io.BytesIO()
+            download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
+            excel_buffer_full.seek(0)
             
-            with col1:
-                st.markdown("### Full Dataset")
-                
-                # Create separate containers for each download button
-                full_csv_container = st.container()
-                full_excel_container = st.container()
-                
-                with full_csv_container:
-                    # Prepare CSV data
-                    csv_data = download_data.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        "📥 Download Full Dataset (CSV)",
-                        data=csv_data,
-                        file_name=f"merged_bert_full_{timestamp}.csv",
-                        mime="text/csv",
-                        key="download_full_csv" + timestamp  # Add timestamp to make key unique
-                    )
-                
-                with full_excel_container:
-                    # Prepare Excel data
-                    excel_buffer_full = io.BytesIO()
-                    download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
-                    excel_buffer_full.seek(0)
-                    
-                    st.download_button(
-                        "📥 Download Full Dataset (Excel)",
-                        data=excel_buffer_full,
-                        file_name=f"merged_bert_full_{timestamp}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key="download_full_excel" + timestamp  # Add timestamp to make key unique
-                    )
+            st.download_button(
+                "📥 Download Full Dataset (Excel)",
+                data=excel_buffer_full,
+                file_name=f"merged_bert_full_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="download_full_excel_fixed",
+            )
+        
+        # Only show reduced dataset options if we have essential columns
+        if reduced_data is not None:
+            st.markdown("### Reduced Dataset (Essential Columns)")
+            reduced_col1, reduced_col2 = st.columns(2)
             
-            # Only show reduced dataset options if we have essential columns
-            if available_essential_cols:
-                with col2:
-                    st.markdown("### Reduced Dataset (Essential Columns)")
-                    
-                    # Create separate containers for each download button
-                    reduced_csv_container = st.container()
-                    reduced_excel_container = st.container()
-                    
-                    with reduced_csv_container:
-                        # Prepare CSV data
-                        reduced_csv_data = reduced_data.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            "📥 Download Reduced Dataset (CSV)",
-                            data=reduced_csv_data,
-                            file_name=f"merged_bert_reduced_{timestamp}.csv",
-                            mime="text/csv",
-                            key="download_reduced_csv" + timestamp  # Add timestamp to make key unique
-                        )
-                    
-                    with reduced_excel_container:
-                        # Prepare Excel data
-                        excel_buffer_reduced = io.BytesIO()
-                        reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
-                        excel_buffer_reduced.seek(0)
-                        
-                        st.download_button(
-                            "📥 Download Reduced Dataset (Excel)",
-                            data=excel_buffer_reduced,
-                            file_name=f"merged_bert_reduced_{timestamp}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            key="download_reduced_excel" + timestamp  # Add timestamp to make key unique
-                        )
-
+            with reduced_col1:
+                # CSV download button for reduced data
+                reduced_csv_data = reduced_data.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Download Reduced Dataset (CSV)",
+                    data=reduced_csv_data,
+                    file_name=f"merged_bert_reduced_{timestamp}.csv",
+                    mime="text/csv",
+                    key="download_reduced_csv_fixed",
+                )
+            
+            with reduced_col2:
+                # Excel download button for reduced data
+                excel_buffer_reduced = io.BytesIO()
+                reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
+                excel_buffer_reduced.seek(0)
+                
+                st.download_button(
+                    "📥 Download Reduced Dataset (Excel)",
+                    data=excel_buffer_reduced,
+                    file_name=f"merged_bert_reduced_{timestamp}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_reduced_excel_fixed",
+                )
 
 ###########################
 class ThemeAnalyzer:
