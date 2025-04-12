@@ -67,19 +67,28 @@ import io
 from datetime import datetime
 import logging
 
+######################################
+
 class BERTResultsAnalyzer:
-    """Enhanced class for merging BERT theme analysis results files with column selection."""
+    """Enhanced class for merging BERT theme analysis results files with specific column outputs."""
     
     def __init__(self):
         """Initialize the analyzer with default settings."""
         self.data = None
+        # Define the essential columns you want in the reduced output
+        self.essential_columns = [
+            "Title", "URL", "Content", "date_of_report", "deceased_name", 
+            "coroner_name", "coroner_area", "categories", "Report ID", 
+            "Deceased Name", "Death Type", "Year", "Extracted_Concerns"
+        ]
     
     def render_analyzer_ui(self):
         """Render the file merger UI."""
         st.header("BERT Results File Merger")
         st.markdown("""
         This tool allows you to merge multiple BERT theme analysis results files.
-        You can stack files, remove duplicates, and select which columns to include in the final output.
+        You can filter out responses, remove duplicates, and download either a reduced set of 
+        essential columns or the full dataset.
         """)
         
         # File upload section
@@ -102,9 +111,12 @@ class BERTResultsAnalyzer:
             with st.expander("Merge Settings", expanded=True):
                 st.info("These settings control how the files will be merged.")
                 
-                # We only need Stack (Append) option since you mentioned you don't need to join
-                st.markdown("**Merge Method: Stack (Append)**")
-                st.write("This will combine all rows from all files into a single dataset.")
+                # Option to filter out responses
+                filter_responses = st.checkbox(
+                    "Filter out Responses (keep only Reports)",
+                    value=True,
+                    help="If checked, responses will be removed from the merged data"
+                )
                 
                 # Option to remove duplicates
                 drop_duplicates = st.checkbox(
@@ -124,16 +136,6 @@ class BERTResultsAnalyzer:
             if st.button("Merge Files", key="merge_files_button"):
                 try:
                     with st.spinner("Processing and merging files..."):
-                        # Get columns from first file for selection
-                        preview_file = uploaded_files[0]
-                        if preview_file.name.endswith('.csv'):
-                            preview_df = pd.read_csv(preview_file)
-                        else:
-                            preview_df = pd.read_excel(preview_file)
-                        
-                        # Reset file pointer
-                        preview_file.seek(0)
-                        
                         # Stack files
                         duplicate_cols = None
                         if drop_duplicates:
@@ -143,43 +145,65 @@ class BERTResultsAnalyzer:
                         
                         # Now processed_data is in self.data
                         if self.data is not None:
+                            # Filter out responses if requested
+                            if filter_responses:
+                                before_count = len(self.data)
+                                self.data = self._filter_out_responses(self.data)
+                                after_count = len(self.data)
+                                st.success(f"Filtered out {before_count - after_count} responses, kept {after_count} reports.")
+                            
                             st.success(f"Files merged successfully! Final dataset has {len(self.data)} records.")
                             
-                            # Column selection
-                            st.subheader("Select Columns to Include")
-                            all_columns = list(self.data.columns)
+                            # Show a preview of the data
+                            st.subheader("Preview of Merged Data")
+                            st.dataframe(self.data.head(5))
                             
-                            # Default select common important columns if they exist
-                            default_columns = [col for col in ['Record ID', 'Title', 'Framework', 'Theme', 
-                                                              'Confidence', 'Combined Score', 'Matched Keywords'] 
-                                              if col in all_columns]
-                            
-                            selected_columns = st.multiselect(
-                                "Choose columns to include in the final output",
-                                options=all_columns,
-                                default=default_columns,
-                                help="Only selected columns will be included in the downloadable file"
-                            )
-                            
-                            if selected_columns:
-                                # Filter to only selected columns
-                                self.data = self.data[selected_columns]
-                                st.success(f"Selected {len(selected_columns)} columns for the final output.")
-                                
-                                # Show preview
-                                st.subheader("Preview of Final Dataset")
-                                st.dataframe(self.data.head(5))
-                                
-                                # Provide download options
-                                self._provide_download_options()
-                            else:
-                                st.warning("Please select at least one column to include in the output.")
+                            # Provide download options
+                            self._provide_download_options()
                         else:
                             st.error("File merging resulted in empty data. Please check your files.")
                             
                 except Exception as e:
                     st.error(f"Error merging files: {str(e)}")
                     logging.error(f"File merging error: {e}", exc_info=True)
+    
+    def _is_response(self, row):
+        """Check if a row represents a response document."""
+        # Check title for response indicators
+        title = str(row.get("Title", "")).lower()
+        title_response = any(word in title for word in ["response", "reply", "answered"])
+        
+        # Check PDF types if available
+        for i in range(1, 5):  # Check PDF_1 to PDF_4
+            pdf_type = str(row.get(f"PDF_{i}_Type", "")).lower()
+            if pdf_type == "response":
+                return True
+        
+        # Check PDF names as backup
+        for i in range(1, 5):
+            pdf_name = str(row.get(f"PDF_{i}_Name", "")).lower()
+            if "response" in pdf_name or "reply" in pdf_name:
+                return True
+        
+        # Check content as final fallback if available
+        content = str(row.get("Content", "")).lower()
+        content_response = any(
+            phrase in content
+            for phrase in [
+                "in response to",
+                "responding to",
+                "reply to",
+                "response to",
+                "following the regulation 28",
+                "following receipt of the regulation 28",
+            ]
+        )
+        
+        return title_response or content_response
+    
+    def _filter_out_responses(self, df):
+        """Filter out response documents, keeping only reports."""
+        return df[~df.apply(self._is_response, axis=1)]
     
     def _merge_files_stack(self, files, duplicate_cols=None):
         """Merge multiple files by stacking (appending) them."""
@@ -252,9 +276,6 @@ class BERTResultsAnalyzer:
         # Generate timestamp for filename
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
-        # Create columns for download buttons
-        col1, col2 = st.columns(2)
-        
         # Deduplicate data by Record ID before download if requested
         dedup_download = st.checkbox("Remove duplicate Record IDs before download (keep only first occurrence)", value=True)
         
@@ -263,30 +284,73 @@ class BERTResultsAnalyzer:
             download_data = self.data.drop_duplicates(subset=['Record ID'], keep='first')
             st.info(f"Download will contain {len(download_data)} rows after removing duplicate Record IDs (original had {len(self.data)} rows)")
         
+        # Create two columns for different download options
+        col1, col2 = st.columns(2)
+        
+        # Prepare the reduced dataset with essential columns
+        reduced_data = download_data.copy()
+        
+        # Get list of available essential columns
+        available_essential_cols = [col for col in self.essential_columns if col in reduced_data.columns]
+        if available_essential_cols:
+            reduced_data = reduced_data[available_essential_cols]
+            st.success(f"Reduced dataset includes these columns: {', '.join(available_essential_cols)}")
+        else:
+            st.warning("None of the essential columns found in the data. Will provide full dataset only.")
+            reduced_data = None
+            
         with col1:
-            # CSV download button
+            st.markdown("### Full Dataset")
+            # CSV download button for full data
             csv_data = download_data.to_csv(index=False).encode('utf-8')
             st.download_button(
-                "📥 Download as CSV",
+                "📥 Download Full Dataset (CSV)",
                 data=csv_data,
-                file_name=f"merged_bert_results_{timestamp}.csv",
+                file_name=f"merged_bert_full_{timestamp}.csv",
                 mime="text/csv",
-                key="download_csv"
+                key="download_full_csv"
             )
-        
-        with col2:
-            # Excel download button
-            excel_buffer = io.BytesIO()
-            download_data.to_excel(excel_buffer, index=False, engine='openpyxl')
-            excel_buffer.seek(0)
+            
+            # Excel download button for full data
+            excel_buffer_full = io.BytesIO()
+            download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
+            excel_buffer_full.seek(0)
             
             st.download_button(
-                "📥 Download as Excel",
-                data=excel_buffer,
-                file_name=f"merged_bert_results_{timestamp}.xlsx",
+                "📥 Download Full Dataset (Excel)",
+                data=excel_buffer_full,
+                file_name=f"merged_bert_full_{timestamp}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_excel"
+                key="download_full_excel"
             )
+        
+        # Only show reduced dataset options if we have essential columns
+        if reduced_data is not None:
+            with col2:
+                st.markdown("### Reduced Dataset (Essential Columns)")
+                # CSV download button for reduced data
+                reduced_csv_data = reduced_data.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Download Reduced Dataset (CSV)",
+                    data=reduced_csv_data,
+                    file_name=f"merged_bert_reduced_{timestamp}.csv",
+                    mime="text/csv",
+                    key="download_reduced_csv"
+                )
+                
+                # Excel download button for reduced data
+                excel_buffer_reduced = io.BytesIO()
+                reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
+                excel_buffer_reduced.seek(0)
+                
+                st.download_button(
+                    "📥 Download Reduced Dataset (Excel)",
+                    data=excel_buffer_reduced,
+                    file_name=f"merged_bert_reduced_{timestamp}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="download_reduced_excel"
+                )
+
 
 ###########################
 class ThemeAnalyzer:
