@@ -6324,47 +6324,6 @@ def check_password():
     
     return False
     
-def check_bert_password():
-    """Returns `True` if the user had the correct password for BERT Analysis."""
-    # Initialize session state variables if they don't exist
-    if "bert_password_correct" not in st.session_state:
-        st.session_state["bert_password_correct"] = False
-    if "bert_password_attempted" not in st.session_state:
-        st.session_state["bert_password_attempted"] = False
-
-    # If already authenticated, return True
-    if st.session_state["bert_password_correct"]:
-        return True
-
-    # Otherwise, show password input
-    password = st.text_input(
-        "Please enter the password for BERT Analysis",
-        type="password",
-        key="bert_password_input",
-    )
-
-    if st.button("Submit Password", key="bert_password_submit"):
-        st.session_state["bert_password_attempted"] = True
-        # Get the correct password from secrets
-        correct_password = st.secrets.get("bert_password", "amazing246")
-
-        if password == correct_password:
-            st.session_state["bert_password_correct"] = True
-            st.rerun()  # Use st.rerun() instead of experimental_rerun()
-            return True
-        else:
-            st.error("Incorrect password. Please try again.")
-            return False
-
-    # Only show error if password has been attempted
-    if (
-        st.session_state["bert_password_attempted"]
-        and not st.session_state["bert_password_correct"]
-    ):
-        st.error("Please enter the correct password to access BERT Analysis.")
-
-    return False
-
     # Create PDF with matplotlib
     with PdfPages(output_filename) as pdf:
         # Title page
