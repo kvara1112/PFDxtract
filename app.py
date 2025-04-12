@@ -66,9 +66,9 @@ import numpy as np
 import io
 from datetime import datetime
 import logging
-######
+
 class BERTResultsAnalyzer:
-    """Class for merging BERT theme analysis results files."""
+    """Enhanced class for merging BERT theme analysis results files with column selection."""
     
     def __init__(self):
         """Initialize the analyzer with default settings."""
@@ -79,6 +79,7 @@ class BERTResultsAnalyzer:
         st.header("BERT Results File Merger")
         st.markdown("""
         This tool allows you to merge multiple BERT theme analysis results files.
+        You can stack files, remove duplicates, and select which columns to include in the final output.
         """)
         
         # File upload section
@@ -101,60 +102,78 @@ class BERTResultsAnalyzer:
             with st.expander("Merge Settings", expanded=True):
                 st.info("These settings control how the files will be merged.")
                 
-                merge_method = st.radio(
-                    "Merge Method:",
-                    ["Stack (Append)", "Join on Key"],
-                    horizontal=True,
-                    help="Stack: Combine all rows from all files. Join: Merge files based on a common key."
+                # We only need Stack (Append) option since you mentioned you don't need to join
+                st.markdown("**Merge Method: Stack (Append)**")
+                st.write("This will combine all rows from all files into a single dataset.")
+                
+                # Option to remove duplicates
+                drop_duplicates = st.checkbox(
+                    "Remove Duplicate Records",
+                    value=True,
+                    help="If checked, duplicate records will be removed after merging"
                 )
                 
-                if merge_method == "Join on Key":
-                    key_column = st.text_input(
-                        "Join Key Column",
+                if drop_duplicates:
+                    duplicate_columns = st.text_input(
+                        "Columns for Duplicate Check",
                         value="Record ID",
-                        help="Column name to join files on (must exist in all files)"
+                        help="Comma-separated list of columns to check for duplicates"
                     )
-                    
-                    join_type = st.selectbox(
-                        "Join Type",
-                        ["inner", "outer", "left", "right"],
-                        index=1,
-                        help="Inner: Keep only matching records. Outer: Keep all records. Left/Right: Keep all records from first/last file."
-                    )
-                else:
-                    # For stack, allow ignoring duplicates
-                    drop_duplicates = st.checkbox(
-                        "Remove Duplicate Records",
-                        value=True,
-                        help="If checked, duplicate records will be removed after merging"
-                    )
-                    
-                    if drop_duplicates:
-                        duplicate_columns = st.text_input(
-                            "Columns for Duplicate Check",
-                            value="Record ID",
-                            help="Comma-separated list of columns to check for duplicates"
-                        )
             
             # Button to process the files
             if st.button("Merge Files", key="merge_files_button"):
                 try:
                     with st.spinner("Processing and merging files..."):
-                        if merge_method == "Stack (Append)":
-                            # Stack files
-                            duplicate_cols = None
-                            if drop_duplicates:
-                                duplicate_cols = [col.strip() for col in duplicate_columns.split(",")]
-                                
-                            self._merge_files_stack(uploaded_files, duplicate_cols)
+                        # Get columns from first file for selection
+                        preview_file = uploaded_files[0]
+                        if preview_file.name.endswith('.csv'):
+                            preview_df = pd.read_csv(preview_file)
                         else:
-                            # Join files
-                            self._merge_files_join(uploaded_files, key_column, join_type)
+                            preview_df = pd.read_excel(preview_file)
+                        
+                        # Reset file pointer
+                        preview_file.seek(0)
+                        
+                        # Stack files
+                        duplicate_cols = None
+                        if drop_duplicates:
+                            duplicate_cols = [col.strip() for col in duplicate_columns.split(",")]
+                                
+                        self._merge_files_stack(uploaded_files, duplicate_cols)
                         
                         # Now processed_data is in self.data
                         if self.data is not None:
                             st.success(f"Files merged successfully! Final dataset has {len(self.data)} records.")
-                            self._provide_download_options()
+                            
+                            # Column selection
+                            st.subheader("Select Columns to Include")
+                            all_columns = list(self.data.columns)
+                            
+                            # Default select common important columns if they exist
+                            default_columns = [col for col in ['Record ID', 'Title', 'Framework', 'Theme', 
+                                                              'Confidence', 'Combined Score', 'Matched Keywords'] 
+                                              if col in all_columns]
+                            
+                            selected_columns = st.multiselect(
+                                "Choose columns to include in the final output",
+                                options=all_columns,
+                                default=default_columns,
+                                help="Only selected columns will be included in the downloadable file"
+                            )
+                            
+                            if selected_columns:
+                                # Filter to only selected columns
+                                self.data = self.data[selected_columns]
+                                st.success(f"Selected {len(selected_columns)} columns for the final output.")
+                                
+                                # Show preview
+                                st.subheader("Preview of Final Dataset")
+                                st.dataframe(self.data.head(5))
+                                
+                                # Provide download options
+                                self._provide_download_options()
+                            else:
+                                st.warning("Please select at least one column to include in the output.")
                         else:
                             st.error("File merging resulted in empty data. Please check your files.")
                             
@@ -223,77 +242,6 @@ class BERTResultsAnalyzer:
         st.write(f"Total rows: {len(merged_df)}")
         st.write(f"Columns: {', '.join(merged_df.columns)}")
     
-    def _merge_files_join(self, files, key_column, join_type):
-        """Merge multiple files by joining them on a key column."""
-        if len(files) < 2:
-            raise ValueError("Need at least two files for a join operation")
-        
-        dfs = []
-        
-        # Read all files
-        for file_index, file in enumerate(files):
-            try:
-                # Read file
-                if file.name.endswith('.csv'):
-                    df = pd.read_csv(file)
-                else:
-                    df = pd.read_excel(file)
-                
-                # Store dataframe
-                dfs.append(df)
-                
-                # Display file information
-                st.info(f"Processing file {file_index+1}: {file.name} ({len(df)} rows, {len(df.columns)} columns)")
-                
-                # Verify key column exists
-                if key_column not in df.columns:
-                    raise ValueError(f"Key column '{key_column}' not found in {file.name}")
-                
-            except Exception as e:
-                st.warning(f"Error processing file {file.name}: {str(e)}")
-                continue
-        
-        if len(dfs) < 2:
-            raise ValueError("Need at least two valid files for a join operation")
-        
-        # Start with the first dataframe
-        result = dfs[0]
-        
-        # Join with each subsequent dataframe
-        for i, df in enumerate(dfs[1:], 1):
-            # Show merge statistics
-            st.write(f"Merging with file {i+1}:")
-            st.write(f"  - Left DataFrame: {len(result)} rows")
-            st.write(f"  - Right DataFrame: {len(df)} rows")
-            
-            # To avoid duplicate column names, add suffixes
-            result = result.merge(
-                df, 
-                on=key_column, 
-                how=join_type,
-                suffixes=('', f'_{i}')
-            )
-            
-            # Show merge results
-            st.write(f"  - Result: {len(result)} rows")
-        
-        # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
-        if key_column == 'Record ID':
-            before_count = len(result)
-            result = result.drop_duplicates(subset=['Record ID'], keep='first')
-            after_count = len(result)
-            
-            if before_count > after_count:
-                st.success(f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)")
-        
-        # Store the result
-        self.data = result
-        
-        # Show summary of the merged data
-        st.subheader("Merged Data Summary")
-        st.write(f"Total rows: {len(result)}")
-        st.write(f"Columns: {', '.join(result.columns)}")
-    
     def _provide_download_options(self):
         """Provide options to download the current data."""
         if self.data is None or len(self.data) == 0:
@@ -339,7 +287,6 @@ class BERTResultsAnalyzer:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="download_excel"
             )
-
 
 ###########################
 class ThemeAnalyzer:
@@ -7117,10 +7064,10 @@ def check_app_password():
 
 def render_bert_file_merger():
     """Render the BERT file merger tab in the Streamlit app."""
-    st.title("BERT Results File Merger")
+    # Create an instance of the analyzer
+    analyzer = BERTResultsAnalyzer()
     
     # Render the analyzer UI
-    analyzer = BERTResultsAnalyzer()
     analyzer.render_analyzer_ui()
 
 # Then update your main function to include the new tab
