@@ -7603,7 +7603,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
         logging.error(f"Analysis error: {e}", exc_info=True)
 
 
-def main():
+def main2():
     """Updated main application entry point."""
     initialize_session_state()
 
@@ -7710,8 +7710,22 @@ def check_app_password():
     
     return False
 
+# Add this function to your app.py
+
+def render_bert_file_merger():
+    """Render the BERT file merger tab in the Streamlit app."""
+    st.title("BERT Results File Merger")
+    
+    # Create an instance of the analyzer
+    from bert_results_analyzer import BERTResultsAnalyzer
+    
+    # Render the analyzer UI
+    analyzer = BERTResultsAnalyzer()
+    analyzer.render_analyzer_ui()
+
+# Then update your main function to include the new tab
 def main():
-    """Updated main application entry point with authentication at startup"""
+    """Updated main application entry point."""
     initialize_session_state()
     
     # Check authentication first
@@ -7727,7 +7741,7 @@ def main():
     """
     )
 
-    # Tab selection
+    # Updated tab selection with the new BERT File Merger tab
     current_tab = st.radio(
         "Select section:",
         [
@@ -7735,6 +7749,7 @@ def main():
             "📊 Analysis",
             "📝 Topic Analysis & Summaries",
             "🔬 BERT Analysis",
+            "📂 BERT File Merger",  # New tab
         ],
         label_visibility="collapsed",
         horizontal=True,
@@ -7762,6 +7777,10 @@ def main():
         elif current_tab == "🔬 BERT Analysis":
             # Directly render BERT analysis tab without additional password
             render_bert_analysis_tab(st.session_state.current_data)
+            
+        elif current_tab == "📂 BERT File Merger":
+            # Render the new BERT File Merger tab
+            render_bert_file_merger()
 
         # Sidebar data management
         with st.sidebar:
@@ -7792,7 +7811,6 @@ def main():
 
     except Exception as e:
         handle_error(e)
-
 if __name__ == "__main__":
     try:
         main()
