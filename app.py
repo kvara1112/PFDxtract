@@ -6403,39 +6403,33 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                 )
             
             with col2:
-                # Generate and allow download of HTML report
-                if run_analysis or "html_filename" in st.session_state.bert_results:
-                    # Create HTML report if not already created
-                    if "html_filename" not in st.session_state.bert_results:
-                        # Generate HTML report
-                        theme_analyzer = ThemeAnalyzer()
-                        html_content = theme_analyzer._create_integrated_html_for_pdf(
-                            results_df, st.session_state.bert_results["highlighted_texts"]
-                        )
-                        html_filename = f"theme_analysis_report_{timestamp}.html"
-                        
-                        with open(html_filename, "w", encoding="utf-8") as f:
-                            f.write(html_content)
-                            
-                        st.session_state.bert_results["html_filename"] = html_filename
+                # Always regenerate HTML report when results are available
+                if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
+                    # Generate fresh HTML report based on current results
+                    theme_analyzer = ThemeAnalyzer()
+                    html_content = theme_analyzer._create_integrated_html_for_pdf(
+                        results_df, st.session_state.bert_results["highlighted_texts"]
+                    )
+                    html_filename = f"theme_analysis_report_{timestamp}.html"
                     
-                    # Get the filename
-                    html_filename = st.session_state.bert_results["html_filename"]
-                    
-                    # Provide download button for HTML
-                    if os.path.exists(html_filename):
-                        with open(html_filename, "rb") as f:
-                            html_data = f.read()
+                    with open(html_filename, "w", encoding="utf-8") as f:
+                        f.write(html_content)
                         
-                        st.download_button(
-                            "🌐 Download HTML Report",
-                            data=html_data,
-                            file_name=os.path.basename(html_filename),
-                            mime="text/html",
-                            key="bert_html_download",
-                        )
-                    else:
-                        st.warning("HTML report not available")
+                    st.session_state.bert_results["html_filename"] = html_filename
+                    
+                    # Provide download button for fresh HTML
+                    with open(html_filename, "rb") as f:
+                        html_data = f.read()
+                    
+                    st.download_button(
+                        "🌐 Download HTML Report",
+                        data=html_data,
+                        file_name=os.path.basename(html_filename),
+                        mime="text/html",
+                        key="bert_html_download",
+                    )
+                else:
+                    st.warning("HTML report not available")
 
 
 def render_bert_analysis_tab2(data: pd.DataFrame = None):
