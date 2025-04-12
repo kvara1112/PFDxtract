@@ -4649,51 +4649,54 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             except Exception as e:
                 st.error(f"Error preparing Excel export: {str(e)}")
 
-        # PDF Download
+        # PDF Download - Simplified approach
         if any(col.startswith("PDF_") and col.endswith("_Path") for col in df.columns):
             st.subheader("Download PDFs")
-            if st.button(f"Download all PDFs", key=f"pdf_button_{prefix}_{unique_id}"):
-                with st.spinner("Preparing PDF download..."):
-                    try:
-                        pdf_zip_path = f"{filename}_pdfs.zip"
+            
+            # Create the ZIP file in memory first
+            try:
+                # Create a BytesIO object to hold the ZIP file
+                zip_buffer = io.BytesIO()
+                
+                with zipfile.ZipFile(zip_buffer, "w") as zipf:
+                    pdf_columns = [
+                        col
+                        for col in df.columns
+                        if col.startswith("PDF_") and col.endswith("_Path")
+                    ]
+                    added_files = set()
+                    pdf_count = 0
 
-                        with zipfile.ZipFile(pdf_zip_path, "w") as zipf:
-                            pdf_columns = [
-                                col
-                                for col in df.columns
-                                if col.startswith("PDF_") and col.endswith("_Path")
-                            ]
-                            added_files = set()
-
-                            for col in pdf_columns:
-                                paths = df[col].dropna()
-                                for pdf_path in paths:
-                                    if (
-                                        pdf_path
-                                        and os.path.exists(pdf_path)
-                                        and pdf_path not in added_files
-                                    ):
-                                        zipf.write(pdf_path, os.path.basename(pdf_path))
-                                        added_files.add(pdf_path)
-
-                        # Read the ZIP file and provide it for download
-                        with open(pdf_zip_path, "rb") as f:
-                            zip_data = f.read()
-                            
-                        # Use st.download_button to trigger the download
-                        st.download_button(
-                            "📦 Download All PDFs (ZIP)",
-                            zip_data,
-                            pdf_zip_path,
-                            "application/zip",
-                            key=f"download_pdfs_zip_{prefix}_{unique_id}",
-                        )
-
-                        # Cleanup zip file
-                        os.remove(pdf_zip_path)
-                        
-                    except Exception as e:
-                        st.error(f"Error preparing PDF download: {str(e)}")
+                    for col in pdf_columns:
+                        paths = df[col].dropna()
+                        for pdf_path in paths:
+                            if (
+                                pdf_path
+                                and os.path.exists(pdf_path)
+                                and pdf_path not in added_files
+                            ):
+                                zipf.write(pdf_path, os.path.basename(pdf_path))
+                                added_files.add(pdf_path)
+                                pdf_count += 1
+                
+                # Reset buffer position
+                zip_buffer.seek(0)
+                
+                # Only show download button if PDFs were found
+                if pdf_count > 0:
+                    st.download_button(
+                        f"📦 Download All PDFs ({pdf_count} files)",
+                        zip_buffer,
+                        f"{filename}_pdfs.zip",
+                        "application/zip",
+                        key=f"download_pdfs_{prefix}_{unique_id}",
+                    )
+                else:
+                    st.warning("No PDF files found to download.")
+                    
+            except Exception as e:
+                st.error(f"Error preparing PDF download: {str(e)}")
+                logging.error(f"PDF download error: {e}", exc_info=True)
 
     except Exception as e:
         st.error(f"Error setting up export options: {str(e)}")
