@@ -4895,17 +4895,14 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
         logging.error(f"Error exporting to Excel: {e}", exc_info=True)
         raise Exception(f"Failed to export data to Excel: {str(e)}")
         
-
 def show_export_options(df: pd.DataFrame, prefix: str):
     """Show export options for the data with descriptive filename and unique keys"""
     try:
         st.subheader("Export Options")
 
-        # Generate timestamp and random suffix for unique keys
+        # Generate timestamp and random suffix to create unique keys
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        random_suffix = "".join(
-            random.choices(string.ascii_lowercase + string.digits, k=6)
-        )
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
         unique_id = f"{timestamp}_{random_suffix}"
         filename = f"pfd_reports_{prefix}_{timestamp}"
 
@@ -4917,17 +4914,16 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                 # Create export copy with formatted dates
                 df_csv = df.copy()
                 if "date_of_report" in df_csv.columns:
-                    df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime(
-                        "%d/%m/%Y"
-                    )
+                    df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
 
-                csv = df_csv.to_csv(index=False).encode("utf-8")
+                csv = df_csv.to_csv(index=False).encode('utf-8')
+                csv_key = f"download_csv_{prefix}_{unique_id}"
                 st.download_button(
                     "📥 Download Reports (CSV)",
                     csv,
                     f"{filename}.csv",
                     "text/csv",
-                    key=f"download_csv_{prefix}_{unique_id}",
+                    key=csv_key
                 )
             except Exception as e:
                 st.error(f"Error preparing CSV export: {str(e)}")
@@ -4936,42 +4932,33 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         with col2:
             try:
                 excel_data = export_to_excel(df)
+                excel_key = f"download_excel_{prefix}_{unique_id}"
                 st.download_button(
                     "📥 Download Reports (Excel)",
                     excel_data,
                     f"{filename}.xlsx",
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"download_excel_{prefix}_{unique_id}",
+                    key=excel_key
                 )
             except Exception as e:
                 st.error(f"Error preparing Excel export: {str(e)}")
 
-        # PDF Download - Simplified approach
+        # PDF Export section
         if any(col.startswith("PDF_") and col.endswith("_Path") for col in df.columns):
             st.subheader("Download PDFs")
-            
-            # Create the ZIP file in memory first
             try:
-                # Create a BytesIO object to hold the ZIP file
+                # Create the ZIP file in memory
                 zip_buffer = io.BytesIO()
                 
                 with zipfile.ZipFile(zip_buffer, "w") as zipf:
-                    pdf_columns = [
-                        col
-                        for col in df.columns
-                        if col.startswith("PDF_") and col.endswith("_Path")
-                    ]
+                    pdf_columns = [col for col in df.columns if col.startswith("PDF_") and col.endswith("_Path")]
                     added_files = set()
                     pdf_count = 0
 
                     for col in pdf_columns:
                         paths = df[col].dropna()
                         for pdf_path in paths:
-                            if (
-                                pdf_path
-                                and os.path.exists(pdf_path)
-                                and pdf_path not in added_files
-                            ):
+                            if pdf_path and os.path.exists(pdf_path) and pdf_path not in added_files:
                                 zipf.write(pdf_path, os.path.basename(pdf_path))
                                 added_files.add(pdf_path)
                                 pdf_count += 1
@@ -4979,17 +4966,15 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                 # Reset buffer position
                 zip_buffer.seek(0)
                 
-                # Only show download button if PDFs were found
-                if pdf_count > 0:
-                    st.download_button(
-                        f"📦 Download All PDFs ({pdf_count} files)",
-                        zip_buffer,
-                        f"{filename}_pdfs.zip",
-                        "application/zip",
-                        key=f"download_pdfs_{prefix}_{unique_id}",
-                    )
-                else:
-                    st.warning("No PDF files found to download.")
+                # PDF Download Button with Unique Key
+                pdf_key = f"download_pdfs_{prefix}_{unique_id}"
+                st.download_button(
+                    f"📦 Download All PDFs ({pdf_count} files)",
+                    zip_buffer,
+                    f"{filename}_pdfs.zip",
+                    "application/zip",
+                    key=pdf_key
+                )
                     
             except Exception as e:
                 st.error(f"Error preparing PDF download: {str(e)}")
@@ -4998,6 +4983,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
     except Exception as e:
         st.error(f"Error setting up export options: {str(e)}")
         logging.error(f"Export options error: {e}", exc_info=True)
+
         
 def show_export_options2(df: pd.DataFrame, prefix: str):
     """Show export options for the data with descriptive filename and unique keys"""
