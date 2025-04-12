@@ -299,56 +299,78 @@ class BERTResultsAnalyzer:
             st.warning("None of the essential columns found in the data. Will provide full dataset only.")
             reduced_data = None
             
+        # Store processed data in session state to maintain across re-runs
+        if "download_data_full" not in st.session_state:
+            st.session_state.download_data_full = download_data
+        if reduced_data is not None and "download_data_reduced" not in st.session_state:
+            st.session_state.download_data_reduced = reduced_data
+        
+        # Use session state to track button clicks
+        if "full_csv_clicked" not in st.session_state:
+            st.session_state.full_csv_clicked = False
+        if "full_excel_clicked" not in st.session_state:
+            st.session_state.full_excel_clicked = False
+        if "reduced_csv_clicked" not in st.session_state:
+            st.session_state.reduced_csv_clicked = False
+        if "reduced_excel_clicked" not in st.session_state:
+            st.session_state.reduced_excel_clicked = False
+        
         with col1:
             st.markdown("### Full Dataset")
-            # CSV download button for full data
-            csv_data = download_data.to_csv(index=False).encode('utf-8')
-            st.download_button(
+            
+            # CSV download for full data
+            csv_data = st.session_state.download_data_full.to_csv(index=False).encode('utf-8')
+            csv_full_button = st.download_button(
                 "📥 Download Full Dataset (CSV)",
                 data=csv_data,
                 file_name=f"merged_bert_full_{timestamp}.csv",
                 mime="text/csv",
-                key="download_full_csv"
+                key="download_full_csv",
+                on_click=lambda: setattr(st.session_state, "full_csv_clicked", True)
             )
             
-            # Excel download button for full data
+            # Excel download for full data
             excel_buffer_full = io.BytesIO()
-            download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
+            st.session_state.download_data_full.to_excel(excel_buffer_full, index=False, engine='openpyxl')
             excel_buffer_full.seek(0)
             
-            st.download_button(
+            excel_full_button = st.download_button(
                 "📥 Download Full Dataset (Excel)",
                 data=excel_buffer_full,
                 file_name=f"merged_bert_full_{timestamp}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_full_excel"
+                key="download_full_excel",
+                on_click=lambda: setattr(st.session_state, "full_excel_clicked", True)
             )
         
         # Only show reduced dataset options if we have essential columns
-        if reduced_data is not None:
+        if "download_data_reduced" in st.session_state:
             with col2:
                 st.markdown("### Reduced Dataset (Essential Columns)")
-                # CSV download button for reduced data
-                reduced_csv_data = reduced_data.to_csv(index=False).encode('utf-8')
-                st.download_button(
+                
+                # CSV download for reduced data
+                reduced_csv_data = st.session_state.download_data_reduced.to_csv(index=False).encode('utf-8')
+                csv_reduced_button = st.download_button(
                     "📥 Download Reduced Dataset (CSV)",
                     data=reduced_csv_data,
                     file_name=f"merged_bert_reduced_{timestamp}.csv",
                     mime="text/csv",
-                    key="download_reduced_csv"
+                    key="download_reduced_csv",
+                    on_click=lambda: setattr(st.session_state, "reduced_csv_clicked", True)
                 )
                 
-                # Excel download button for reduced data
+                # Excel download for reduced data
                 excel_buffer_reduced = io.BytesIO()
-                reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
+                st.session_state.download_data_reduced.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
                 excel_buffer_reduced.seek(0)
                 
-                st.download_button(
+                excel_reduced_button = st.download_button(
                     "📥 Download Reduced Dataset (Excel)",
                     data=excel_buffer_reduced,
                     file_name=f"merged_bert_reduced_{timestamp}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="download_reduced_excel"
+                    key="download_reduced_excel",
+                    on_click=lambda: setattr(st.session_state, "reduced_excel_clicked", True)
                 )
 
 
