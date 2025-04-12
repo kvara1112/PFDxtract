@@ -6321,19 +6321,15 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         return
 
                     # Initialize the theme analyzer (with loading message in a spinner)
-                    loading_message = st.empty()
-                    if not st.session_state.bert_initialized:
-                        loading_message.info("Loading BERT model and tokenizer... This may take a moment.")
+                    with st.spinner("Loading BERT model and tokenizer..."):
+                        # Initialize the analyzer
+                        theme_analyzer = ThemeAnalyzer(
+                            model_name="emilyalsentzer/Bio_ClinicalBERT"
+                        )
+                        
+                        # Mark as initialized
+                        st.session_state.bert_initialized = True
                     
-                    # Initialize the analyzer
-                    theme_analyzer = ThemeAnalyzer(
-                        model_name="emilyalsentzer/Bio_ClinicalBERT"
-                    )
-                    
-                    # Mark as initialized and clear the message
-                    st.session_state.bert_initialized = True
-                    loading_message.empty()
-
                     # Set custom configuration
                     theme_analyzer.config[
                         "base_similarity_threshold"
@@ -6435,7 +6431,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         html_data = f.read()
                     
                     st.download_button(
-                        "🌐 Download HTML Report",
+                        "📄 Download Annotated Reports (HTML)",
                         data=html_data,
                         file_name=os.path.basename(html_filename),
                         mime="text/html",
@@ -6443,6 +6439,9 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     )
                 else:
                     st.warning("HTML report not available")
+
+
+
 #issue is that the bert message wont disappear
 def render_bert_analysis_tab2(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function that focuses only on displaying the results table with themes and sentences"""
