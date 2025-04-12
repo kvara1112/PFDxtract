@@ -3344,7 +3344,7 @@ def render_scraping_tab():
         with row1_col1:
             search_keyword = st.text_input(
                 "Search keywords:",
-                value=st.session_state.get("search_keyword_default", ""),
+                value=st.session_state.get("search_keyword_default", "report"),
                 key="search_keyword",
                 help="Do not leave empty, use 'report' or another search term",
             )
@@ -6275,6 +6275,15 @@ def main():
         handle_error(e)
 
 
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        st.error("Critical Error")
+        st.error(str(e))
+        logging.critical(f"Application crash: {e}", exc_info=True)
+        
+
 def check_password():
     """Returns `True` if the user had the correct password."""
     
@@ -6298,10 +6307,8 @@ def check_password():
     
     if submitted:
         st.session_state["password_attempted"] = True
-        
-        # Retrieve password from Streamlit secrets
-        # IMPORTANT: Set this in .streamlit/secrets.toml
-        correct_password = st.secrets.get("app_password")
+        # Get the correct password from secrets or use default
+        correct_password = st.secrets.get("app_password", "amazing246")
         
         if password == correct_password:
             st.session_state["password_correct"] = True
@@ -6317,6 +6324,106 @@ def check_password():
     
     return False
     
+def check_bert_password():
+    """Returns `True` if the user had the correct password for BERT Analysis."""
+    # Initialize session state variables if they don't exist
+    if "bert_password_correct" not in st.session_state:
+        st.session_state["bert_password_correct"] = False
+    if "bert_password_attempted" not in st.session_state:
+        st.session_state["bert_password_attempted"] = False
+
+    # If already authenticated, return True
+    if st.session_state["bert_password_correct"]:
+        return True
+
+    # Otherwise, show password input
+    password = st.text_input(
+        "Please enter the password for BERT Analysis",
+        type="password",
+        key="bert_password_input",
+    )
+
+    if st.button("Submit Password", key="bert_password_submit"):
+        st.session_state["bert_password_attempted"] = True
+        # Get the correct password from secrets
+        correct_password = st.secrets.get("bert_password", "amazing246")
+
+        if password == correct_password:
+            st.session_state["bert_password_correct"] = True
+            st.rerun()  # Use st.rerun() instead of experimental_rerun()
+            return True
+        else:
+            st.error("Incorrect password. Please try again.")
+            return False
+
+    # Only show error if password has been attempted
+    if (
+        st.session_state["bert_password_attempted"]
+        and not st.session_state["bert_password_correct"]
+    ):
+        st.error("Please enter the correct password to access BERT Analysis.")
+
+    return False
+
+    # Create PDF with matplotlib
+    with PdfPages(output_filename) as pdf:
+        # Title page
+        plt.figure(figsize=(12, 8))
+        plt.text(
+            0.5, 0.5, "Theme Analysis Report", fontsize=24, ha="center", va="center"
+        )
+        plt.text(
+            0.5,
+            0.4,
+            f"Generated on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            fontsize=14,
+            ha="center",
+            va="center",
+        )
+        plt.axis("off")
+        pdf.savefig()
+        plt.close()
+
+        # Summary statistics
+        plt.figure(figsize=(12, 8))
+        plt.text(0.5, 0.95, "Analysis Summary", fontsize=20, ha="center", va="center")
+
+        # Document count
+        doc_count = len(highlighted_texts)
+        plt.text(0.1, 0.85, f"Total Documents Analyzed: {doc_count}", fontsize=14)
+
+        # Theme count
+        if not results_df.empty:
+            theme_count = len(results_df)
+            plt.text(0.1, 0.8, f"Total Theme Predictions: {theme_count}", fontsize=14)
+
+            # Framework distribution
+            plt.text(0.1, 0.7, "Framework Distribution:", fontsize=14)
+            y_pos = 0.65
+            for framework, count in results_df["Framework"].value_counts().items():
+                plt.text(0.15, y_pos, f"{framework}: {count} themes", fontsize=12)
+                y_pos -= 0.05
+
+        plt.axis("off")
+        pdf.savefig()
+        plt.close()
+
+        # Cannot directly include HTML in matplotlib, so just note that the highlights are available
+        plt.figure(figsize=(12, 8))
+        plt.text(
+            0.5,
+            0.5,
+            "Highlighted texts are available in the web interface.\nThey cannot be directly included in this PDF.",
+            fontsize=14,
+            ha="center",
+            va="center",
+        )
+        plt.axis("off")
+        pdf.savefig()
+        plt.close()
+
+    return output_filename
+
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function without password check"""
     st.header("BERT-based Theme Analysis")
@@ -6554,7 +6661,238 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     st.warning("HTML report not available")
 
 
-    
+
+#issue is that the bert message wont disappear
+def render_bert_analysis_tab2(data: pd.DataFrame = None):
+    """Modified render_bert_analysis_tab function that focuses only on displaying the results table with themes and sentences"""
+    st.header("BERT-based Theme Analysis")
+
+    # Check password before showing BERT analysis
+    if check_bert_password():
+        # Ensure the bert_results dictionary exists in session state
+        if "bert_results" not in st.session_state:
+            st.session_state.bert_results = {}
+
+        # File upload section
+        st.subheader("Upload Data")
+        uploaded_file = st.file_uploader(
+            "Upload CSV or Excel file for BERT Analysis",
+            type=["csv", "xlsx"],
+            help="Upload a file with reports for theme analysis",
+            key="bert_file_uploader",
+        )
+
+        # If a file is uploaded, process it
+        if uploaded_file is not None:
+            try:
+                if uploaded_file.name.endswith(".csv"):
+                    uploaded_data = pd.read_csv(uploaded_file)
+                else:
+                    uploaded_data = pd.read_excel(uploaded_file)
+
+                # Process the uploaded data
+                uploaded_data = process_scraped_data(uploaded_data)
+
+                # Update the data reference
+                data = uploaded_data
+
+                st.success("File uploaded and processed successfully!")
+            except Exception as e:
+                st.error(f"Error uploading file: {str(e)}")
+                return
+
+        # Check if data is available
+        if data is None or len(data) == 0:
+            st.warning(
+                "No data available. Please upload a file or ensure existing data is loaded."
+            )
+            return
+
+        # Column selection for analysis
+        st.subheader("Select Analysis Column")
+
+        # Find text columns (object/string type)
+        text_columns = data.select_dtypes(include=["object"]).columns.tolist()
+
+        # If no text columns found
+        if not text_columns:
+            st.error("No text columns found in the dataset.")
+            return
+
+        # Column selection with dropdown
+        content_column = st.selectbox(
+            "Choose the column to analyze:",
+            options=text_columns,
+            index=text_columns.index("Content") if "Content" in text_columns else 0,
+            help="Select the column containing the text you want to analyze",
+            key="bert_content_column",
+        )
+
+        # Filtering options
+        st.subheader("Select Documents to Analyze")
+
+        # Option to select all or specific records
+        analysis_type = st.radio(
+            "Analysis Type",
+            ["All Reports", "Selected Reports"],
+            horizontal=True,
+            key="bert_analysis_type",
+        )
+
+        if analysis_type == "Selected Reports":
+            # Multi-select for reports
+            selected_indices = st.multiselect(
+                "Choose specific reports to analyze",
+                options=list(range(len(data))),
+                format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
+                key="bert_selected_indices",
+            )
+            selected_data = data.iloc[selected_indices] if selected_indices else None
+        else:
+            selected_data = data
+
+        # Analysis parameters
+        st.subheader("Analysis Parameters")
+        similarity_threshold = st.slider(
+            "Similarity Threshold",
+            min_value=0.3,
+            max_value=0.9,
+            value=0.65,
+            step=0.05,
+            help="Minimum similarity score for theme detection (higher = more strict)",
+            key="bert_similarity_threshold",
+        )
+
+        # Analysis button
+        run_analysis = st.button(
+            "Run BERT Analysis", type="primary", key="bert_run_analysis"
+        )
+
+        # Run analysis if button is clicked
+        if run_analysis:
+            with st.spinner("Performing BERT Theme Analysis..."):
+                try:
+                    # Validate data selection
+                    if selected_data is None or len(selected_data) == 0:
+                        st.warning("No documents selected for analysis.")
+                        return
+
+                    # Initialize the theme analyzer
+                    theme_analyzer = ThemeAnalyzer(
+                        model_name="emilyalsentzer/Bio_ClinicalBERT"
+                    )
+
+                    # Set custom configuration
+                    theme_analyzer.config[
+                        "base_similarity_threshold"
+                    ] = similarity_threshold
+
+                    # Perform analysis with highlighting
+                    (
+                        results_df,
+                        highlighted_texts,
+                    ) = theme_analyzer.create_detailed_results(
+                        selected_data, content_column=content_column
+                    )
+
+                    # Save results to session state to ensure persistence
+                    st.session_state.bert_results["results_df"] = results_df
+                    st.session_state.bert_results["highlighted_texts"] = highlighted_texts
+
+                    st.success("Analysis complete!")
+
+                except Exception as e:
+                    st.error(f"Error during BERT analysis: {str(e)}")
+                    logging.error(f"BERT analysis error: {e}", exc_info=True)
+
+        # Display results if they exist - SIMPLIFIED TO FOCUS ONLY ON THE RESULTS TABLE
+        if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+            results_df = st.session_state.bert_results["results_df"]
+            
+            # Summary stats
+            st.subheader("Results")
+            st.write(f"Total Theme Identifications: {len(results_df)}")
+            
+            # Clean up the results DataFrame to display only the essential columns
+            display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords", "Matched Sentences"]
+            display_df = results_df.copy()
+            
+            # Only include columns that exist in the results
+            valid_cols = [col for col in display_cols if col in display_df.columns]
+            
+            # Reorder columns to put sentences at the end (they're usually longer)
+            if "Matched Sentences" in valid_cols:
+                valid_cols.remove("Matched Sentences")
+                valid_cols.append("Matched Sentences")
+            
+            # Create the display DataFrame
+            clean_df = display_df[valid_cols]
+            
+            # Display the results table - full width and with a clear formatting
+            st.dataframe(
+                clean_df,
+                use_container_width=True,
+                column_config={
+                    "Title": st.column_config.TextColumn("Document Title"),
+                    "Framework": st.column_config.TextColumn("Framework"),
+                    "Theme": st.column_config.TextColumn("Theme"),
+                    "Confidence": st.column_config.TextColumn("Confidence"),
+                    "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                    "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                    "Matched Sentences": st.column_config.TextColumn("Matched Sentences")
+                }
+            )
+            
+            # Add download options
+            st.subheader("Export Results")
+            
+            # Generate timestamp for filenames
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Create columns for download buttons
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Excel download button
+                excel_data = export_to_excel(clean_df)
+                st.download_button(
+                    "📥 Download Results Table",
+                    data=excel_data,
+                    file_name=f"bert_theme_analysis_{timestamp}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="bert_excel_download",
+                )
+            
+            with col2:
+                # Always regenerate HTML report when results are available
+                if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
+                    # Generate fresh HTML report based on current results
+                    theme_analyzer = ThemeAnalyzer()
+                    html_content = theme_analyzer._create_integrated_html_for_pdf(
+                        results_df, st.session_state.bert_results["highlighted_texts"]
+                    )
+                    html_filename = f"theme_analysis_report_{timestamp}.html"
+                    
+                    with open(html_filename, "w", encoding="utf-8") as f:
+                        f.write(html_content)
+                        
+                    st.session_state.bert_results["html_filename"] = html_filename
+                    
+                    # Provide download button for fresh HTML
+                    with open(html_filename, "rb") as f:
+                        html_data = f.read()
+                    
+                    st.download_button(
+                        "🌐 Download HTML Report",
+                        data=html_data,
+                        file_name=os.path.basename(html_filename),
+                        mime="text/html",
+                        key="bert_html_download",
+                    )
+                else:
+                    st.warning("HTML report not available")
+
+
 
 if __name__ == "__main__":
     try:
