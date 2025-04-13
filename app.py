@@ -3323,7 +3323,8 @@ def extract_concern_text(content):
         "INVESTIGATION FINDINGS",
         "THE CORONER'S MATTER OF CONCERN",
         "CONCERNS AND RECOMMENDATIONS",
-        "CONCERNS IDENTIFIED"
+        "CONCERNS IDENTIFIED",
+        "TheMATTERS OF CONCERN"
     ]
 
     # Normalize content (remove excessive whitespace but preserve structure)
