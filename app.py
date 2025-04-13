@@ -3400,7 +3400,6 @@ def extract_concern_text(content):
         "DATED THIS",
         "NEXT STEPS",
         "YOU ARE UNDER A DUTY",
-        "RESPONSE"
     ]
 
     # Find the earliest end marker
