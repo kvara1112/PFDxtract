@@ -93,81 +93,7 @@ class BERTResultsAnalyzer:
         self._render_multiple_file_upload()
 
     def _render_multiple_file_upload(self):
-    """Render interface for multiple file upload and merging without form container."""
-    uploaded_files = st.file_uploader(
-        "Upload multiple BERT analysis files",
-        type=["csv", "xlsx"],
-        accept_multiple_files=True,
-        help="Upload multiple CSV or Excel files to merge them",
-        key="bert_multi_uploader"
-    )
-    
-    if uploaded_files and len(uploaded_files) > 0:
-        st.info(f"Uploaded {len(uploaded_files)} files")
-        
-        # Allow user to specify merge settings
-        with st.expander("Merge Settings", expanded=True):
-            st.info("These settings control how the files will be merged.")
-            
-            # Option to filter out responses
-            filter_responses = st.checkbox(
-                "Filter out Responses (keep only Reports)",
-                value=True,
-                help="If checked, responses will be removed from the merged data"
-            )
-            
-            # Option to remove duplicates
-            drop_duplicates = st.checkbox(
-                "Remove Duplicate Records",
-                value=True,
-                help="If checked, duplicate records will be removed after merging"
-            )
-            
-            if drop_duplicates:
-                duplicate_columns = st.text_input(
-                    "Columns for Duplicate Check",
-                    value="Record ID",
-                    help="Comma-separated list of columns to check for duplicates"
-                )
-        
-        # Button to process the files - NOT inside a form
-        merge_button_key = f"merge_files_button_{int(time.time()*1000)}"
-        if st.button("Merge Files", key=merge_button_key):
-            try:
-                with st.spinner("Processing and merging files..."):
-                    # Stack files
-                    duplicate_cols = None
-                    if drop_duplicates:
-                        duplicate_cols = [col.strip() for col in duplicate_columns.split(",")]
-                            
-                    self._merge_files_stack(uploaded_files, duplicate_cols)
-                    
-                    # Now processed_data is in self.data
-                    if self.data is not None:
-                        # Filter out responses if requested
-                        if filter_responses:
-                            before_count = len(self.data)
-                            self.data = self._filter_out_responses(self.data)
-                            after_count = len(self.data)
-                            st.success(f"Filtered out {before_count - after_count} responses, kept {after_count} reports.")
-                        
-                        st.success(f"Files merged successfully! Final dataset has {len(self.data)} records.")
-                        
-                        # Show a preview of the data
-                        st.subheader("Preview of Merged Data")
-                        st.dataframe(self.data.head(5))
-                        
-                        # Provide download options
-                        self._provide_download_options()
-                    else:
-                        st.error("File merging resulted in empty data. Please check your files.")
-                        
-            except Exception as e:
-                st.error(f"Error merging files: {str(e)}")
-                logging.error(f"File merging error: {e}", exc_info=True)
-    
-    def _render_multiple_file_upload2(self):
-        """Render interface for multiple file upload and merging."""
+        """Render interface for multiple file upload and merging without form container."""
         uploaded_files = st.file_uploader(
             "Upload multiple BERT analysis files",
             type=["csv", "xlsx"],
@@ -204,8 +130,9 @@ class BERTResultsAnalyzer:
                         help="Comma-separated list of columns to check for duplicates"
                     )
             
-            # Button to process the files
-            if st.button("Merge Files", key="merge_files_button"):
+            # Button to process the files - NOT inside a form
+            merge_button_key = f"merge_files_button_{int(time.time()*1000)}"
+            if st.button("Merge Files", key=merge_button_key):
                 try:
                     with st.spinner("Processing and merging files..."):
                         # Stack files
@@ -238,6 +165,79 @@ class BERTResultsAnalyzer:
                 except Exception as e:
                     st.error(f"Error merging files: {str(e)}")
                     logging.error(f"File merging error: {e}", exc_info=True)
+        
+        def _render_multiple_file_upload2(self):
+            """Render interface for multiple file upload and merging."""
+            uploaded_files = st.file_uploader(
+                "Upload multiple BERT analysis files",
+                type=["csv", "xlsx"],
+                accept_multiple_files=True,
+                help="Upload multiple CSV or Excel files to merge them",
+                key="bert_multi_uploader"
+            )
+            
+            if uploaded_files and len(uploaded_files) > 0:
+                st.info(f"Uploaded {len(uploaded_files)} files")
+                
+                # Allow user to specify merge settings
+                with st.expander("Merge Settings", expanded=True):
+                    st.info("These settings control how the files will be merged.")
+                    
+                    # Option to filter out responses
+                    filter_responses = st.checkbox(
+                        "Filter out Responses (keep only Reports)",
+                        value=True,
+                        help="If checked, responses will be removed from the merged data"
+                    )
+                    
+                    # Option to remove duplicates
+                    drop_duplicates = st.checkbox(
+                        "Remove Duplicate Records",
+                        value=True,
+                        help="If checked, duplicate records will be removed after merging"
+                    )
+                    
+                    if drop_duplicates:
+                        duplicate_columns = st.text_input(
+                            "Columns for Duplicate Check",
+                            value="Record ID",
+                            help="Comma-separated list of columns to check for duplicates"
+                        )
+                
+                # Button to process the files
+                if st.button("Merge Files", key="merge_files_button"):
+                    try:
+                        with st.spinner("Processing and merging files..."):
+                            # Stack files
+                            duplicate_cols = None
+                            if drop_duplicates:
+                                duplicate_cols = [col.strip() for col in duplicate_columns.split(",")]
+                                    
+                            self._merge_files_stack(uploaded_files, duplicate_cols)
+                            
+                            # Now processed_data is in self.data
+                            if self.data is not None:
+                                # Filter out responses if requested
+                                if filter_responses:
+                                    before_count = len(self.data)
+                                    self.data = self._filter_out_responses(self.data)
+                                    after_count = len(self.data)
+                                    st.success(f"Filtered out {before_count - after_count} responses, kept {after_count} reports.")
+                                
+                                st.success(f"Files merged successfully! Final dataset has {len(self.data)} records.")
+                                
+                                # Show a preview of the data
+                                st.subheader("Preview of Merged Data")
+                                st.dataframe(self.data.head(5))
+                                
+                                # Provide download options
+                                self._provide_download_options()
+                            else:
+                                st.error("File merging resulted in empty data. Please check your files.")
+                                
+                    except Exception as e:
+                        st.error(f"Error merging files: {str(e)}")
+                        logging.error(f"File merging error: {e}", exc_info=True)
     
     def _is_response(self, row):
         """Check if a row represents a response document."""
