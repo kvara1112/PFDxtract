@@ -7321,7 +7321,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
             doc_type = st.multiselect(
                 "Document Type",
                 ["Report", "Response"],
-                default=["Report", "Response"],
+                default=[],
                 key="doc_type_filter",
                 help="Filter by document type"
             )
