@@ -7583,6 +7583,7 @@ def render_bert_file_merger():
     # Render the analyzer UI
     analyzer.render_analyzer_ui()
 
+
 def main():
     """Updated main application entry point."""
     initialize_session_state()
@@ -7599,160 +7600,43 @@ def main():
     You can scrape new reports, analyze existing data, and explore thematic patterns.
     """
     )
-
     # Updated tab selection with the new BERT File Merger tab
-    current_tab = st.radio(
-        "Select section:",
-        [
-            "(1)🔍 Scrape Reports",
-            "(2)📂 Scraped File Merger",
-            "(3)📊 Scraped File Analysis",
-            "(4)📝 Topic Analysis & Summaries", 
-            "(5)🔬 Concept Annotation",
-        ],
-        label_visibility="collapsed",
-        horizontal=True,
-        key="main_tab_selector",
-    )
-    st.markdown("---")
-
-    try:
-        if current_tab == "(1)🔍 Scrape Reports":
-            render_scraping_tab()
-        
-        elif current_tab == "(2)📂 Scraped File Merger":
-            render_bert_file_merger()
-        
-        elif current_tab == "(3)📊 Scraped File Analysis":
-            if not validate_data_state():
-                handle_no_data_state("analysis")
-            else:
-                render_analysis_tab(st.session_state.current_data)
-        
-        elif current_tab == "(4)📝 Topic Analysis & Summaries":
-            if not validate_data_state():
-                handle_no_data_state("topic_summary")
-            else:
-                render_topic_summary_tab(st.session_state.current_data)
-        
-        elif current_tab == "(5)🔬 Concept Annotation":
-            render_bert_analysis_tab(st.session_state.current_data)
-
-        # Sidebar data management
-        with st.sidebar:
-            st.header("Data Management")
-
-            if hasattr(st.session_state, "data_source"):
-                st.info(f"Current data: {st.session_state.data_source}")
-
-            if st.button("Clear All Data"):
-                # Clear all session state variables
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                
-                # Clean up uploaded files and temporary directories
-                try:
-                    import shutil
-                    import os
-                    
-                    # List of directories to clean
-                    cleanup_dirs = [
-                        "pdfs",
-                        "bert_outputs",
-                        "scraped_outputs",
-                        "topic_analysis_outputs",
-                        "concept_annotation_outputs"
-                    ]
-                    
-                    for directory in cleanup_dirs:
-                        if os.path.exists(directory):
-                            shutil.rmtree(directory)
-                        os.makedirs(directory)
-                    
-                    # Remove any temporary files
-                    temp_files = [
-                        f for f in os.listdir() 
-                        if f.startswith(("merged_", "temp_", "output_")) and 
-                        (f.endswith(".csv") or f.endswith(".xlsx") or f.endswith(".txt"))
-                    ]
-                    for temp_file in temp_files:
-                        os.remove(temp_file)
-                
-                except Exception as cleanup_error:
-                    st.error(f"Error during cleanup: {cleanup_error}")
-                
-                # Reinitialize session state
-                initialize_session_state()
-                
-                # Clear the screen
-                st.experimental_rerun()
+        current_tab = st.radio(
+            "Select section:",
+            [
+                "(1)🔍 Scrape Reports",
+                "(2)📂 Scraped File Merger",
+                "(3)📊 Scraped File Analysis",
+                "(4)📝 Topic Analysis & Summaries", 
+                "(5)🔬 Concept Annotation",
+            ],
+            label_visibility="collapsed",
+            horizontal=True,
+            key="main_tab_selector",
+        )
+        st.markdown("---")
+    
+        try:
+            if current_tab == "(1)🔍 Scrape Reports":
+                render_scraping_tab()
             
-            # Add logout button
-            if st.button("Logout"):
-                st.session_state.authenticated = False
-                st.rerun()
-
-        render_footer()
-
-    except Exception as e:
-        handle_error(e)
-
-def main2():
-    """Updated main application entry point."""
-    initialize_session_state()
-    
-    # Check authentication first
-    if not check_app_password():
-        return
-    
-    # Only show the main app content if authenticated
-    st.title("UK Judiciary PFD Reports Analysis")
-    st.markdown(
-        """
-    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can scrape new reports, analyze existing data, and explore thematic patterns.
-    """
-    )
-
-    # Updated tab selection with the new BERT File Merger tab
-    current_tab = st.radio(
-        "Select section:",
-        [
-            "🔍 Scrape Reports",
-            "📊 Analysis",
-            "📝 Topic Analysis & Summaries",
-            "🔬 BERT Analysis",
-            "📂 BERT File Merger",  # New tab
-        ],
-        label_visibility="collapsed",
-        horizontal=True,
-        key="main_tab_selector",
-    )
-    st.markdown("---")
-
-    try:
-        if current_tab == "🔍 Scrape Reports":
-            render_scraping_tab()
-        
-        elif current_tab == "📊 Analysis":
-            if not validate_data_state():
-                handle_no_data_state("analysis")
-            else:
-                render_analysis_tab(st.session_state.current_data)
-        
-        elif current_tab == "📝 Topic Analysis & Summaries":
-            if not validate_data_state():
-                handle_no_data_state("topic_summary")
-            else:
-                render_topic_summary_tab(st.session_state.current_data)
-        
-        elif current_tab == "🔬 BERT Analysis":
-            # Directly render BERT analysis tab without additional password
-            render_bert_analysis_tab(st.session_state.current_data)
-        
-        elif current_tab == "📂 BERT File Merger":
-            # Render the new BERT File Merger tab
-            render_bert_file_merger()
+            elif current_tab == "(2)📂 Scraped File Merger":
+                render_bert_file_merger()
+            
+            elif current_tab == "(3)📊 Scraped File Analysis":
+                if not validate_data_state():
+                    handle_no_data_state("analysis")
+                else:
+                    render_analysis_tab(st.session_state.current_data)
+            
+            elif current_tab == "(4)📝 Topic Analysis & Summaries":
+                if not validate_data_state():
+                    handle_no_data_state("topic_summary")
+                else:
+                    render_topic_summary_tab(st.session_state.current_data)
+            
+            elif current_tab == "(5)🔬 Concept Annotation":
+                render_bert_analysis_tab(st.session_state.current_data)
 
         # Sidebar data management
         with st.sidebar:
@@ -7768,6 +7652,7 @@ def main2():
                     "uploaded_data",
                     "topic_model",
                     "data_source",
+                    
                 ]:
                     if key in st.session_state:
                         del st.session_state[key]
