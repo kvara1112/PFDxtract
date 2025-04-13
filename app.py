@@ -378,8 +378,180 @@ class BERTResultsAnalyzer:
             print(f"Added {final_count - extracted_count} more years from content analysis")
         
         return processed_df
-    
+        
     def _provide_download_options(self):
+        """Provide options to download the current data."""
+        if self.data is None or len(self.data) == 0:
+            return
+        
+        st.subheader("Download Merged Data")
+        
+        # Generate timestamp and random suffix for truly unique keys
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        unique_id = f"{timestamp}_{random_suffix}"
+        
+        # Deduplicate data by Record ID before download if requested
+        dedup_download = st.checkbox(
+            "Remove duplicate Record IDs before download (keep only first occurrence)", 
+            value=True,
+            key=f"dedup_checkbox_{unique_id}"
+        )
+        
+        download_data = self.data
+        if dedup_download and 'Record ID' in self.data.columns:
+            download_data = self.data.drop_duplicates(subset=['Record ID'], keep='first')
+            st.info(f"Download will contain {len(download_data)} rows after removing duplicate Record IDs (original had {len(self.data)} rows)")
+        
+        # Prepare the reduced dataset with essential columns
+        reduced_data = download_data.copy()
+        
+        # Get list of available essential columns
+        available_essential_cols = [col for col in self.essential_columns if col in reduced_data.columns]
+        if available_essential_cols:
+            reduced_data = reduced_data[available_essential_cols]
+            st.success(f"Reduced dataset includes these columns: {', '.join(available_essential_cols)}")
+        else:
+            st.warning("None of the essential columns found in the data. Will provide full dataset only.")
+            reduced_data = None
+        
+        # Generate filename prefix
+        filename_prefix = f"merged_bert_{timestamp}"
+        
+        # Full Dataset Section
+        st.markdown("### Full Dataset")
+        full_col1, full_col2 = st.columns(2)
+        
+        # CSV download button for full data
+        with full_col1:
+            try:
+                # Create export copy with formatted dates
+                df_csv = download_data.copy()
+                if "date_of_report" in df_csv.columns and pd.api.types.is_datetime64_any_dtype(df_csv["date_of_report"]):
+                    df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
+    
+                csv_data = df_csv.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Download Full Dataset (CSV)",
+                    data=csv_data,
+                    file_name=f"{filename_prefix}_full.csv",
+                    mime="text/csv",
+                    key=f"download_full_csv_{unique_id}"
+                )
+            except Exception as e:
+                st.error(f"Error preparing CSV export: {str(e)}")
+        
+        # Excel download button for full data
+        with full_col2:
+            try:
+                excel_buffer_full = io.BytesIO()
+                download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
+                excel_buffer_full.seek(0)
+                st.download_button(
+                    "📥 Download Full Dataset (Excel)",
+                    data=excel_buffer_full,
+                    file_name=f"{filename_prefix}_full.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"download_full_excel_{unique_id}"
+                )
+            except Exception as e:
+                st.error(f"Error preparing Excel export: {str(e)}")
+        
+        # Only show reduced dataset options if we have essential columns
+        if reduced_data is not None:
+            st.markdown("### Reduced Dataset (Essential Columns)")
+            reduced_col1, reduced_col2 = st.columns(2)
+            
+            # CSV download button for reduced data
+            with reduced_col1:
+                try:
+                    # Create export copy with formatted dates
+                    df_csv_reduced = reduced_data.copy()
+                    if "date_of_report" in df_csv_reduced.columns and pd.api.types.is_datetime64_any_dtype(df_csv_reduced["date_of_report"]):
+                        df_csv_reduced["date_of_report"] = df_csv_reduced["date_of_report"].dt.strftime("%d/%m/%Y")
+    
+                    reduced_csv_data = df_csv_reduced.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "📥 Download Reduced Dataset (CSV)",
+                        data=reduced_csv_data,
+                        file_name=f"{filename_prefix}_reduced.csv",
+                        mime="text/csv",
+                        key=f"download_reduced_csv_{unique_id}"
+                    )
+                except Exception as e:
+                    st.error(f"Error preparing reduced CSV export: {str(e)}")
+            
+            # Excel download button for reduced data
+            with reduced_col2:
+                try:
+                    excel_buffer_reduced = io.BytesIO()
+                    reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
+                    excel_buffer_reduced.seek(0)
+                    st.download_button(
+                        "📥 Download Reduced Dataset (Excel)",
+                        data=excel_buffer_reduced,
+                        file_name=f"{filename_prefix}_reduced.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key=f"download_reduced_excel_{unique_id}"
+                    )
+                except Exception as e:
+                    st.error(f"Error preparing reduced Excel export: {str(e)}")
+        
+        # NEW: Add section to display and download reports with missing concerns
+        st.markdown("### Reports Without Extracted Concerns")
+        
+        # Find records without concerns
+        missing_concerns_df = self._identify_missing_concerns(download_data)
+        
+        if len(missing_concerns_df) > 0:
+            st.warning(f"Found {len(missing_concerns_df)} reports without properly extracted concerns.")
+            
+            # Display the dataframe with missing concerns
+            essential_columns_for_display = [col for col in ['Title', 'URL', 'date_of_report', 'year', 'deceased_name'] 
+                                            if col in missing_concerns_df.columns]
+            if essential_columns_for_display:
+                st.dataframe(
+                    missing_concerns_df[essential_columns_for_display],
+                    use_container_width=True
+                )
+            
+            # Download options for missing concerns
+            missing_col1, missing_col2 = st.columns(2)
+            
+            # CSV download
+            with missing_col1:
+                try:
+                    missing_csv = missing_concerns_df.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "📥 Download Missing Concerns Data (CSV)",
+                        data=missing_csv,
+                        file_name=f"{filename_prefix}_missing_concerns.csv",
+                        mime="text/csv",
+                        key=f"download_missing_csv_{unique_id}"
+                    )
+                except Exception as e:
+                    st.error(f"Error preparing missing concerns CSV: {str(e)}")
+            
+            # Excel download
+            with missing_col2:
+                try:
+                    excel_buffer_missing = io.BytesIO()
+                    missing_concerns_df.to_excel(excel_buffer_missing, index=False, engine='openpyxl')
+                    excel_buffer_missing.seek(0)
+                    st.download_button(
+                        "📥 Download Missing Concerns Data (Excel)",
+                        data=excel_buffer_missing,
+                        file_name=f"{filename_prefix}_missing_concerns.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key=f"download_missing_excel_{unique_id}"
+                    )
+                except Exception as e:
+                    st.error(f"Error preparing missing concerns Excel: {str(e)}")
+        else:
+            st.success("All reports have properly extracted concerns.")
+
+    
+    def _provide_download_options2(self):
         """Provide options to download the current data."""
         if self.data is None or len(self.data) == 0:
             return
@@ -595,7 +767,42 @@ class BERTResultsAnalyzer:
         st.subheader("Merged Data Summary")
         st.write(f"Total rows: {len(merged_df)}")
         st.write(f"Columns: {', '.join(merged_df.columns)}")
+
+
+    def _identify_missing_concerns(self, df):
+        """
+        Identify records without extracted concerns
+        
+        Args:
+            df: DataFrame with BERT results
+            
+        Returns:
+            DataFrame containing only records without extracted concerns
+        """
+        if df is None or len(df) == 0:
+            return pd.DataFrame()
+        
+        # Check for concerns column
+        concerns_column = None
+        for col_name in ['Extracted_Concerns', 'extracted_concerns', 'concern_text']:
+            if col_name in df.columns:
+                concerns_column = col_name
+                break
                 
+        if concerns_column is None:
+            st.warning("No concerns column found in the data.")
+            return pd.DataFrame()
+            
+        # Filter out records with missing or empty concerns
+        missing_concerns = df[
+            df[concerns_column].isna() | 
+            (df[concerns_column].astype(str).str.strip() == '') |
+            (df[concerns_column].astype(str).str.len() < 20)  # Very short extracts likely failed
+        ].copy()
+        
+        return missing_concerns
+
+
 ###########################
 class ThemeAnalyzer:
     def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
@@ -3140,8 +3347,9 @@ def clean_text(text: str) -> str:
         logging.error(f"Error in clean_text: {e}")
         return ""
 
+
 def extract_concern_text(content):
-    """Extract concern text from PFD report content"""
+    """Extract concern text from PFD report content with improved handling for complete text extraction"""
     if pd.isna(content) or not isinstance(content, str):
         return ""
     
@@ -3179,10 +3387,40 @@ def extract_concern_text(content):
                     end_idx = temp_pos
             
             if end_idx != float('inf'):
-                return content[start_idx:end_idx].strip()
+                # Get the full text between start and end markers
+                extracted_text = content[start_idx:end_idx].strip()
+                
+                # Add additional validation to ensure we got the full text
+                # Check if extracted text ends with complete sentence or paragraph
+                if len(extracted_text) > 50:  # Only check if we have substantial text
+                    if not (extracted_text.endswith('.') or 
+                           extracted_text.endswith('?') or 
+                           extracted_text.endswith(':')):
+                        # Try to find a sentence end near the end of the extracted text
+                        last_period = extracted_text.rfind('.')
+                        last_question = extracted_text.rfind('?')
+                        last_end = max(last_period, last_question)
+                        
+                        # If we found a sentence end that's not too far from the end, use it
+                        if last_end > len(extracted_text) * 0.8:  # Within last 20% of the text
+                            extracted_text = extracted_text[:last_end+1]
+                
+                return extracted_text
             else:
                 # No end marker found, get a reasonable chunk
-                return content[start_idx:start_idx + 2000].strip()
+                # Increase the chunk size to ensure we don't miss text
+                chunk = content[start_idx:start_idx + 5000].strip()
+                
+                # Try to find a natural end point
+                # Look for section numbering patterns 
+                matches = re.finditer(r'\n\d+\s', chunk[500:])  # Look for number at start of line
+                for match in matches:
+                    # If we find a section number that likely indicates the end of concerns
+                    end_of_concern = start_idx + 500 + match.start()
+                    return content[start_idx:end_of_concern].strip()
+                
+                # If no section number found, return the whole chunk
+                return chunk
     
     return ""  # No identifier found
     
