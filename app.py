@@ -115,12 +115,12 @@ class BERTResultsAnalyzer:
                 st.info("These settings control how the files will be merged.")
                 
                 # Option to filter out responses - static key
-                filter_responses = st.checkbox(
-                    "Filter out Responses (keep only Reports)",
-                    value=True,
-                    help="If checked, responses will be removed from the merged data",
-                    key="filter_responses_static"
-                )
+                #filter_responses = st.checkbox(
+                 #   "Filter out Responses (keep only Reports)",
+                  #  value=True,
+                   # help="If checked, responses will be removed from the merged data",
+                    #key="filter_responses_static"
+                #)
                 
                 # Option to remove duplicates - static key
                 drop_duplicates = st.checkbox(
