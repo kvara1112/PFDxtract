@@ -142,7 +142,7 @@ class BERTResultsAnalyzer:
                 if drop_duplicates:
                     duplicate_columns = st.text_input(
                         "Columns for Duplicate Check",
-                        value="Record ID",
+                        value="ref",
                         help="Comma-separated list of columns to check for duplicates",
                         key="duplicate_columns_static"
                     )
