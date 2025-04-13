@@ -5167,8 +5167,88 @@ def render_file_upload():
 
     return False
 
-
 def initialize_session_state():
+    """Initialize all required session state variables"""
+    # Check if we need to initialize
+    if "initialized" not in st.session_state:
+        # Clear all existing session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+            
+        # Set new session state variables
+        st.session_state.initialized = True
+        st.session_state.data_source = None
+        st.session_state.current_data = None
+        st.session_state.scraped_data = None
+        st.session_state.uploaded_data = None
+        st.session_state.topic_model = None
+        st.session_state.cleanup_done = False
+        st.session_state.last_scrape_time = None
+        st.session_state.last_upload_time = None
+        
+        # BERT-related session state variables
+        st.session_state.bert_results = {}
+        st.session_state.bert_initialized = False
+        
+        # Analysis filters
+        st.session_state.analysis_filters = {
+            "date_range": None,
+            "selected_categories": None,
+            "selected_areas": None,
+        }
+        
+        # Topic model settings
+        st.session_state.topic_model_settings = {
+            "num_topics": 5,
+            "max_features": 1000,
+            "similarity_threshold": 0.3,
+        }
+        
+        # Authentication state
+        if "authenticated" not in st.session_state:
+            st.session_state.authenticated = False
+    
+    # Always ensure these critical keys exist
+    critical_keys = [
+        "current_data", "scraped_data", "uploaded_data", "bert_results", 
+        "bert_initialized", "data_source", "topic_model"
+    ]
+    for key in critical_keys:
+        if key not in st.session_state:
+            if key == "bert_results":
+                st.session_state[key] = {}
+            elif key == "bert_initialized":
+                st.session_state[key] = False
+            else:
+                st.session_state[key] = None
+    
+    # Perform PDF cleanup if not done
+    if not st.session_state.get("cleanup_done", False):
+        try:
+            pdf_dir = "pdfs"
+            os.makedirs(pdf_dir, exist_ok=True)
+            current_time = time.time()
+            cleanup_count = 0
+            
+            for file in os.listdir(pdf_dir):
+                file_path = os.path.join(pdf_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        if os.stat(file_path).st_mtime < current_time - 86400:
+                            os.remove(file_path)
+                            cleanup_count += 1
+                except Exception as e:
+                    logging.warning(f"Error cleaning up file {file_path}: {e}")
+                    continue
+                    
+            if cleanup_count > 0:
+                logging.info(f"Cleaned up {cleanup_count} old PDF files")
+        except Exception as e:
+            logging.error(f"Error during PDF cleanup: {e}")
+        finally:
+            st.session_state.cleanup_done = True
+            
+def initialize_session_state2():
     """Initialize all required session state variables"""
     # Initialize basic state variables if they don't exist
     if not hasattr(st.session_state, "initialized"):
