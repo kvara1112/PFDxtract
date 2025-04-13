@@ -7668,6 +7668,91 @@ def main():
 
     except Exception as e:
         handle_error(e)
+
+def main():
+    """Updated main application entry point."""
+    initialize_session_state()
+    
+    # Check authentication first
+    if not check_app_password():
+        return
+    
+    # Only show the main app content if authenticated
+    st.title("UK Judiciary PFD Reports Analysis")
+    st.markdown(
+        """
+    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can scrape new reports, analyze existing data, and explore thematic patterns.
+    """
+    )
+
+    # Updated tab selection with the new BERT File Merger tab
+    current_tab = st.radio(
+        "Select section:",
+        [
+            "(1)🔍 Scrape Reports",
+            "(2)📂 Scraped File Merger",
+            "(3)📊 Scraped File Analysis",
+            "(4)📝 Topic Analysis & Summaries", 
+            "(5)🔬 Concept Annotation",
+        ],
+        label_visibility="collapsed",
+        horizontal=True,
+        key="main_tab_selector",
+    )
+    st.markdown("---")
+
+    try:
+        if current_tab == "(1)🔍 Scrape Reports":
+            render_scraping_tab()
+        
+        elif current_tab == "(2)📂 Scraped File Merger":
+            render_bert_file_merger()
+        
+        elif current_tab == "(3)📊 Scraped File Analysis":
+            if not validate_data_state():
+                handle_no_data_state("analysis")
+            else:
+                render_analysis_tab(st.session_state.current_data)
+        
+        elif current_tab == "(4)📝 Topic Analysis & Summaries":
+            if not validate_data_state():
+                handle_no_data_state("topic_summary")
+            else:
+                render_topic_summary_tab(st.session_state.current_data)
+        
+        elif current_tab == "(5)🔬 Concept Annotation":
+            render_bert_analysis_tab(st.session_state.current_data)
+
+        # Sidebar data management
+        with st.sidebar:
+            st.header("Data Management")
+
+            if hasattr(st.session_state, "data_source"):
+                st.info(f"Current data: {st.session_state.data_source}")
+
+            if st.button("Clear All Data"):
+                for key in [
+                    "current_data",
+                    "scraped_data",
+                    "uploaded_data",
+                    "topic_model",
+                    "data_source",
+                ]:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                st.success("All data cleared")
+                st.rerun()
+            
+            # Add logout button
+            if st.button("Logout"):
+                st.session_state.authenticated = False
+                st.rerun()
+
+        render_footer()
+
+    except Exception as e:
+        handle_error(e)
         
 if __name__ == "__main__":
     try:
