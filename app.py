@@ -7600,15 +7600,15 @@ def main():
     """
     )
 
-    # Updated tab selection with renamed tabs
+    # Updated tab selection with the new BERT File Merger tab
     current_tab = st.radio(
         "Select section:",
         [
-            "(1)🔍 Scrape Reports",
-            "(2)📂 Scraped File Merger",
-            "(3)📊 Scraped File Analysis",
-            "(4)📝 Topic Analysis & Summaries",
-            "(5)🔬 Concept Annotation",
+            "🔍 Scrape Reports",
+            "📊 Analysis",
+            "📝 Topic Analysis & Summaries",
+            "🔬 BERT Analysis",
+            "📂 BERT File Merger",  # New tab
         ],
         label_visibility="collapsed",
         horizontal=True,
@@ -7617,38 +7617,28 @@ def main():
     st.markdown("---")
 
     try:
-        if current_tab == "(1)🔍 Scrape Reports":
+        if current_tab == "🔍 Scrape Reports":
             render_scraping_tab()
         
-        elif current_tab == "(2)📂 Scraped File Merger":
-            # Render the new BERT File Merger tab
-            render_bert_file_merger()
-        
-        elif current_tab == "(3)📊 Scraped File Analysis":
+        elif current_tab == "📊 Analysis":
             if not validate_data_state():
                 handle_no_data_state("analysis")
             else:
                 render_analysis_tab(st.session_state.current_data)
         
-        elif current_tab == "(4)📝 Topic Analysis & Summaries":
+        elif current_tab == "📝 Topic Analysis & Summaries":
             if not validate_data_state():
                 handle_no_data_state("topic_summary")
             else:
                 render_topic_summary_tab(st.session_state.current_data)
         
-        elif current_tab == "(5)🔬 Concept Annotation":
-            # Placeholder for Concept Annotation
-            st.header("🔬 Concept Annotation")
-            st.info("Concept annotation functionality is coming soon!")
-            st.markdown("""
-            This section will provide advanced semantic and thematic annotation capabilities 
-            for your Prevention of Future Deaths (PFD) reports.
-
-            Planned features:
-            - Advanced semantic tagging
-            - Concept mapping
-            - Deep semantic analysis
-            """)
+        elif current_tab == "🔬 BERT Analysis":
+            # Directly render BERT analysis tab without additional password
+            render_bert_analysis_tab(st.session_state.current_data)
+        
+        elif current_tab == "📂 BERT File Merger":
+            # Render the new BERT File Merger tab
+            render_bert_file_merger()
 
         # Sidebar data management
         with st.sidebar:
@@ -7658,48 +7648,16 @@ def main():
                 st.info(f"Current data: {st.session_state.data_source}")
 
             if st.button("Clear All Data"):
-                # Clear session state keys
                 for key in [
                     "current_data",
                     "scraped_data",
                     "uploaded_data",
                     "topic_model",
                     "data_source",
-                    "bert_merged_data",
                 ]:
                     if key in st.session_state:
                         del st.session_state[key]
-                
-                # Clean up uploaded files
-                try:
-                    import shutil
-                    import os
-                    
-                    # Cleanup PDF directory
-                    pdf_dir = "pdfs"
-                    if os.path.exists(pdf_dir):
-                        shutil.rmtree(pdf_dir)
-                        os.makedirs(pdf_dir)
-                    
-                    # Cleanup Scraped File Merger output files
-                    merger_output_dir = "scraped_merger_outputs"
-                    if os.path.exists(merger_output_dir):
-                        shutil.rmtree(merger_output_dir)
-                        os.makedirs(merger_output_dir)
-                    
-                    # Cleanup any temporary files from Scraped File Merger
-                    temp_merger_files = [
-                        f for f in os.listdir() 
-                        if f.startswith("merged_") and 
-                        (f.endswith(".csv") or f.endswith(".xlsx"))
-                    ]
-                    for temp_file in temp_merger_files:
-                        os.remove(temp_file)
-                
-                except Exception as cleanup_error:
-                    st.error(f"Error during cleanup: {cleanup_error}")
-                
-                st.success("All data and temporary files cleared")
+                st.success("All data cleared")
                 st.rerun()
             
             # Add logout button
@@ -7711,7 +7669,6 @@ def main():
 
     except Exception as e:
         handle_error(e)
-
         
 if __name__ == "__main__":
     try:
