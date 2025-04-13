@@ -3347,80 +3347,80 @@ def clean_text(text: str) -> str:
         logging.error(f"Error in clean_text: {e}")
         return ""
 
-def extract_concern_text(content):
-    """Extract complete concern text from PFD report content with robust section handling"""
-    if pd.isna(content) or not isinstance(content, str):
-        return ""
-
-    # Keep ALL original identifiers (critical for catching variations in reports)
-    concern_identifiers = [
-        "CORONER'S CONCERNS",
-        "MATTERS OF CONCERN",
-        "The MATTERS OF CONCERN",
-        "CORONER'S CONCERNS are",  
-        "MATTERS OF CONCERN are",
-        "The MATTERS OF CONCERN are",
-        "HEALTHCARE SAFETY CONCERNS",
-        "SAFETY CONCERNS",
-        "PATIENT SAFETY ISSUES",
-        "HSIB FINDINGS",
-        "INVESTIGATION FINDINGS",
-        "THE CORONER'S MATTER OF CONCERN",
-        "CONCERNS AND RECOMMENDATIONS",
-        "CONCERNS IDENTIFIED"
-    ]
-
-    # Normalize content (remove excessive whitespace but preserve structure)
-    content = ' '.join(content.split())  # Collapse multiple spaces
-    content_lower = content.lower()
-
-    # Find the start of concerns section (case-insensitive)
-    start_idx = -1
-    for identifier in concern_identifiers:
-        identifier_lower = identifier.lower()
-        pos = content_lower.find(identifier_lower)
-        if pos != -1:
-            # Start after the identifier (handles colons, "are", etc.)
-            start_idx = pos + len(identifier)
-            # Skip past a colon if present
-            if content[start_idx:start_idx+1] == ":":
-                start_idx += 1
-            break
-
-    if start_idx == -1:
-        return ""  # No concerns section found
-
-    # Look for the end of the concerns section (using major section headers)
-    end_markers = [
-        "ACTION SHOULD BE TAKEN", 
-        "RECOMMENDATIONS", 
-        "CONCLUSIONS", 
-        "YOUR RESPONSE",
-        "COPIES",
-        "SIGNED:",
-        "DATED THIS",
-        "RECOMMENDATION", 
-        "NEXT STEPS",
-        "YOU ARE UNDER A DUTY",
-        "RESPONSE"
-    ]
-
-    # Find the earliest end marker
-    end_idx = len(content)
-    for marker in end_markers:
-        marker_pos = content_lower.find(marker.lower(), start_idx)
-        if marker_pos != -1 and marker_pos < end_idx:
-            end_idx = marker_pos
-
-    # Extract the full concerns text
-    concerns_text = content[start_idx:end_idx].strip()
-
-    # Post-processing: Ensure we don't cut off mid-sentence
-    last_period = concerns_text.rfind('.')
-    if last_period != -1:
-        concerns_text = concerns_text[:last_period + 1]
-
-    return concerns_text
+    def extract_concern_text(content):
+        """Extract complete concern text from PFD report content with robust section handling"""
+        if pd.isna(content) or not isinstance(content, str):
+            return ""
+    
+        # Keep ALL original identifiers (critical for catching variations in reports)
+        concern_identifiers = [
+            "CORONER'S CONCERNS",
+            "MATTERS OF CONCERN",
+            "The MATTERS OF CONCERN",
+            "CORONER'S CONCERNS are",  
+            "MATTERS OF CONCERN are",
+            "The MATTERS OF CONCERN are",
+            "HEALTHCARE SAFETY CONCERNS",
+            "SAFETY CONCERNS",
+            "PATIENT SAFETY ISSUES",
+            "HSIB FINDINGS",
+            "INVESTIGATION FINDINGS",
+            "THE CORONER'S MATTER OF CONCERN",
+            "CONCERNS AND RECOMMENDATIONS",
+            "CONCERNS IDENTIFIED"
+        ]
+    
+        # Normalize content (remove excessive whitespace but preserve structure)
+        content = ' '.join(content.split())  # Collapse multiple spaces
+        content_lower = content.lower()
+    
+        # Find the start of concerns section (case-insensitive)
+        start_idx = -1
+        for identifier in concern_identifiers:
+            identifier_lower = identifier.lower()
+            pos = content_lower.find(identifier_lower)
+            if pos != -1:
+                # Start after the identifier (handles colons, "are", etc.)
+                start_idx = pos + len(identifier)
+                # Skip past a colon if present
+                if content[start_idx:start_idx+1] == ":":
+                    start_idx += 1
+                break
+    
+        if start_idx == -1:
+            return ""  # No concerns section found
+    
+        # Look for the end of the concerns section (using major section headers)
+        end_markers = [
+            "ACTION SHOULD BE TAKEN", 
+            "RECOMMENDATIONS", 
+            "CONCLUSIONS", 
+            "YOUR RESPONSE",
+            "COPIES",
+            "SIGNED:",
+            "DATED THIS",
+            "RECOMMENDATION", 
+            "NEXT STEPS",
+            "YOU ARE UNDER A DUTY",
+            "RESPONSE"
+        ]
+    
+        # Find the earliest end marker
+        end_idx = len(content)
+        for marker in end_markers:
+            marker_pos = content_lower.find(marker.lower(), start_idx)
+            if marker_pos != -1 and marker_pos < end_idx:
+                end_idx = marker_pos
+    
+        # Extract the full concerns text
+        concerns_text = content[start_idx:end_idx].strip()
+    
+        # Post-processing: Ensure we don't cut off mid-sentence
+        last_period = concerns_text.rfind('.')
+        if last_period != -1:
+            concerns_text = concerns_text[:last_period + 1]
+    
+        return concerns_text
 
 
 def extract_concern_text2(content):
