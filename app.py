@@ -3347,8 +3347,167 @@ def clean_text(text: str) -> str:
         logging.error(f"Error in clean_text: {e}")
         return ""
 
+def extract_concern_text(content):
+    """Extract complete concern text from PFD report content with robust section handling"""
+    if pd.isna(content) or not isinstance(content, str):
+        return ""
+    
+    # Normalize line breaks and clean up whitespace
+    content = ' '.join(content.splitlines())
+    content = ' '.join(content.split())
+    content_lower = content.lower()
+    
+    # Expanded list of concern section identifiers
+    concern_identifiers = [
+        "coroner's concerns",
+        "matters of concern",
+        "the matters of concern are",
+        "concerns identified",
+        "safety concerns",
+        "health and safety concerns",
+        "findings of concern"
+    ]
+    
+    # Find the start of the concerns section
+    start_idx = -1
+    for identifier in concern_identifiers:
+        identifier_lower = identifier.lower()
+        pos = content_lower.find(identifier_lower)
+        if pos != -1:
+            # Find the actual start of content (after any colons or "are")
+            content_start = content_lower.find(':', pos)
+            if content_start != -1:
+                start_idx = content_start + 1
+            else:
+                are_pos = content_lower.find(' are ', pos)
+                if are_pos != -1:
+                    start_idx = are_pos + 5
+                else:
+                    start_idx = pos + len(identifier)
+            break
+    
+    if start_idx == -1:
+        return ""  # No concerns section found
+    
+    # Look for the end of the concerns section using multiple strategies
+    end_markers = [
+        "action should be taken",
+        "recommendations",
+        "conclusions",
+        "your response",
+        "you are under a duty",
+        "copies",
+        "signed:",
+        "dated this"
+    ]
+    
+    # Find the earliest occurrence of any end marker
+    end_idx = len(content)
+    for marker in end_markers:
+        marker_pos = content_lower.find(marker, start_idx)
+        if marker_pos != -1 and marker_pos < end_idx:
+            end_idx = marker_pos
+    
+    # Extract the concerns text
+    concerns_text = content[start_idx:end_idx].strip()
+    
+    # Additional cleanup and validation
+    if concerns_text:
+        # Remove any trailing partial sentences before section headers
+        for marker in end_markers:
+            if marker in content_lower[end_idx:end_idx+50]:
+                break_pos = concerns_text.lower().rfind(marker)
+                if break_pos != -1:
+                    concerns_text = concerns_text[:break_pos].strip()
+        
+        # Ensure we have complete sentences when possible
+        last_period = concerns_text.rfind('.')
+        if last_period != -1:
+            concerns_text = concerns_text[:last_period + 1]
+        
+        # Remove any remaining section numbers or bullets that might have been cut off
+        concerns_text = re.sub(r'[a-z]\.\s*$', '', concerns_text).strip()
+    
+    return concerns_text
+
 
 def extract_concern_text(content):
+    """Extract complete concern text from PFD report content with robust section handling"""
+    if pd.isna(content) or not isinstance(content, str):
+        return ""
+
+    # Keep ALL original identifiers (critical for catching variations in reports)
+    concern_identifiers = [
+        "CORONER'S CONCERNS",
+        "MATTERS OF CONCERN",
+        "The MATTERS OF CONCERN",
+        "CORONER'S CONCERNS are",  
+        "MATTERS OF CONCERN are",
+        "The MATTERS OF CONCERN are",
+        "HEALTHCARE SAFETY CONCERNS",
+        "SAFETY CONCERNS",
+        "PATIENT SAFETY ISSUES",
+        "HSIB FINDINGS",
+        "INVESTIGATION FINDINGS",
+        "THE CORONER'S MATTER OF CONCERN",
+        "CONCERNS AND RECOMMENDATIONS",
+        "CONCERNS IDENTIFIED"
+    ]
+
+    # Normalize content (remove excessive whitespace but preserve structure)
+    content = ' '.join(content.split())  # Collapse multiple spaces
+    content_lower = content.lower()
+
+    # Find the start of concerns section (case-insensitive)
+    start_idx = -1
+    for identifier in concern_identifiers:
+        identifier_lower = identifier.lower()
+        pos = content_lower.find(identifier_lower)
+        if pos != -1:
+            # Start after the identifier (handles colons, "are", etc.)
+            start_idx = pos + len(identifier)
+            # Skip past a colon if present
+            if content[start_idx:start_idx+1] == ":":
+                start_idx += 1
+            break
+
+    if start_idx == -1:
+        return ""  # No concerns section found
+
+    # Look for the end of the concerns section (using major section headers)
+    end_markers = [
+        "ACTION SHOULD BE TAKEN", 
+        "RECOMMENDATIONS", 
+        "CONCLUSIONS", 
+        "YOUR RESPONSE",
+        "COPIES",
+        "SIGNED:",
+        "DATED THIS",
+        "RECOMMENDATION", 
+        "NEXT STEPS",
+        "YOU ARE UNDER A DUTY",
+        "RESPONSE"
+    ]
+
+    # Find the earliest end marker
+    end_idx = len(content)
+    for marker in end_markers:
+        marker_pos = content_lower.find(marker.lower(), start_idx)
+        if marker_pos != -1 and marker_pos < end_idx:
+            end_idx = marker_pos
+
+    # Extract the full concerns text
+    concerns_text = content[start_idx:end_idx].strip()
+
+    # Post-processing: Ensure we don't cut off mid-sentence
+    last_period = concerns_text.rfind('.')
+    if last_period != -1:
+        concerns_text = concerns_text[:last_period + 1]
+
+    return concerns_text
+
+
+def extract_concern_text2(content):
     """Extract concern text from PFD report content with improved handling for complete text extraction"""
     if pd.isna(content) or not isinstance(content, str):
         return ""
