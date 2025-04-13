@@ -7692,28 +7692,38 @@ def main():
     st.markdown("---")
 
     try:
-        if current_tab == "🔍 Scrape Reports":
+        if current_tab == "(1) 🔍 Scrape Reports":
             render_scraping_tab()
-
-        elif current_tab == "📊 Analysis":
+        
+        elif current_tab == "(2) 📂 BERT File Merger":
+            render_bert_file_merger()
+        
+        elif current_tab == "(3) 📊 Analysis of Scraped Data":
             if not validate_data_state():
                 handle_no_data_state("analysis")
             else:
                 render_analysis_tab(st.session_state.current_data)
-
-        elif current_tab == "📝 Topic Analysis & Summaries":
+        
+        elif current_tab == "(4) 📝 Topic Analysis & Summaries":
             if not validate_data_state():
                 handle_no_data_state("topic_summary")
             else:
                 render_topic_summary_tab(st.session_state.current_data)
+        
+        elif current_tab == "(5) 🔬 Concept Annotation":
+            # Placeholder for concept annotation tab
+            st.header("🔬 Concept Annotation")
+            st.info("Concept annotation functionality is coming soon!")
+            st.markdown("""
+            This section will provide advanced semantic and thematic annotation capabilities 
+            for your Prevention of Future Deaths (PFD) reports.
 
-        elif current_tab == "🔬 BERT Analysis":
-            # Directly render BERT analysis tab without additional password
-            render_bert_analysis_tab(st.session_state.current_data)
+            Planned features:
+            - Advanced semantic tagging
+            - Concept mapping
+            - Deep semantic analysis
+            """)
             
-        elif current_tab == "📂 BERT File Merger":
-            # Render the new BERT File Merger tab
-            render_bert_file_merger()
 
         # Sidebar data management
         with st.sidebar:
@@ -7744,6 +7754,7 @@ def main():
 
     except Exception as e:
         handle_error(e)
+        
 if __name__ == "__main__":
     try:
         main()
