@@ -93,14 +93,20 @@ class BERTResultsAnalyzer:
         self._render_multiple_file_upload()
 
 
-    def _render_multiple_file_upload(self):
+   
+     def _render_multiple_file_upload(self):
         """Render interface for multiple file upload and merging."""
+        # Initialize session state for processed data if not already present
+        if "bert_merged_data" not in st.session_state:
+            st.session_state.bert_merged_data = None
+        
+        # Use a static key for file uploader
         uploaded_files = st.file_uploader(
             "Upload multiple BERT analysis files",
             type=["csv", "xlsx"],
             accept_multiple_files=True,
             help="Upload multiple CSV or Excel files to merge them",
-            key="bert_multi_uploader_static"  # Static key
+            key="bert_multi_uploader_static"
         )
         
         if uploaded_files and len(uploaded_files) > 0:
@@ -161,8 +167,8 @@ class BERTResultsAnalyzer:
                             st.subheader("Preview of Merged Data")
                             st.dataframe(self.data.head(5))
                             
-                            # Store a flag in session state that indicates processed data is available
-                            st.session_state.bert_data_processed = True
+                            # Save merged data to session state
+                            st.session_state.bert_merged_data = self.data.copy()
                         else:
                             st.error("File merging resulted in empty data. Please check your files.")
                             
@@ -170,20 +176,37 @@ class BERTResultsAnalyzer:
                     st.error(f"Error merging files: {str(e)}")
                     logging.error(f"File merging error: {e}", exc_info=True)
         
-        # Show download options outside the button click condition
-        # This means they'll always be visible once data is processed
+        # Show download options if we have processed data
+        # Use either the current instance data or data from session state
+        show_download_options = False
+        
         if hasattr(self, 'data') and self.data is not None and len(self.data) > 0:
+            show_download_options = True
+        elif st.session_state.bert_merged_data is not None:
+            self.data = st.session_state.bert_merged_data
+            show_download_options = True
+            
+        if show_download_options:
             self._provide_download_options()
+    
     
     def _provide_download_options(self):
         """Provide options to download the current data."""
+        if self.data is None or len(self.data) == 0:
+            return
+        
         st.subheader("Download Merged Data")
+        
+        # Generate timestamp and random suffix for truly unique keys
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        unique_id = f"{timestamp}_{random_suffix}"
         
         # Deduplicate data by Record ID before download if requested
         dedup_download = st.checkbox(
             "Remove duplicate Record IDs before download (keep only first occurrence)", 
             value=True,
-            key="dedup_checkbox_static"
+            key=f"dedup_checkbox_{unique_id}"
         )
         
         download_data = self.data
@@ -203,8 +226,8 @@ class BERTResultsAnalyzer:
             st.warning("None of the essential columns found in the data. Will provide full dataset only.")
             reduced_data = None
         
-        # Generate timestamp for unique filenames
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        # Generate filename prefix
+        filename_prefix = f"merged_bert_{timestamp}"
         
         # Full Dataset Section
         st.markdown("### Full Dataset")
@@ -212,27 +235,38 @@ class BERTResultsAnalyzer:
         
         # CSV download button for full data
         with full_col1:
-            csv_data = download_data.to_csv(index=False).encode('utf-8')
-            st.download_button(
-                "📥 Download Full Dataset (CSV)",
-                data=csv_data,
-                file_name=f"merged_bert_full_{timestamp}.csv",
-                mime="text/csv",
-                key="download_full_csv_static"
-            )
+            try:
+                # Create export copy with formatted dates
+                df_csv = download_data.copy()
+                if "date_of_report" in df_csv.columns and pd.api.types.is_datetime64_any_dtype(df_csv["date_of_report"]):
+                    df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
+    
+                csv_data = df_csv.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    "📥 Download Full Dataset (CSV)",
+                    data=csv_data,
+                    file_name=f"{filename_prefix}_full.csv",
+                    mime="text/csv",
+                    key=f"download_full_csv_{unique_id}"
+                )
+            except Exception as e:
+                st.error(f"Error preparing CSV export: {str(e)}")
         
         # Excel download button for full data
         with full_col2:
-            excel_buffer_full = io.BytesIO()
-            download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
-            excel_buffer_full.seek(0)
-            st.download_button(
-                "📥 Download Full Dataset (Excel)",
-                data=excel_buffer_full,
-                file_name=f"merged_bert_full_{timestamp}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="download_full_excel_static"
-            )
+            try:
+                excel_buffer_full = io.BytesIO()
+                download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
+                excel_buffer_full.seek(0)
+                st.download_button(
+                    "📥 Download Full Dataset (Excel)",
+                    data=excel_buffer_full,
+                    file_name=f"{filename_prefix}_full.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"download_full_excel_{unique_id}"
+                )
+            except Exception as e:
+                st.error(f"Error preparing Excel export: {str(e)}")
         
         # Only show reduced dataset options if we have essential columns
         if reduced_data is not None:
@@ -241,28 +275,39 @@ class BERTResultsAnalyzer:
             
             # CSV download button for reduced data
             with reduced_col1:
-                reduced_csv_data = reduced_data.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "📥 Download Reduced Dataset (CSV)",
-                    data=reduced_csv_data,
-                    file_name=f"merged_bert_reduced_{timestamp}.csv",
-                    mime="text/csv",
-                    key="download_reduced_csv_static"
-                )
+                try:
+                    # Create export copy with formatted dates
+                    df_csv_reduced = reduced_data.copy()
+                    if "date_of_report" in df_csv_reduced.columns and pd.api.types.is_datetime64_any_dtype(df_csv_reduced["date_of_report"]):
+                        df_csv_reduced["date_of_report"] = df_csv_reduced["date_of_report"].dt.strftime("%d/%m/%Y")
+    
+                    reduced_csv_data = df_csv_reduced.to_csv(index=False).encode('utf-8')
+                    st.download_button(
+                        "📥 Download Reduced Dataset (CSV)",
+                        data=reduced_csv_data,
+                        file_name=f"{filename_prefix}_reduced.csv",
+                        mime="text/csv",
+                        key=f"download_reduced_csv_{unique_id}"
+                    )
+                except Exception as e:
+                    st.error(f"Error preparing reduced CSV export: {str(e)}")
             
             # Excel download button for reduced data
             with reduced_col2:
-                excel_buffer_reduced = io.BytesIO()
-                reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
-                excel_buffer_reduced.seek(0)
-                st.download_button(
-                    "📥 Download Reduced Dataset (Excel)",
-                    data=excel_buffer_reduced,
-                    file_name=f"merged_bert_reduced_{timestamp}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key="download_reduced_excel_static"
-                )
-    
+                try:
+                    excel_buffer_reduced = io.BytesIO()
+                    reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
+                    excel_buffer_reduced.seek(0)
+                    st.download_button(
+                        "📥 Download Reduced Dataset (Excel)",
+                        data=excel_buffer_reduced,
+                        file_name=f"{filename_prefix}_reduced.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        key=f"download_reduced_excel_{unique_id}"
+                    )
+                except Exception as e:
+                    st.error(f"Error preparing reduced Excel export: {str(e)}")
+                
     def _render_multiple_file_upload2(self):
         """Render interface for multiple file upload and merging."""
         uploaded_files = st.file_uploader(
