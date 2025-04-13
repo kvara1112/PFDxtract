@@ -7718,14 +7718,23 @@ def main():
 
             if hasattr(st.session_state, "data_source"):
                 st.info(f"Current data: {st.session_state.data_source}")
-
+            # In the sidebar section of the main() function, update the "Clear All Data" button code:
             if st.button("Clear All Data"):
                 for key in [
                     "current_data",
-                    "scraped_data",
+                    "scraped_data", 
                     "uploaded_data",
                     "topic_model",
                     "data_source",
+                    # Add these BERT-specific session state variables:
+                    "bert_results",
+                    "bert_initialized",
+                    # Also clear any file uploader state:
+                    "bert_file_uploader",
+                    "bert_content_column",
+                    "bert_analysis_type",
+                    "bert_selected_indices",
+                    "bert_similarity_threshold"
                 ]:
                     if key in st.session_state:
                         del st.session_state[key]
