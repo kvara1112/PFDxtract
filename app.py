@@ -3393,13 +3393,11 @@ def extract_concern_text(content):
     # Look for the end of the concerns section (using major section headers)
     end_markers = [
         "ACTION SHOULD BE TAKEN", 
-        "RECOMMENDATIONS", 
         "CONCLUSIONS", 
         "YOUR RESPONSE",
         "COPIES",
         "SIGNED:",
         "DATED THIS",
-        "RECOMMENDATION", 
         "NEXT STEPS",
         "YOU ARE UNDER A DUTY",
         "RESPONSE"
