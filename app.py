@@ -92,9 +92,7 @@ class BERTResultsAnalyzer:
         # File upload section
         self._render_multiple_file_upload()
 
-
-   
-     def _render_multiple_file_upload(self):
+    def _render_multiple_file_upload(self):
         """Render interface for multiple file upload and merging."""
         # Initialize session state for processed data if not already present
         if "bert_merged_data" not in st.session_state:
@@ -307,6 +305,7 @@ class BERTResultsAnalyzer:
                     )
                 except Exception as e:
                     st.error(f"Error preparing reduced Excel export: {str(e)}")
+                
                 
     def _render_multiple_file_upload2(self):
         """Render interface for multiple file upload and merging."""
