@@ -7832,7 +7832,7 @@ def main():
                 
                 # Give feedback and rerun
                 st.success("All data cleared successfully")
-                st.experimental_rerun()  # Force complete page rerun
+                st.rerun()  # Force complete page rerun
                 
 
 
