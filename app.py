@@ -92,19 +92,15 @@ class BERTResultsAnalyzer:
         # File upload section
         self._render_multiple_file_upload()
 
-    # Method 1: Replace your existing _render_multiple_file_upload method
+
     def _render_multiple_file_upload(self):
         """Render interface for multiple file upload and merging."""
-        # Generate a unique key for the file uploader if not already in session state
-        if "file_uploader_key" not in st.session_state:
-            st.session_state.file_uploader_key = f"bert_multi_uploader_{int(time.time())}"
-            
         uploaded_files = st.file_uploader(
             "Upload multiple BERT analysis files",
             type=["csv", "xlsx"],
             accept_multiple_files=True,
             help="Upload multiple CSV or Excel files to merge them",
-            key=st.session_state.file_uploader_key
+            key="bert_multi_uploader_static"  # Static key
         )
         
         if uploaded_files and len(uploaded_files) > 0:
@@ -114,44 +110,33 @@ class BERTResultsAnalyzer:
             with st.expander("Merge Settings", expanded=True):
                 st.info("These settings control how the files will be merged.")
                 
-                # Create persistent keys for settings if they don't exist
-                if "filter_responses_key" not in st.session_state:
-                    st.session_state.filter_responses_key = f"filter_responses_{int(time.time())}"
-                if "drop_duplicates_key" not in st.session_state:
-                    st.session_state.drop_duplicates_key = f"drop_duplicates_{int(time.time())}"
-                if "duplicate_columns_key" not in st.session_state:
-                    st.session_state.duplicate_columns_key = f"duplicate_columns_{int(time.time())}"
-                
-                # Option to filter out responses
+                # Option to filter out responses - static key
                 filter_responses = st.checkbox(
                     "Filter out Responses (keep only Reports)",
                     value=True,
                     help="If checked, responses will be removed from the merged data",
-                    key=st.session_state.filter_responses_key
+                    key="filter_responses_static"
                 )
                 
-                # Option to remove duplicates
+                # Option to remove duplicates - static key
                 drop_duplicates = st.checkbox(
                     "Remove Duplicate Records",
                     value=True,
                     help="If checked, duplicate records will be removed after merging",
-                    key=st.session_state.drop_duplicates_key
+                    key="drop_duplicates_static"
                 )
                 
+                duplicate_columns = "Record ID"
                 if drop_duplicates:
                     duplicate_columns = st.text_input(
                         "Columns for Duplicate Check",
                         value="Record ID",
                         help="Comma-separated list of columns to check for duplicates",
-                        key=st.session_state.duplicate_columns_key
+                        key="duplicate_columns_static"
                     )
             
-            # Create a persistent key for the merge button
-            if "merge_button_key" not in st.session_state:
-                st.session_state.merge_button_key = f"merge_files_button_{int(time.time())}"
-            
-            # Button to process the files
-            if st.button("Merge Files", key=st.session_state.merge_button_key):
+            # Button to process the files - static key
+            if st.button("Merge Files", key="merge_files_button_static"):
                 try:
                     with st.spinner("Processing and merging files..."):
                         # Stack files
@@ -176,40 +161,29 @@ class BERTResultsAnalyzer:
                             st.subheader("Preview of Merged Data")
                             st.dataframe(self.data.head(5))
                             
-                            # Provide download options
-                            self._provide_download_options()
+                            # Store a flag in session state that indicates processed data is available
+                            st.session_state.bert_data_processed = True
                         else:
                             st.error("File merging resulted in empty data. Please check your files.")
                             
                 except Exception as e:
                     st.error(f"Error merging files: {str(e)}")
                     logging.error(f"File merging error: {e}", exc_info=True)
+        
+        # Show download options outside the button click condition
+        # This means they'll always be visible once data is processed
+        if hasattr(self, 'data') and self.data is not None and len(self.data) > 0:
+            self._provide_download_options()
     
-    # Method 2: Replace your existing _provide_download_options method
     def _provide_download_options(self):
         """Provide options to download the current data."""
-        if self.data is None or len(self.data) == 0:
-            return
-        
         st.subheader("Download Merged Data")
-        
-        # Create persistent keys for download options if they don't exist
-        if "dedup_checkbox_key" not in st.session_state:
-            st.session_state.dedup_checkbox_key = f"dedup_checkbox_{int(time.time())}"
-        if "download_full_csv_key" not in st.session_state:
-            st.session_state.download_full_csv_key = f"download_full_csv_{int(time.time())}"
-        if "download_full_excel_key" not in st.session_state:
-            st.session_state.download_full_excel_key = f"download_full_excel_{int(time.time())}"
-        if "download_reduced_csv_key" not in st.session_state:
-            st.session_state.download_reduced_csv_key = f"download_reduced_csv_{int(time.time())}"
-        if "download_reduced_excel_key" not in st.session_state:
-            st.session_state.download_reduced_excel_key = f"download_reduced_excel_{int(time.time())}"
         
         # Deduplicate data by Record ID before download if requested
         dedup_download = st.checkbox(
             "Remove duplicate Record IDs before download (keep only first occurrence)", 
             value=True,
-            key=st.session_state.dedup_checkbox_key
+            key="dedup_checkbox_static"
         )
         
         download_data = self.data
@@ -244,7 +218,7 @@ class BERTResultsAnalyzer:
                 data=csv_data,
                 file_name=f"merged_bert_full_{timestamp}.csv",
                 mime="text/csv",
-                key=st.session_state.download_full_csv_key
+                key="download_full_csv_static"
             )
         
         # Excel download button for full data
@@ -257,7 +231,7 @@ class BERTResultsAnalyzer:
                 data=excel_buffer_full,
                 file_name=f"merged_bert_full_{timestamp}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key=st.session_state.download_full_excel_key
+                key="download_full_excel_static"
             )
         
         # Only show reduced dataset options if we have essential columns
@@ -273,7 +247,7 @@ class BERTResultsAnalyzer:
                     data=reduced_csv_data,
                     file_name=f"merged_bert_reduced_{timestamp}.csv",
                     mime="text/csv",
-                    key=st.session_state.download_reduced_csv_key
+                    key="download_reduced_csv_static"
                 )
             
             # Excel download button for reduced data
@@ -286,10 +260,8 @@ class BERTResultsAnalyzer:
                     data=excel_buffer_reduced,
                     file_name=f"merged_bert_reduced_{timestamp}.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=st.session_state.download_reduced_excel_key
+                    key="download_reduced_excel_static"
                 )
-                
-
     
     def _render_multiple_file_upload2(self):
         """Render interface for multiple file upload and merging."""
