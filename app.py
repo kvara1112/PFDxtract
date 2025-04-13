@@ -7595,174 +7595,49 @@ def main():
     st.title("UK Judiciary PFD Reports Analysis")
     st.markdown(
         """
-     This application analyses Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can scrape new reports, analyse existing data, and explore thematic patterns.
-    """
-    )
-
-    # Updated tab selection with numbered workflow steps
-    current_tab = st.radio(
-        "Select Workflow Step:",
-        [
-            "(1) 🔍 Scrape Reports",
-            "(2) 📂 BERT File Merger", 
-            "(3) 📊 Analysis of Scraped Data",
-            "(4) 📝 Topic Analysis & Summaries",
-            "(5) 🔬 Concept Annotation"
-        ],
-        label_visibility="collapsed",
-        horizontal=True,
-        key="main_tab_selector",
-    )
-    st.markdown("---")
-
-    try:
-        if current_tab == "(1) 🔍 Scrape Reports":
-            render_scraping_tab()
-        
-        elif current_tab == "(2) 📂 BERT File Merger":
-            render_bert_file_merger()
-        
-        elif current_tab == "(3) 📊 Analysis of Scraped Data":
-            if not validate_data_state():
-                handle_no_data_state("analysis")
-            else:
-                render_analysis_tab(st.session_state.current_data)
-        
-        elif current_tab == "(4) 📝 Topic Analysis & Summaries":
-            if not validate_data_state():
-                handle_no_data_state("topic_summary")
-            else:
-                render_topic_summary_tab(st.session_state.current_data)
-        
-        elif current_tab == "(5) 🔬 Concept Annotation":
-            # Placeholder for concept annotation tab
-            st.header("🔬 Concept Annotation")
-            st.info("Concept annotation functionality is coming soon!")
-            st.markdown("""
-            This section will provide advanced semantic and thematic annotation capabilities 
-            for your Prevention of Future Deaths (PFD) reports.
-
-            Planned features:
-            - Advanced semantic tagging
-            - Concept mapping
-            - Deep semantic analysis
-            """)
-
-
-        # Sidebar data management
-        with st.sidebar:
-            st.header("Data Management")
-        
-            if hasattr(st.session_state, "data_source"):
-                st.info(f"Current data: {st.session_state.data_source}")
-        
-            if st.button("Clear All Data"):
-                # Clear specific session state variables
-                keys_to_clear = [
-                    "current_data",
-                    "scraped_data",
-                    "uploaded_data",
-                    "topic_model",
-                    "data_source",
-                    "bert_results"
-                ]
-                
-                for key in keys_to_clear:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                
-                # Clear any file uploader related states
-                for key in list(st.session_state.keys()):
-                    if key.startswith("file_uploader") or key.startswith("bert_"):
-                        del st.session_state[key]
-                
-                # Clear any temporary files or uploaded files
-                try:
-                    import os
-                    import shutil
-                    
-                    # Clear PDF directory
-                    if os.path.exists("pdfs"):
-                        shutil.rmtree("pdfs")
-                        os.makedirs("pdfs")
-                    
-                    # Clear any other temporary directories if needed
-                except Exception as e:
-                    st.error(f"Error clearing temporary files: {e}")
-                
-                st.success("All data cleared")
-                st.rerun()
-            
-            # Add logout button
-            if st.button("Logout"):
-                st.session_state.authenticated = False
-                st.rerun()
-
-
-        render_footer()
-
-    except Exception as e:
-        handle_error(e)
-
-
-
-# Then update your main function to include the new tab
-def main3():
-    """Updated main application entry point."""
-    initialize_session_state()
-    
-    # Check authentication first
-    if not check_app_password():
-        return
-    
-    # Only show the main app content if authenticated
-    st.title("UK Judiciary PFD Reports Analysis")
-    st.markdown(
-        """
-    This application analyses Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
     You can scrape new reports, analyze existing data, and explore thematic patterns.
     """
     )
 
-    # Updated tab selection with the new BERT File Merger tab
+    # Updated tab selection with renamed tabs
     current_tab = st.radio(
         "Select section:",
         [
-            "🔍 Scrape Reports",
-            "📊 Analysis",
-            "📝 Topic Analysis & Summaries",
-            "🔬 BERT Analysis",
-            "📂 BERT File Merger",  # New tab
+            "(1)🔍 Scrape Reports",
+            "(2)📂 Scraped File Merger",
+            "(3)📊 Scraped File Analysis",
+            "(4)📝 Topic Analysis & Summaries",
+            "(5)🔬 Concept Annotation",
         ],
         label_visibility="collapsed",
         horizontal=True,
         key="main_tab_selector",
     )
-
     st.markdown("---")
 
     try:
-        if current_tab == "(1) 🔍 Scrape Reports":
+        if current_tab == "(1)🔍 Scrape Reports":
             render_scraping_tab()
         
-        elif current_tab == "(2) 📂 BERT File Merger":
+        elif current_tab == "(2)📂 Scraped File Merger":
+            # Render the new BERT File Merger tab
             render_bert_file_merger()
         
-        elif current_tab == "(3) 📊 Analysis of Scraped Data":
+        elif current_tab == "(3)📊 Scraped File Analysis":
             if not validate_data_state():
                 handle_no_data_state("analysis")
             else:
                 render_analysis_tab(st.session_state.current_data)
         
-        elif current_tab == "(4) 📝 Topic Analysis & Summaries":
+        elif current_tab == "(4)📝 Topic Analysis & Summaries":
             if not validate_data_state():
                 handle_no_data_state("topic_summary")
             else:
                 render_topic_summary_tab(st.session_state.current_data)
         
-        elif current_tab == "(5) 🔬 Concept Annotation":
-            # Placeholder for concept annotation tab
+        elif current_tab == "(5)🔬 Concept Annotation":
+            # Placeholder for Concept Annotation
             st.header("🔬 Concept Annotation")
             st.info("Concept annotation functionality is coming soon!")
             st.markdown("""
@@ -7774,7 +7649,6 @@ def main3():
             - Concept mapping
             - Deep semantic analysis
             """)
-            
 
         # Sidebar data management
         with st.sidebar:
@@ -7784,16 +7658,48 @@ def main3():
                 st.info(f"Current data: {st.session_state.data_source}")
 
             if st.button("Clear All Data"):
+                # Clear session state keys
                 for key in [
                     "current_data",
                     "scraped_data",
                     "uploaded_data",
                     "topic_model",
                     "data_source",
+                    "bert_merged_data",
                 ]:
                     if key in st.session_state:
                         del st.session_state[key]
-                st.success("All data cleared")
+                
+                # Clean up uploaded files
+                try:
+                    import shutil
+                    import os
+                    
+                    # Cleanup PDF directory
+                    pdf_dir = "pdfs"
+                    if os.path.exists(pdf_dir):
+                        shutil.rmtree(pdf_dir)
+                        os.makedirs(pdf_dir)
+                    
+                    # Cleanup Scraped File Merger output files
+                    merger_output_dir = "scraped_merger_outputs"
+                    if os.path.exists(merger_output_dir):
+                        shutil.rmtree(merger_output_dir)
+                        os.makedirs(merger_output_dir)
+                    
+                    # Cleanup any temporary files from Scraped File Merger
+                    temp_merger_files = [
+                        f for f in os.listdir() 
+                        if f.startswith("merged_") and 
+                        (f.endswith(".csv") or f.endswith(".xlsx"))
+                    ]
+                    for temp_file in temp_merger_files:
+                        os.remove(temp_file)
+                
+                except Exception as cleanup_error:
+                    st.error(f"Error during cleanup: {cleanup_error}")
+                
+                st.success("All data and temporary files cleared")
                 st.rerun()
             
             # Add logout button
@@ -7805,6 +7711,7 @@ def main3():
 
     except Exception as e:
         handle_error(e)
+
         
 if __name__ == "__main__":
     try:
