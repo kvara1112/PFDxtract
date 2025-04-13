@@ -3353,31 +3353,59 @@ def extract_concern_text(content):
     if pd.isna(content) or not isinstance(content, str):
         return ""
     
-    # Keywords to identify sections with concerns
+    # Keywords to identify sections with concerns - expanded with more variations
     concern_identifiers = [
         "CORONER'S CONCERNS",
         "MATTERS OF CONCERN",
         "The MATTERS OF CONCERN",
+        "CORONER'S CONCERNS are",  
+        "MATTERS OF CONCERN are",
+        "The MATTERS OF CONCERN are",
         "HEALTHCARE SAFETY CONCERNS",
         "SAFETY CONCERNS",
         "PATIENT SAFETY ISSUES",
         "HSIB FINDINGS",
         "INVESTIGATION FINDINGS",
         "THE CORONER'S MATTER OF CONCERN",
-        "Matters of Concern"
+        "CONCERNS AND RECOMMENDATIONS",
+        "CONCERNS IDENTIFIED"
     ]
     
+    # Make case-insensitive search by converting content to lowercase once
     content_lower = content.lower()
     
     for identifier in concern_identifiers:
         identifier_lower = identifier.lower()
         if identifier_lower in content_lower:
-            # Find position
+            # Find position - use the original content after position is found
             start_pos = content_lower.find(identifier_lower)
-            start_idx = start_pos + len(identifier)
             
-            # Find end markers
-            end_markers = ["ACTION SHOULD BE TAKEN", "RECOMMENDATION", "CONCLUSIONS", "NEXT STEPS"]
+            # Find the end of the identifier to determine where content starts
+            # Look for colon or text like "are" that might occur at the end
+            if ":" in content[start_pos:start_pos + len(identifier) + 5]:
+                # If there's a colon right after the identifier, start after it
+                colon_pos = content.find(":", start_pos)
+                start_idx = colon_pos + 1
+            elif " are" in content_lower[start_pos:start_pos + len(identifier) + 5]:
+                # If "are" appears right after, find the end
+                are_pos = content_lower.find(" are", start_pos)
+                start_idx = are_pos + 5  # " are " length is 4 + 1 for safety
+            else:
+                # Otherwise just use end of identifier
+                start_idx = start_pos + len(identifier)
+            
+            # Find end markers - expanded list with more variants
+            end_markers = [
+                "ACTION SHOULD BE TAKEN", 
+                "RECOMMENDATION", 
+                "CONCLUSIONS", 
+                "NEXT STEPS",
+                "YOUR RESPONSE",
+                "YOU ARE UNDER A DUTY",
+                "RESPONSE",
+                "COPIES"
+            ]
+            
             end_idx = float('inf')
             
             for marker in end_markers:
@@ -3386,42 +3414,70 @@ def extract_concern_text(content):
                 if temp_pos != -1 and temp_pos < end_idx:
                     end_idx = temp_pos
             
+            # If identified a proper end marker
             if end_idx != float('inf'):
                 # Get the full text between start and end markers
                 extracted_text = content[start_idx:end_idx].strip()
                 
-                # Add additional validation to ensure we got the full text
-                # Check if extracted text ends with complete sentence or paragraph
-                if len(extracted_text) > 50:  # Only check if we have substantial text
-                    if not (extracted_text.endswith('.') or 
-                           extracted_text.endswith('?') or 
-                           extracted_text.endswith(':')):
-                        # Try to find a sentence end near the end of the extracted text
-                        last_period = extracted_text.rfind('.')
-                        last_question = extracted_text.rfind('?')
-                        last_end = max(last_period, last_question)
-                        
-                        # If we found a sentence end that's not too far from the end, use it
-                        if last_end > len(extracted_text) * 0.8:  # Within last 20% of the text
-                            extracted_text = extracted_text[:last_end+1]
+                # Add extra validation to ensure we got complete paragraphs
+                if extracted_text:
+                    # Double check if the extracted text is substantial (at least 20 chars)
+                    if len(extracted_text) > 20:
+                        return extracted_text
+                    else:
+                        # If too short, try to get more text in case markers weren't correctly identified
+                        # Get a larger chunk and try to find paragraph boundaries
+                        enlarged_extract = content[start_idx:start_idx + 2000].strip()
+                        return enlarged_extract
                 
-                return extracted_text
             else:
-                # No end marker found, get a reasonable chunk
-                # Increase the chunk size to ensure we don't miss text
-                chunk = content[start_idx:start_idx + 5000].strip()
+                # No end marker found, try paragraph-based extraction strategies
                 
-                # Try to find a natural end point
-                # Look for section numbering patterns 
-                matches = re.finditer(r'\n\d+\s', chunk[500:])  # Look for number at start of line
-                for match in matches:
-                    # If we find a section number that likely indicates the end of concerns
-                    end_of_concern = start_idx + 500 + match.start()
-                    return content[start_idx:end_of_concern].strip()
+                # Strategy 1: Look for numbered sections that follow the concerns
+                possible_extract = content[start_idx:start_idx + 5000].strip()
                 
-                # If no section number found, return the whole chunk
+                # Check for numbered sections (a., b., 1., 2., etc.)
+                section_matches = list(re.finditer(r'\n\s*(?:[a-z]|[0-9]+)\.\s+', possible_extract))
+                if section_matches:
+                    # Found numbered sections - collect all content until we hit a major heading
+                    major_heading_pattern = r'\n\n+\s*[A-Z]{2,}'
+                    major_heading_match = re.search(major_heading_pattern, possible_extract)
+                    
+                    if major_heading_match:
+                        # If we found a major heading after the sections, use that as endpoint
+                        return possible_extract[:major_heading_match.start()].strip()
+                    else:
+                        # Otherwise just return what we have
+                        return possible_extract
+                
+                # Strategy 2: Look for a chunk of text that might be a complete statement
+                # Try to find a natural ending after a reasonable chunk
+                chunk = content[start_idx:start_idx + 1500].strip()
+                
+                # Look for multiple consecutive line breaks which often indicate section changes
+                section_breaks = list(re.finditer(r'\n\s*\n\s*\n', chunk))
+                if section_breaks:
+                    # Return up to the first major section break
+                    return chunk[:section_breaks[0].start()].strip()
+                
+                # If all else fails, just return a reasonable chunk
                 return chunk
     
+    # If no identifier found but content contains "concern" keyword, try a more liberal approach
+    if "concern" in content_lower:
+        concern_pos = content_lower.find("concern")
+        # Extract a section around the keyword
+        start_pos = max(0, concern_pos - 100)
+        # Find sentence start
+        while start_pos > 0 and content[start_pos] not in ".!?\n":
+            start_pos -= 1
+        if start_pos > 0:
+            start_pos += 1  # Move past the period
+            
+        # Find a reasonable end point
+        end_pos = min(len(content), concern_pos + 1000)
+        return content[start_pos:end_pos].strip()
+            
     return ""  # No identifier found
     
 def extract_metadata(content: str) -> dict:
