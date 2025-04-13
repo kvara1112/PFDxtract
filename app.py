@@ -161,11 +161,11 @@ class BERTResultsAnalyzer:
                         # Now processed_data is in self.data
                         if self.data is not None:
                             # Filter out responses if requested
-                            if filter_responses:
-                                before_count = len(self.data)
-                                self.data = self._filter_out_responses(self.data)
-                                after_count = len(self.data)
-                                st.success(f"Filtered out {before_count - after_count} responses, kept {after_count} reports.")
+                            #if filter_responses:
+                            #    before_count = len(self.data)
+                            #    self.data = self._filter_out_responses(self.data)
+                             #   after_count = len(self.data)
+                             #   st.success(f"Filtered out {before_count - after_count} responses, kept {after_count} reports.")
                             
                             # Extract year from date_of_report if requested
                             if extract_year and 'date_of_report' in self.data.columns:
