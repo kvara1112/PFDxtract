@@ -5169,7 +5169,7 @@ def render_file_upload():
 
 def initialize_session_state():
     """Initialize all required session state variables"""
-    # Check if we need to initialize
+    # Check if we need to perform first-time initialization
     if "initialized" not in st.session_state:
         # Clear all existing session state
         for key in list(st.session_state.keys()):
@@ -5203,24 +5203,6 @@ def initialize_session_state():
             "max_features": 1000,
             "similarity_threshold": 0.3,
         }
-        
-        # Authentication state
-        if "authenticated" not in st.session_state:
-            st.session_state.authenticated = False
-    
-    # Always ensure these critical keys exist
-    critical_keys = [
-        "current_data", "scraped_data", "uploaded_data", "bert_results", 
-        "bert_initialized", "data_source", "topic_model"
-    ]
-    for key in critical_keys:
-        if key not in st.session_state:
-            if key == "bert_results":
-                st.session_state[key] = {}
-            elif key == "bert_initialized":
-                st.session_state[key] = False
-            else:
-                st.session_state[key] = None
     
     # Perform PDF cleanup if not done
     if not st.session_state.get("cleanup_done", False):
@@ -7799,34 +7781,69 @@ def main():
             if hasattr(st.session_state, "data_source"):
                 st.info(f"Current data: {st.session_state.data_source}")
             # In the sidebar section of the main() function, update the "Clear All Data" button code:
+            # In the sidebar "Clear All Data" button section:
             if st.button("Clear All Data"):
-                for key in [
+                # Define a comprehensive list of keys to clear
+                keys_to_clear = [
+                    # Core data keys
                     "current_data",
                     "scraped_data", 
                     "uploaded_data",
                     "topic_model",
                     "data_source",
-                    # Add these BERT-specific session state variables:
+                    
+                    # BERT-specific keys
                     "bert_results",
                     "bert_initialized",
-                    # Also clear any file uploader state:
+                    
+                    # File upload keys
                     "bert_file_uploader",
                     "bert_content_column",
                     "bert_analysis_type",
                     "bert_selected_indices",
-                    "bert_similarity_threshold"
-                ]:
+                    "bert_similarity_threshold",
+                    
+                    # Analysis filter keys
+                    "start_date_filter",
+                    "end_date_filter",
+                    "doc_type_filter",
+                    "ref_filter",
+                    "deceased_filter",
+                    "coroner_filter",
+                    "areas_filter",
+                    "categories_filter",
+                    
+                    # Any other upload-related keys
+                    "file_uploader"
+                ]
+                
+                # Clear each key if it exists
+                for key in keys_to_clear:
                     if key in st.session_state:
                         del st.session_state[key]
-                st.success("All data cleared")
-                st.rerun()
-            
+                
+                # Force re-initialization of key values
+                st.session_state.current_data = None
+                st.session_state.uploaded_data = None
+                st.session_state.scraped_data = None
+                st.session_state.data_source = None
+                st.session_state.bert_results = {}
+                st.session_state.bert_initialized = False
+                
+                # Give feedback and rerun
+                st.success("All data cleared successfully")
+                st.experimental_rerun()  # Force complete page rerun
+                
+
+
             # Add logout button
             if st.button("Logout"):
                 st.session_state.authenticated = False
                 st.rerun()
 
         render_footer()
+
+    
 
     except Exception as e:
         handle_error(e)
