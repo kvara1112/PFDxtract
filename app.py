@@ -4452,12 +4452,11 @@ def render_scraping_tab():
         """
         Comprehensive search tool for Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
 
-        ## Key Capabilities:
         - Extract detailed PFD reports with metadata, full content, and associated PDFs
         - Advanced filtering by keywords, categories, and date ranges
         - Flexible export options in CSV and Excel formats
 
-        ## Handling Large Result Sets:
+        # Handling Large Result Sets:
         For extensive search results (5+ pages), strategically download in batches. 
         For instance, with 20 pages of results, consider downloading pages 1-5, then 6-10 
         to manage data efficiently and avoid potential scraping limitations.
