@@ -79,8 +79,7 @@ class BERTResultsAnalyzer:
             "Deceased Name", "Death Type", "Year", "year", "Extracted_Concerns"
         ]
     
-    def render_analyzer_ui(self):
-   
+    def render_analyzer_ui(self):   
         """Render the file merger UI."""
         st.header("BERT Results File Merge, clean & prepare")
         st.markdown("""
@@ -232,162 +231,167 @@ class BERTResultsAnalyzer:
         if show_download_options:
             self._provide_download_options()
 
-    def _fill_empty_content_from_pdf(self, df):
-            """
-            Fill empty Content fields from PDF content.
+
+def _fill_empty_content_from_pdf(self, df):
+        """
+        Fill empty Content fields from PDF content.
+        
+        Args:
+            df: DataFrame with merged data
             
-            Args:
-                df: DataFrame with merged data
-                
-            Returns:
-                DataFrame with filled Content fields
-            """
-            if df is None or len(df) == 0:
-                return df
-                
-            # Make a copy to avoid modifying the original
-            processed_df = df.copy()
+        Returns:
+            DataFrame with filled Content fields
+        """
+        if df is None or len(df) == 0:
+            return df
             
-            # Identify records with missing Content
-            missing_content_mask = processed_df['Content'].isna() | (processed_df['Content'].astype(str).str.strip() == '')
-            missing_content_count = missing_content_mask.sum()
+        # Make a copy to avoid modifying the original
+        processed_df = df.copy()
+        
+        # Identify records with missing Content
+        missing_content_mask = processed_df['Content'].isna() | (processed_df['Content'].astype(str).str.strip() == '')
+        missing_content_count = missing_content_mask.sum()
+        
+        if missing_content_count == 0:
+            return processed_df
             
-            if missing_content_count == 0:
-                return processed_df
-                
-            # Add a progress bar for processing
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            status_text.text(f"Filling empty Content fields from PDF content for {missing_content_count} records...")
-            
-            # Identify PDF content columns
-            pdf_columns = [col for col in processed_df.columns if col.startswith('PDF_') and col.endswith('_Content')]
-            if not pdf_columns:
-                progress_bar.empty()
-                status_text.empty()
-                return processed_df
-                
-            # Process each record with missing Content
-            missing_indices = processed_df[missing_content_mask].index
-            filled_count = 0
-            
-            for i, idx in enumerate(missing_indices):
-                # Update progress
-                progress = (i + 1) / len(missing_indices)
-                progress_bar.progress(progress)
-                
-                # Check each PDF content column
-                for pdf_col in pdf_columns:
-                    if pd.notna(processed_df.at[idx, pdf_col]) and processed_df.at[idx, pdf_col].strip() != "":
-                        # Use the PDF content as the main Content
-                        processed_df.at[idx, 'Content'] = processed_df.at[idx, pdf_col]
-                        processed_df.at[idx, 'Content_Source'] = pdf_col  # Track where content came from
-                        filled_count += 1
-                        break  # Move to next record once content is found
-                
-                # Update status
-                status_text.text(f"Filled Content for {filled_count} of {i+1}/{missing_content_count} records...")
-            
-            # Clear progress indicators
+        # Add a progress bar for processing
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        status_text.text(f"Filling empty Content fields from PDF content for {missing_content_count} records...")
+        
+        # Identify PDF content columns
+        pdf_columns = [col for col in processed_df.columns if col.startswith('PDF_') and col.endswith('_Content')]
+        if not pdf_columns:
             progress_bar.empty()
             status_text.empty()
-            
             return processed_df
-    
-        def _extract_missing_concerns_from_pdf(self, df):
-            """
-            Extract concerns from PDF content for records with missing Extracted_Concerns.
             
-            Args:
-                df: DataFrame with merged data
-                
-            Returns:
-                DataFrame with additional extracted concerns
-            """
-            if df is None or len(df) == 0:
-                return df
-                
-            # Make a copy to avoid modifying the original
-            processed_df = df.copy()
+        # Process each record with missing Content
+        missing_indices = processed_df[missing_content_mask].index
+        filled_count = 0
+        
+        for i, idx in enumerate(missing_indices):
+            # Update progress
+            progress = (i + 1) / len(missing_indices)
+            progress_bar.progress(progress)
             
-            # Identify records with missing concerns
-            missing_concerns = self._identify_missing_concerns(processed_df)
+            # Check each PDF content column
+            for pdf_col in pdf_columns:
+                if pd.notna(processed_df.at[idx, pdf_col]) and processed_df.at[idx, pdf_col].strip() != "":
+                    # Use the PDF content as the main Content
+                    processed_df.at[idx, 'Content'] = processed_df.at[idx, pdf_col]
+                    processed_df.at[idx, 'Content_Source'] = pdf_col  # Track where content came from
+                    filled_count += 1
+                    break  # Move to next record once content is found
             
-            if len(missing_concerns) == 0:
-                return processed_df
-                
-            # Add a progress bar for extraction
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-            status_text.text(f"Extracting concerns from PDF content for {len(missing_concerns)} records...")
+            # Update status
+            status_text.text(f"Filled Content for {filled_count} of {i+1}/{missing_content_count} records...")
+        
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        
+        return processed_df
+
+    def _extract_missing_concerns_from_pdf(self, df):
+        """
+        Extract concerns from PDF content for records with missing Extracted_Concerns.
+        
+        Args:
+            df: DataFrame with merged data
             
-            # Check each PDF content column for missing concerns
-            pdf_columns = [col for col in processed_df.columns if col.startswith('PDF_') and col.endswith('_Content')]
-            count_extracted = 0
+        Returns:
+            DataFrame with additional extracted concerns
+        """
+        if df is None or len(df) == 0:
+            return df
             
-            for i, (idx, row) in enumerate(missing_concerns.iterrows()):
-                # Update progress
-                progress = (i + 1) / len(missing_concerns)
-                progress_bar.progress(progress)
-                
-                # Try to extract concerns from each PDF content column
-                for pdf_col in pdf_columns:
-                    if pd.notna(row.get(pdf_col)) and row.get(pdf_col) != "":
-                        # Extract concerns using existing function
-                        concern_text = extract_concern_text(row[pdf_col])
-                        
-                        # If we found concerns, update the main dataframe
-                        if concern_text and len(concern_text.strip()) > 20:  # Ensure meaningful text
-                            processed_df.at[idx, 'Extracted_Concerns'] = concern_text
-                            processed_df.at[idx, 'Concern_Source'] = pdf_col  # Track where concerns came from
-                            count_extracted += 1
-                            break  # Move to next record once concerns are found
-                
-                # Update status
-                status_text.text(f"Extracted concerns for {count_extracted} of {i+1}/{len(missing_concerns)} records...")
-            
-            # Clear progress indicators
-            progress_bar.empty()
-            status_text.empty()
-            
+        # Make a copy to avoid modifying the original
+        processed_df = df.copy()
+        
+        # Identify records with missing concerns
+        missing_concerns = self._identify_missing_concerns(processed_df)
+        
+        if len(missing_concerns) == 0:
             return processed_df
-    
-        def _extract_report_year(self, date_val):
-            """
-            Optimized function to extract year from dd/mm/yyyy date format.
-            Works with both string representations and datetime objects.
-            """
-            import re
-            import datetime
-            import pandas as pd
-    
-            # Return None for empty inputs
-            if pd.isna(date_val):
-                return None
-    
-            # Handle datetime objects directly
-            if isinstance(date_val, (datetime.datetime, pd.Timestamp)):
-                return date_val.year
-    
-            # Handle string dates with dd/mm/yyyy format
-            if isinstance(date_val, str):
-                # Direct regex match for dd/mm/yyyy pattern (faster than datetime parsing)
-                match = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_val)
-                if match:
-                    return int(match.group(3))  # Year is in the third capture group
-    
-            # Handle numeric or other non-string types by converting to string
-            try:
-                date_str = str(date_val)
-                match = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_str)
-                if match:
-                    return int(match.group(3))
-            except:
-                pass
-    
+            
+        # Add a progress bar for extraction
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        status_text.text(f"Extracting concerns from PDF content for {len(missing_concerns)} records...")
+        
+        # Check each PDF content column for missing concerns
+        pdf_columns = [col for col in processed_df.columns if col.startswith('PDF_') and col.endswith('_Content')]
+        count_extracted = 0
+        
+        for i, (idx, row) in enumerate(missing_concerns.iterrows()):
+            # Update progress
+            progress = (i + 1) / len(missing_concerns)
+            progress_bar.progress(progress)
+            
+            # Try to extract concerns from each PDF content column
+            for pdf_col in pdf_columns:
+                if pd.notna(row.get(pdf_col)) and row.get(pdf_col) != "":
+                    # Extract concerns using existing function
+                    concern_text = extract_concern_text(row[pdf_col])
+                    
+                    # If we found concerns, update the main dataframe
+                    if concern_text and len(concern_text.strip()) > 20:  # Ensure meaningful text
+                        processed_df.at[idx, 'Extracted_Concerns'] = concern_text
+                        processed_df.at[idx, 'Concern_Source'] = pdf_col  # Track where concerns came from
+                        count_extracted += 1
+                        break  # Move to next record once concerns are found
+            
+            # Update status
+            status_text.text(f"Extracted concerns for {count_extracted} of {i+1}/{len(missing_concerns)} records...")
+        
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        
+        return processed_df
+
+    def _extract_report_year(self, date_val):
+        """
+        Optimized function to extract year from dd/mm/yyyy date format.
+        Works with both string representations and datetime objects.
+        """
+        import re
+        import datetime
+        import pandas as pd
+
+        # Return None for empty inputs
+        if pd.isna(date_val):
             return None
 
-    def _add_missing_years_from_content(self, concern_sections, df=None):
+        # Handle datetime objects directly
+        if isinstance(date_val, (datetime.datetime, pd.Timestamp)):
+            return date_val.year
+
+        # Handle string dates with dd/mm/yyyy format
+        if isinstance(date_val, str):
+            # Direct regex match for dd/mm/yyyy pattern (faster than datetime parsing)
+            match = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_val)
+            if match:
+                return int(match.group(3))  # Year is in the third capture group
+
+        # Handle numeric or other non-string types by converting to string
+        try:
+            date_str = str(date_val)
+            match = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_str)
+            if match:
+                return int(match.group(3))
+        except:
+            pass
+
+        return None
+        
+    
+
+    
+
+def _add_missing_years_from_content(self, concern_sections, df=None):
             """Try to extract years from content when date_of_report is missing."""
             import re
             import datetime
