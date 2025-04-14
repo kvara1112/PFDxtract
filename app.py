@@ -4654,8 +4654,11 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     st.header("Topic Analysis & Summaries")
     st.markdown(
         """
-    This analysis identifies key themes and patterns in the report contents, automatically clustering similar documents
-    and generating summaries for each thematic group.
+        Basic thematic analysis of Prevention of Future Deaths (PFD) reports.
+        - Automatically identify key themes across document collections
+        - Cluster similar documents using advanced machine learning techniques
+        - Generate summaries for each identified theme
+        - Visualise relationships between key concepts and topics
     """
     )
 
