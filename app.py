@@ -95,7 +95,7 @@ class BERTResultsAnalyzer:
         st.subheader("Scraped File Merger")
         st.markdown(
             """
-            This tool merges multiple scraped files into a single dataset. It prepares the data for steps (3) and (4).
+            This tool merges multiple scraped files into a single dataset. It prepares the data for steps (3) - (5).
             
             - Run this step even if you only have one scraped file. This step extracts the year and applies other processing as described in the bullets below. 
             - Combine data from multiple CSV or Excel files (the name of these files starts with pfd_reports_scraped_reportID_ )
@@ -4867,8 +4867,19 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
 
 def render_topic_options():
     """Render enhanced topic analysis options in a clear layout"""
-    st.subheader("Analysis Settings")
-    
+    """Topic analysis with weighting schemes and essential controls"""
+    st.header("Topic Analysis & Summaries")
+    st.markdown(
+        """
+        Advanced thematic analysis of Prevention of Future Deaths (PFD) reports.
+
+        - Automatically identify key themes across document collections
+        - Cluster similar documents (adjust parameters for optimal results)
+        - Generate summaries for each cluster
+        
+        Discover hidden connections and meaningful patterns in your PFD reports through intelligent topic modeling.
+        """
+    )
 
     # Create two columns for main settings
     col1, col2 = st.columns(2)
