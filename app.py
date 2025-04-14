@@ -97,7 +97,7 @@ class BERTResultsAnalyzer:
             """
             This tool merges multiple scrapped files into a single dataset. It prepares the data for steps 2 and 3.
             
-            - Combine data from multiple CSV or Excel files
+            - Combine data from multiple CSV or Excel files (the name of these files starts with pfd_reports_scraped_reportID_
             - Extract missing concerns from PDF content and fill empty Content fields
             - Extract year information from date fields
             - Remove duplicate records
