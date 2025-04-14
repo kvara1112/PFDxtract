@@ -7403,18 +7403,12 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
         st.markdown("---")
 
 
+# Modify the render_bert_analysis_tab function to remove duplicate description
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function without password protection"""
     st.subheader("AI-based Concept/Theme Extraction and Analysis")
-    st.markdown(
-            """
-            Advanced AI-powered thematic analysis.
-            - Upload the merged Prevention of Future Deaths (PFD) reports file from step (2) 
-            - Automatic extraction of important themes from Prevention of Future Deaths (PFD) reports (using 4 framedworks)
-            - Download detailed results in structured tables
-            - Download colour highlighted sentences based on theme colours in a html report
-            """
-        )
+    # Description is removed from here as it's now in the main function
+    
     # Ensure the bert_results dictionary exists in session state
     if "bert_results" not in st.session_state:
         st.session_state.bert_results = {}
@@ -8305,6 +8299,200 @@ def render_bert_file_merger():
     analyzer.render_analyzer_ui()
 
 def main():
+    """Updated main application entry point."""
+    initialize_session_state()
+    
+    # Check authentication first
+    if not check_app_password():
+        return
+    
+    # Only show the main app content if authenticated
+    st.title("UK Judiciary PFD Reports Analysis")
+    
+    # Add the main descriptive text here, before any tab selection
+    st.markdown(
+        """
+        This application analyses Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+        You can scrape new reports, analyse existing data, and explore thematic patterns.
+        """
+    )
+
+    # Updated tab selection with the new BERT File Merger tab
+    current_tab = st.radio(
+        "Select section:",
+        [
+            "(1)🔍 Scrape Reports",
+            "(2)📂 Scraped File Preparation",
+            "(3)📊 Scraped File Analysis",
+            "(4)📝 Topic Analysis & Summaries", 
+            "(5)🔬 Concept Annotation",
+        ],
+        label_visibility="collapsed",
+        horizontal=True,
+        key="main_tab_selector",
+    )
+    st.markdown("---")
+
+    try:
+        if current_tab == "(1)🔍 Scrape Reports":
+            # Add tab-specific description here
+            st.markdown(
+                """
+                Comprehensive search tool for Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+
+                - Extract detailed PFD reports with metadata, full content, and associated PDFs
+                - Filtering by keywords, categories, and date ranges
+                - Export options in CSV and Excel formats
+
+                Handling Large Result Sets: For extensive search results, use the 'Start page' and 'End page' number inputs to download reports in manageable batches.
+                """
+            )
+            render_scraping_tab()
+        
+        elif current_tab == "(2)📂 Scraped File Preparation":
+            # Add tab-specific description here
+            st.markdown(
+                """
+                This tool merges multiple scraped files into a single dataset. It prepares the data for steps (3) - (5).
+                
+                - Run this step even if you only have one scraped file. This step extracts the year and applies other processing.
+                - Combine data from multiple CSV or Excel files (files starting with pfd_reports_scraped_reportID_)
+                - Extract missing concerns from PDF content and fill empty Content fields
+                - Extract year information from date fields
+                - Remove duplicate records
+                - Export full or reduced datasets with essential columns
+                """
+            )
+            render_bert_file_merger()
+        
+        elif current_tab == "(3)📊 Scraped File Analysis":
+            # Add tab-specific description here
+            st.markdown(
+                """
+                Analyse and explore your prepared Prevention of Future Deaths (PFD) reports.
+                - Upload processed files from Scraped File Preparation (file starting with merged_)
+                - Data visualisation
+                - Report insights and export options
+
+                Upload your prepared CSV or Excel file from Step 2 to begin analysis.
+                """
+            )
+            if not validate_data_state():
+                handle_no_data_state("analysis")
+            else:
+                render_analysis_tab(st.session_state.current_data)
+        
+        elif current_tab == "(4)📝 Topic Analysis & Summaries":
+            # Add tab-specific description here
+            st.markdown(
+                """
+                Basic thematic analysis of Prevention of Future Deaths (PFD) reports.
+                - Automatically identify key themes across document collections
+                - Cluster similar documents (adjust the parameters to identify optimal clusters)
+                - Generate summaries for each identified theme
+                - Visualise relationships between key concepts and topics
+                """
+            )
+            if not validate_data_state():
+                handle_no_data_state("topic_summary")
+            else:
+                render_topic_summary_tab(st.session_state.current_data)
+        
+        elif current_tab == "(5)🔬 Concept Annotation":
+            # Add tab-specific description here
+            st.markdown(
+                """
+                Advanced AI-powered thematic analysis.
+                - Upload the merged Prevention of Future Deaths (PFD) reports file from step (2) 
+                - Automatic extraction of important themes from Prevention of Future Deaths (PFD) reports (using 4 frameworks)
+                - Download detailed results in structured tables
+                - Download colour highlighted sentences based on theme colours in a html report
+                """
+            )
+            render_bert_analysis_tab(st.session_state.current_data)
+
+        # Sidebar data management
+        with st.sidebar:
+            st.header("Data Management")
+        
+            if hasattr(st.session_state, "data_source"):
+                st.info(f"Current data: {st.session_state.data_source}")
+            
+            if st.button("Clear All Data"):
+                # Define a comprehensive list of keys to clear
+                keys_to_clear = [
+                    # Core data keys
+                    "current_data",
+                    "scraped_data", 
+                    "uploaded_data",
+                    "topic_model",
+                    "data_source",
+                    
+                    # BERT-specific keys
+                    "bert_results",
+                    "bert_initialized",
+                    "bert_merged_data",
+                    
+                    # File upload keys
+                    "bert_file_uploader",
+                    "bert_content_column",
+                    "bert_analysis_type",
+                    "bert_selected_indices",
+                    "bert_similarity_threshold",
+                    
+                    # BERT merger settings keys
+                    "drop_duplicates_static",
+                    "extract_year_static",
+                    "extract_from_pdf_static",
+                    "fill_empty_content_static",
+                    "duplicate_columns_static",
+                    "merge_files_button_static",
+                    
+                    # Analysis filter keys
+                    "start_date_filter",
+                    "end_date_filter",
+                    "doc_type_filter",
+                    "ref_filter",
+                    "deceased_filter",
+                    "coroner_filter",
+                    "areas_filter",
+                    "categories_filter",
+                ]
+                
+                # Clear each key if it exists
+                for key in keys_to_clear:
+                    if key in st.session_state:
+                        del st.session_state[key]
+                
+                # Force re-initialization of key values
+                st.session_state.current_data = None
+                st.session_state.uploaded_data = None
+                st.session_state.scraped_data = None
+                st.session_state.data_source = None
+                st.session_state.bert_results = {}
+                st.session_state.bert_initialized = False
+                st.session_state.bert_merged_data = None
+                
+                # Increment reset counter to force new file uploader keys
+                if "reset_counter" not in st.session_state:
+                    st.session_state.reset_counter = 0
+                st.session_state.reset_counter += 1
+                
+                # Give feedback and rerun
+                st.success("All data cleared successfully")
+                st.rerun()
+
+            # Add logout button
+            if st.button("Logout"):
+                st.session_state.authenticated = False
+                st.rerun()
+
+        render_footer()
+
+    except Exception as e:
+        handle_error(e)
+        
+def main2():
     """Updated main application entry point."""
     initialize_session_state()
     
