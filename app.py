@@ -4754,12 +4754,12 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
     categories = st.multiselect(
         "Filter by Categories (Optional)",
         options=sorted(all_categories),
-        help="Select specific categories to analyze",
+        help="Select specific categories to analyse",
     )
 
     # Analysis button
     analyze_clicked = st.button(
-        "🔍 Analyze Documents", type="primary", use_container_width=True
+        "🔍 Analyse Documents", type="primary", use_container_width=True
     )
 
     if analyze_clicked:
@@ -7464,15 +7464,15 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
 
     # Column selection with dropdown
     content_column = st.selectbox(
-        "Choose the column to analyze:",
+        "Choose the column to analyse:",
         options=text_columns,
         index=text_columns.index("Content") if "Content" in text_columns else 0,
-        help="Select the column containing the text you want to analyze",
+        help="Select the column containing the text you want to analyse",
         key="bert_content_column",
     )
 
     # Filtering options
-    st.subheader("Select Documents to Analyze")
+    st.subheader("Select Documents to Analyse")
 
     # Option to select all or specific records
     analysis_type = st.radio(
@@ -7485,7 +7485,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
     if analysis_type == "Selected Reports":
         # Multi-select for reports
         selected_indices = st.multiselect(
-            "Choose specific reports to analyze",
+            "Choose specific reports to analyse",
             options=list(range(len(data))),
             format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
             key="bert_selected_indices",
