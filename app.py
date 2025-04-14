@@ -8289,14 +8289,15 @@ def check_app_password():
     
     return False
 
-
 def render_bert_file_merger():
-    """Render the BERT file merger tab in the Streamlit app."""
+    """Render the BERT file merger tab in the Streamlit app with custom initialization."""
     # Create an instance of the analyzer
     analyzer = BERTResultsAnalyzer()
     
-    # Render the analyzer UI
-    analyzer.render_analyzer_ui()
+    # Skip the standard render_analyzer_ui and call the file upload directly
+    # This avoids the duplicate header and description
+    analyzer._render_multiple_file_upload()
+
 
 def main():
     """Updated main application entry point."""
