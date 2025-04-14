@@ -8022,6 +8022,7 @@ def main():
                 st.info(f"Current data: {st.session_state.data_source}")
             # In the sidebar section of the main() function, update the "Clear All Data" button code:
             # In the sidebar "Clear All Data" button section:
+            # Update the "Clear All Data" button code in the sidebar section:
             if st.button("Clear All Data"):
                 # Define a comprehensive list of keys to clear
                 keys_to_clear = [
@@ -8035,6 +8036,7 @@ def main():
                     # BERT-specific keys
                     "bert_results",
                     "bert_initialized",
+                    "bert_merged_data",  # Add this key to clear the merged data
                     
                     # File upload keys
                     "bert_file_uploader",
@@ -8042,6 +8044,15 @@ def main():
                     "bert_analysis_type",
                     "bert_selected_indices",
                     "bert_similarity_threshold",
+                    "bert_multi_uploader_static",  # Add this key for the BERT file merger uploader
+                    
+                    # BERT merger settings keys
+                    "drop_duplicates_static",
+                    "extract_year_static",
+                    "extract_from_pdf_static",
+                    "fill_empty_content_static",
+                    "duplicate_columns_static",
+                    "merge_files_button_static",
                     
                     # Analysis filter keys
                     "start_date_filter",
@@ -8069,11 +8080,11 @@ def main():
                 st.session_state.data_source = None
                 st.session_state.bert_results = {}
                 st.session_state.bert_initialized = False
+                st.session_state.bert_merged_data = None  # Explicitly set this to None
                 
                 # Give feedback and rerun
                 st.success("All data cleared successfully")
                 st.rerun()  # Force complete page rerun
-                
 
 
             # Add logout button
@@ -8082,8 +8093,6 @@ def main():
                 st.rerun()
 
         render_footer()
-
-    
 
     except Exception as e:
         handle_error(e)
