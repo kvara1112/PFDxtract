@@ -4454,7 +4454,7 @@ def render_scraping_tab():
         Comprehensive search tool for Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
 
         - Extract detailed PFD reports with metadata, full content, and associated PDFs
-        - Advanced filtering by keywords, categories, and date ranges
+        - Filtering by keywords, categories, and date ranges
         - Flexible export options in CSV and Excel formats
 
         Handling Large Result Sets: For extensive search results, use the 'Start page' and 'End page' number inputs to download reports in manageable batches. For instance, with 20 pages of results, consider downloading pages 1-5, then 6-10 
@@ -6017,7 +6017,7 @@ def extract_advanced_topics(
     min_similarity: float = 0.9,
 ) -> Tuple[LatentDirichletAllocation, CountVectorizer, np.ndarray]:
     """
-    Advanced topic modeling with comprehensive preprocessing and error handling
+     Topic modeling with comprehensive preprocessing and error handling
 
     Args:
         data (pd.DataFrame): Input DataFrame containing documents
@@ -7120,7 +7120,7 @@ def render_footer():
     st.markdown("---")
     st.markdown(
         """<div style='text-align: center'>
-        <p>Built with Streamlit • Data from UK Judiciary • Copyright: Georgina Cosma of Loughborough University</p>
+        <p>Built with Streamlit • Data from UK Judiciary • Copyright: (c) Loughborough University • Contact: g.cosma@lboro.ac.uk • Developed by Georgina Cosma all rights reserved. </p>
         </div>""",
         unsafe_allow_html=True,
     )
