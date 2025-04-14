@@ -92,9 +92,9 @@ class BERTResultsAnalyzer:
 
     def render_analyzer_ui(self):
             """Render the file merger UI."""
-            st.header("BERT Results File Merger")
+            st.header("Scrapped File Merger")
             st.markdown("""
-            This tool merges multiple BERT theme analysis results files into a single dataset. It helps you:
+            This tool merges multiple scrapped files into a single dataset. It prepared the data for steps 2 and 3.
             
             - Combine data from multiple CSV or Excel files
             - Extract missing concerns from PDF content and fill empty Content fields
@@ -116,7 +116,7 @@ class BERTResultsAnalyzer:
 
         # Use a static key for file uploader
         uploaded_files = st.file_uploader(
-            "Upload multiple BERT analysis files",
+            "Upload CSV or Excel files exported from the scraper tool",
             type=["csv", "xlsx"],
             accept_multiple_files=True,
             help="Upload multiple CSV or Excel files to merge them",
