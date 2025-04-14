@@ -8261,12 +8261,15 @@ def render_bert_file_merger():
     analyzer._render_multiple_file_upload()
 
 
+
 def main():
     """Updated main application entry point."""
     initialize_session_state()
     
     # Check authentication first
     if not check_app_password():
+        # Render the footer even when not authenticated
+        render_footer()
         return
     
     # Only show the main app content if authenticated
@@ -8455,6 +8458,8 @@ def main():
     except Exception as e:
         handle_error(e)
         
+        # Render footer even when an exception occurs
+        render_footer()
 def main2():
     """Updated main application entry point."""
     initialize_session_state()
