@@ -68,32 +68,39 @@ import logging
 ######################################
 class BERTResultsAnalyzer:
     """Enhanced class for merging BERT theme analysis results files with specific column outputs and year extraction."""
-    
+
     def __init__(self):
         """Initialize the analyzer with default settings."""
         self.data = None
         # Define the essential columns you want in the reduced output
         self.essential_columns = [
-            "Title", "URL", "Content", "date_of_report", "deceased_name", 
-            "coroner_name", "coroner_area", "categories", "Report ID", 
-            "Deceased Name", "Death Type", "Year", "year", "Extracted_Concerns"
+            "Title",
+            "URL",
+            "Content",
+            "date_of_report",
+            "deceased_name",
+            "coroner_name",
+            "coroner_area",
+            "categories",
+            "Report ID",
+            "Deceased Name",
+            "Death Type",
+            "Year",
+            "year",
+            "Extracted_Concerns",
         ]
-    
-    def render_analyzer_ui(self):   
+
+    def render_analyzer_ui(self):
         """Render the file merger UI."""
-        st.header("BERT Results File Merge, clean & prepare")
-        st.markdown("""
-        This tool merges multiple BERT theme analysis results files into a single dataset. It helps you:
-        
-        - Combine data from multiple CSV or Excel files
-        - Extract missing concerns from PDF content and fill empty Content fields
-        - Extract year information from date fields
-        - Remove duplicate records
-        - Export full or reduced datasets with essential columns
-        
-        Use the options below to control how your files will be processed.
-        """)
-        
+        st.header("BERT Results File Merger")
+        st.markdown(
+            """
+        This tool allows you to merge multiple BERT theme analysis results files.
+        You can filter out responses, remove duplicates, and download either a reduced set of 
+        essential columns or the full dataset.
+        """
+        )
+
         # File upload section
         self._render_multiple_file_upload()
 
@@ -102,64 +109,64 @@ class BERTResultsAnalyzer:
         # Initialize session state for processed data if not already present
         if "bert_merged_data" not in st.session_state:
             st.session_state.bert_merged_data = None
-        
+
         # Use a static key for file uploader
         uploaded_files = st.file_uploader(
             "Upload multiple BERT analysis files",
             type=["csv", "xlsx"],
             accept_multiple_files=True,
             help="Upload multiple CSV or Excel files to merge them",
-            key="bert_multi_uploader_static"
+            key="bert_multi_uploader_static",
         )
-        
+
         if uploaded_files and len(uploaded_files) > 0:
             st.info(f"Uploaded {len(uploaded_files)} files")
-            
+
             # Allow user to specify merge settings
             with st.expander("Merge Settings", expanded=True):
                 st.info("These settings control how the files will be merged.")
-                
+
                 # Option to remove duplicates - static key
                 drop_duplicates = st.checkbox(
                     "Remove Duplicate Records",
                     value=True,
                     help="If checked, duplicate records will be removed after merging",
-                    key="drop_duplicates_static"
+                    key="drop_duplicates_static",
                 )
-                
+
                 # Option to add year from date_of_report
                 extract_year = st.checkbox(
                     "Extract Year from date_of_report",
                     value=True,
                     help="If checked, a 'year' column will be added based on the date_of_report",
-                    key="extract_year_static"
+                    key="extract_year_static",
                 )
-                
+
                 # Option to attempt extraction from PDF content when concerns are missing
                 extract_from_pdf = st.checkbox(
                     "Extract Missing Concerns from PDF Content",
                     value=True,
                     help="If checked, will attempt to extract missing concerns from PDF content",
-                    key="extract_from_pdf_static"
+                    key="extract_from_pdf_static",
                 )
-                
+
                 # Option to fill empty Content from PDF content
                 fill_empty_content = st.checkbox(
                     "Fill Empty Content from PDF Content",
                     value=True,
                     help="If checked, will fill empty Content fields from PDF content",
-                    key="fill_empty_content_static"
+                    key="fill_empty_content_static",
                 )
-                
+
                 duplicate_columns = "Record ID"
                 if drop_duplicates:
                     duplicate_columns = st.text_input(
                         "Columns for Duplicate Check",
                         value="ref",
                         help="Comma-separated list of columns to check for duplicates",
-                        key="duplicate_columns_static"
+                        key="duplicate_columns_static",
                     )
-            
+
             # Button to process the files - static key
             if st.button("Merge Files", key="merge_files_button_static"):
                 try:
@@ -167,191 +174,241 @@ class BERTResultsAnalyzer:
                         # Stack files
                         duplicate_cols = None
                         if drop_duplicates:
-                            duplicate_cols = [col.strip() for col in duplicate_columns.split(",")]
-                                
+                            duplicate_cols = [
+                                col.strip() for col in duplicate_columns.split(",")
+                            ]
+
                         self._merge_files_stack(uploaded_files, duplicate_cols)
-                        
+
                         # Now processed_data is in self.data
                         if self.data is not None:
                             # Fill empty Content from PDF if requested
                             if fill_empty_content:
-                                before_count = self.data['Content'].notna().sum()
+                                before_count = self.data["Content"].notna().sum()
                                 self.data = self._fill_empty_content_from_pdf(self.data)
-                                after_count = self.data['Content'].notna().sum()
+                                after_count = self.data["Content"].notna().sum()
                                 newly_filled = after_count - before_count
-                                
+
                                 if newly_filled > 0:
-                                    st.success(f"Filled empty Content from PDF content for {newly_filled} records.")
+                                    st.success(
+                                        f"Filled empty Content from PDF content for {newly_filled} records."
+                                    )
                                 else:
-                                    st.info("No Content fields could be filled from PDF content.")
-                            
+                                    st.info(
+                                        "No Content fields could be filled from PDF content."
+                                    )
+
                             # Extract year from date_of_report if requested
-                            if extract_year and 'date_of_report' in self.data.columns:
+                            if extract_year and "date_of_report" in self.data.columns:
                                 self.data = self._add_year_column(self.data)
-                                with_year = self.data['year'].notna().sum()
-                                st.success(f"Added year data to {with_year} out of {len(self.data)} reports.")
-                            
+                                with_year = self.data["year"].notna().sum()
+                                st.success(
+                                    f"Added year data to {with_year} out of {len(self.data)} reports."
+                                )
+
                             # Extract missing concerns from PDF content if requested
                             if extract_from_pdf:
-                                before_count = self.data['Extracted_Concerns'].notna().sum()
-                                self.data = self._extract_missing_concerns_from_pdf(self.data)
-                                after_count = self.data['Extracted_Concerns'].notna().sum()
+                                before_count = (
+                                    self.data["Extracted_Concerns"].notna().sum()
+                                )
+                                self.data = self._extract_missing_concerns_from_pdf(
+                                    self.data
+                                )
+                                after_count = (
+                                    self.data["Extracted_Concerns"].notna().sum()
+                                )
                                 newly_extracted = after_count - before_count
-                                
+
                                 if newly_extracted > 0:
-                                    st.success(f"Extracted missing concerns from PDF content for {newly_extracted} reports.")
+                                    st.success(
+                                        f"Extracted missing concerns from PDF content for {newly_extracted} reports."
+                                    )
                                 else:
-                                    st.info("No additional concerns could be extracted from PDF content.")
-                            
-                            st.success(f"Files merged successfully! Final dataset has {len(self.data)} records.")
-                            
+                                    st.info(
+                                        "No additional concerns could be extracted from PDF content."
+                                    )
+
+                            st.success(
+                                f"Files merged successfully! Final dataset has {len(self.data)} records."
+                            )
+
                             # Show a preview of the data
                             st.subheader("Preview of Merged Data")
                             st.dataframe(self.data.head(5))
-                            
+
                             # Save merged data to session state
                             st.session_state.bert_merged_data = self.data.copy()
                         else:
-                            st.error("File merging resulted in empty data. Please check your files.")
-                            
+                            st.error(
+                                "File merging resulted in empty data. Please check your files."
+                            )
+
                 except Exception as e:
                     st.error(f"Error merging files: {str(e)}")
                     logging.error(f"File merging error: {e}", exc_info=True)
-        
+
         # Show download options if we have processed data
         # Use either the current instance data or data from session state
         show_download_options = False
-        
-        if hasattr(self, 'data') and self.data is not None and len(self.data) > 0:
+
+        if hasattr(self, "data") and self.data is not None and len(self.data) > 0:
             show_download_options = True
         elif st.session_state.bert_merged_data is not None:
             self.data = st.session_state.bert_merged_data
             show_download_options = True
-            
+
         if show_download_options:
             self._provide_download_options()
 
-
-def _fill_empty_content_from_pdf(self, df):
+    def _fill_empty_content_from_pdf(self, df):
         """
         Fill empty Content fields from PDF content.
-        
+    
         Args:
             df: DataFrame with merged data
-            
+    
         Returns:
             DataFrame with filled Content fields
         """
         if df is None or len(df) == 0:
             return df
-            
+    
         # Make a copy to avoid modifying the original
         processed_df = df.copy()
-        
+    
         # Identify records with missing Content
-        missing_content_mask = processed_df['Content'].isna() | (processed_df['Content'].astype(str).str.strip() == '')
+        missing_content_mask = processed_df["Content"].isna() | (
+            processed_df["Content"].astype(str).str.strip() == ""
+        )
         missing_content_count = missing_content_mask.sum()
-        
+    
         if missing_content_count == 0:
             return processed_df
-            
+    
         # Add a progress bar for processing
         progress_bar = st.progress(0)
         status_text = st.empty()
-        status_text.text(f"Filling empty Content fields from PDF content for {missing_content_count} records...")
-        
+        status_text.text(
+            f"Filling empty Content fields from PDF content for {missing_content_count} records..."
+        )
+    
         # Identify PDF content columns
-        pdf_columns = [col for col in processed_df.columns if col.startswith('PDF_') and col.endswith('_Content')]
+        pdf_columns = [
+            col
+            for col in processed_df.columns
+            if col.startswith("PDF_") and col.endswith("_Content")
+        ]
         if not pdf_columns:
             progress_bar.empty()
             status_text.empty()
             return processed_df
-            
+    
         # Process each record with missing Content
         missing_indices = processed_df[missing_content_mask].index
         filled_count = 0
-        
+    
         for i, idx in enumerate(missing_indices):
             # Update progress
             progress = (i + 1) / len(missing_indices)
             progress_bar.progress(progress)
-            
+    
             # Check each PDF content column
             for pdf_col in pdf_columns:
-                if pd.notna(processed_df.at[idx, pdf_col]) and processed_df.at[idx, pdf_col].strip() != "":
+                if (
+                    pd.notna(processed_df.at[idx, pdf_col])
+                    and processed_df.at[idx, pdf_col].strip() != ""
+                ):
                     # Use the PDF content as the main Content
-                    processed_df.at[idx, 'Content'] = processed_df.at[idx, pdf_col]
-                    processed_df.at[idx, 'Content_Source'] = pdf_col  # Track where content came from
+                    processed_df.at[idx, "Content"] = processed_df.at[idx, pdf_col]
+                    processed_df.at[
+                        idx, "Content_Source"
+                    ] = pdf_col  # Track where content came from
                     filled_count += 1
                     break  # Move to next record once content is found
-            
+    
             # Update status
-            status_text.text(f"Filled Content for {filled_count} of {i+1}/{missing_content_count} records...")
-        
+            status_text.text(
+                f"Filled Content for {filled_count} of {i+1}/{missing_content_count} records..."
+            )
+    
         # Clear progress indicators
         progress_bar.empty()
         status_text.empty()
-        
+    
         return processed_df
-
+    
+    
     def _extract_missing_concerns_from_pdf(self, df):
         """
         Extract concerns from PDF content for records with missing Extracted_Concerns.
-        
+    
         Args:
             df: DataFrame with merged data
-            
+    
         Returns:
             DataFrame with additional extracted concerns
         """
         if df is None or len(df) == 0:
             return df
-            
+    
         # Make a copy to avoid modifying the original
         processed_df = df.copy()
-        
+    
         # Identify records with missing concerns
         missing_concerns = self._identify_missing_concerns(processed_df)
-        
+    
         if len(missing_concerns) == 0:
             return processed_df
-            
+    
         # Add a progress bar for extraction
         progress_bar = st.progress(0)
         status_text = st.empty()
-        status_text.text(f"Extracting concerns from PDF content for {len(missing_concerns)} records...")
-        
+        status_text.text(
+            f"Extracting concerns from PDF content for {len(missing_concerns)} records..."
+        )
+    
         # Check each PDF content column for missing concerns
-        pdf_columns = [col for col in processed_df.columns if col.startswith('PDF_') and col.endswith('_Content')]
+        pdf_columns = [
+            col
+            for col in processed_df.columns
+            if col.startswith("PDF_") and col.endswith("_Content")
+        ]
         count_extracted = 0
-        
+    
         for i, (idx, row) in enumerate(missing_concerns.iterrows()):
             # Update progress
             progress = (i + 1) / len(missing_concerns)
             progress_bar.progress(progress)
-            
+    
             # Try to extract concerns from each PDF content column
             for pdf_col in pdf_columns:
                 if pd.notna(row.get(pdf_col)) and row.get(pdf_col) != "":
                     # Extract concerns using existing function
                     concern_text = extract_concern_text(row[pdf_col])
-                    
+    
                     # If we found concerns, update the main dataframe
-                    if concern_text and len(concern_text.strip()) > 20:  # Ensure meaningful text
-                        processed_df.at[idx, 'Extracted_Concerns'] = concern_text
-                        processed_df.at[idx, 'Concern_Source'] = pdf_col  # Track where concerns came from
+                    if (
+                        concern_text and len(concern_text.strip()) > 20
+                    ):  # Ensure meaningful text
+                        processed_df.at[idx, "Extracted_Concerns"] = concern_text
+                        processed_df.at[
+                            idx, "Concern_Source"
+                        ] = pdf_col  # Track where concerns came from
                         count_extracted += 1
                         break  # Move to next record once concerns are found
-            
+    
             # Update status
-            status_text.text(f"Extracted concerns for {count_extracted} of {i+1}/{len(missing_concerns)} records...")
-        
+            status_text.text(
+                f"Extracted concerns for {count_extracted} of {i+1}/{len(missing_concerns)} records..."
+            )
+    
         # Clear progress indicators
         progress_bar.empty()
         status_text.empty()
-        
+    
         return processed_df
-
+    
+    
     def _extract_report_year(self, date_val):
         """
         Optimized function to extract year from dd/mm/yyyy date format.
@@ -360,484 +417,557 @@ def _fill_empty_content_from_pdf(self, df):
         import re
         import datetime
         import pandas as pd
-
+    
         # Return None for empty inputs
         if pd.isna(date_val):
             return None
-
+    
         # Handle datetime objects directly
         if isinstance(date_val, (datetime.datetime, pd.Timestamp)):
             return date_val.year
-
+    
         # Handle string dates with dd/mm/yyyy format
         if isinstance(date_val, str):
             # Direct regex match for dd/mm/yyyy pattern (faster than datetime parsing)
-            match = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_val)
+            match = re.search(r"(\d{1,2})/(\d{1,2})/(\d{4})", date_val)
             if match:
                 return int(match.group(3))  # Year is in the third capture group
-
+    
         # Handle numeric or other non-string types by converting to string
         try:
             date_str = str(date_val)
-            match = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', date_str)
+            match = re.search(r"(\d{1,2})/(\d{1,2})/(\d{4})", date_str)
             if match:
                 return int(match.group(3))
         except:
             pass
-
+    
         return None
-        
-    
-
-    
-
-def _add_missing_years_from_content(self, concern_sections, df=None):
-            """Try to extract years from content when date_of_report is missing."""
-            import re
-            import datetime
-            from collections import Counter
-    
-            missing_year_count = 0
-    
-            # Try to use dataframe if available for additional data sources
-            index_to_date = {}
-            if df is not None:
-                date_related_columns = []
-                for col in df.columns:
-                    if any(term in col.lower() for term in ['date', 'year', 'time']):
-                        date_related_columns.append(col)
-    
-                if date_related_columns:
-                    print(f"Checking {len(date_related_columns)} date-related columns for missing years")
-                    for idx, row in df.iterrows():
-                        for col in date_related_columns:
-                            if pd.notna(row.get(col)):
-                                val = row.get(col)
-                                # Convert to string if needed
-                                if not isinstance(val, str):
-                                    val = str(val)
-                                year = self._extract_report_year(val)
-                                if year:
-                                    index_to_date[idx] = year
-                                    break
-    
-            for section in concern_sections:
-                if section.get('year') is None:
-                    # Check if we have a year for this index in our lookup
-                    if df is not None and 'index' in section and section['index'] in index_to_date:
-                        section['year'] = index_to_date[section['index']]
-                        section['year_source'] = 'other_date_column'
-                        missing_year_count += 1
-                        continue
-    
-                    # Try to extract year from title first
-                    title = section.get('title', '') or section.get('Title', '')
-    
-                    # Look for years in the title
-                    title_year_match = re.search(r'\b(19|20)\d{2}\b', title)
-                    if title_year_match:
-                        section['year'] = int(title_year_match.group(0))
-                        section['year_source'] = 'extracted_from_title'
-                        missing_year_count += 1
-                        continue
-    
-                    # Then try content
-                    content = section.get('Content', '') or section.get('content', '') or section.get('concern_text', '') or section.get('Extracted_Concerns', '')
-                    if content:
-                        # Look for date patterns first
-                        date_matches = re.findall(r'\b\d{1,2}[/-]\d{1,2}[/-](19|20)\d{2}\b', content)
-                        if date_matches:
-                            # Extract year from the first date pattern found
-                            full_date = re.search(r'\b\d{1,2}[/-]\d{1,2}[/-](19|20)\d{2}\b', content).group(0)
-                            year_str = re.search(r'(19|20)\d{2}', full_date).group(0)
-                            section['year'] = int(year_str)
-                            section['year_source'] = 'date_in_content'
-                            missing_year_count += 1
-                            continue
-    
-                        # Otherwise look for any years
-                        year_matches = re.findall(r'\b(19|20)\d{2}\b', content)
-                        if year_matches:
-                            # Get all years mentioned
-                            years = [int(y) for y in year_matches]
-                            # Use the most frequent year
-                            most_common_year = Counter(years).most_common(1)[0][0]
-                            section['year'] = most_common_year
-                            section['year_source'] = 'year_in_content'
-                            missing_year_count += 1
-    
-                            # Extra check for future years which may be errors
-                            current_year = datetime.datetime.now().year
-                            if section['year'] > current_year:
-                                # If it's a future year, try to find a more plausible one
-                                plausible_years = [y for y in years if y <= current_year]
-                                if plausible_years:
-                                    section['year'] = max(plausible_years)
-    
-            if missing_year_count > 0:
-                print(f"Added year data to {missing_year_count} reports using content analysis")
-    
-            return concern_sections
-        
-        def _add_year_column(self, df):
-            """
-            Add a 'year' column to the DataFrame extracted from the date_of_report column.
-            If date_of_report is missing, try to extract year from content.
-            
-            Args:
-                df: DataFrame with at least date_of_report column
-                
-            Returns:
-                DataFrame with additional 'year' column
-            """
-            # Create a copy to avoid modifying the original DataFrame
-            processed_df = df.copy()
-            
-            # Check if DataFrame has date_of_report column
-            if 'date_of_report' not in processed_df.columns:
-                st.warning("No 'date_of_report' column found in the data. Year extraction may be incomplete.")
-                processed_df['year'] = None
-                return processed_df
-                
-            # Create a new column for year extracted from date_of_report
-            processed_df['year'] = processed_df['date_of_report'].apply(self._extract_report_year)
-            
-            # Count how many years were successfully extracted
-            extracted_count = processed_df['year'].notna().sum()
-            
-            # For rows with missing years, try to extract from content
-            if processed_df['year'].isna().any():
-                # Create a list of dicts from rows with missing years
-                missing_year_rows = []
-                for idx, row in processed_df[processed_df['year'].isna()].iterrows():
-                    section_dict = row.to_dict()
-                    section_dict['index'] = idx  # Add index for tracking
-                    missing_year_rows.append(section_dict)
-                
-                # Try to extract years from content
-                if missing_year_rows:
-                    missing_year_rows = self._add_missing_years_from_content(missing_year_rows, processed_df)
-                    
-                    # Update the original DataFrame with extracted years
-                    for section in missing_year_rows:
-                        if 'year' in section and section['year'] is not None and 'index' in section:
-                            processed_df.at[section['index'], 'year'] = section['year']
-                            # Optionally add the source of extraction
-                            if 'year_source' in section:
-                                processed_df.at[section['index'], 'year_source'] = section['year_source']
-            
-            # Count final results
-            final_count = processed_df['year'].notna().sum()
-            if final_count > extracted_count:
-                print(f"Added {final_count - extracted_count} more years from content analysis")
-            
-            return processed_df
 
 
-    def _provide_download_options(self):
-            """Provide options to download the current data."""
-            if self.data is None or len(self.data) == 0:
-                return
-            
-            st.subheader("Download Merged Data")
-            
-            # Generate timestamp and random suffix for truly unique keys
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-            unique_id = f"{timestamp}_{random_suffix}"
-            
-            # Deduplicate data by Record ID before download if requested
-            dedup_download = st.checkbox(
-                "Remove duplicate Record IDs before download (keep only first occurrence)", 
-                value=True,
-                key=f"dedup_checkbox_{unique_id}"
-            )
-            
-            download_data = self.data
-            if dedup_download and 'Record ID' in self.data.columns:
-                download_data = self.data.drop_duplicates(subset=['Record ID'], keep='first')
-                st.info(f"Download will contain {len(download_data)} rows after removing duplicate Record IDs (original had {len(self.data)} rows)")
-            
-            # Prepare the reduced dataset with essential columns
-            reduced_data = download_data.copy()
-            
-            # Get list of available essential columns
-            available_essential_cols = [col for col in self.essential_columns if col in reduced_data.columns]
-            if available_essential_cols:
-                reduced_data = reduced_data[available_essential_cols]
-                st.success(f"Reduced dataset includes these columns: {', '.join(available_essential_cols)}")
-            else:
-                st.warning("None of the essential columns found in the data. Will provide full dataset only.")
-                reduced_data = None
-            
-            # Generate filename prefix
-            filename_prefix = f"merged_bert_{timestamp}"
-            
-            # Full Dataset Section
-            st.markdown("### Full Dataset")
-            full_col1, full_col2 = st.columns(2)
-            
-            # CSV download button for full data
-            with full_col1:
-                try:
-                    # Create export copy with formatted dates
-                    df_csv = download_data.copy()
-                    if "date_of_report" in df_csv.columns and pd.api.types.is_datetime64_any_dtype(df_csv["date_of_report"]):
-                        df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
-        
-                    csv_data = df_csv.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        "📥 Download Full Dataset (CSV)",
-                        data=csv_data,
-                        file_name=f"{filename_prefix}_full.csv",
-                        mime="text/csv",
-                        key=f"download_full_csv_{unique_id}"
-                    )
-                except Exception as e:
-                    st.error(f"Error preparing CSV export: {str(e)}")
-            
-            # Excel download button for full data
-            with full_col2:
-                try:
-                    excel_buffer_full = io.BytesIO()
-                    download_data.to_excel(excel_buffer_full, index=False, engine='openpyxl')
-                    excel_buffer_full.seek(0)
-                    st.download_button(
-                        "📥 Download Full Dataset (Excel)",
-                        data=excel_buffer_full,
-                        file_name=f"{filename_prefix}_full.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key=f"download_full_excel_{unique_id}"
-                    )
-                except Exception as e:
-                    st.error(f"Error preparing Excel export: {str(e)}")
-            
-            # Only show reduced dataset options if we have essential columns
-            if reduced_data is not None:
-                st.markdown("### Reduced Dataset (Essential Columns)")
-                reduced_col1, reduced_col2 = st.columns(2)
-                
-                # CSV download button for reduced data
-                with reduced_col1:
-                    try:
-                        # Create export copy with formatted dates
-                        df_csv_reduced = reduced_data.copy()
-                        if "date_of_report" in df_csv_reduced.columns and pd.api.types.is_datetime64_any_dtype(df_csv_reduced["date_of_report"]):
-                            df_csv_reduced["date_of_report"] = df_csv_reduced["date_of_report"].dt.strftime("%d/%m/%Y")
-        
-                        reduced_csv_data = df_csv_reduced.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            "📥 Download Reduced Dataset (CSV)",
-                            data=reduced_csv_data,
-                            file_name=f"{filename_prefix}_reduced.csv",
-                            mime="text/csv",
-                            key=f"download_reduced_csv_{unique_id}"
-                        )
-                    except Exception as e:
-                        st.error(f"Error preparing reduced CSV export: {str(e)}")
-                
-                # Excel download button for reduced data
-                with reduced_col2:
-                    try:
-                        excel_buffer_reduced = io.BytesIO()
-                        reduced_data.to_excel(excel_buffer_reduced, index=False, engine='openpyxl')
-                        excel_buffer_reduced.seek(0)
-                        st.download_button(
-                            "📥 Download Reduced Dataset (Excel)",
-                            data=excel_buffer_reduced,
-                            file_name=f"{filename_prefix}_reduced.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            key=f"download_reduced_excel_{unique_id}"
-                        )
-                    except Exception as e:
-                        st.error(f"Error preparing reduced Excel export: {str(e)}")
-            
-            # NEW: Add section to display and download reports with missing concerns
-            st.markdown("### Reports Without Extracted Concerns")
-            
-            # Find records without concerns
-            missing_concerns_df = self._identify_missing_concerns(download_data)
-            
-            if len(missing_concerns_df) > 0:
-                st.warning(f"Found {len(missing_concerns_df)} reports without properly extracted concerns.")
-                
-                # Display the dataframe with missing concerns
-                essential_columns_for_display = [col for col in ['Title', 'URL', 'date_of_report', 'year', 'deceased_name'] 
-                                                if col in missing_concerns_df.columns]
-                if essential_columns_for_display:
-                    st.dataframe(
-                        missing_concerns_df[essential_columns_for_display],
-                        use_container_width=True
-                    )
-                
-                # Download options for missing concerns
-                missing_col1, missing_col2 = st.columns(2)
-                
-                # CSV download
-                with missing_col1:
-                    try:
-                        missing_csv = missing_concerns_df.to_csv(index=False).encode('utf-8')
-                        st.download_button(
-                            "📥 Download Missing Concerns Data (CSV)",
-                            data=missing_csv,
-                            file_name=f"{filename_prefix}_missing_concerns.csv",
-                            mime="text/csv",
-                            key=f"download_missing_csv_{unique_id}"
-                        )
-                    except Exception as e:
-                        st.error(f"Error preparing missing concerns CSV: {str(e)}")
-                
-                # Excel download
-                with missing_col2:
-                    try:
-                        excel_buffer_missing = io.BytesIO()
-                        missing_concerns_df.to_excel(excel_buffer_missing, index=False, engine='openpyxl')
-                        excel_buffer_missing.seek(0)
-                        st.download_button(
-                            "📥 Download Missing Concerns Data (Excel)",
-                            data=excel_buffer_missing,
-                            file_name=f"{filename_prefix}_missing_concerns.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            key=f"download_missing_excel_{unique_id}"
-                        )
-                    except Exception as e:
-                        st.error(f"Error preparing missing concerns Excel: {str(e)}")
-            else:
-                st.success("All reports have properly extracted concerns.")
-
-    def _is_response(self, row):
-            """Check if a row represents a response document."""
-            # Check title for response indicators
-            title = str(row.get("Title", "")).lower()
-            title_response = any(word in title for word in ["response", "reply", "answered"])
-            
-            # Check PDF types if available
-            for i in range(1, 5):  # Check PDF_1 to PDF_4
-                pdf_type = str(row.get(f"PDF_{i}_Type", "")).lower()
-                if pdf_type == "response":
-                    return True
-            
-            # Check PDF names as backup
-            for i in range(1, 5):
-                pdf_name = str(row.get(f"PDF_{i}_Name", "")).lower()
-                if "response" in pdf_name or "reply" in pdf_name:
-                    return True
-            
-            # Check content as final fallback if available
-            content = str(row.get("Content", "")).lower()
-            content_response = any(
-                phrase in content
-                for phrase in [
-                    "in response to",
-                    "responding to",
-                    "reply to",
-                    "response to",
-                    "following the regulation 28",
-                    "following receipt of the regulation 28",
-                ]
-            )
-            
-            return title_response or content_response
-        
-        def _filter_out_responses(self, df):
-            """Filter out response documents, keeping only reports."""
-            return df[~df.apply(self._is_response, axis=1)]
-        
-        def _merge_files_stack(self, files, duplicate_cols=None):
-            """Merge multiple files by stacking (appending) them."""
-            dfs = []
-            
-            for file_index, file in enumerate(files):
-                try:
-                    # Read file
-                    if file.name.endswith('.csv'):
-                        df = pd.read_csv(file)
-                    else:
-                        df = pd.read_excel(file)
-                    
-                    # Display file information
-                    st.info(f"Processing file {file_index+1}: {file.name} ({len(df)} rows, {len(df.columns)} columns)")
-                    
-                    # Add source filename
-                    df['Source File'] = file.name
-                    
-                    # Add to the list of dataframes
-                    dfs.append(df)
-                    
-                except Exception as e:
-                    st.warning(f"Error processing file {file.name}: {str(e)}")
+#block3
+    def _add_missing_years_from_content(self, concern_sections, df=None):
+        """Try to extract years from content when date_of_report is missing."""
+        import re
+        import datetime
+        from collections import Counter
+    
+        missing_year_count = 0
+    
+        # Try to use dataframe if available for additional data sources
+        index_to_date = {}
+        if df is not None:
+            date_related_columns = []
+            for col in df.columns:
+                if any(term in col.lower() for term in ["date", "year", "time"]):
+                    date_related_columns.append(col)
+    
+            if date_related_columns:
+                print(
+                    f"Checking {len(date_related_columns)} date-related columns for missing years"
+                )
+                for idx, row in df.iterrows():
+                    for col in date_related_columns:
+                        if pd.notna(row.get(col)):
+                            val = row.get(col)
+                            # Convert to string if needed
+                            if not isinstance(val, str):
+                                val = str(val)
+                            year = self._extract_report_year(val)
+                            if year:
+                                index_to_date[idx] = year
+                                break
+    
+        for section in concern_sections:
+            if section.get("year") is None:
+                # Check if we have a year for this index in our lookup
+                if (
+                    df is not None
+                    and "index" in section
+                    and section["index"] in index_to_date
+                ):
+                    section["year"] = index_to_date[section["index"]]
+                    section["year_source"] = "other_date_column"
+                    missing_year_count += 1
                     continue
-            
-            if not dfs:
-                raise ValueError("No valid files to merge")
-            
-            # Combine all dataframes
-            merged_df = pd.concat(dfs, ignore_index=True)
-            
-            # Remove duplicates if specified
-            if duplicate_cols:
-                valid_dup_cols = [col for col in duplicate_cols if col in merged_df.columns]
-                if valid_dup_cols:
-                    before_count = len(merged_df)
-                    merged_df = merged_df.drop_duplicates(subset=valid_dup_cols, keep='first')
-                    after_count = len(merged_df)
-                    
-                    if before_count > after_count:
-                        st.success(f"Removed {before_count - after_count} duplicate records based on {', '.join(valid_dup_cols)}")
-                else:
-                    st.warning(f"Specified duplicate columns {duplicate_cols} not found in the merged data")
-            
-            # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
-            if 'Record ID' in merged_df.columns:
-                before_count = len(merged_df)
-                merged_df = merged_df.drop_duplicates(subset=['Record ID'], keep='first')
-                after_count = len(merged_df)
-                
-                if before_count > after_count:
-                    st.success(f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)")
-            
-            # Store the result
-            self.data = merged_df
-            
-            # Show summary of the merged data
-            st.subheader("Merged Data Summary")
-            st.write(f"Total rows: {len(merged_df)}")
-            st.write(f"Columns: {', '.join(merged_df.columns)}")
     
-        def _identify_missing_concerns(self, df):
-            """
-            Identify records without extracted concerns
-            
-            Args:
-                df: DataFrame with BERT results
-                
-            Returns:
-                DataFrame containing only records without extracted concerns
-            """
-            if df is None or len(df) == 0:
-                return pd.DataFrame()
-            
-            # Check for concerns column
-            concerns_column = None
-            for col_name in ['Extracted_Concerns', 'extracted_concerns', 'concern_text']:
-                if col_name in df.columns:
-                    concerns_column = col_name
-                    break
-                    
-            if concerns_column is None:
-                st.warning("No concerns column found in the data.")
-                return pd.DataFrame()
-                
-            # Filter out records with missing or empty concerns
-            missing_concerns = df[
-                df[concerns_column].isna() | 
-                (df[concerns_column].astype(str).str.strip() == '') |
-                (df[concerns_column].astype(str).str.len() < 20)  # Very short extracts likely failed
-            ].copy()
-            
-            return missing_concerns
+                # Try to extract year from title first
+                title = section.get("title", "") or section.get("Title", "")
+    
+                # Look for years in the title
+                title_year_match = re.search(r"\b(19|20)\d{2}\b", title)
+                if title_year_match:
+                    section["year"] = int(title_year_match.group(0))
+                    section["year_source"] = "extracted_from_title"
+                    missing_year_count += 1
+                    continue
+    
+                # Then try content
+                content = (
+                    section.get("Content", "")
+                    or section.get("content", "")
+                    or section.get("concern_text", "")
+                    or section.get("Extracted_Concerns", "")
+                )
+                if content:
+                    # Look for date patterns first
+                    date_matches = re.findall(
+                        r"\b\d{1,2}[/-]\d{1,2}[/-](19|20)\d{2}\b", content
+                    )
+                    if date_matches:
+                        # Extract year from the first date pattern found
+                        full_date = re.search(
+                            r"\b\d{1,2}[/-]\d{1,2}[/-](19|20)\d{2}\b", content
+                        ).group(0)
+                        year_str = re.search(r"(19|20)\d{2}", full_date).group(0)
+                        section["year"] = int(year_str)
+                        section["year_source"] = "date_in_content"
+                        missing_year_count += 1
+                        continue
+    
+                    # Otherwise look for any years
+                    year_matches = re.findall(r"\b(19|20)\d{2}\b", content)
+                    if year_matches:
+                        # Get all years mentioned
+                        years = [int(y) for y in year_matches]
+                        # Use the most frequent year
+                        most_common_year = Counter(years).most_common(1)[0][0]
+                        section["year"] = most_common_year
+                        section["year_source"] = "year_in_content"
+                        missing_year_count += 1
+    
+                        # Extra check for future years which may be errors
+                        current_year = datetime.datetime.now().year
+                        if section["year"] > current_year:
+                            # If it's a future year, try to find a more plausible one
+                            plausible_years = [y for y in years if y <= current_year]
+                            if plausible_years:
+                                section["year"] = max(plausible_years)
+    
+        if missing_year_count > 0:
+            print(f"Added year data to {missing_year_count} reports using content analysis")
+    
+        return concern_sections
+    
+    
+    def _add_year_column(self, df):
+        """
+        Add a 'year' column to the DataFrame extracted from the date_of_report column.
+        If date_of_report is missing, try to extract year from content.
+    
+        Args:
+            df: DataFrame with at least date_of_report column
+    
+        Returns:
+            DataFrame with additional 'year' column
+        """
+        # Create a copy to avoid modifying the original DataFrame
+        processed_df = df.copy()
+    
+        # Check if DataFrame has date_of_report column
+        if "date_of_report" not in processed_df.columns:
+            st.warning(
+                "No 'date_of_report' column found in the data. Year extraction may be incomplete."
+            )
+            processed_df["year"] = None
+            return processed_df
+    
+        # Create a new column for year extracted from date_of_report
+        processed_df["year"] = processed_df["date_of_report"].apply(
+            self._extract_report_year
+        )
+    
+        # Count how many years were successfully extracted
+        extracted_count = processed_df["year"].notna().sum()
+    
+        # For rows with missing years, try to extract from content
+        if processed_df["year"].isna().any():
+            # Create a list of dicts from rows with missing years
+            missing_year_rows = []
+            for idx, row in processed_df[processed_df["year"].isna()].iterrows():
+                section_dict = row.to_dict()
+                section_dict["index"] = idx  # Add index for tracking
+                missing_year_rows.append(section_dict)
+    
+            # Try to extract years from content
+            if missing_year_rows:
+                missing_year_rows = self._add_missing_years_from_content(
+                    missing_year_rows, processed_df
+                )
+    
+                # Update the original DataFrame with extracted years
+                for section in missing_year_rows:
+                    if (
+                        "year" in section
+                        and section["year"] is not None
+                        and "index" in section
+                    ):
+                        processed_df.at[section["index"], "year"] = section["year"]
+                        # Optionally add the source of extraction
+                        if "year_source" in section:
+                            processed_df.at[section["index"], "year_source"] = section[
+                                "year_source"
+                            ]
+    
+        # Count final results
+        final_count = processed_df["year"].notna().sum()
+        if final_count > extracted_count:
+            print(f"Added {final_count - extracted_count} more years from content analysis")
+    
+        return processed_df
+
+#block4
+
+def _provide_download_options(self):
+    """Provide options to download the current data."""
+    if self.data is None or len(self.data) == 0:
+        return
+
+    st.subheader("Download Merged Data")
+
+    # Generate timestamp and random suffix for truly unique keys
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    unique_id = f"{timestamp}_{random_suffix}"
+
+    # Deduplicate data by Record ID before download if requested
+    dedup_download = st.checkbox(
+        "Remove duplicate Record IDs before download (keep only first occurrence)",
+        value=True,
+        key=f"dedup_checkbox_{unique_id}",
+    )
+
+    download_data = self.data
+    if dedup_download and "Record ID" in self.data.columns:
+        download_data = self.data.drop_duplicates(subset=["Record ID"], keep="first")
+        st.info(
+            f"Download will contain {len(download_data)} rows after removing duplicate Record IDs (original had {len(self.data)} rows)"
+        )
+
+    # Prepare the reduced dataset with essential columns
+    reduced_data = download_data.copy()
+
+    # Get list of available essential columns
+    available_essential_cols = [
+        col for col in self.essential_columns if col in reduced_data.columns
+    ]
+    if available_essential_cols:
+        reduced_data = reduced_data[available_essential_cols]
+        st.success(
+            f"Reduced dataset includes these columns: {', '.join(available_essential_cols)}"
+        )
+    else:
+        st.warning(
+            "None of the essential columns found in the data. Will provide full dataset only."
+        )
+        reduced_data = None
+
+    # Generate filename prefix
+    filename_prefix = f"merged_bert_{timestamp}"
+
+    # Full Dataset Section
+    st.markdown("### Full Dataset")
+    full_col1, full_col2 = st.columns(2)
+
+    # CSV download button for full data
+    with full_col1:
+        try:
+            # Create export copy with formatted dates
+            df_csv = download_data.copy()
+            if (
+                "date_of_report" in df_csv.columns
+                and pd.api.types.is_datetime64_any_dtype(df_csv["date_of_report"])
+            ):
+                df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime(
+                    "%d/%m/%Y"
+                )
+
+            csv_data = df_csv.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "📥 Download Full Dataset (CSV)",
+                data=csv_data,
+                file_name=f"{filename_prefix}_full.csv",
+                mime="text/csv",
+                key=f"download_full_csv_{unique_id}",
+            )
+        except Exception as e:
+            st.error(f"Error preparing CSV export: {str(e)}")
+
+    # Excel download button for full data
+    with full_col2:
+        try:
+            excel_buffer_full = io.BytesIO()
+            download_data.to_excel(excel_buffer_full, index=False, engine="openpyxl")
+            excel_buffer_full.seek(0)
+            st.download_button(
+                "📥 Download Full Dataset (Excel)",
+                data=excel_buffer_full,
+                file_name=f"{filename_prefix}_full.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"download_full_excel_{unique_id}",
+            )
+        except Exception as e:
+            st.error(f"Error preparing Excel export: {str(e)}")
+
+    # Only show reduced dataset options if we have essential columns
+    if reduced_data is not None:
+        st.markdown("### Reduced Dataset (Essential Columns)")
+        reduced_col1, reduced_col2 = st.columns(2)
+
+        # CSV download button for reduced data
+        with reduced_col1:
+            try:
+                # Create export copy with formatted dates
+                df_csv_reduced = reduced_data.copy()
+                if (
+                    "date_of_report" in df_csv_reduced.columns
+                    and pd.api.types.is_datetime64_any_dtype(
+                        df_csv_reduced["date_of_report"]
+                    )
+                ):
+                    df_csv_reduced["date_of_report"] = df_csv_reduced[
+                        "date_of_report"
+                    ].dt.strftime("%d/%m/%Y")
+
+                reduced_csv_data = df_csv_reduced.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "📥 Download Reduced Dataset (CSV)",
+                    data=reduced_csv_data,
+                    file_name=f"{filename_prefix}_reduced.csv",
+                    mime="text/csv",
+                    key=f"download_reduced_csv_{unique_id}",
+                )
+            except Exception as e:
+                st.error(f"Error preparing reduced CSV export: {str(e)}")
+
+        # Excel download button for reduced data
+        with reduced_col2:
+            try:
+                excel_buffer_reduced = io.BytesIO()
+                reduced_data.to_excel(
+                    excel_buffer_reduced, index=False, engine="openpyxl"
+                )
+                excel_buffer_reduced.seek(0)
+                st.download_button(
+                    "📥 Download Reduced Dataset (Excel)",
+                    data=excel_buffer_reduced,
+                    file_name=f"{filename_prefix}_reduced.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"download_reduced_excel_{unique_id}",
+                )
+            except Exception as e:
+                st.error(f"Error preparing reduced Excel export: {str(e)}")
+
+    # NEW: Add section to display and download reports with missing concerns
+    st.markdown("### Reports Without Extracted Concerns")
+
+    # Find records without concerns
+    missing_concerns_df = self._identify_missing_concerns(download_data)
+
+    if len(missing_concerns_df) > 0:
+        st.warning(
+            f"Found {len(missing_concerns_df)} reports without properly extracted concerns."
+        )
+
+        # Display the dataframe with missing concerns
+        essential_columns_for_display = [
+            col
+            for col in ["Title", "URL", "date_of_report", "year", "deceased_name"]
+            if col in missing_concerns_df.columns
+        ]
+        if essential_columns_for_display:
+            st.dataframe(
+                missing_concerns_df[essential_columns_for_display],
+                use_container_width=True,
+            )
+
+        # Download options for missing concerns
+        missing_col1, missing_col2 = st.columns(2)
+
+        # CSV download
+        with missing_col1:
+            try:
+                missing_csv = missing_concerns_df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "📥 Download Missing Concerns Data (CSV)",
+                    data=missing_csv,
+                    file_name=f"{filename_prefix}_missing_concerns.csv",
+                    mime="text/csv",
+                    key=f"download_missing_csv_{unique_id}",
+                )
+            except Exception as e:
+                st.error(f"Error preparing missing concerns CSV: {str(e)}")
+
+        # Excel download
+        with missing_col2:
+            try:
+                excel_buffer_missing = io.BytesIO()
+                missing_concerns_df.to_excel(
+                    excel_buffer_missing, index=False, engine="openpyxl"
+                )
+                excel_buffer_missing.seek(0)
+                st.download_button(
+                    "📥 Download Missing Concerns Data (Excel)",
+                    data=excel_buffer_missing,
+                    file_name=f"{filename_prefix}_missing_concerns.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"download_missing_excel_{unique_id}",
+                )
+            except Exception as e:
+                st.error(f"Error preparing missing concerns Excel: {str(e)}")
+    else:
+        st.success("All reports have properly extracted concerns.")
+
+#block5
+    def _is_response(self, row):
+        """Check if a row represents a response document."""
+        # Check title for response indicators
+        title = str(row.get("Title", "")).lower()
+        title_response = any(word in title for word in ["response", "reply", "answered"])
+    
+        # Check PDF types if available
+        for i in range(1, 5):  # Check PDF_1 to PDF_4
+            pdf_type = str(row.get(f"PDF_{i}_Type", "")).lower()
+            if pdf_type == "response":
+                return True
+    
+        # Check PDF names as backup
+        for i in range(1, 5):
+            pdf_name = str(row.get(f"PDF_{i}_Name", "")).lower()
+            if "response" in pdf_name or "reply" in pdf_name:
+                return True
+    
+        # Check content as final fallback if available
+        content = str(row.get("Content", "")).lower()
+        content_response = any(
+            phrase in content
+            for phrase in [
+                "in response to",
+                "responding to",
+                "reply to",
+                "response to",
+                "following the regulation 28",
+                "following receipt of the regulation 28",
+            ]
+        )
+    
+        return title_response or content_response
+    
+    
+    def _filter_out_responses(self, df):
+        """Filter out response documents, keeping only reports."""
+        return df[~df.apply(self._is_response, axis=1)]
+    
+    
+    def _merge_files_stack(self, files, duplicate_cols=None):
+        """Merge multiple files by stacking (appending) them."""
+        dfs = []
+    
+        for file_index, file in enumerate(files):
+            try:
+                # Read file
+                if file.name.endswith(".csv"):
+                    df = pd.read_csv(file)
+                else:
+                    df = pd.read_excel(file)
+    
+                # Display file information
+                st.info(
+                    f"Processing file {file_index+1}: {file.name} ({len(df)} rows, {len(df.columns)} columns)"
+                )
+    
+                # Add source filename
+                df["Source File"] = file.name
+    
+                # Add to the list of dataframes
+                dfs.append(df)
+    
+            except Exception as e:
+                st.warning(f"Error processing file {file.name}: {str(e)}")
+                continue
+    
+        if not dfs:
+            raise ValueError("No valid files to merge")
+    
+        # Combine all dataframes
+        merged_df = pd.concat(dfs, ignore_index=True)
+    
+        # Remove duplicates if specified
+        if duplicate_cols:
+            valid_dup_cols = [col for col in duplicate_cols if col in merged_df.columns]
+            if valid_dup_cols:
+                before_count = len(merged_df)
+                merged_df = merged_df.drop_duplicates(subset=valid_dup_cols, keep="first")
+                after_count = len(merged_df)
+    
+                if before_count > after_count:
+                    st.success(
+                        f"Removed {before_count - after_count} duplicate records based on {', '.join(valid_dup_cols)}"
+                    )
+            else:
+                st.warning(
+                    f"Specified duplicate columns {duplicate_cols} not found in the merged data"
+                )
+    
+        # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
+        if "Record ID" in merged_df.columns:
+            before_count = len(merged_df)
+            merged_df = merged_df.drop_duplicates(subset=["Record ID"], keep="first")
+            after_count = len(merged_df)
+    
+            if before_count > after_count:
+                st.success(
+                    f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)"
+                )
+    
+        # Store the result
+        self.data = merged_df
+    
+        # Show summary of the merged data
+        st.subheader("Merged Data Summary")
+        st.write(f"Total rows: {len(merged_df)}")
+        st.write(f"Columns: {', '.join(merged_df.columns)}")
+    
+    
+    def _identify_missing_concerns(self, df):
+        """
+        Identify records without extracted concerns
+    
+        Args:
+            df: DataFrame with BERT results
+    
+        Returns:
+            DataFrame containing only records without extracted concerns
+        """
+        if df is None or len(df) == 0:
+            return pd.DataFrame()
+    
+        # Check for concerns column
+        concerns_column = None
+        for col_name in ["Extracted_Concerns", "extracted_concerns", "concern_text"]:
+            if col_name in df.columns:
+                concerns_column = col_name
+                break
+    
+        if concerns_column is None:
+            st.warning("No concerns column found in the data.")
+            return pd.DataFrame()
+    
+        # Filter out records with missing or empty concerns
+        missing_concerns = df[
+            df[concerns_column].isna()
+            | (df[concerns_column].astype(str).str.strip() == "")
+            | (
+                df[concerns_column].astype(str).str.len() < 20
+            )  # Very short extracts likely failed
+        ].copy()
+    
+        return missing_concerns
+    
     
     # End of BERTResultsAnalyzer class
+
+
 ###########################
 class ThemeAnalyzer:
     def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
