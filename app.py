@@ -4858,6 +4858,16 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
 def render_topic_options():
     """Render enhanced topic analysis options in a clear layout"""
     st.header("Topic Analysis & Summaries")
+    st.markdown(
+        """
+        Basic thematic analysis of Prevention of Future Deaths (PFD) reports.
+        - Automatically identify key themes across document collections
+        - Cluster similar documents (adjust the parameters to identify optimal clusters)
+        - Generate summaries for each identified theme
+        - Visualise relationships between key concepts and topics
+    """
+    )
+
     # Create two columns for main settings
     col1, col2 = st.columns(2)
 
