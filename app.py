@@ -5112,7 +5112,6 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
     st.subheader("Data Quality Analysis")
 
     # Completeness
-    st.markdown("### Field Completeness")
     completeness_df = pd.DataFrame(
         list(completeness_metrics.items()), columns=["Field", "Completeness %"]
     )
@@ -5126,7 +5125,6 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
     st.plotly_chart(fig_completeness, use_container_width=True)
 
     # Consistency
-    st.markdown("### Data Consistency")
     consistency_df = pd.DataFrame(
         list(consistency_metrics.items()), columns=["Metric", "Consistency %"]
     )
