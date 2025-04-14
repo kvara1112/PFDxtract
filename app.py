@@ -268,6 +268,72 @@ class BERTResultsAnalyzer:
 
     def _fill_empty_content_from_pdf(self, df):
         """
+        Fill empty Content fields from PDF_1_Content only.
+        
+        Args:
+            df: DataFrame with merged data
+        
+        Returns:
+            DataFrame with filled Content fields
+        """
+        if df is None or len(df) == 0:
+            return df
+        
+        # Make a copy to avoid modifying the original
+        processed_df = df.copy()
+        
+        # Identify records with missing Content
+        missing_content_mask = processed_df["Content"].isna() | (
+            processed_df["Content"].astype(str).str.strip() == ""
+        )
+        missing_content_count = missing_content_mask.sum()
+        
+        if missing_content_count == 0:
+            return processed_df
+        
+        # Add a progress bar for processing
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        status_text.text(
+            f"Filling empty Content fields from PDF_1_Content for {missing_content_count} records..."
+        )
+        
+        # Check if PDF_1_Content column exists
+        if "PDF_1_Content" not in processed_df.columns:
+            progress_bar.empty()
+            status_text.empty()
+            return processed_df
+        
+        # Process each record with missing Content
+        missing_indices = processed_df[missing_content_mask].index
+        filled_count = 0
+        
+        for i, idx in enumerate(missing_indices):
+            # Update progress
+            progress = (i + 1) / len(missing_indices)
+            progress_bar.progress(progress)
+            
+            # Check if PDF_1_Content exists and has content
+            if pd.notna(processed_df.at[idx, "PDF_1_Content"]) and processed_df.at[idx, "PDF_1_Content"].strip() != "":
+                # Use the PDF content as the main Content
+                processed_df.at[idx, "Content"] = processed_df.at[idx, "PDF_1_Content"]
+                processed_df.at[idx, "Content_Source"] = "PDF_1_Content"  # Track where content came from
+                filled_count += 1
+            
+            # Update status
+            status_text.text(
+                f"Filled Content for {filled_count} of {i+1}/{missing_content_count} records..."
+            )
+        
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        
+        return processed_df
+    
+    #REDUNDANT 
+    def _fill_empty_content_from_pdfALLPDFS(self, df):
+        """
         Fill empty Content fields from PDF content.
 
         Args:
