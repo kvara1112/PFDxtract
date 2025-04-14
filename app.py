@@ -7383,8 +7383,6 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
 # Modify the render_bert_analysis_tab function to remove duplicate description
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function without password protection"""
-    st.subheader("AI-based Concept/Theme Extraction and Analysis")
-    # Description is removed from here as it's now in the main function
     
     # Ensure the bert_results dictionary exists in session state
     if "bert_results" not in st.session_state:
