@@ -5407,6 +5407,7 @@ def render_file_upload():
 
     return False
 
+# Add this to your initialize_session_state function
 def initialize_session_state():
     """Initialize all required session state variables"""
     # Check if we need to perform first-time initialization
@@ -5425,10 +5426,12 @@ def initialize_session_state():
         st.session_state.cleanup_done = False
         st.session_state.last_scrape_time = None
         st.session_state.last_upload_time = None
+        st.session_state.reset_counter = 0  # Add this counter for file uploader resets
         
         # BERT-related session state variables
         st.session_state.bert_results = {}
         st.session_state.bert_initialized = False
+        st.session_state.bert_merged_data = None
         
         # Analysis filters
         st.session_state.analysis_filters = {
@@ -7960,6 +7963,7 @@ def render_bert_file_merger():
 
 
 def main():
+    
     """Updated main application entry point."""
     initialize_session_state()
     
@@ -8023,6 +8027,8 @@ def main():
             # In the sidebar section of the main() function, update the "Clear All Data" button code:
             # In the sidebar "Clear All Data" button section:
             # Update the "Clear All Data" button code in the sidebar section:
+
+            
             if st.button("Clear All Data"):
                 # Define a comprehensive list of keys to clear
                 keys_to_clear = [
