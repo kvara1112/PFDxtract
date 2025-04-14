@@ -91,18 +91,22 @@ class BERTResultsAnalyzer:
         ]
 
     def render_analyzer_ui(self):
-        """Render the file merger UI."""
-        st.header("BERT Results File Merger")
-        st.markdown(
-            """
-        This tool allows you to merge multiple BERT theme analysis results files.
-        You can filter out responses, remove duplicates, and download either a reduced set of 
-        essential columns or the full dataset.
-        """
-        )
-
-        # File upload section
-        self._render_multiple_file_upload()
+            """Render the file merger UI."""
+            st.header("BERT Results File Merger")
+            st.markdown("""
+            This tool merges multiple BERT theme analysis results files into a single dataset. It helps you:
+            
+            - Combine data from multiple CSV or Excel files
+            - Extract missing concerns from PDF content and fill empty Content fields
+            - Extract year information from date fields
+            - Remove duplicate records
+            - Export full or reduced datasets with essential columns
+            
+            Use the options below to control how your files will be processed.
+            """)
+            
+            # File upload section
+            self._render_multiple_file_upload()
 
     def _render_multiple_file_upload(self):
         """Render interface for multiple file upload and merging."""
@@ -7907,7 +7911,7 @@ def main():
         "Select section:",
         [
             "(1)🔍 Scrape Reports",
-            "(2)📂 Scraped File Merger",
+            "(2)📂 Scraped File Preparation",
             "(3)📊 Scraped File Analysis",
             "(4)📝 Topic Analysis & Summaries", 
             "(5)🔬 Concept Annotation",
@@ -7922,7 +7926,7 @@ def main():
         if current_tab == "(1)🔍 Scrape Reports":
             render_scraping_tab()
         
-        elif current_tab == "(2)📂 Scraped File Merger":
+        elif current_tab == "(2)📂 Scraped File Preparation":
             render_bert_file_merger()
         
         elif current_tab == "(3)📊 Scraped File Analysis":
