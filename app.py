@@ -7405,7 +7405,7 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
 
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function without password protection"""
-    st.header("BERT-based Theme Analysis")
+    st.header("AI-based Concept/Theme Extraction and Analysis")
 
     # Ensure the bert_results dictionary exists in session state
     if "bert_results" not in st.session_state:
