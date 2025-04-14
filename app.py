@@ -8304,7 +8304,7 @@ def main():
             # Add tab-specific description here
             st.markdown(
                 """
-                Comprehensive search tool for Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+                Search tool for Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
 
                 - Extract detailed PFD reports with metadata, full content, and associated PDFs
                 - Filtering by keywords, categories, and date ranges
