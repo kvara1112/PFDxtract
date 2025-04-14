@@ -4652,7 +4652,7 @@ def render_scraping_tab():
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
     """Topic analysis with weighting schemes and essential controls"""
-    st.header("Topic Analysis & Summaries")
+    st.subheader("Topic Analysis & Summaries")
     st.markdown(
         """
         Basic thematic analysis of Prevention of Future Deaths (PFD) reports.
@@ -4867,8 +4867,8 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
 
 def render_topic_options():
     """Render enhanced topic analysis options in a clear layout"""
-
     st.subheader("Analysis Settings")
+    
 
     # Create two columns for main settings
     col1, col2 = st.columns(2)
@@ -7120,7 +7120,7 @@ def render_footer():
     st.markdown("---")
     st.markdown(
         """<div style='text-align: center'>
-        <p>Built with Streamlit • Data from UK Judiciary</p>
+        <p>Built with Streamlit • Data from UK Judiciary • Copyright: Georgina Cosma of Loughborough University</p>
         </div>""",
         unsafe_allow_html=True,
     )
