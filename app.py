@@ -7406,7 +7406,15 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function without password protection"""
     st.header("AI-based Concept/Theme Extraction and Analysis")
-
+    st.markdown(
+            """
+            Advanced AI-powered thematic analysis.
+            - Annot important themes from Prevention of Future Deaths (PFD) reports
+            - Annotate reports with relevant themes    
+            - Download detailed results in a structured table organised by report ID, sentence and theme
+            - Download colour highlighted sentences based on theme colours
+            """
+        )
     # Ensure the bert_results dictionary exists in session state
     if "bert_results" not in st.session_state:
         st.session_state.bert_results = {}
