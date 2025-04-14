@@ -7647,7 +7647,6 @@ def render_analysis_tab(data: pd.DataFrame = None):
         """
         Analyse and explore your prepared Prevention of Future Deaths (PFD) reports.
         - Upload processed files from Scraped File Preparation (this file starts with the name merged_)
-        - Filtering and search capabilities
         - Data visualisation
         - Report insights and export options
 
