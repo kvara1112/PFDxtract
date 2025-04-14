@@ -97,6 +97,7 @@ class BERTResultsAnalyzer:
             """
             This tool merges multiple scraped files into a single dataset. It prepares the data for steps 2 and 3.
             
+            - Run this step even if you only have one scraped file. This step extracts the year and applies other processing as described in the bullets below. 
             - Combine data from multiple CSV or Excel files (the name of these files starts with pfd_reports_scraped_reportID_ )
             - Extract missing concerns from PDF content and fill empty Content fields
             - Extract year information from date fields
@@ -7409,6 +7410,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
     st.markdown(
             """
             Advanced AI-powered thematic analysis.
+            - Upload the merged Prevention of Future Deaths (PFD) reports file from step (2) 
             - Extract important themes from Prevention of Future Deaths (PFD) reports
             - Annotate reports with relevant themes    
             - Download detailed results in a structured table organised by report ID, sentence and theme
