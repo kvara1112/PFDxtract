@@ -7508,7 +7508,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
 
     # Analysis button
     run_analysis = st.button(
-        "Run BERT Analysis", type="primary", key="bert_run_analysis"
+        "Run Analysis", type="primary", key="bert_run_analysis"
     )
 
     # Run analysis if button is clicked
