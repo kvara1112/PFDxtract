@@ -92,7 +92,7 @@ class BERTResultsAnalyzer:
 
     def render_analyzer_ui(self):
         """Render the file merger UI."""
-        st.header("Scraped File Merger")
+        st.subheader("Scraped File Merger")
         st.markdown(
             """
             This tool merges multiple scraped files into a single dataset. It prepares the data for steps 2 and 3.
@@ -4448,7 +4448,7 @@ def construct_search_url(
 
 def render_scraping_tab():
     """Render the scraping tab with a clean 2x2 filter layout and page range selection"""
-    st.header("Scrape PFD Reports")
+    st.subheader("Scrape PFD Reports")
     st.markdown(
         """
         Comprehensive search tool for Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
@@ -4652,7 +4652,7 @@ def render_scraping_tab():
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
     """Topic analysis with weighting schemes and essential controls"""
-    st.header("Topic Analysis & Summaries")
+    st.subheader("Topic Analysis & Summaries")
     st.markdown(
         """
         Basic thematic analysis of Prevention of Future Deaths (PFD) reports.
@@ -5371,7 +5371,7 @@ def get_top_words(model, feature_names, topic_idx, n_words=10):
 
 def render_file_upload():
     """Render file upload section"""
-    st.header("Upload Existing Data")
+    st.subheader("Upload Existing Data")
 
     # Generate unique key for the file uploader using reset counter
     reset_counter = st.session_state.get("reset_counter", 0)
@@ -7128,7 +7128,7 @@ def render_footer():
 
 def render_topic_modeling_tab(data: pd.DataFrame):
     """Render the topic modeling tab with enhanced visualization options"""
-    st.header("Topic Modeling Analysis")
+    st.subheader("Topic Modeling Analysis")
 
     if data is None or len(data) == 0:
         st.warning("No data available. Please scrape or upload data first.")
