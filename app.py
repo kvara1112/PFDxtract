@@ -4444,9 +4444,27 @@ def construct_search_url(
     return url
 
 
+
 def render_scraping_tab():
     """Render the scraping tab with a clean 2x2 filter layout and page range selection"""
     st.header("Scrape PFD Reports")
+    st.markdown(
+        """
+        Comprehensive search tool for Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+
+        ## Key Capabilities:
+        - Extract detailed PFD reports with metadata, full content, and associated PDFs
+        - Advanced filtering by keywords, categories, and date ranges
+        - Flexible export options in CSV and Excel formats
+
+        ## Handling Large Result Sets:
+        For extensive search results (5+ pages), strategically download in batches. 
+        For instance, with 20 pages of results, consider downloading pages 1-5, then 6-10 
+        to manage data efficiently and avoid potential scraping limitations.
+
+        Configure your search parameters below to retrieve precise judicial reports.
+        """
+    )
 
     # Initialize default values if not in session state
     if "init_done" not in st.session_state:
