@@ -7419,10 +7419,9 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             """
             Advanced AI-powered thematic analysis.
             - Upload the merged Prevention of Future Deaths (PFD) reports file from step (2) 
-            - Extract important themes from Prevention of Future Deaths (PFD) reports
-            - Annotate reports with relevant themes    
-            - Download detailed results in a structured table organised by report ID, sentence and theme
-            - Download colour highlighted sentences based on theme colours
+            - Automatic extraction of important themes from Prevention of Future Deaths (PFD) reports (using 4 framedworks)
+            - Download detailed results in structured tables
+            - Download colour highlighted sentences based on theme colours in a html report
             """
         )
     # Ensure the bert_results dictionary exists in session state
@@ -7660,7 +7659,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                 
 def render_analysis_tab(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
-    st.subheader("Reports Analysis")
+    st.header("Reports Analysis")
     st.markdown(
         """
         Analyse and explore your prepared Prevention of Future Deaths (PFD) reports.
