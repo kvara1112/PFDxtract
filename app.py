@@ -4656,7 +4656,7 @@ def render_topic_summary_tab(data: pd.DataFrame) -> None:
         """
         Basic thematic analysis of Prevention of Future Deaths (PFD) reports.
         - Automatically identify key themes across document collections
-        - Cluster similar documents using advanced machine learning techniques
+        - Cluster similar documents (adjust the parameters to identify optimal clusters)
         - Generate summaries for each identified theme
         - Visualise relationships between key concepts and topics
     """
