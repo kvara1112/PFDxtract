@@ -4652,7 +4652,7 @@ def render_scraping_tab():
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
     """Topic analysis with weighting schemes and essential controls"""
-    st.subheader("Topic Analysis & Summaries2")
+    st.subheader("Topic Analysis & Summaries")
     st.markdown(
         """
         Basic thematic analysis of Prevention of Future Deaths (PFD) reports.
