@@ -7405,7 +7405,7 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
 
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function without password protection"""
-    st.header("AI-based Concept/Theme Extraction and Analysis")
+    st.subheader("AI-based Concept/Theme Extraction and Analysis")
     st.markdown(
             """
             Advanced AI-powered thematic analysis.
