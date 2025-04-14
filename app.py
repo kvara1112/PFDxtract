@@ -4639,15 +4639,6 @@ def render_scraping_tab():
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
     """Topic analysis with weighting schemes and essential controls"""
     st.subheader("Topic Analysis & Summaries")
-    st.markdown(
-        """
-        Basic thematic analysis of Prevention of Future Deaths (PFD) reports.
-        - Automatically identify key themes across document collections
-        - Cluster similar documents (adjust the parameters to identify optimal clusters)
-        - Generate summaries for each identified theme
-        - Visualise relationships between key concepts and topics
-    """
-    )
 
     # Show previous results if available
     if "topic_model" in st.session_state and st.session_state.topic_model is not None:
