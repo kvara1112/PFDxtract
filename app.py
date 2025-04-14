@@ -95,7 +95,7 @@ class BERTResultsAnalyzer:
         st.subheader("Scraped File Merger")
         st.markdown(
             """
-            This tool merges multiple scraped files into a single dataset. It prepares the data for steps 2 and 3.
+            This tool merges multiple scraped files into a single dataset. It prepares the data for steps (3) and (4).
             
             - Run this step even if you only have one scraped file. This step extracts the year and applies other processing as described in the bullets below. 
             - Combine data from multiple CSV or Excel files (the name of these files starts with pfd_reports_scraped_reportID_ )
