@@ -7643,18 +7643,20 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
 def render_analysis_tab(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
     st.header("Reports Analysis")
-    st.markdown(
-        """
-        Analyse and explore your prepared Prevention of Future Deaths (PFD) reports.
+    
+    # Use st.write with explicit markdown
+    st.write("""
+    ## Analyse Prepared PFD Reports
 
-        - Upload processed files from Scraped File Preparation (this file starts with the name merged_)
-        - Filtering and search capabilities
-        - Data visualization
-        - Report insights and export options
+    **Upload and explore your prepared Prevention of Future Deaths (PFD) reports:**
 
-        Upload your prepared CSV or Excel file (starts with name merged_timestamp) from Step 2 to begin analysis.
-        """
-    )
+    - Upload processed files from Scraped File Preparation (files start with `merged_`)
+    - Advanced filtering and search capabilities
+    - Interactive data visualization
+    - Comprehensive report insights and export options
+
+    *Upload your prepared CSV or Excel file from Step 2 to begin analysis.*
+    """)
     
     # Add file upload section at the top
     st.subheader("Upload Data")
