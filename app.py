@@ -5135,7 +5135,6 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
     st.plotly_chart(fig_consistency, use_container_width=True)
 
     # PDF Analysis
-    st.markdown("### PDF Attachment Analysis")
     pdf_df = pd.DataFrame(list(pdf_metrics.items()), columns=["Metric", "Percentage"])
     fig_pdf = px.bar(pdf_df, x="Metric", y="Percentage", title="PDF Coverage Analysis")
     fig_pdf.update_layout(xaxis_tickangle=-45)
