@@ -80,12 +80,19 @@ class BERTResultsAnalyzer:
         ]
     
     def render_analyzer_ui(self):
+   
         """Render the file merger UI."""
-        st.header("BERT Results File Merger")
+        st.header("BERT Results File Merge, clean & prepare")
         st.markdown("""
-        This tool allows you to merge multiple BERT theme analysis results files.
-        You can filter out responses, remove duplicates, and download either a reduced set of 
-        essential columns or the full dataset.
+        This tool merges multiple BERT theme analysis results files into a single dataset. It helps you:
+        
+        - Combine data from multiple CSV or Excel files
+        - Extract missing concerns from PDF content and fill empty Content fields
+        - Extract year information from date fields
+        - Remove duplicate records
+        - Export full or reduced datasets with essential columns
+        
+        Use the options below to control how your files will be processed.
         """)
         
         # File upload section
