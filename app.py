@@ -7877,11 +7877,8 @@ def render_analysis_tab(data: pd.DataFrame = None):
 
                 # Distribution Analysis Tab
                 with distribution_tab:
-                    col1, col2 = st.columns(2)
-                    with col1:
                         st.subheader("Reports by Category")
                         plot_category_distribution(filtered_df)
-                    with col2:
                         st.subheader("Reports by Coroner Area")
                         plot_coroner_areas(filtered_df)
 
