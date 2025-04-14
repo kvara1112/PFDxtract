@@ -7990,8 +7990,8 @@ def main():
     st.title("UK Judiciary PFD Reports Analysis")
     st.markdown(
         """
-    This application analyzes Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-    You can scrape new reports, analyze existing data, and explore thematic patterns.
+    This application analyses Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+    You can scrape new reports, analyse existing data, and explore thematic patterns.
     """
     )
 
