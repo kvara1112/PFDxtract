@@ -4449,7 +4449,6 @@ def construct_search_url(
 def render_scraping_tab():
     """Render the scraping tab with a clean 2x2 filter layout and page range selection"""
     st.subheader("Scrape PFD Reports")
-    )
 
     # Initialize default values if not in session state
     if "init_done" not in st.session_state:
