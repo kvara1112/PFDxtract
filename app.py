@@ -7409,7 +7409,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
     st.markdown(
             """
             Advanced AI-powered thematic analysis.
-            - Annot important themes from Prevention of Future Deaths (PFD) reports
+            - Extract important themes from Prevention of Future Deaths (PFD) reports
             - Annotate reports with relevant themes    
             - Download detailed results in a structured table organised by report ID, sentence and theme
             - Download colour highlighted sentences based on theme colours
