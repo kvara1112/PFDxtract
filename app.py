@@ -4872,13 +4872,10 @@ def render_topic_options():
     st.markdown(
         """
         Advanced thematic analysis of Prevention of Future Deaths (PFD) reports.
-
         - Automatically identify key themes across document collections
         - Cluster similar documents (adjust parameters for optimal results)
         - Generate summaries for each cluster
-        
-        Discover hidden connections and meaningful patterns in your PFD reports through intelligent topic modeling.
-        """
+                """
     )
 
     # Create two columns for main settings
