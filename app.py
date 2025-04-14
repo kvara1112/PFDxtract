@@ -116,7 +116,8 @@ class BERTResultsAnalyzer:
         if "bert_merged_data" not in st.session_state:
             st.session_state.bert_merged_data = None
 
-        # Use a static key for file uploader
+        # Use a dynamic key for file uploader based on reset counter
+        reset_counter = st.session_state.get("reset_counter", 0)
         uploaded_files = st.file_uploader(
             "Upload CSV or Excel files exported from the scraper tool",
             type=["csv", "xlsx"],
@@ -5356,7 +5357,8 @@ def render_file_upload():
     """Render file upload section"""
     st.header("Upload Existing Data")
 
-    # Generate unique key for the file uploader
+    # Generate unique key for the file uploader using reset counter
+    reset_counter = st.session_state.get("reset_counter", 0)
     upload_key = f"file_uploader_{int(time.time() * 1000)}"
 
     uploaded_file = st.file_uploader(
@@ -7400,6 +7402,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
 
     # File upload section
     st.subheader("Upload Data")
+    reset_counter = st.session_state.get("reset_counter", 0)
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file for BERT Analysis",
         type=["csv", "xlsx"],
@@ -8028,69 +8031,77 @@ def main():
             # In the sidebar "Clear All Data" button section:
             # Update the "Clear All Data" button code in the sidebar section:
 
+            #
+            # In the sidebar section of main()
+            with st.sidebar:
+                st.header("Data Management")
             
-            if st.button("Clear All Data"):
-                # Define a comprehensive list of keys to clear
-                keys_to_clear = [
-                    # Core data keys
-                    "current_data",
-                    "scraped_data", 
-                    "uploaded_data",
-                    "topic_model",
-                    "data_source",
-                    
-                    # BERT-specific keys
-                    "bert_results",
-                    "bert_initialized",
-                    "bert_merged_data",  # Add this key to clear the merged data
-                    
-                    # File upload keys
-                    "bert_file_uploader",
-                    "bert_content_column",
-                    "bert_analysis_type",
-                    "bert_selected_indices",
-                    "bert_similarity_threshold",
-                    "bert_multi_uploader_static",  # Add this key for the BERT file merger uploader
-                    
-                    # BERT merger settings keys
-                    "drop_duplicates_static",
-                    "extract_year_static",
-                    "extract_from_pdf_static",
-                    "fill_empty_content_static",
-                    "duplicate_columns_static",
-                    "merge_files_button_static",
-                    
-                    # Analysis filter keys
-                    "start_date_filter",
-                    "end_date_filter",
-                    "doc_type_filter",
-                    "ref_filter",
-                    "deceased_filter",
-                    "coroner_filter",
-                    "areas_filter",
-                    "categories_filter",
-                    
-                    # Any other upload-related keys
-                    "file_uploader"
-                ]
+                if hasattr(st.session_state, "data_source"):
+                    st.info(f"Current data: {st.session_state.data_source}")
                 
-                # Clear each key if it exists
-                for key in keys_to_clear:
-                    if key in st.session_state:
-                        del st.session_state[key]
-                
-                # Force re-initialization of key values
-                st.session_state.current_data = None
-                st.session_state.uploaded_data = None
-                st.session_state.scraped_data = None
-                st.session_state.data_source = None
-                st.session_state.bert_results = {}
-                st.session_state.bert_initialized = False
-                st.session_state.bert_merged_data = None  # Explicitly set this to None
-                
-                # Give feedback and rerun
-                st.success("All data cleared successfully")
-                st.rerun()  # Force complete page rerun
+                if st.button("Clear All Data"):
+                    # Define a comprehensive list of keys to clear
+                    keys_to_clear = [
+                        # Core data keys
+                        "current_data",
+                        "scraped_data", 
+                        "uploaded_data",
+                        "topic_model",
+                        "data_source",
+                        
+                        # BERT-specific keys
+                        "bert_results",
+                        "bert_initialized",
+                        "bert_merged_data",
+                        
+                        # File upload keys
+                        "bert_file_uploader",
+                        "bert_content_column",
+                        "bert_analysis_type",
+                        "bert_selected_indices",
+                        "bert_similarity_threshold",
+                        
+                        # BERT merger settings keys
+                        "drop_duplicates_static",
+                        "extract_year_static",
+                        "extract_from_pdf_static",
+                        "fill_empty_content_static",
+                        "duplicate_columns_static",
+                        "merge_files_button_static",
+                        
+                        # Analysis filter keys
+                        "start_date_filter",
+                        "end_date_filter",
+                        "doc_type_filter",
+                        "ref_filter",
+                        "deceased_filter",
+                        "coroner_filter",
+                        "areas_filter",
+                        "categories_filter",
+                    ]
+                    
+                    # Clear each key if it exists
+                    for key in keys_to_clear:
+                        if key in st.session_state:
+                            del st.session_state[key]
+                    
+                    # Force re-initialization of key values
+                    st.session_state.current_data = None
+                    st.session_state.uploaded_data = None
+                    st.session_state.scraped_data = None
+                    st.session_state.data_source = None
+                    st.session_state.bert_results = {}
+                    st.session_state.bert_initialized = False
+                    st.session_state.bert_merged_data = None
+                    
+                    # Increment reset counter to force new file uploader keys
+                    if "reset_counter" not in st.session_state:
+                        st.session_state.reset_counter = 0
+                    st.session_state.reset_counter += 1
+                    
+                    # Give feedback and rerun
+                    st.success("All data cleared successfully")
+                    st.rerun()  # Force complete page rerun
 
 
             # Add logout button
