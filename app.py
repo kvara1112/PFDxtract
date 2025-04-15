@@ -8752,55 +8752,55 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         The diagonal represents the total count of each theme.
         """)
 
-# Show detailed data table
-with st.expander("View Detailed Data"):
-    st.dataframe(
-        filtered_df,
-        column_config={
-            "Title": st.column_config.TextColumn("Document Title"),
-            "Framework": st.column_config.TextColumn("Framework"),
-            "Theme": st.column_config.TextColumn("Theme"),
-            "Confidence": st.column_config.TextColumn("Confidence"),
-            "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
-            "Matched Keywords": st.column_config.TextColumn("Keywords"),
-            "coroner_name": st.column_config.TextColumn("Coroner Name"),
-            "coroner_area": st.column_config.TextColumn("Coroner Area"),
-            "year": st.column_config.NumberColumn("Year"),
-        },
-        use_container_width=True
-    )
-    
-    # Export options
-    st.subheader("Export Filtered Data")
-    
-    # Generate timestamp for filenames
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # Create columns for download buttons
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # CSV Export
-        csv = filtered_df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            "📥 Download Filtered Data (CSV)",
-            data=csv,
-            file_name=f"theme_analysis_export_{timestamp}.csv",
-            mime="text/csv",
-            key=f"download_csv_{timestamp}",
-        )
-    
-    with col2:
-        # Excel Export
-        excel_data = export_to_excel(filtered_df)
-        st.download_button(
-            "📥 Download Filtered Data (Excel)",
-            data=excel_data,
-            file_name=f"theme_analysis_export_{timestamp}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"download_excel_{timestamp}",
-        )
-                
+        # Show detailed data table
+        with st.expander("View Detailed Data"):
+            st.dataframe(
+                filtered_df,
+                column_config={
+                    "Title": st.column_config.TextColumn("Document Title"),
+                    "Framework": st.column_config.TextColumn("Framework"),
+                    "Theme": st.column_config.TextColumn("Theme"),
+                    "Confidence": st.column_config.TextColumn("Confidence"),
+                    "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                    "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                    "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                    "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                    "year": st.column_config.NumberColumn("Year"),
+                },
+                use_container_width=True
+            )
+            
+        # Export options
+        st.subheader("Export Filtered Data")
+        
+        # Generate timestamp for filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create columns for download buttons
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # CSV Export
+            csv = filtered_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "📥 Download Filtered Data (CSV)",
+                data=csv,
+                file_name=f"theme_analysis_export_{timestamp}.csv",
+                mime="text/csv",
+                key=f"download_csv_{timestamp}",
+            )
+        
+        with col2:
+            # Excel Export
+            excel_data = export_to_excel(filtered_df)
+            st.download_button(
+                "📥 Download Filtered Data (Excel)",
+                data=excel_data,
+                file_name=f"theme_analysis_export_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"download_excel_{timestamp}",
+            )
+                    
                 
 def render_framework_heatmap(filtered_df, top_n_themes=5):
     """
