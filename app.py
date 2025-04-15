@@ -7498,7 +7498,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
 
     # Run analysis if button is clicked
     if run_analysis:
-        with st.spinner("Performing BERT Theme Analysis..."):
+        with st.spinner("Performing Theme Analysis..."):
             try:
                 # Validate data selection
                 if selected_data is None or len(selected_data) == 0:
