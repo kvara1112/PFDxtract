@@ -8171,7 +8171,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             framework_colors = {}
             for i, framework in enumerate(frameworks_present):
                 if framework == 'I-SIRch':
-                    framework_colors[framework] = "orange"  # Orange for I-SIRch
+                    framework_colors[framework] = "#ff0000"  # Orange for I-SIRch
                 elif framework == 'House of Commons':
                     framework_colors[framework] = "royalblue"  # Blue for House of Commons
                 else:
