@@ -8072,6 +8072,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             st.metric("Years Covered", year_text)
         else:
             st.metric("Years Covered", "N/A")
+            
+    results_df = data.copy() if data is not None else pd.DataFrame()
 
     # Sidebar filters
     st.sidebar.header("Dashboard Filters")
