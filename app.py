@@ -1480,7 +1480,7 @@ class ThemeAnalyzer:
             <!DOCTYPE html>
             <html>
             <head>
-                <title>BERT Theme Analysis Report</title>
+                <title>Theme Analysis Report</title>
                 <meta charset="UTF-8">
                 <meta name="viewport" content="width=device-width, initial-scale=1">
                 <style>
@@ -1642,7 +1642,7 @@ class ThemeAnalyzer:
             </head>
             <body>
                 <div class="report-header">
-                    <h1>BERT Theme Analysis Results</h1>
+                    <h1>Theme Analysis Results</h1>
                     <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
                 </div>
                 
@@ -2852,7 +2852,7 @@ class ThemeAnalyzer:
             plt.text(
                 0.5,
                 0.6,
-                "BERT Theme Analysis Report",
+                "Theme Analysis Report",
                 fontsize=28,
                 ha="center",
                 va="center",
