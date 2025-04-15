@@ -8255,7 +8255,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     ticktext=theme_display_df['clean_name'],
                     tickfont=dict(
                         size=11,
-                        color='black'
+                        color='white'
                     ),
                 )
             )
@@ -8687,7 +8687,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 marker=dict(
                     size=node_size,
                     color='skyblue',
-                    line=dict(width=1, color='black')
+                    line=dict(width=1, color='white')
                 ),
                 hoverinfo='text',
                 hovertext=node_text
