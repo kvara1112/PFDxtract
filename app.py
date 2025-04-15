@@ -7993,7 +7993,35 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         elif "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
             data = st.session_state.bert_results.get("results_df")
     
-    # If no data is available
+    # File upload section
+    upload_key = f"dashboard_file_uploader_{int(time.time() * 1000)}"
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for Dashboard Analysis",
+        type=["csv", "xlsx"],
+        key=upload_key
+    )
+    
+    # Process uploaded file
+    if uploaded_file is not None:
+        try:
+            # Load the file based on its type
+            if uploaded_file.name.endswith('.csv'):
+                data = pd.read_csv(uploaded_file)
+            else:
+                data = pd.read_excel(uploaded_file)
+            
+            # Process the data to ensure it's clean
+            data = process_scraped_data(data)
+            
+            # Store in session state
+            st.session_state.dashboard_data = data
+            
+            st.success(f"File uploaded successfully! Found {len(data)} records.")
+        except Exception as e:
+            st.error(f"Error processing file: {e}")
+            return
+    
+    # If no data is available after upload
     if data is None or len(data) == 0:
         st.warning("No theme analysis data available.")
         
@@ -8001,7 +8029,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         ### To get theme analysis data:
         
         1. **Upload Existing Results**
-           - Use the file uploader below to load previously saved theme analysis results
+           - Use the file uploader above to load previously saved theme analysis results
         
         2. **Run New Theme Analysis**
            - Go to the 'Concept Annotation' tab 
@@ -8009,40 +8037,44 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
            - Run a new theme analysis
         """)
         
-        # File upload section
-        upload_key = f"dashboard_file_uploader_{int(time.time() * 1000)}"
-        uploaded_file = st.file_uploader(
-            "Upload CSV or Excel file for Dashboard Analysis",
-            type=["csv", "xlsx"],
-            key=upload_key
-        )
-        
         return  # Exit the function if no data
     
-    # Get the results DataFrame
-    results_df = st.session_state.bert_results["results_df"]
+    # Validate required columns
+    required_cols = ["Framework", "Theme"]
+    recommended_cols = ["coroner_area", "coroner_name", "year"]
     
-    # Check if the DataFrame has necessary metadata columns
-    required_cols = ["Framework", "Theme", "coroner_area", "coroner_name", "year"]
-    missing_cols = [col for col in required_cols if col not in results_df.columns]
+    missing_required = [col for col in required_cols if col not in data.columns]
+    missing_recommended = [col for col in recommended_cols if col not in data.columns]
     
-    if missing_cols:
-        st.error(f"Missing required metadata columns: {', '.join(missing_cols)}. Please run the analysis with complete metadata.")
+    if missing_required:
+        st.error(f"Missing required columns: {', '.join(missing_required)}")
         return
+    
+    if missing_recommended:
+        st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}")
     
     # Data Overview
     st.subheader("Data Overview")
-    col1, col2, col3, col4 = st.columns(4)
+    metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
     
-    with col1:
-        st.metric("Total Theme Identifications", len(results_df))
-    with col2:
-        st.metric("Unique Themes", results_df["Theme"].nunique())
-    with col3:
-        st.metric("Coroner Areas", results_df["coroner_area"].nunique())
-    with col4:
-        st.metric("Years Covered", results_df["year"].nunique())
+    with metrics_col1:
+        st.metric("Total Theme Identifications", len(data))
+    with metrics_col2:
+        st.metric("Unique Themes", data["Theme"].nunique())
     
+    with metrics_col3:
+        if "coroner_area" in data.columns and not data["coroner_area"].isna().all():
+            st.metric("Coroner Areas", data["coroner_area"].nunique())
+        else:
+            st.metric("Coroner Areas", "N/A")
+    
+    with metrics_col4:
+        if "year" in data.columns and not data["year"].isna().all():
+            years_count = data["year"].dropna().nunique()
+            year_text = f"{years_count}" if years_count > 0 else "N/A"
+            st.metric("Years Covered", year_text)
+        else:
+            st.metric("Years Covered", "N/A")
     # Sidebar filters
     st.sidebar.header("Dashboard Filters")
     
