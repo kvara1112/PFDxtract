@@ -7977,37 +7977,48 @@ def render_bert_file_merger():
     # This avoids the duplicate header and description
     analyzer._render_multiple_file_upload()
 
-
+        
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analyzing themes by various metadata fields
-    such as year, coroner_name, coroner_area, etc. with framework-based visualizations
-    and correlation analysis.
     
     Args:
-        data: Optional DataFrame containing theme analysis results. If None, will attempt
-              to load from session state or request upload.
+        data: Optional DataFrame containing theme analysis results
     """
     st.title("Theme Analysis Dashboard")
     
     # Check for existing data in session state
-    if data is None and "dashboard_data" in st.session_state:
-        data = st.session_state.dashboard_data
-        st.info("Using previously loaded theme analysis data.")
+    if data is None:
+        if "dashboard_data" in st.session_state:
+            data = st.session_state.dashboard_data
+        elif "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+            data = st.session_state.bert_results.get("results_df")
     
-    # File upload section - allow direct upload even if no existing data
-    st.subheader("Upload Data")
-    st.markdown("Upload a CSV or Excel file containing theme analysis results. The file should include at least 'Framework' and 'Theme' columns.")
-    
-    # Use a unique key for file uploader to avoid state conflicts
-    upload_key = f"dashboard_file_uploader_{int(time.time() * 1000)}"
-    
-    uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file for Dashboard Analysis",
-        type=["csv", "xlsx"],
-        help="Upload a file with theme analysis results",
-        key=upload_key
-    )
+    # If no data is available
+    if data is None or len(data) == 0:
+        st.warning("No theme analysis data available.")
+        
+        st.markdown("""
+        ### To get theme analysis data:
+        
+        1. **Upload Existing Results**
+           - Use the file uploader below to load previously saved theme analysis results
+        
+        2. **Run New Theme Analysis**
+           - Go to the 'Concept Annotation' tab 
+           - Upload your merged PFD reports file
+           - Run a new theme analysis
+        """)
+        
+        # File upload section
+        upload_key = f"dashboard_file_uploader_{int(time.time() * 1000)}"
+        uploaded_file = st.file_uploader(
+            "Upload CSV or Excel file for Dashboard Analysis",
+            type=["csv", "xlsx"],
+            key=upload_key
+        )
+        
+        return  # Exit the function if no data
 
     # Process uploaded file if any
     if uploaded_file is not None:
