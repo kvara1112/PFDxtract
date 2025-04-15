@@ -7985,9 +7985,45 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
     st.title("Theme Analysis Dashboard")
     
-    # Check if results exist in session state
-    if "bert_results" not in st.session_state or st.session_state.bert_results.get("results_df") is None:
-        st.warning("No theme analysis results available. Please run the analysis first.")
+    # File upload section - allow direct upload even if no existing data
+    st.subheader("Upload Data")
+    upload_key = f"dashboard_file_uploader_{int(time.time() * 1000)}"
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for Dashboard Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a file with theme analysis results",
+        key=upload_key
+    )
+
+    # If a file is uploaded, process it
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_data = pd.read_csv(uploaded_file)
+            else:
+                uploaded_data = pd.read_excel(uploaded_file)
+
+            # Process the uploaded data
+            uploaded_data = process_scraped_data(uploaded_data)
+
+            # Update the data reference
+            data = uploaded_data
+
+            st.success("File uploaded and processed successfully!")
+                
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            return
+    
+    # Check if BERT results exist in session state - use them if available
+    if data is None and "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+        results_df = st.session_state.bert_results["results_df"]
+        st.info("Using theme analysis results from previous analysis.")
+        data = results_df
+    
+    # If still no data, show warning and return
+    if data is None or len(data) == 0:
+        st.warning("No theme analysis data available. Please upload a file or run theme analysis first.")
         
         # Add button to go to analysis tab
         if st.button("Go to Theme Analysis"):
@@ -7996,79 +8032,125 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             st.rerun()
         return
     
-    # Get the results DataFrame
-    results_df = st.session_state.bert_results["results_df"]
+    # Check if the DataFrame has necessary columns
+    # We're more flexible now - we'll use what's available
+    required_cols = ["Framework", "Theme"]
+    recommended_cols = ["coroner_area", "coroner_name", "year", "Record ID"]
     
-    # Check if the DataFrame has necessary metadata columns
-    required_cols = ["Framework", "Theme", "coroner_area", "coroner_name", "year"]
-    missing_cols = [col for col in required_cols if col not in results_df.columns]
+    missing_required = [col for col in required_cols if col not in data.columns]
+    missing_recommended = [col for col in recommended_cols if col not in data.columns]
     
-    if missing_cols:
-        st.error(f"Missing required metadata columns: {', '.join(missing_cols)}. Please run the analysis with complete metadata.")
+    if missing_required:
+        st.error(f"Missing required columns: {', '.join(missing_required)}. Please run the analysis with complete data.")
         return
+    
+    if missing_recommended:
+        st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}. Some visualizations may be limited.")
     
     # Data Overview
     st.subheader("Data Overview")
-    col1, col2, col3, col4 = st.columns(4)
+    metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
     
-    with col1:
-        st.metric("Total Theme Identifications", len(results_df))
-    with col2:
-        st.metric("Unique Themes", results_df["Theme"].nunique())
-    with col3:
-        st.metric("Coroner Areas", results_df["coroner_area"].nunique())
-    with col4:
-        st.metric("Years Covered", results_df["year"].nunique())
+    with metrics_col1:
+        st.metric("Total Theme Identifications", len(data))
+    with metrics_col2:
+        st.metric("Unique Themes", data["Theme"].nunique())
+    
+    # Check for coroner_area and year columns before creating metrics
+    with metrics_col3:
+        if "coroner_area" in data.columns:
+            st.metric("Coroner Areas", data["coroner_area"].nunique())
+        else:
+            st.metric("Coroner Areas", "N/A")
+    
+    with metrics_col4:
+        if "year" in data.columns:
+            years_count = data["year"].dropna().nunique()
+            # Handle the case where there's only one year or no years
+            year_text = f"{years_count}" if years_count > 0 else "N/A"
+            st.metric("Years Covered", year_text)
+        else:
+            st.metric("Years Covered", "N/A")
     
     # Sidebar filters
     st.sidebar.header("Dashboard Filters")
     
     # Framework filter
-    frameworks = ["All"] + sorted(results_df["Framework"].unique().tolist())
+    frameworks = ["All"] + sorted(data["Framework"].unique().tolist())
     selected_framework = st.sidebar.selectbox("Filter by Framework", frameworks)
     
-    # Year range filter
-    years = sorted(results_df["year"].dropna().unique().tolist())
-    if years:
-        min_year, max_year = min(years), max(years)
-        selected_years = st.sidebar.slider(
-            "Year Range", min_year, max_year, (min_year, max_year)
-        )
+    # Year range filter if year column exists
+    if "year" in data.columns and not data["year"].isna().all():
+        years = sorted(data["year"].dropna().unique().tolist())
+        if years:
+            min_year, max_year = min(years), max(years)
+            
+            # If min_year and max_year are the same, handle this special case
+            if min_year == max_year:
+                st.sidebar.info(f"All reports are from the same year: {min_year}")
+                selected_years = (min_year, max_year)
+            else:
+                selected_years = st.sidebar.slider(
+                    "Year Range", min_year, max_year, (min_year, max_year)
+                )
+        else:
+            selected_years = None
     else:
         selected_years = None
+        if "year" in data.columns:
+            st.sidebar.warning("Year data is missing in the dataset")
+        else:
+            st.sidebar.warning("No year column in the dataset")
     
-    # Coroner area filter
-    areas = ["All"] + sorted(results_df["coroner_area"].dropna().unique().tolist())
-    selected_area = st.sidebar.selectbox("Filter by Coroner Area", areas)
+    # Coroner area filter if available
+    if "coroner_area" in data.columns and not data["coroner_area"].isna().all():
+        areas = ["All"] + sorted(data["coroner_area"].dropna().unique().tolist())
+        selected_area = st.sidebar.selectbox("Filter by Coroner Area", areas)
+    else:
+        selected_area = "All"
+        if "coroner_area" in data.columns:
+            st.sidebar.warning("Coroner area data is missing in the dataset")
+        else:
+            st.sidebar.warning("No coroner_area column in the dataset")
     
-    # Coroner name filter
-    names = ["All"] + sorted(results_df["coroner_name"].dropna().unique().tolist())
-    selected_name = st.sidebar.selectbox("Filter by Coroner Name", names)
+    # Coroner name filter if available
+    if "coroner_name" in data.columns and not data["coroner_name"].isna().all():
+        names = ["All"] + sorted(data["coroner_name"].dropna().unique().tolist())
+        selected_name = st.sidebar.selectbox("Filter by Coroner Name", names)
+    else:
+        selected_name = "All"
+        if "coroner_name" in data.columns:
+            st.sidebar.warning("Coroner name data is missing in the dataset")
+        else:
+            st.sidebar.warning("No coroner_name column in the dataset")
     
     # Number of top themes to display
     top_n_themes = st.sidebar.slider("Number of Top Themes", 5, 20, 10)
     
-    # Minimum confidence filter
-    confidence_levels = ["All", "High", "Medium", "Low"]
-    selected_confidence = st.sidebar.selectbox("Minimum Confidence", confidence_levels)
+    # Minimum confidence filter if available
+    if "Confidence" in data.columns:
+        confidence_levels = ["All", "High", "Medium", "Low"]
+        selected_confidence = st.sidebar.selectbox("Minimum Confidence", confidence_levels)
+    else:
+        selected_confidence = "All"
     
     # Apply filters
-    filtered_df = results_df.copy()
+    filtered_df = data.copy()
     
     if selected_framework != "All":
         filtered_df = filtered_df[filtered_df["Framework"] == selected_framework]
     
-    if selected_years:
+    if selected_years and "year" in filtered_df.columns:
         filtered_df = filtered_df[(filtered_df["year"] >= selected_years[0]) & 
                                 (filtered_df["year"] <= selected_years[1])]
     
-    if selected_area != "All":
+    if selected_area != "All" and "coroner_area" in filtered_df.columns:
         filtered_df = filtered_df[filtered_df["coroner_area"] == selected_area]
     
-    if selected_name != "All":
+    if selected_name != "All" and "coroner_name" in filtered_df.columns:
         filtered_df = filtered_df[filtered_df["coroner_name"] == selected_name]
     
-    if selected_confidence != "All":
+    if selected_confidence != "All" and "Confidence" in filtered_df.columns:
         confidence_map = {"High": ["High"], "Medium": ["High", "Medium"], "Low": ["High", "Medium", "Low"]}
         filtered_df = filtered_df[filtered_df["Confidence"].isin(confidence_map[selected_confidence])]
     
@@ -8076,13 +8158,13 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     active_filters = []
     if selected_framework != "All":
         active_filters.append(f"Framework: {selected_framework}")
-    if selected_years and (selected_years[0] != min_year or selected_years[1] != max_year):
+    if selected_years and "year" in filtered_df.columns and (selected_years[0] != min_year or selected_years[1] != max_year):
         active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
-    if selected_area != "All":
+    if selected_area != "All" and "coroner_area" in filtered_df.columns:
         active_filters.append(f"Area: {selected_area}")
-    if selected_name != "All":
+    if selected_name != "All" and "coroner_name" in filtered_df.columns:
         active_filters.append(f"Coroner: {selected_name}")
-    if selected_confidence != "All":
+    if selected_confidence != "All" and "Confidence" in filtered_df.columns:
         active_filters.append(f"Confidence: {selected_confidence}+")
     
     if active_filters:
@@ -8092,7 +8174,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         st.warning("No data matches the selected filters. Please adjust your filters.")
         return
     
-    # Create tabs for different visualizations
+    # Create tabs for different visualizations - REMOVED Download Reports tab
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Framework Heatmap", 
         "Theme Distribution", 
@@ -8103,207 +8185,128 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     
     # === TAB 1: FRAMEWORK HEATMAP ===
     with tab1:
-        st.subheader("Framework Theme Heatmap by Year")
+        st.subheader("Framework Theme Heatmap")
         
-        if "year" not in filtered_df.columns or filtered_df["year"].isna().all():
-            st.warning("No year data available for temporal analysis.")
+        # Check if year column exists before attempting to create year-based heatmap
+        if "year" in filtered_df.columns and not filtered_df["year"].isna().all():
+            st.subheader("Framework Theme Heatmap by Year")
+            
+            # Get years from the filtered data
+            years = sorted(filtered_df["year"].dropna().unique().tolist())
+            
+            # If there's only one year, we'll create a special single-year heatmap
+            if len(years) == 1:
+                single_year = years[0]
+                st.info(f"Creating heatmap for single year: {single_year}")
+                
+                # Create a heatmap showing just theme frequency for the single year
+                # Create combined framework:theme field
+                filtered_df['Framework_Theme'] = filtered_df['Framework'] + ': ' + filtered_df['Theme']
+                
+                # Identify a record ID column - prefer 'Record ID' but fall back to others if needed
+                id_column = None
+                for col_name in ['Record ID', 'Record_ID', 'ref', 'ID', 'id']:
+                    if col_name in filtered_df.columns:
+                        id_column = col_name
+                        break
+                
+                if id_column is None:
+                    # No obvious ID column, use the first column as a fallback
+                    id_column = filtered_df.columns[0]
+                    st.warning(f"No explicit record ID column found. Using {id_column} as record identifier.")
+                
+                # Count themes
+                theme_counts = filtered_df.groupby('Framework_Theme')[id_column].nunique().reset_index()
+                theme_counts.columns = ['Framework_Theme', 'Count']
+                
+                # Get total records for percentage calculation
+                total_records = filtered_df[id_column].nunique()
+                theme_counts['Percentage'] = (theme_counts['Count'] / total_records * 100).round(1)
+                
+                # Create color mapping for frameworks
+                frameworks_present = filtered_df['Framework'].unique()
+                framework_colors = {}
+                for i, framework in enumerate(frameworks_present):
+                    if framework == 'I-SIRch':
+                        framework_colors[framework] = "orange"
+                    elif framework == 'House of Commons':
+                        framework_colors[framework] = "royalblue"
+                    else:
+                        other_colors = ["forestgreen", "purple", "darkred"]
+                        framework_colors[framework] = other_colors[i % len(other_colors)]
+                
+                # Add framework color to the theme counts
+                theme_counts['Framework'] = theme_counts['Framework_Theme'].apply(lambda x: x.split(':')[0].strip())
+                theme_counts['Color'] = theme_counts['Framework'].map(framework_colors)
+                
+                # Sort by framework and count
+                theme_counts = theme_counts.sort_values(['Framework', 'Count'], ascending=[True, False])
+                
+                # Create the visualization
+                fig = px.bar(
+                    theme_counts,
+                    y='Framework_Theme',
+                    x='Percentage',
+                    color='Framework',
+                    color_discrete_map=framework_colors,
+                    title=f"Theme Distribution for Year {single_year}",
+                    labels={'Framework_Theme': 'Theme', 'Percentage': 'Percentage of Reports (%)'},
+                    text='Count',  # Show counts on bars
+                )
+                
+                # Customize appearance
+                fig.update_layout(
+                    yaxis={'categoryorder': 'array', 'categoryarray': theme_counts['Framework_Theme'].tolist()},
+                    height=max(400, len(theme_counts) * 25),  # Dynamic height
+                    yaxis_title="Theme",
+                    xaxis_title="Percentage of Reports (%)",
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+            else:
+                # Multiple years - create the standard year-based heatmap
+                # Pass the filtered dataframe to the heatmap function
+                heatmap_fig = render_framework_heatmap(filtered_df, top_n_themes=5)
+                if heatmap_fig:
+                    st.plotly_chart(heatmap_fig, use_container_width=True)
+                else:
+                    st.warning("Could not create heatmap with the current data.")
         else:
-            # Create combined framework:theme field
+            # No year data - create a simpler theme prevalence heatmap
+            st.info("No year data available. Creating overall theme prevalence heatmap.")
+            
+            # Create framework-theme combined field
             filtered_df['Framework_Theme'] = filtered_df['Framework'] + ': ' + filtered_df['Theme']
             
-            # Count reports per year (for denominator)
-            # Assuming Record ID is the unique identifier for reports
-            id_column = 'Record ID' if 'Record ID' in filtered_df.columns else filtered_df.columns[0]
-            reports_per_year = filtered_df.groupby('year')[id_column].nunique()
+            # Count themes by framework
+            if 'Record ID' in filtered_df.columns:
+                id_col = 'Record ID'
+            else:
+                # Use first column as fallback
+                id_col = filtered_df.columns[0]
+                st.warning(f"No Record ID column found. Using {id_col} as identifier.")
             
-            # Count unique report IDs per theme per year
-            counts = filtered_df.groupby(['year', 'Framework', 'Framework_Theme'])[id_column].nunique().reset_index()
-            counts.columns = ['year', 'Framework', 'Framework_Theme', 'Count']
+            framework_theme_counts = filtered_df.groupby(['Framework', 'Theme', 'Framework_Theme'])[id_col].nunique().reset_index()
+            framework_theme_counts.columns = ['Framework', 'Theme', 'Framework_Theme', 'Count'] 
             
-            # Calculate percentages
-            counts['Total'] = counts['year'].map(reports_per_year)
-            counts['Percentage'] = (counts['Count'] / counts['Total'] * 100).round(1)
+            # Sort by count within each framework
+            framework_theme_counts = framework_theme_counts.sort_values(['Framework', 'Count'], ascending=[True, False])
             
-            # Get frameworks in the filtered data
-            frameworks_present = filtered_df['Framework'].unique()
-            
-            # Get top themes by framework (5 per framework)
-            top_themes = []
-            for framework in frameworks_present:
-                framework_counts = counts[counts['Framework'] == framework]
-                theme_totals = framework_counts.groupby('Framework_Theme')['Count'].sum().sort_values(ascending=False)
-                top_themes.extend(theme_totals.head(5).index.tolist())
-            
-            # Filter to top themes
-            counts = counts[counts['Framework_Theme'].isin(top_themes)]
-            
-            # Create pivot table for heatmap
-            pivot = counts.pivot_table(
-                index='Framework_Theme',
-                columns='year',
-                values='Percentage',
-                fill_value=0
+            # Create theme prevalence heatmap
+            fig = px.bar(
+                framework_theme_counts.head(20),  # Show top 20 themes
+                y='Framework_Theme',
+                x='Count',
+                color='Framework',
+                title="Top Themes by Framework",
             )
             
-            # Create pivot for counts
-            count_pivot = counts.pivot_table(
-                index='Framework_Theme',
-                columns='year',
-                values='Count',
-                fill_value=0
-            )
-            
-            # Sort by framework then by total count
-            theme_totals = counts.groupby('Framework_Theme')['Count'].sum()
-            theme_frameworks = {theme: theme.split(':')[0] for theme in theme_totals.index}
-            
-            # Sort first by framework, then by count within framework
-            sorted_themes = sorted(
-                theme_totals.index,
-                key=lambda x: (theme_frameworks[x], -theme_totals[x])
-            )
-            
-            # Apply the sort order
-            pivot = pivot.reindex(sorted_themes)
-            count_pivot = count_pivot.reindex(sorted_themes)
-            
-            # Create color mapping for frameworks
-            framework_colors = {}
-            for i, framework in enumerate(frameworks_present):
-                if framework == 'I-SIRch':
-                    framework_colors[framework] = "orange"  # Orange for I-SIRch
-                elif framework == 'House of Commons':
-                    framework_colors[framework] = "royalblue"  # Blue for House of Commons
-                else:
-                    # Use other colors for other frameworks
-                    other_colors = ["forestgreen", "purple", "darkred"]
-                    framework_colors[framework] = other_colors[i % len(other_colors)]
-            
-            # Create a visually distinctive dataframe for plotting
-            # For each theme, create a dict with clean name and framework
-            theme_display_data = []
-            
-            for theme in pivot.index:
-                framework = theme.split(':')[0].strip()
-                theme_name = theme.split(':', 1)[1].strip()
-                
-                # Insert line breaks for long theme names
-                if len(theme_name) > 30:
-                    # Try to break at a space near the middle
-                    words = theme_name.split()
-                    if len(words) > 1:
-                        # Find a breaking point near the middle
-                        mid_point = len(words) // 2
-                        first_part = ' '.join(words[:mid_point])
-                        second_part = ' '.join(words[mid_point:])
-                        theme_name = f"{first_part}<br>{second_part}"
-                
-                theme_display_data.append({
-                    'original': theme,
-                    'clean_name': theme_name,
-                    'framework': framework,
-                    'color': framework_colors[framework]
-                })
-                
-            theme_display_df = pd.DataFrame(theme_display_data)
-            
-            # Add year count labels
-            year_labels = [f"{year}<br>n={reports_per_year[year]}" for year in pivot.columns]
-            
-            # Create heatmap using plotly
-            fig = go.Figure()
-            
-            # Add heatmap
-            heatmap = go.Heatmap(
-                z=pivot.values,
-                x=year_labels,
-                y=theme_display_df['clean_name'],
-                colorscale='Blues',
-                zmin=0,
-                zmax=min(100, pivot.values.max() * 1.2),  # Cap at 100% or 20% higher than max
-                colorbar=dict(title='Percentage (%)'),
-                hoverongaps=False,
-                text=count_pivot.values,  # This will show the count in the hover
-                hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{text}<extra></extra>'
-            )
-            
-            fig.add_trace(heatmap)
-            
-            # Add count annotations
-            for i in range(len(pivot.index)):
-                for j in range(len(pivot.columns)):
-                    if pivot.iloc[i, j] > 0:
-                        count = count_pivot.iloc[i, j]
-                        
-                        # Add an annotation for the actual count
-                        fig.add_annotation(
-                            x=j,
-                            y=i,
-                            text=f"({count})",
-                            font=dict(size=8, color='black' if pivot.iloc[i, j] < 50 else 'white'),
-                            showarrow=False,
-                            xanchor='center',
-                            yanchor='top',
-                            yshift=-12
-                        )
-            
-            # Set y-axis ordering and color-coding
+            # Customize appearance
             fig.update_layout(
-                yaxis=dict(
-                    tickmode='array',
-                    tickvals=list(range(len(theme_display_df))),
-                    ticktext=theme_display_df['clean_name'],
-                    tickfont=dict(
-                        size=11,
-                        color='white'
-                    ),
-                )
-            )
-            
-            # Add colored framework indicators
-            for framework, color in framework_colors.items():
-                # Count themes for this framework
-                framework_theme_count = theme_display_df[theme_display_df['framework'] == framework].shape[0]
-                
-                if framework_theme_count > 0:
-                    # Add a shape for the framework indicator
-                    fig.add_shape(
-                        type="rect",
-                        x0=-1,  # Slightly to the left of the y-axis
-                        x1=-0.5,
-                        y0=len(theme_display_df) - theme_display_df[theme_display_df['framework'] == framework].index[0] - framework_theme_count,
-                        y1=len(theme_display_df) - theme_display_df[theme_display_df['framework'] == framework].index[0],
-                        fillcolor=color,
-                        opacity=0.6,
-                        layer="below",
-                        line=dict(width=0)
-                    )
-            
-            # Add framework legend
-            for i, (framework, color) in enumerate(framework_colors.items()):
-                fig.add_trace(go.Scatter(
-                    x=[None],
-                    y=[None],
-                    mode='markers',
-                    marker=dict(size=10, color=color),
-                    name=framework,
-                    showlegend=True
-                ))
-            
-            # Update layout
-            fig.update_layout(
-                title="Theme Distribution by Year",
-                xaxis_title="Year (number of reports)",
+                height=600,
                 yaxis_title="Theme",
-                height=len(pivot.index) * 30 + 200,  # Adjust height based on number of themes
-                margin=dict(l=200, r=20, t=60, b=60),
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="center",
-                    x=0.5
-                )
+                xaxis_title="Number of Reports",
             )
             
             st.plotly_chart(fig, use_container_width=True)
@@ -8334,30 +8337,33 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         
         st.plotly_chart(fig, use_container_width=True)
         
-        # Theme by confidence
-        st.subheader("Theme Confidence Breakdown")
-        
-        # Group by theme and confidence
-        theme_confidence = filtered_df.groupby(["Theme", "Confidence"]).size().reset_index(name="Count")
-        
-        # Filter for top themes only
-        top_themes = theme_counts.index.tolist()
-        theme_confidence = theme_confidence[theme_confidence["Theme"].isin(top_themes)]
-        
-        # Create a grouped bar chart
-        fig = px.bar(
-            theme_confidence, 
-            x="Theme", 
-            y="Count", 
-            color="Confidence",
-            barmode="group",
-            color_discrete_map={"High": "#4CAF50", "Medium": "#FFC107", "Low": "#F44336"},
-            category_orders={"Theme": top_themes, "Confidence": ["High", "Medium", "Low"]},
-            title="Confidence Distribution by Theme"
-        )
-        
-        fig.update_layout(xaxis_tickangle=-45)
-        st.plotly_chart(fig, use_container_width=True)
+        # Theme by confidence if available
+        if "Confidence" in filtered_df.columns:
+            st.subheader("Theme Confidence Breakdown")
+            
+            # Group by theme and confidence
+            theme_confidence = filtered_df.groupby(["Theme", "Confidence"]).size().reset_index(name="Count")
+            
+            # Filter for top themes only
+            top_themes = theme_counts.index.tolist()
+            theme_confidence = theme_confidence[theme_confidence["Theme"].isin(top_themes)]
+            
+            # Create a grouped bar chart
+            fig = px.bar(
+                theme_confidence, 
+                x="Theme", 
+                y="Count", 
+                color="Confidence",
+                barmode="group",
+                color_discrete_map={"High": "#4CAF50", "Medium": "#FFC107", "Low": "#F44336"},
+                category_orders={"Theme": top_themes, "Confidence": ["High", "Medium", "Low"]},
+                title="Confidence Distribution by Theme"
+            )
+            
+            fig.update_layout(xaxis_tickangle=-45)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("Confidence data not available in the dataset.")
     
     # === TAB 3: TEMPORAL ANALYSIS ===
     with tab3:
@@ -8366,65 +8372,91 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         if "year" not in filtered_df.columns or filtered_df["year"].isna().all():
             st.warning("No year data available for temporal analysis.")
         else:
-            # Create a time series of themes by year
-            year_theme_counts = filtered_df.groupby(["year", "Theme"]).size().reset_index(name="Count")
+            years = filtered_df["year"].dropna().unique()
             
-            # Filter for top themes only
-            year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
-            
-            # Create a line chart
-            fig = px.line(
-                year_theme_counts,
-                x="year",
-                y="Count",
-                color="Theme",
-                markers=True,
-                title="Theme Trends Over Time",
-                height=500,
-            )
-            
-            # Improve layout
-            fig.update_layout(
-                xaxis_title="Year",
-                yaxis_title="Number of Occurrences",
-                xaxis=dict(
-                    tickmode="linear",
-                    dtick=1,  # Show every year
-                ),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Heatmap of themes by year
-            st.subheader("Theme Prevalence by Year")
-            
-            # Create a pivot table
-            pivot_df = year_theme_counts.pivot(index="year", columns="Theme", values="Count").fillna(0)
-            
-            # Convert to a normalized heatmap (percentage)
-            year_totals = pivot_df.sum(axis=1)
-            normalized_pivot = pivot_df.div(year_totals, axis=0) * 100
-            
-            # Create a heatmap
-            fig = px.imshow(
-                normalized_pivot.T,
-                labels=dict(x="Year", y="Theme", color="Percentage"),
-                x=normalized_pivot.index,
-                y=normalized_pivot.columns,
-                color_continuous_scale="YlGnBu",
-                title="Theme Prevalence by Year (%)",
-                height=600,
-                aspect="auto"
-            )
-            
-            fig.update_layout(
-                xaxis_title="Year",
-                yaxis_title="Theme",
-                coloraxis_colorbar=dict(title="% of Themes")
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
+            # Only create time series if we have more than one year
+            if len(years) > 1:
+                # Create a time series of themes by year
+                year_theme_counts = filtered_df.groupby(["year", "Theme"]).size().reset_index(name="Count")
+                
+                # Filter for top themes only
+                year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
+                
+                # Create a line chart
+                fig = px.line(
+                    year_theme_counts,
+                    x="year",
+                    y="Count",
+                    color="Theme",
+                    markers=True,
+                    title="Theme Trends Over Time",
+                    height=500,
+                )
+                
+                # Improve layout
+                fig.update_layout(
+                    xaxis_title="Year",
+                    yaxis_title="Number of Occurrences",
+                    xaxis=dict(
+                        tickmode="linear",
+                        dtick=1,  # Show every year
+                    ),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # Heatmap of themes by year
+                st.subheader("Theme Prevalence by Year")
+                
+                # Create a pivot table
+                pivot_df = year_theme_counts.pivot(index="year", columns="Theme", values="Count").fillna(0)
+                
+                # Convert to a normalized heatmap (percentage)
+                year_totals = pivot_df.sum(axis=1)
+                normalized_pivot = pivot_df.div(year_totals, axis=0) * 100
+                
+                # Create a heatmap
+                fig = px.imshow(
+                    normalized_pivot.T,
+                    labels=dict(x="Year", y="Theme", color="Percentage"),
+                    x=normalized_pivot.index,
+                    y=normalized_pivot.columns,
+                    color_continuous_scale="YlGnBu",
+                    title="Theme Prevalence by Year (%)",
+                    height=600,
+                    aspect="auto"
+                )
+                
+                fig.update_layout(
+                    xaxis_title="Year",
+                    yaxis_title="Theme",
+                    coloraxis_colorbar=dict(title="% of Themes")
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                # Single year case
+                year = years[0]
+                st.info(f"Only one year ({year}) is present in the data. Showing theme distribution for this year.")
+                
+                # Create a bar chart of theme counts for this year
+                theme_counts_year = filtered_df["Theme"].value_counts().head(top_n_themes)
+                
+                fig = px.bar(
+                    x=theme_counts_year.index,
+                    y=theme_counts_year.values,
+                    title=f"Theme Distribution for Year {year}",
+                    labels={"x": "Theme", "y": "Count"},
+                )
+                
+                fig.update_layout(
+                    xaxis_title="Theme",
+                    yaxis_title="Number of Occurrences",
+                    xaxis_tickangle=-45,
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
     
     # === TAB 4: AREA COMPARISON ===
     with tab4:
@@ -8452,13 +8484,26 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Multi-area theme comparison
             st.subheader("Theme Distribution Across Top Coroner Areas")
             
+            # Identify a record ID column for counts
+            id_col = None
+            for col_name in ["Record ID", "ref", "id", "ID"]:
+                if col_name in filtered_df.columns:
+                    id_col = col_name
+                    break
+            
+            # If no ID column found, use first column
+            if id_col is None:
+                id_col = filtered_df.columns[0]
+                st.warning(f"No explicit record ID column found. Using {id_col} as identifier.")
+            
             # Calculate total records per area (for normalization)
             area_totals = {}
             for area in top_areas:
-                area_totals[area] = len(filtered_df[filtered_df["coroner_area"] == area])
+                area_totals[area] = filtered_df[filtered_df["coroner_area"] == area][id_col].nunique()
             
             # Get theme distribution for each area
             area_theme_data = []
+            top_themes = filtered_df["Theme"].value_counts().head(top_n_themes).index.tolist()
             
             for area in top_areas:
                 area_df = filtered_df[filtered_df["coroner_area"] == area]
@@ -8564,17 +8609,33 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         the other is likely to appear in the same documents as well.
         """)
         
-        # Calculate correlation between themes
-        # First, pivot the data to get a binary matrix of themes by report
-        id_column = 'Record ID' if 'Record ID' in filtered_df.columns else filtered_df.columns[0]
+        # Identify a record ID column for the pivot table
+        id_col = None
+        for col_name in ["Record ID", "ref", "id", "ID"]:
+            if col_name in filtered_df.columns:
+                id_col = col_name
+                break
+                
+        # If no ID column found, use first column
+        if id_col is None:
+            id_col = filtered_df.columns[0]
+            st.warning(f"No explicit record ID column found. Using {id_col} as identifier.")
         
         # Create a binary pivot table: 1 if theme exists for a report, 0 otherwise
-        theme_pivot = pd.crosstab(
-            index=filtered_df[id_column], 
-            columns=filtered_df['Theme'],
-            values=filtered_df['Combined Score'],  # Use the score if we want weighted values
-            aggfunc='max'  # Take the maximum score for each theme in a report
-        ).fillna(0)
+        # Handle the case where Combined Score is not available
+        if "Combined Score" in filtered_df.columns:
+            theme_pivot = pd.crosstab(
+                index=filtered_df[id_col], 
+                columns=filtered_df['Theme'],
+                values=filtered_df['Combined Score'],
+                aggfunc='max'
+            ).fillna(0)
+        else:
+            # Just create a binary presence/absence matrix
+            theme_pivot = pd.crosstab(
+                index=filtered_df[id_col], 
+                columns=filtered_df['Theme']
+            )
         
         # Convert to binary (1 if theme exists, 0 otherwise)
         theme_pivot = (theme_pivot > 0).astype(int)
@@ -8583,18 +8644,19 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         theme_corr = theme_pivot.corr()
         
         # Get only the top themes for clarity
+        top_themes = filtered_df["Theme"].value_counts().head(top_n_themes).index.tolist()
         top_theme_corr = theme_corr.loc[top_themes, top_themes]
         
         # Create a heatmap of correlations
         fig = px.imshow(
             top_theme_corr,
-            color_continuous_scale=px.colors.diverging.RdBu_r,  # Red-Blue diverging colorscale
+            color_continuous_scale=px.colors.diverging.RdBu_r,
             color_continuous_midpoint=0,
             labels=dict(x="Theme", y="Theme", color="Correlation"),
             title="Theme Correlation Matrix",
             height=700,
             width=700,
-            text_auto=".2f"  # Show correlation values with 2 decimal places
+            text_auto=".2f"
         )
         
         fig.update_layout(
@@ -8682,7 +8744,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             node_trace = go.Scatter(
                 x=node_x, y=node_y,
                 mode='markers+text',
-                text=[t.split(':')[0] for t in G.nodes()],  # Show only first part of theme name
+                text=[t.split(':')[0] if ':' in t else t for t in G.nodes()],  # Show only first part of theme name
                 textposition="top center",
                 marker=dict(
                     size=node_size,
@@ -8723,34 +8785,32 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 # Only consider top themes
                 doc_themes = [t for t in doc_themes if t in top_themes]
                 
-        # Count pairs
-
-        # Count pairs of co-occurring themes
-            for i, theme1 in enumerate(doc_themes):
-                idx1 = top_themes.index(theme1)
-                for theme2 in doc_themes:
-                    idx2 = top_themes.index(theme2)
-                    co_occurrence_matrix[idx1, idx2] += 1
-        
-        # Create a DataFrame from the co-occurrence matrix
-        co_occurrence_df = pd.DataFrame(
-            co_occurrence_matrix,
-            index=top_themes,
-            columns=top_themes
-        )
-        
-        # Display the co-occurrence table
-        st.dataframe(
-            co_occurrence_df,
-            use_container_width=True,
-            height=400
-        )
-        
-        # Add explanation
-        st.markdown("""
-        This table shows the number of documents where each pair of themes co-occurs. 
-        The diagonal represents the total count of each theme.
-        """)
+                # Count pairs of co-occurring themes
+                for i, theme1 in enumerate(doc_themes):
+                    idx1 = top_themes.index(theme1)
+                    for theme2 in doc_themes:
+                        idx2 = top_themes.index(theme2)
+                        co_occurrence_matrix[idx1, idx2] += 1
+            
+            # Create a DataFrame from the co-occurrence matrix
+            co_occurrence_df = pd.DataFrame(
+                co_occurrence_matrix,
+                index=top_themes,
+                columns=top_themes
+            )
+            
+            # Display the co-occurrence table
+            st.dataframe(
+                co_occurrence_df,
+                use_container_width=True,
+                height=400
+            )
+            
+            # Add explanation
+            st.markdown("""
+            This table shows the number of documents where each pair of themes co-occurs. 
+            The diagonal represents the total count of each theme.
+            """)
 
         # Show detailed data table
         with st.expander("View Detailed Data"):
