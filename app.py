@@ -7991,8 +7991,6 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     if data is None:
         if "dashboard_data" in st.session_state:
             data = st.session_state.dashboard_data
-        elif "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
-            data = st.session_state.bert_results.get("results_df")
     
     # File upload section with persistent state
     upload_key = "theme_analysis_dashboard_uploader"
