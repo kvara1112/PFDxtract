@@ -7978,7 +7978,7 @@ def render_bert_file_merger():
     analyzer._render_multiple_file_upload()
 
 
-    def render_theme_analysis_dashboard(data: pd.DataFrame = None):
+def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analyzing themes by various metadata fields
     
