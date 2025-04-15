@@ -3051,7 +3051,7 @@ class ThemeAnalyzer:
                         f"{framework_name} Framework Analysis",
                         fontsize=20,
                         y=0.95,
-                        weight="bold",
+                        weight="bold", 
                     )
 
                     # Theme counts
