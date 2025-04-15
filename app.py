@@ -7980,21 +7980,44 @@ def render_bert_file_merger():
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analyzing themes by various metadata fields
-    such as year, coroner_name, coroner_area, etc. with framework-based visualizations
-    and correlation analysis.
+    
+    Args:
+        data: Optional DataFrame containing theme analysis results
     """
     st.title("Theme Analysis Dashboard")
     
-    # Check if results exist in session state
-    if "bert_results" not in st.session_state or st.session_state.bert_results.get("results_df") is None:
-        st.warning("No theme analysis results available. Please run the analysis first.")
+    # Check for existing data in session state
+    if data is None:
+        if "dashboard_data" in st.session_state:
+            data = st.session_state.dashboard_data
+        elif "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+            data = st.session_state.bert_results.get("results_df")
+    
+    # If no data is available
+    if data is None or len(data) == 0:
+        st.warning("No theme analysis data available.")
         
-        # Add button to go to analysis tab
-        if st.button("Go to Theme Analysis"):
-            # Set the tab selector to the analysis tab
-            st.session_state.main_tab_selector = "(5)🔬 Concept Annotation"
-            st.rerun()
-        return
+        st.markdown("""
+        ### To get theme analysis data:
+        
+        1. **Upload Existing Results**
+           - Use the file uploader below to load previously saved theme analysis results
+        
+        2. **Run New Theme Analysis**
+           - Go to the 'Concept Annotation' tab 
+           - Upload your merged PFD reports file
+           - Run a new theme analysis
+        """)
+        
+        # File upload section
+        upload_key = f"dashboard_file_uploader_{int(time.time() * 1000)}"
+        uploaded_file = st.file_uploader(
+            "Upload CSV or Excel file for Dashboard Analysis",
+            type=["csv", "xlsx"],
+            key=upload_key
+        )
+        
+        return  # Exit the function if no data
     
     # Get the results DataFrame
     results_df = st.session_state.bert_results["results_df"]
