@@ -8255,7 +8255,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     ticktext=theme_display_df['clean_name'],
                     tickfont=dict(
                         size=11,
-                        color=[theme_display_df['color'].iloc[i] for i in range(len(theme_display_df))]
+                        color='black'
                     ),
                 )
             )
@@ -8963,7 +8963,7 @@ def render_framework_heatmap(filtered_df, top_n_themes=5):
             ticktext=theme_display_df['clean_name'],
             tickfont=dict(
                 size=11,
-                color=[theme_display_df['color'].iloc[i] for i in range(len(theme_display_df))]
+                color='black'
             ),
         )
     )
