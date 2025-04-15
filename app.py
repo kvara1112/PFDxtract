@@ -7609,7 +7609,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             st.download_button(
                 "📥 Download Results Table",
                 data=excel_data,
-                file_name=f"bert_theme_analysis_{timestamp}.xlsx",
+                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="bert_excel_download",
             )
@@ -7851,7 +7851,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             st.download_button(
                 "📥 Download Results Table",
                 data=excel_data,
-                file_name=f"bert_theme_analysis_{timestamp}.xlsx",
+                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="bert_excel_download",
             )
