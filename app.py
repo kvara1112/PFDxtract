@@ -7977,139 +7977,63 @@ def render_bert_file_merger():
     # This avoids the duplicate header and description
     analyzer._render_multiple_file_upload()
 
-        
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analyzing themes by various metadata fields
-    
-    Args:
-        data: Optional DataFrame containing theme analysis results
+    such as year, coroner_name, coroner_area, etc. with framework-based visualizations
+    and correlation analysis.
     """
     st.title("Theme Analysis Dashboard")
     
-    # Check for existing data in session state
-    if data is None:
-        if "dashboard_data" in st.session_state:
-            data = st.session_state.dashboard_data
-        elif "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
-            data = st.session_state.bert_results.get("results_df")
-    
-    # If no data is available
-    if data is None or len(data) == 0:
-        st.warning("No theme analysis data available.")
-        
-        st.markdown("""
-        ### To get theme analysis data:
-        
-        1. **Upload Existing Results**
-           - Use the file uploader below to load previously saved theme analysis results
-        
-        2. **Run New Theme Analysis**
-           - Go to the 'Concept Annotation' tab 
-           - Upload your merged PFD reports file
-           - Run a new theme analysis
-        """)
-        
-        # File upload section
-        upload_key = f"dashboard_file_uploader_{int(time.time() * 1000)}"
-        uploaded_file = st.file_uploader(
-            "Upload CSV or Excel file for Dashboard Analysis",
-            type=["csv", "xlsx"],
-            key=upload_key
-        )
-        
-        return  # Exit the function if no data
+    # File upload section - allow direct upload even if no existing data
+    st.subheader("Upload Data")
+    upload_key = f"dashboard_file_uploader_{int(time.time() * 1000)}"
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for Dashboard Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a file with theme analysis results",
+        key=upload_key
+    )
 
-    # Process uploaded file if any
+    # If a file is uploaded, process it
     if uploaded_file is not None:
-        with st.spinner("Processing your file..."):
-            try:
-                # Load the data based on file type
-                if uploaded_file.name.endswith(".csv"):
-                    uploaded_data = pd.read_csv(uploaded_file)
-                    st.session_state.upload_method = "CSV"
-                else:
-                    uploaded_data = pd.read_excel(uploaded_file)
-                    st.session_state.upload_method = "Excel"
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_data = pd.read_csv(uploaded_file)
+            else:
+                uploaded_data = pd.read_excel(uploaded_file)
 
-                # Check if file has required columns
-                required_columns = ["Framework", "Theme"]
-                missing_columns = [col for col in required_columns if col not in uploaded_data.columns]
-                
-                if missing_columns:
-                    st.error(f"Required columns missing: {', '.join(missing_columns)}")
-                    st.markdown("Your file must contain at least these columns: `Framework`, `Theme`")
-                    st.markdown("##### Sample file format:")
-                    sample_df = pd.DataFrame({
-                        "Framework": ["I-SIRch", "House of Commons", "Extended Analysis"],
-                        "Theme": ["Communication factor", "Dignity/respect", "Diagnostic process"],
-                        "Record ID": [1, 2, 3],
-                        "Confidence": ["High", "Medium", "Low"]
-                    })
-                    st.dataframe(sample_df)
-                    return
-                
-                # Process the uploaded data
-                uploaded_data = process_scraped_data(uploaded_data)
+            # Process the uploaded data
+            uploaded_data = process_scraped_data(uploaded_data)
 
-                # Update the data reference and store in session state
-                data = uploaded_data
-                st.session_state.dashboard_data = data.copy()
+            # Update the data reference
+            data = uploaded_data
 
-                # Show success message with file details
-                st.success(f"File '{uploaded_file.name}' uploaded successfully! Found {len(data)} records.")
+            st.success("File uploaded and processed successfully!")
                 
-                # Show preview of the uploaded data
-                st.subheader("Data Preview")
-                
-                # Determine which columns to show in preview
-                display_cols = ["Framework", "Theme"]
-                for col in ["Record ID", "Title", "Confidence", "coroner_area", "year"]:
-                    if col in data.columns:
-                        display_cols.append(col)
-                
-                preview_cols = [col for col in display_cols if col in data.columns]
-                st.dataframe(data[preview_cols].head(5), use_container_width=True)
-
-            except Exception as e:
-                st.error(f"Error processing file: {str(e)}")
-                st.error("Please check if your file is correctly formatted and try again.")
-                st.markdown("If the error persists, try downloading a new file from the theme analysis results.")
-                return
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            return
     
-    # If no data from file upload or session state, try to use BERT results from session state
+    # Check if BERT results exist in session state - use them if available
     if data is None and "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
         results_df = st.session_state.bert_results["results_df"]
-        st.info("Using theme analysis results from previous Concept Annotation analysis.")
+        st.info("Using theme analysis results from previous analysis.")
         data = results_df
-        # Store in session state for persistence
-        st.session_state.dashboard_data = data.copy()
     
-    # If still no data, show warning and navigation option
+    # If still no data, show warning and return
     if data is None or len(data) == 0:
         st.warning("No theme analysis data available. Please upload a file or run theme analysis first.")
         
-        # Show formatted instructions
-        st.markdown("""
-        ### To get theme analysis data:
-        
-        **Option 1: Upload a file**
-        - Use the file uploader above to load previously saved theme analysis results
-        
-        **Option 2: Run theme analysis**
-        - Go to the Concept Annotation tab to run new theme analysis
-        - Results will automatically become available in this dashboard
-        """)
-        
-        # Add clear button to go to theme analysis
-        if st.button("Go to Concept Annotation Tab", type="primary"):
-            # Set the tab selector to the Concept Annotation tab
+        # Add button to go to analysis tab
+        if st.button("Go to Theme Analysis"):
+            # Set the tab selector to the analysis tab
             st.session_state.main_tab_selector = "(5)🔬 Concept Annotation"
-            st.info("Navigating to the Concept Annotation tab...")
             st.rerun()
         return
     
-    # Data validation - check for necessary columns
+    # Check if the DataFrame has necessary columns
+    # We're more flexible now - we'll use what's available
     required_cols = ["Framework", "Theme"]
     recommended_cols = ["coroner_area", "coroner_name", "year", "Record ID"]
     
@@ -8117,7 +8041,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     missing_recommended = [col for col in recommended_cols if col not in data.columns]
     
     if missing_required:
-        st.error(f"Missing required columns: {', '.join(missing_required)}. Please upload data with complete theme information.")
+        st.error(f"Missing required columns: {', '.join(missing_required)}. Please run the analysis with complete data.")
         return
     
     if missing_recommended:
@@ -8134,13 +8058,13 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     
     # Check for coroner_area and year columns before creating metrics
     with metrics_col3:
-        if "coroner_area" in data.columns and not data["coroner_area"].isna().all():
+        if "coroner_area" in data.columns:
             st.metric("Coroner Areas", data["coroner_area"].nunique())
         else:
             st.metric("Coroner Areas", "N/A")
     
     with metrics_col4:
-        if "year" in data.columns and not data["year"].isna().all():
+        if "year" in data.columns:
             years_count = data["year"].dropna().nunique()
             # Handle the case where there's only one year or no years
             year_text = f"{years_count}" if years_count > 0 else "N/A"
@@ -8153,11 +8077,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     
     # Framework filter
     frameworks = ["All"] + sorted(data["Framework"].unique().tolist())
-    selected_framework = st.sidebar.selectbox(
-        "Filter by Framework", 
-        frameworks,
-        help="Select a specific framework or 'All' to view all frameworks"
-    )
+    selected_framework = st.sidebar.selectbox("Filter by Framework", frameworks)
     
     # Year range filter if year column exists
     if "year" in data.columns and not data["year"].isna().all():
@@ -8171,11 +8091,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 selected_years = (min_year, max_year)
             else:
                 selected_years = st.sidebar.slider(
-                    "Year Range", 
-                    min_year, 
-                    max_year, 
-                    (min_year, max_year),
-                    help="Select a range of years to analyze"
+                    "Year Range", min_year, max_year, (min_year, max_year)
                 )
         else:
             selected_years = None
@@ -8189,11 +8105,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     # Coroner area filter if available
     if "coroner_area" in data.columns and not data["coroner_area"].isna().all():
         areas = ["All"] + sorted(data["coroner_area"].dropna().unique().tolist())
-        selected_area = st.sidebar.selectbox(
-            "Filter by Coroner Area", 
-            areas,
-            help="Select a specific coroner area or 'All' to view all areas"
-        )
+        selected_area = st.sidebar.selectbox("Filter by Coroner Area", areas)
     else:
         selected_area = "All"
         if "coroner_area" in data.columns:
@@ -8204,11 +8116,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     # Coroner name filter if available
     if "coroner_name" in data.columns and not data["coroner_name"].isna().all():
         names = ["All"] + sorted(data["coroner_name"].dropna().unique().tolist())
-        selected_name = st.sidebar.selectbox(
-            "Filter by Coroner Name", 
-            names,
-            help="Select a specific coroner or 'All' to view all coroners"
-        )
+        selected_name = st.sidebar.selectbox("Filter by Coroner Name", names)
     else:
         selected_name = "All"
         if "coroner_name" in data.columns:
@@ -8217,20 +8125,12 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             st.sidebar.warning("No coroner_name column in the dataset")
     
     # Number of top themes to display
-    top_n_themes = st.sidebar.slider(
-        "Number of Top Themes", 
-        5, 20, 10,
-        help="Adjust how many top themes to show in the visualizations"
-    )
+    top_n_themes = st.sidebar.slider("Number of Top Themes", 5, 20, 10)
     
     # Minimum confidence filter if available
     if "Confidence" in data.columns:
         confidence_levels = ["All", "High", "Medium", "Low"]
-        selected_confidence = st.sidebar.selectbox(
-            "Minimum Confidence", 
-            confidence_levels,
-            help="Filter by confidence level of the theme identifications"
-        )
+        selected_confidence = st.sidebar.selectbox("Minimum Confidence", confidence_levels)
     else:
         selected_confidence = "All"
     
@@ -8258,7 +8158,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     active_filters = []
     if selected_framework != "All":
         active_filters.append(f"Framework: {selected_framework}")
-    if selected_years and "year" in filtered_df.columns and len(years) > 1 and (selected_years[0] != min_year or selected_years[1] != max_year):
+    if selected_years and "year" in filtered_df.columns and (selected_years[0] != min_year or selected_years[1] != max_year):
         active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
     if selected_area != "All" and "coroner_area" in filtered_df.columns:
         active_filters.append(f"Area: {selected_area}")
@@ -8270,12 +8170,11 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     if active_filters:
         st.info("Active filters: " + " | ".join(active_filters))
     
-    # Check if filters returned any data
     if len(filtered_df) == 0:
         st.warning("No data matches the selected filters. Please adjust your filters.")
         return
     
-    # Create tabs for different visualizations
+    # Create tabs for different visualizations - REMOVED Download Reports tab
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Framework Heatmap", 
         "Theme Distribution", 
@@ -8290,6 +8189,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         
         # Check if year column exists before attempting to create year-based heatmap
         if "year" in filtered_df.columns and not filtered_df["year"].isna().all():
+            st.subheader("Framework Theme Heatmap by Year")
+            
             # Get years from the filtered data
             years = sorted(filtered_df["year"].dropna().unique().tolist())
             
@@ -8478,9 +8379,6 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 # Create a time series of themes by year
                 year_theme_counts = filtered_df.groupby(["year", "Theme"]).size().reset_index(name="Count")
                 
-                # Get top themes for filtering
-                top_themes = filtered_df["Theme"].value_counts().head(top_n_themes).index.tolist()
-                
                 # Filter for top themes only
                 year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
                 
@@ -8659,8 +8557,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             radar_areas = st.multiselect(
                 "Select Areas to Compare (2-5 recommended)",
                 options=top_areas,
-                default=top_areas[:3] if len(top_areas) >= 3 else top_areas,
-                help="Choose specific coroner areas to compare their theme patterns"
+                default=top_areas[:3] if len(top_areas) >= 3 else top_areas
             )
             
             if radar_areas and len(radar_areas) >= 2:
@@ -8748,15 +8645,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         
         # Get only the top themes for clarity
         top_themes = filtered_df["Theme"].value_counts().head(top_n_themes).index.tolist()
-        
-        # Check if top_themes are in the correlation matrix
-        valid_themes = [theme for theme in top_themes if theme in theme_corr.columns]
-        
-        if not valid_themes:
-            st.error("Cannot create correlation analysis. No valid themes found in the data.")
-            return
-            
-        top_theme_corr = theme_corr.loc[valid_themes, valid_themes]
+        top_theme_corr = theme_corr.loc[top_themes, top_themes]
         
         # Create a heatmap of correlations
         fig = px.imshow(
@@ -8774,7 +8663,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             xaxis_tickangle=-45,
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
         
         # Network graph of correlations
         st.subheader("Theme Connection Network")
@@ -8881,35 +8770,33 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 )
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
 
             # Create a co-occurrence frequency table
             st.subheader("Theme Co-occurrence Table")
             
             # Create a matrix to count co-occurrences
-            co_occurrence_matrix = np.zeros((len(valid_themes), len(valid_themes)))
+            co_occurrence_matrix = np.zeros((len(top_themes), len(top_themes)))
             
             # Iterate through each document to count co-occurrences
             for doc_id in theme_pivot.index:
                 # Get themes present in this document
                 doc_themes = theme_pivot.columns[theme_pivot.loc[doc_id] == 1].tolist()
                 # Only consider top themes
-                doc_themes = [t for t in doc_themes if t in valid_themes]
+                doc_themes = [t for t in doc_themes if t in top_themes]
                 
                 # Count pairs of co-occurring themes
                 for i, theme1 in enumerate(doc_themes):
-                    if theme1.strip() and theme1 in valid_themes:
-                        idx1 = valid_themes.index(theme1)
-                        for theme2 in doc_themes:
-                            if theme2.strip() and theme2 in valid_themes:
-                                idx2 = valid_themes.index(theme2)
-                                co_occurrence_matrix[idx1, idx2] += 1
+                    idx1 = top_themes.index(theme1)
+                    for theme2 in doc_themes:
+                        idx2 = top_themes.index(theme2)
+                        co_occurrence_matrix[idx1, idx2] += 1
             
             # Create a DataFrame from the co-occurrence matrix
             co_occurrence_df = pd.DataFrame(
                 co_occurrence_matrix,
-                index=valid_themes,
-                columns=valid_themes
+                index=top_themes,
+                columns=top_themes
             )
             
             # Display the co-occurrence table
@@ -8927,32 +8814,19 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
 
         # Show detailed data table
         with st.expander("View Detailed Data"):
-            # Prepare display columns
-            display_cols = ["Framework", "Theme"]
-            
-            # Add metadata columns if available
-            for col in ["Record ID", "Title", "Confidence", "Combined Score", "coroner_name", "coroner_area", "year"]:
-                if col in filtered_df.columns:
-                    display_cols.append(col)
-            
-            # Get only columns that exist
-            available_cols = [col for col in display_cols if col in filtered_df.columns]
-            
-            # Display dataframe with column configuration
-            column_config = {
-                "Title": st.column_config.TextColumn("Document Title"),
-                "Framework": st.column_config.TextColumn("Framework"),
-                "Theme": st.column_config.TextColumn("Theme"),
-                "Confidence": st.column_config.TextColumn("Confidence"),
-                "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
-                "coroner_name": st.column_config.TextColumn("Coroner Name"),
-                "coroner_area": st.column_config.TextColumn("Coroner Area"),
-                "year": st.column_config.NumberColumn("Year"),
-            }
-            
             st.dataframe(
-                filtered_df[available_cols], 
-                column_config=column_config,
+                filtered_df,
+                column_config={
+                    "Title": st.column_config.TextColumn("Document Title"),
+                    "Framework": st.column_config.TextColumn("Framework"),
+                    "Theme": st.column_config.TextColumn("Theme"),
+                    "Confidence": st.column_config.TextColumn("Confidence"),
+                    "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                    "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                    "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                    "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                    "year": st.column_config.NumberColumn("Year"),
+                },
                 use_container_width=True
             )
             
@@ -8967,40 +8841,25 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         
         with col1:
             # CSV Export
-            try:
-                # Create export copy with formatted dates
-                df_csv = filtered_df.copy()
-                if "date_of_report" in df_csv.columns:
-                    df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
-
-                csv = df_csv.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "📥 Download Filtered Data (CSV)",
-                    data=csv,
-                    file_name=f"theme_analysis_export_{timestamp}.csv",
-                    mime="text/csv",
-                    key=f"download_csv_{timestamp}",
-                )
-            except Exception as e:
-                st.error(f"Error preparing CSV export: {str(e)}")
+            csv = filtered_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "📥 Download Filtered Data (CSV)",
+                data=csv,
+                file_name=f"theme_analysis_export_{timestamp}.csv",
+                mime="text/csv",
+                key=f"download_csv_{timestamp}",
+            )
         
         with col2:
             # Excel Export
-            try:
-                excel_data = export_to_excel(filtered_df)
-                st.download_button(
-                    "📥 Download Filtered Data (Excel)",
-                    data=excel_data,
-                    file_name=f"theme_analysis_export_{timestamp}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"download_excel_{timestamp}",
-                )
-            except Exception as e:
-                st.error(f"Error preparing Excel export: {str(e)}")
-                
-    # End of render_theme_analysis_dashboard function
-
-
+            excel_data = export_to_excel(filtered_df)
+            st.download_button(
+                "📥 Download Filtered Data (Excel)",
+                data=excel_data,
+                file_name=f"theme_analysis_export_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"download_excel_{timestamp}",
+            )
         
 def render_framework_heatmap(filtered_df, top_n_themes=5):
     """
