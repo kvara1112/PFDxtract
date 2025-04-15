@@ -7978,126 +7978,7 @@ def render_bert_file_merger():
     analyzer._render_multiple_file_upload()
 
 
-
-
-
     def render_theme_analysis_dashboard(data: pd.DataFrame = None):
-    """
-    Render a comprehensive dashboard for analyzing themes by various metadata fields
-    
-    Args:
-        data: Optional DataFrame containing theme analysis results
-    """
-    st.title("Theme Analysis Dashboard")
-    
-    # Check for existing data in session state
-    if data is None:
-        if "dashboard_data" in st.session_state:
-            data = st.session_state.dashboard_data
-        elif "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
-            data = st.session_state.bert_results.get("results_df")
-    
-    # File upload section
-    upload_key = f"dashboard_file_uploader_{int(time.time() * 1000)}"
-    uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file for Dashboard Analysis",
-        type=["csv", "xlsx"],
-        key=upload_key
-    )
-    
-    # Process uploaded file
-    if uploaded_file is not None:
-        try:
-            # Load the file based on its type
-            if uploaded_file.name.endswith('.csv'):
-                data = pd.read_csv(uploaded_file)
-            else:
-                data = pd.read_excel(uploaded_file)
-            
-            # Process the data to ensure it's clean
-            data = process_scraped_data(data)
-            
-            # Store in session state
-            st.session_state.dashboard_data = data
-            
-            st.success(f"File uploaded successfully! Found {len(data)} records.")
-        except Exception as e:
-            st.error(f"Error processing file: {e}")
-            return
-    
-    # If no data is available after upload
-    if data is None or len(data) == 0:
-        st.warning("No theme analysis data available.")
-        
-        st.markdown("""
-        ### To get theme analysis data:
-        
-        1. **Upload Existing Results**
-           - Use the file uploader above to load previously saved theme analysis results
-        
-        2. **Run New Theme Analysis**
-           - Go to the 'Concept Annotation' tab 
-           - Upload your merged PFD reports file
-           - Run a new theme analysis
-        """)
-        
-        return  # Exit the function if no data
-    
-    # Validate required columns
-    required_cols = ["Framework", "Theme"]
-    recommended_cols = ["coroner_area", "coroner_name", "year"]
-    
-    missing_required = [col for col in required_cols if col not in data.columns]
-    missing_recommended = [col for col in recommended_cols if col not in data.columns]
-    
-    if missing_required:
-        st.error(f"Missing required columns: {', '.join(missing_required)}")
-        return
-    
-    if missing_recommended:
-        st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}")
-    
-    # Data Overview
-    st.subheader("Data Overview")
-    metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
-    
-    with metrics_col1:
-        st.metric("Total Theme Identifications", len(data))
-    with metrics_col2:
-        st.metric("Unique Themes", data["Theme"].nunique())
-    
-    with metrics_col3:
-        if "coroner_area" in data.columns and not data["coroner_area"].isna().all():
-            st.metric("Coroner Areas", data["coroner_area"].nunique())
-        else:
-            st.metric("Coroner Areas", "N/A")
-    
-    with metrics_col4:
-        if "year" in data.columns and not data["year"].isna().all():
-            years_count = data["year"].dropna().nunique()
-            year_text = f"{years_count}" if years_count > 0 else "N/A"
-            st.metric("Years Covered", year_text)
-        else:
-            st.metric("Years Covered", "N/A")
-    
-    # Rest of your existing dashboard code continues...
-Key changes:
-
-Moved file upload before data validation
-Added file processing logic
-Store uploaded data in session state
-Added more robust error handling
-Kept the existing dashboard rendering logic
-
-This modification ensures that:
-
-Users can upload files directly on the dashboard
-Uploaded files are processed and validated
-The dashboard shows the appropriate content based on the uploaded data
-
-Make sure you have the process_scraped_data() function imported or defined in your script. This function should clean and prepare the uploaded data for analysis.
-Would you like me to elaborate on any part of the code or help you with further modifications?RetryGi upload the file and then it disappearsEditThis behavior suggests that the file upload logic is not being properly captured or processed. Let's modify the code to ensure the uploaded file is persistent and processed correctly. Here's an improved version:
-pythondef render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analyzing themes by various metadata fields
     
@@ -8193,6 +8074,7 @@ pythondef render_theme_analysis_dashboard(data: pd.DataFrame = None):
             st.metric("Years Covered", year_text)
         else:
             st.metric("Years Covered", "N/A")
+
     # Sidebar filters
     st.sidebar.header("Dashboard Filters")
     
