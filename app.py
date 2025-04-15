@@ -15,6 +15,11 @@ import logging
 import os
 import zipfile
 import unicodedata
+import nltk
+import random
+import string
+import traceback
+import torch
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import plotly.express as px
@@ -24,22 +29,15 @@ from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import AgglomerativeClustering
-from sklearn.metrics import silhouette_score  # Added for semantic clustering
 import networkx as nx
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-from collections import Counter
+from collections import Counter, defaultdict
 from bs4 import BeautifulSoup, Tag
 import json  # Added for JSON export functionality
-import nltk
-
 nltk.download("punkt")
 nltk.download("stopwords")
 nltk.download("averaged_perceptron_tagger")
-import random
-import string
-import traceback
-from datetime import datetime
 from openpyxl.utils import get_column_letter
 from sklearn.base import BaseEstimator, TransformerMixin
 import scipy.sparse as sp
@@ -50,21 +48,14 @@ from sklearn.metrics import (
     davies_bouldin_score,
 )
 from transformers import AutoTokenizer, AutoModel
-import torch
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
-import re
-from collections import Counter
 from tqdm import tqdm
-from collections import defaultdict  
-
-import streamlit as st
-import pandas as pd
-import numpy as np
-import io
-from datetime import datetime
-import logging
-
+from matplotlib.backends.backend_pdf import PdfPages
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import tempfile
+from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import Patch
+  
 ######################################
 class BERTResultsAnalyzer:
     """Enhanced class for merging BERT theme analysis results files with specific column outputs and year extraction."""
@@ -1451,8 +1442,8 @@ class ThemeAnalyzer:
         Create a single integrated HTML file with all highlighted records, themes, and framework information
         that can be easily converted to PDF
         """
-        from collections import defaultdict
-        from datetime import datetime
+    
+    
     
         # Map report IDs to their themes
         report_themes = defaultdict(list)
@@ -2844,16 +2835,6 @@ class ThemeAnalyzer:
         Returns:
             str: Path to the created PDF file
         """
-        from matplotlib.backends.backend_pdf import PdfPages
-        from datetime import datetime
-        import matplotlib.pyplot as plt
-        import matplotlib.gridspec as gridspec
-        import pandas as pd
-        import numpy as np
-        import os
-        import tempfile
-        from matplotlib.colors import LinearSegmentedColormap
-        from matplotlib.patches import Patch
 
         # Generate default filename if not provided
         if output_filename is None:
