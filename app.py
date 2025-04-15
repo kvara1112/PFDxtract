@@ -7506,7 +7506,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     return
 
                 # Initialize the theme analyzer (with loading message in a spinner)
-                with st.spinner("Loading BERT model and tokenizer..."):
+                with st.spinner("Loading annotation model and tokenizer..."):
                     # Initialize the analyzer
                     theme_analyzer = ThemeAnalyzer(
                         model_name="emilyalsentzer/Bio_ClinicalBERT"
@@ -7535,8 +7535,8 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                 st.success("Analysis complete!")
 
             except Exception as e:
-                st.error(f"Error during BERT analysis: {str(e)}")
-                logging.error(f"BERT analysis error: {e}", exc_info=True)
+                st.error(f"Error during annotation analysis: {str(e)}")
+                logging.error(f"Annotation analysis error: {e}", exc_info=True)
 
     # Display results if they exist
     if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
