@@ -8163,7 +8163,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             else:
                 st.warning("HTML report not available")
         
-def render_analysis_tab2(data: pd.DataFrame = None):
+def render_analysis_tab(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
     st.header("Reports Analysis")
     st.markdown(
