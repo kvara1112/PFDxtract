@@ -8435,7 +8435,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                                 font=dict(size=9, color=text_color),
                                 showarrow=False,
                                 xanchor="center",
-                                yanchor="center",
+                                yanchor="middle",
                                 bordercolor="rgba(0,0,0,0.2)",
                                 borderwidth=1,
                                 borderpad=2
