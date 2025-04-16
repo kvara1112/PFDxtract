@@ -48,7 +48,7 @@ from sklearn.metrics import (
     davies_bouldin_score,
 )
 from transformers import AutoTokenizer, AutoModel
-from tqdm import tqdm
+from tqdm import tqdm 
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
