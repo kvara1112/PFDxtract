@@ -8028,6 +8028,7 @@ def render_bert_file_merger():
     analyzer._render_multiple_file_upload()
 
 
+
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analyzing themes by various metadata fields
@@ -8132,13 +8133,23 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     frameworks = ["All"] + sorted(results_df["Framework"].unique().tolist())
     selected_framework = st.sidebar.selectbox("Filter by Framework", frameworks)
     
-    # Year range filter
+    # Year filter - Modified to handle single year selection properly
     years = sorted(results_df["year"].dropna().unique().tolist())
     if years:
         min_year, max_year = min(years), max(years)
-        selected_years = st.sidebar.slider(
-            "Year Range", min_year, max_year, (min_year, max_year)
-        )
+        
+        # If only one year available, provide a checkbox instead of slider
+        if min_year == max_year:
+            include_year = st.sidebar.checkbox(f"Include year {min_year}", value=True)
+            if include_year:
+                selected_years = (min_year, max_year)
+            else:
+                selected_years = None
+        else:
+            # For multiple years, keep using the slider
+            selected_years = st.sidebar.slider(
+                "Year Range", min_year, max_year, (min_year, max_year)
+            )
     else:
         selected_years = None
     
@@ -8164,8 +8175,12 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         filtered_df = filtered_df[filtered_df["Framework"] == selected_framework]
     
     if selected_years:
-        filtered_df = filtered_df[(filtered_df["year"] >= selected_years[0]) & 
-                                (filtered_df["year"] <= selected_years[1])]
+        # Handle edge case of single year (where both values are the same)
+        if selected_years[0] == selected_years[1]:
+            filtered_df = filtered_df[filtered_df["year"] == selected_years[0]]
+        else:
+            filtered_df = filtered_df[(filtered_df["year"] >= selected_years[0]) & 
+                                    (filtered_df["year"] <= selected_years[1])]
     
     if selected_area != "All":
         filtered_df = filtered_df[filtered_df["coroner_area"] == selected_area]
@@ -8181,8 +8196,11 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     active_filters = []
     if selected_framework != "All":
         active_filters.append(f"Framework: {selected_framework}")
-    if selected_years and (selected_years[0] != min_year or selected_years[1] != max_year):
-        active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
+    if selected_years:
+        if selected_years[0] == selected_years[1]:
+            active_filters.append(f"Year: {selected_years[0]}")
+        else:
+            active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
     if selected_area != "All":
         active_filters.append(f"Area: {selected_area}")
     if selected_name != "All":
@@ -8196,7 +8214,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     if len(filtered_df) == 0:
         st.warning("No data matches the selected filters. Please adjust your filters.")
         return
-    
+        
+    # Continue with the rest of the dashboard code...
     # Create tabs for different visualizations
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
         "Framework Heatmap", 
@@ -8213,205 +8232,234 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         if "year" not in filtered_df.columns or filtered_df["year"].isna().all():
             st.warning("No year data available for temporal analysis.")
         else:
-            # Create combined framework:theme field
-            filtered_df['Framework_Theme'] = filtered_df['Framework'] + ': ' + filtered_df['Theme']
-            
-            # Count reports per year (for denominator)
-            # Assuming Record ID is the unique identifier for reports
-            id_column = 'Record ID' if 'Record ID' in filtered_df.columns else filtered_df.columns[0]
-            reports_per_year = filtered_df.groupby('year')[id_column].nunique()
-            
-            # Count unique report IDs per theme per year
-            counts = filtered_df.groupby(['year', 'Framework', 'Framework_Theme'])[id_column].nunique().reset_index()
-            counts.columns = ['year', 'Framework', 'Framework_Theme', 'Count']
-            
-            # Calculate percentages
-            counts['Total'] = counts['year'].map(reports_per_year)
-            counts['Percentage'] = (counts['Count'] / counts['Total'] * 100).round(1)
-            
-            # Get frameworks in the filtered data
-            frameworks_present = filtered_df['Framework'].unique()
-            
-            # Get top themes by framework (5 per framework)
-            top_themes = []
-            for framework in frameworks_present:
-                framework_counts = counts[counts['Framework'] == framework]
-                theme_totals = framework_counts.groupby('Framework_Theme')['Count'].sum().sort_values(ascending=False)
-                top_themes.extend(theme_totals.head(5).index.tolist())
-            
-            # Filter to top themes
-            counts = counts[counts['Framework_Theme'].isin(top_themes)]
-            
-            # Create pivot table for heatmap
-            pivot = counts.pivot_table(
-                index='Framework_Theme',
-                columns='year',
-                values='Percentage',
-                fill_value=0
-            )
-            
-            # Create pivot for counts
-            count_pivot = counts.pivot_table(
-                index='Framework_Theme',
-                columns='year',
-                values='Count',
-                fill_value=0
-            )
-            
-            # Sort by framework then by total count
-            theme_totals = counts.groupby('Framework_Theme')['Count'].sum()
-            theme_frameworks = {theme: theme.split(':')[0] for theme in theme_totals.index}
-            
-            # Sort first by framework, then by count within framework
-            sorted_themes = sorted(
-                theme_totals.index,
-                key=lambda x: (theme_frameworks[x], -theme_totals[x])
-            )
-            
-            # Apply the sort order
-            pivot = pivot.reindex(sorted_themes)
-            count_pivot = count_pivot.reindex(sorted_themes)
-            
-            # Create color mapping for frameworks
-            framework_colors = {}
-            for i, framework in enumerate(frameworks_present):
-                if framework == 'I-SIRch':
-                    framework_colors[framework] = "orange"  # Orange for I-SIRch
-                elif framework == 'House of Commons':
-                    framework_colors[framework] = "royalblue"  # Blue for House of Commons
-                else:
-                    # Use other colors for other frameworks
-                    other_colors = ["forestgreen", "purple", "darkred"]
-                    framework_colors[framework] = other_colors[i % len(other_colors)]
-            
-            # Create a visually distinctive dataframe for plotting
-            # For each theme, create a dict with clean name and framework
-            theme_display_data = []
-            
-            for theme in pivot.index:
-                framework = theme.split(':')[0].strip()
-                theme_name = theme.split(':', 1)[1].strip()
+            # Handle special case where we only have one year
+            if filtered_df["year"].nunique() == 1:
+                st.info(f"Showing data for year {filtered_df['year'].iloc[0]}")
                 
-                # Insert line breaks for long theme names
-                if len(theme_name) > 30:
-                    # Try to break at a space near the middle
-                    words = theme_name.split()
-                    if len(words) > 1:
-                        # Find a breaking point near the middle
-                        mid_point = len(words) // 2
-                        first_part = ' '.join(words[:mid_point])
-                        second_part = ' '.join(words[mid_point:])
-                        theme_name = f"{first_part}<br>{second_part}"
+                # Create a simplified categorical count visualization for single year
+                theme_counts = filtered_df.groupby(['Framework', 'Theme']).size().reset_index(name='Count')
                 
-                theme_display_data.append({
-                    'original': theme,
-                    'clean_name': theme_name,
-                    'framework': framework,
-                    'color': framework_colors[framework]
-                })
+                # Sort by framework and count
+                theme_counts = theme_counts.sort_values(['Framework', 'Count'], ascending=[True, False])
                 
-            theme_display_df = pd.DataFrame(theme_display_data)
-            
-            # Add year count labels
-            year_labels = [f"{year}<br>n={reports_per_year[year]}" for year in pivot.columns]
-            
-            # Create heatmap using plotly
-            fig = go.Figure()
-            
-            # Add heatmap
-            heatmap = go.Heatmap(
-                z=pivot.values,
-                x=year_labels,
-                y=theme_display_df['clean_name'],
-                colorscale='Blues',
-                zmin=0,
-                zmax=min(100, pivot.values.max() * 1.2),  # Cap at 100% or 20% higher than max
-                colorbar=dict(title='Percentage (%)'),
-                hoverongaps=False,
-                text=count_pivot.values,  # This will show the count in the hover
-                hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{text}<extra></extra>'
-            )
-            
-            fig.add_trace(heatmap)
-            
-            # Add count annotations
-            for i in range(len(pivot.index)):
-                for j in range(len(pivot.columns)):
-                    if pivot.iloc[i, j] > 0:
-                        count = count_pivot.iloc[i, j]
-                        
-                        # Add an annotation for the actual count
-                        fig.add_annotation(
-                            x=j,
-                            y=i,
-                            text=f"({count})",
-                            font=dict(size=8, color='black' if pivot.iloc[i, j] < 50 else 'white'),
-                            showarrow=False,
-                            xanchor='center',
-                            yanchor='top',
-                            yshift=-12
-                        )
-            
-            # Set y-axis ordering and color-coding
-            fig.update_layout(
-                yaxis=dict(
-                    tickmode='array',
-                    tickvals=list(range(len(theme_display_df))),
-                    ticktext=theme_display_df['clean_name'],
-                    tickfont=dict(
-                        size=11,
-                        color='white'
-                    ),
+                # Display as a horizontal bar chart grouped by framework
+                fig = px.bar(
+                    theme_counts,
+                    y='Theme',
+                    x='Count',
+                    color='Framework',
+                    title=f"Theme Distribution for Year {filtered_df['year'].iloc[0]}",
+                    height=max(400, len(theme_counts) * 25)
                 )
-            )
-            
-            # Add colored framework indicators
-            for framework, color in framework_colors.items():
-                # Count themes for this framework
-                framework_theme_count = theme_display_df[theme_display_df['framework'] == framework].shape[0]
                 
-                if framework_theme_count > 0:
-                    # Add a shape for the framework indicator
-                    fig.add_shape(
-                        type="rect",
-                        x0=-1,  # Slightly to the left of the y-axis
-                        x1=-0.5,
-                        y0=len(theme_display_df) - theme_display_df[theme_display_df['framework'] == framework].index[0] - framework_theme_count,
-                        y1=len(theme_display_df) - theme_display_df[theme_display_df['framework'] == framework].index[0],
-                        fillcolor=color,
-                        opacity=0.6,
-                        layer="below",
-                        line=dict(width=0)
+                fig.update_layout(
+                    xaxis_title="Number of Reports",
+                    yaxis_title="Theme",
+                    yaxis={'categoryorder': 'total ascending'}
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                # Regular heatmap code for multiple years
+                # Create combined framework:theme field
+                filtered_df['Framework_Theme'] = filtered_df['Framework'] + ': ' + filtered_df['Theme']
+                
+                # Count reports per year (for denominator)
+                # Assuming Record ID is the unique identifier for reports
+                id_column = 'Record ID' if 'Record ID' in filtered_df.columns else filtered_df.columns[0]
+                reports_per_year = filtered_df.groupby('year')[id_column].nunique()
+                
+                # Count unique report IDs per theme per year
+                counts = filtered_df.groupby(['year', 'Framework', 'Framework_Theme'])[id_column].nunique().reset_index()
+                counts.columns = ['year', 'Framework', 'Framework_Theme', 'Count']
+                
+                # Calculate percentages
+                counts['Total'] = counts['year'].map(reports_per_year)
+                counts['Percentage'] = (counts['Count'] / counts['Total'] * 100).round(1)
+                
+                # Get frameworks in the filtered data
+                frameworks_present = filtered_df['Framework'].unique()
+                
+                # Get top themes by framework (5 per framework)
+                top_themes = []
+                for framework in frameworks_present:
+                    framework_counts = counts[counts['Framework'] == framework]
+                    theme_totals = framework_counts.groupby('Framework_Theme')['Count'].sum().sort_values(ascending=False)
+                    top_themes.extend(theme_totals.head(5).index.tolist())
+                
+                # Filter to top themes
+                counts = counts[counts['Framework_Theme'].isin(top_themes)]
+                
+                # Create pivot table for heatmap
+                pivot = counts.pivot_table(
+                    index='Framework_Theme',
+                    columns='year',
+                    values='Percentage',
+                    fill_value=0
+                )
+                
+                # Create pivot for counts
+                count_pivot = counts.pivot_table(
+                    index='Framework_Theme',
+                    columns='year',
+                    values='Count',
+                    fill_value=0
+                )
+                
+                # Sort by framework then by total count
+                theme_totals = counts.groupby('Framework_Theme')['Count'].sum()
+                theme_frameworks = {theme: theme.split(':')[0] for theme in theme_totals.index}
+                
+                # Sort first by framework, then by count within framework
+                sorted_themes = sorted(
+                    theme_totals.index,
+                    key=lambda x: (theme_frameworks[x], -theme_totals[x])
+                )
+                
+                # Apply the sort order
+                pivot = pivot.reindex(sorted_themes)
+                count_pivot = count_pivot.reindex(sorted_themes)
+                
+                # Create color mapping for frameworks
+                framework_colors = {}
+                for i, framework in enumerate(frameworks_present):
+                    if framework == 'I-SIRch':
+                        framework_colors[framework] = "orange"  # Orange for I-SIRch
+                    elif framework == 'House of Commons':
+                        framework_colors[framework] = "royalblue"  # Blue for House of Commons
+                    else:
+                        # Use other colors for other frameworks
+                        other_colors = ["forestgreen", "purple", "darkred"]
+                        framework_colors[framework] = other_colors[i % len(other_colors)]
+                
+                # Create a visually distinctive dataframe for plotting
+                # For each theme, create a dict with clean name and framework
+                theme_display_data = []
+                
+                for theme in pivot.index:
+                    framework = theme.split(':')[0].strip()
+                    theme_name = theme.split(':', 1)[1].strip()
+                    
+                    # Insert line breaks for long theme names
+                    if len(theme_name) > 30:
+                        # Try to break at a space near the middle
+                        words = theme_name.split()
+                        if len(words) > 1:
+                            # Find a breaking point near the middle
+                            mid_point = len(words) // 2
+                            first_part = ' '.join(words[:mid_point])
+                            second_part = ' '.join(words[mid_point:])
+                            theme_name = f"{first_part}<br>{second_part}"
+                    
+                    theme_display_data.append({
+                        'original': theme,
+                        'clean_name': theme_name,
+                        'framework': framework,
+                        'color': framework_colors[framework]
+                    })
+                    
+                theme_display_df = pd.DataFrame(theme_display_data)
+                
+                # Add year count labels
+                year_labels = [f"{year}<br>n={reports_per_year[year]}" for year in pivot.columns]
+                
+                # Create heatmap using plotly
+                fig = go.Figure()
+                
+                # Add heatmap
+                heatmap = go.Heatmap(
+                    z=pivot.values,
+                    x=year_labels,
+                    y=theme_display_df['clean_name'],
+                    colorscale='Blues',
+                    zmin=0,
+                    zmax=min(100, pivot.values.max() * 1.2),  # Cap at 100% or 20% higher than max
+                    colorbar=dict(title='Percentage (%)'),
+                    hoverongaps=False,
+                    text=count_pivot.values,  # This will show the count in the hover
+                    hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{text}<extra></extra>'
+                )
+                
+                fig.add_trace(heatmap)
+                
+                # Add count annotations
+                for i in range(len(pivot.index)):
+                    for j in range(len(pivot.columns)):
+                        if pivot.iloc[i, j] > 0:
+                            count = count_pivot.iloc[i, j]
+                            
+                            # Add an annotation for the actual count
+                            fig.add_annotation(
+                                x=j,
+                                y=i,
+                                text=f"({count})",
+                                font=dict(size=8, color='black' if pivot.iloc[i, j] < 50 else 'white'),
+                                showarrow=False,
+                                xanchor='center',
+                                yanchor='top',
+                                yshift=-12
+                            )
+                
+                # Set y-axis ordering and color-coding
+                fig.update_layout(
+                    yaxis=dict(
+                        tickmode='array',
+                        tickvals=list(range(len(theme_display_df))),
+                        ticktext=theme_display_df['clean_name'],
+                        tickfont=dict(
+                            size=11,
+                            color='white'
+                        ),
                     )
-            
-            # Add framework legend
-            for i, (framework, color) in enumerate(framework_colors.items()):
-                fig.add_trace(go.Scatter(
-                    x=[None],
-                    y=[None],
-                    mode='markers',
-                    marker=dict(size=10, color=color),
-                    name=framework,
-                    showlegend=True
-                ))
-            
-            # Update layout
-            fig.update_layout(
-                title="Theme Distribution by Year",
-                xaxis_title="Year (number of reports)",
-                yaxis_title="Theme",
-                height=len(pivot.index) * 30 + 200,  # Adjust height based on number of themes
-                margin=dict(l=200, r=20, t=60, b=60),
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="center",
-                    x=0.5
                 )
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
+                
+                # Add colored framework indicators
+                for framework, color in framework_colors.items():
+                    # Count themes for this framework
+                    framework_theme_count = theme_display_df[theme_display_df['framework'] == framework].shape[0]
+                    
+                    if framework_theme_count > 0:
+                        # Add a shape for the framework indicator
+                        fig.add_shape(
+                            type="rect",
+                            x0=-1,  # Slightly to the left of the y-axis
+                            x1=-0.5,
+                            y0=len(theme_display_df) - theme_display_df[theme_display_df['framework'] == framework].index[0] - framework_theme_count,
+                            y1=len(theme_display_df) - theme_display_df[theme_display_df['framework'] == framework].index[0],
+                            fillcolor=color,
+                            opacity=0.6,
+                            layer="below",
+                            line=dict(width=0)
+                        )
+                
+                # Add framework legend
+                for i, (framework, color) in enumerate(framework_colors.items()):
+                    fig.add_trace(go.Scatter(
+                        x=[None],
+                        y=[None],
+                        mode='markers',
+                        marker=dict(size=10, color=color),
+                        name=framework,
+                        showlegend=True
+                    ))
+                
+                # Update layout
+                fig.update_layout(
+                    title="Theme Distribution by Year",
+                    xaxis_title="Year (number of reports)",
+                    yaxis_title="Theme",
+                    height=len(pivot.index) * 30 + 200,  # Adjust height based on number of themes
+                    margin=dict(l=200, r=20, t=60, b=60),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="center",
+                        x=0.5
+                    )
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
     
     # === TAB 2: THEME DISTRIBUTION ===
     with tab2:
