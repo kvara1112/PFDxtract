@@ -8615,6 +8615,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         st.plotly_chart(fig, use_container_width=True)
     
     # === TAB 3: TEMPORAL ANALYSIS ===
+    # === TAB 3: TEMPORAL ANALYSIS ===
     with tab3:
         st.subheader("Temporal Analysis")
         
@@ -8624,13 +8625,18 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Create a time series of themes by year
             year_theme_counts = filtered_df.groupby(["year", "Theme"]).size().reset_index(name="Count")
             
-            # Filter for top themes only
+            # Filter for top themes only - get top themes by total count
+            all_theme_counts = filtered_df["Theme"].value_counts()
+            top_themes = all_theme_counts.head(top_n_themes).index.tolist()
+            
             year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
             
-            # Create a line chart
+            # Create a line chart - important fix: convert year to string to treat as categorical
+            year_theme_counts['year_str'] = year_theme_counts['year'].astype(str)
+            
             fig = px.line(
                 year_theme_counts,
-                x="year",
+                x="year_str",  # Use string version of year
                 y="Count",
                 color="Theme",
                 markers=True,
@@ -8643,10 +8649,28 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 xaxis_title="Year",
                 yaxis_title="Number of Occurrences",
                 xaxis=dict(
-                    tickmode="linear",
-                    dtick=1,  # Show every year
+                    type='category',  # Force categorical x-axis
+                    tickmode="array",
+                    tickvals=sorted(year_theme_counts['year_str'].unique()),
+                    ticktext=sorted(year_theme_counts['year_str'].unique()),
                 ),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                font=dict(color="white"),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            
+            # Update axes for dark mode
+            fig.update_xaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white"),
+                gridcolor="rgba(255,255,255,0.1)"
+            )
+            
+            fig.update_yaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white"),
+                gridcolor="rgba(255,255,255,0.1)"
             )
             
             st.plotly_chart(fig, use_container_width=True)
@@ -8655,28 +8679,64 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             st.subheader("Theme Prevalence by Year")
             
             # Create a pivot table
-            pivot_df = year_theme_counts.pivot(index="year", columns="Theme", values="Count").fillna(0)
+            pivot_df = year_theme_counts.pivot(index="Theme", columns="year_str", values="Count").fillna(0)
             
             # Convert to a normalized heatmap (percentage)
-            year_totals = pivot_df.sum(axis=1)
-            normalized_pivot = pivot_df.div(year_totals, axis=0) * 100
+            # Calculate the total themes per year (instead of total reports)
+            year_theme_totals = pivot_df.sum(axis=0)
+            normalized_pivot = pivot_df.div(year_theme_totals, axis=1) * 100
             
-            # Create a heatmap
+            # Create a heatmap - ensure years are in correct order
+            year_order = sorted(year_theme_counts['year'].unique())
+            year_order_str = [str(y) for y in year_order]
+            
             fig = px.imshow(
-                normalized_pivot.T,
-                labels=dict(x="Year", y="Theme", color="Percentage"),
-                x=normalized_pivot.index,
-                y=normalized_pivot.columns,
-                color_continuous_scale="YlGnBu",
+                normalized_pivot[year_order_str],  # Ensure columns are in correct order
+                labels=dict(x="Year", y="Theme", color="% of Themes"),
+                x=year_order_str,  # Use sorted string years
+                y=normalized_pivot.index,
+                color_continuous_scale=[
+                    [0, '#f7fbff'],      # Lightest blue (almost white) for zero values
+                    [0.2, '#deebf7'],    # Very light blue
+                    [0.4, '#9ecae1'],    # Light blue
+                    [0.6, '#4292c6'],    # Medium blue
+                    [0.8, '#2171b5'],    # Deep blue
+                    [1.0, '#084594']     # Darkest blue
+                ],
                 title="Theme Prevalence by Year (%)",
                 height=600,
-                aspect="auto"
+                aspect="auto",
+                text_auto=".1f"  # Show percentage to 1 decimal place
             )
             
             fig.update_layout(
-                xaxis_title="Year",
-                yaxis_title="Theme",
-                coloraxis_colorbar=dict(title="% of Themes")
+                xaxis=dict(
+                    type='category',  # Force categorical x-axis
+                    tickmode="array",
+                    tickvals=year_order_str,
+                    ticktext=year_order_str,
+                ),
+                font=dict(color="white"),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            
+            # Update axes and colorbar for dark mode
+            fig.update_xaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white")
+            )
+            
+            fig.update_yaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white")
+            )
+            
+            fig.update_traces(
+                colorbar=dict(
+                    title=dict(text="% of Themes", font=dict(color="white")),
+                    tickfont=dict(color="white")
+                )
             )
             
             st.plotly_chart(fig, use_container_width=True)
