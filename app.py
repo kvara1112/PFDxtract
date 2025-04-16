@@ -5852,7 +5852,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                 )
             except Exception as e:
                 st.error(f"Error preparing Excel export: {str(e)}")
-
+        ##
         # PDF Export section
         if any(col.startswith("PDF_") and col.endswith("_Path") for col in df.columns):
             st.subheader("Download PDFs")
@@ -5864,14 +5864,58 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                     pdf_columns = [col for col in df.columns if col.startswith("PDF_") and col.endswith("_Path")]
                     added_files = set()
                     pdf_count = 0
-
-                    for col in pdf_columns:
-                        paths = df[col].dropna()
-                        for pdf_path in paths:
-                            if pdf_path and os.path.exists(pdf_path) and pdf_path not in added_files:
-                                zipf.write(pdf_path, os.path.basename(pdf_path))
-                                added_files.add(pdf_path)
-                                pdf_count += 1
+                    folders_created = set()
+                    
+                    # Process each PDF file
+                    for idx, row in df.iterrows():
+                        # Determine folder name based on deceased name
+                        if "deceased_name" in row and pd.notna(row["deceased_name"]):
+                            # Clean up deceased name for folder name
+                            deceased_name = row["deceased_name"]
+                            # Remove invalid characters for folder names
+                            folder_name = re.sub(r'[<>:"/\\|?*]', '_', deceased_name)
+                            # Limit folder name length
+                            folder_name = folder_name[:50].strip()
+                        else:
+                            # Fallback if no deceased name
+                            record_id = str(row.get("Record ID", idx))
+                            folder_name = f"report_{record_id}"
+                        
+                        # Add year to folder if available
+                        if "year" in row and pd.notna(row["year"]):
+                            folder_name = f"{folder_name}_{row['year']}"
+                        
+                        # Keep track of created folders
+                        folders_created.add(folder_name)
+                        
+                        # Process each PDF for this row
+                        for col in pdf_columns:
+                            pdf_path = row.get(col)
+                            if pd.isna(pdf_path) or not pdf_path or not os.path.exists(pdf_path) or pdf_path in added_files:
+                                continue
+                            
+                            # Get PDF type (report or response)
+                            pdf_type_col = col.replace("_Path", "_Type")
+                            if pdf_type_col in row and pd.notna(row[pdf_type_col]):
+                                pdf_type = row[pdf_type_col].lower()
+                            else:
+                                # Try to infer from filename
+                                basename = os.path.basename(pdf_path).lower()
+                                pdf_type = "response" if "response" in basename or "reply" in basename else "report"
+                            
+                            # Add PDF file to the ZIP archive
+                            basename = os.path.basename(pdf_path)
+                            
+                            # Prepend file type for clarity
+                            enhanced_filename = f"{pdf_type}_{basename}"
+                            
+                            # Construct the path within the ZIP file
+                            zip_path = os.path.join(folder_name, enhanced_filename)
+                            
+                            # Write the file to the ZIP archive
+                            zipf.write(pdf_path, zip_path)
+                            added_files.add(pdf_path)
+                            pdf_count += 1
                 
                 # Reset buffer position
                 zip_buffer.seek(0)
@@ -5879,7 +5923,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                 # PDF Download Button with Unique Key
                 pdf_key = f"download_pdfs_{prefix}_{unique_id}"
                 st.download_button(
-                    f"📦 Download All PDFs ({pdf_count} files)",
+                    f"📦 Download All PDFs ({pdf_count} files in {len(folders_created)} case folders)",
                     zip_buffer,
                     f"{filename}_pdfs.zip",
                     "application/zip",
@@ -5889,7 +5933,9 @@ def show_export_options(df: pd.DataFrame, prefix: str):
             except Exception as e:
                 st.error(f"Error preparing PDF download: {str(e)}")
                 logging.error(f"PDF download error: {e}", exc_info=True)
-
+        
+        ##
+       
     except Exception as e:
         st.error(f"Error setting up export options: {str(e)}")
         logging.error(f"Export options error: {e}", exc_info=True)
