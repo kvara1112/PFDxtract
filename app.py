@@ -9908,7 +9908,7 @@ def main():
                 - Filtering by keywords, categories, and date ranges
                 - Export options in CSV and Excel formats
 
-                Handling Large Result Sets: For extensive search results, use the 'Start page' and 'End page' number inputs to download reports in manageable batches.
+                Handling Large Result Sets: For extensive search results, use the 'Start page' and 'End page' number inputs to download reports in manageable batches (ideally no more than 5 pages per batch). The outputs of every batch will be displayed in a single excel file. 
                 """
             )
             render_scraping_tab()
