@@ -8597,7 +8597,13 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             st.metric("Years Covered", "N/A")
             
     results_df = data.copy() if data is not None else pd.DataFrame()
-
+    
+    #
+    
+    # Sidebar filters
+    # Find the sidebar filter section in the render_theme_analysis_dashboard function 
+    # and replace it with this improved version:
+    
     # Sidebar filters
     st.sidebar.header("Dashboard Filters")
     
@@ -8625,22 +8631,66 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     else:
         selected_years = None
     
-    # Coroner area filter
-    areas = ["All"] + sorted(results_df["coroner_area"].dropna().unique().tolist())
-    selected_area = st.sidebar.selectbox("Filter by Coroner Area", areas)
+    # Coroner area filter - MODIFIED: Multi-select instead of single select
+    areas = sorted(results_df["coroner_area"].dropna().unique().tolist())
+    area_options = ["All Areas"] + areas
+    # Default to "All Areas" if no specific selection
+    area_filter_type = st.sidebar.radio("Coroner Area Filter Type", ["All Areas", "Select Specific Areas"])
+    if area_filter_type == "All Areas":
+        selected_areas = areas  # Include all areas
+    else:
+        # Multi-select for specific areas
+        selected_areas = st.sidebar.multiselect(
+            "Select Areas", 
+            options=areas,
+            default=None,
+            help="Select one or more specific coroner areas to include"
+        )
+        # If nothing selected, default to all areas
+        if not selected_areas:
+            st.sidebar.warning("No areas selected. Showing all areas.")
+            selected_areas = areas
     
-    # Coroner name filter
-    names = ["All"] + sorted(results_df["coroner_name"].dropna().unique().tolist())
-    selected_name = st.sidebar.selectbox("Filter by Coroner Name", names)
+    # Coroner name filter - MODIFIED: Multi-select instead of single select
+    names = sorted(results_df["coroner_name"].dropna().unique().tolist())
+    name_filter_type = st.sidebar.radio("Coroner Name Filter Type", ["All Coroners", "Select Specific Coroners"])
+    if name_filter_type == "All Coroners":
+        selected_names = names  # Include all coroner names
+    else:
+        # Multi-select for specific coroner names
+        selected_names = st.sidebar.multiselect(
+            "Select Coroners", 
+            options=names,
+            default=None,
+            help="Select one or more specific coroners to include"
+        )
+        # If nothing selected, default to all names
+        if not selected_names:
+            st.sidebar.warning("No coroners selected. Showing all coroners.")
+            selected_names = names
     
     # Number of top themes to display
     top_n_themes = st.sidebar.slider("Number of Top Themes", 5, 20, 10)
     
-    # Minimum confidence filter
-    confidence_levels = ["All", "High", "Medium", "Low"]
-    selected_confidence = st.sidebar.selectbox("Minimum Confidence", confidence_levels)
+    # Confidence filter - MODIFIED: Multi-select instead of minimum
+    confidence_levels = ["High", "Medium", "Low"]
+    confidence_filter_type = st.sidebar.radio("Confidence Filter Type", ["All Confidence Levels", "Select Specific Levels"])
+    if confidence_filter_type == "All Confidence Levels":
+        selected_confidence_levels = confidence_levels  # Include all confidence levels
+    else:
+        # Multi-select for specific confidence levels
+        selected_confidence_levels = st.sidebar.multiselect(
+            "Select Confidence Levels", 
+            options=confidence_levels,
+            default=["High", "Medium"],  # Default to high and medium
+            help="Select one or more confidence levels to include"
+        )
+        # If nothing selected, default to all confidence levels
+        if not selected_confidence_levels:
+            st.sidebar.warning("No confidence levels selected. Showing all levels.")
+            selected_confidence_levels = confidence_levels
     
-    # Apply filters
+    # Apply filters - UPDATED to handle new multi-select filters
     filtered_df = results_df.copy()
     
     if selected_framework != "All":
@@ -8654,15 +8704,14 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             filtered_df = filtered_df[(filtered_df["year"] >= selected_years[0]) & 
                                     (filtered_df["year"] <= selected_years[1])]
     
-    if selected_area != "All":
-        filtered_df = filtered_df[filtered_df["coroner_area"] == selected_area]
+    # Apply multi-select area filter
+    filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
     
-    if selected_name != "All":
-        filtered_df = filtered_df[filtered_df["coroner_name"] == selected_name]
+    # Apply multi-select coroner name filter
+    filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_names)]
     
-    if selected_confidence != "All":
-        confidence_map = {"High": ["High"], "Medium": ["High", "Medium"], "Low": ["High", "Medium", "Low"]}
-        filtered_df = filtered_df[filtered_df["Confidence"].isin(confidence_map[selected_confidence])]
+    # Apply multi-select confidence level filter
+    filtered_df = filtered_df[filtered_df["Confidence"].isin(selected_confidence_levels)]
     
     # Display filter summary
     active_filters = []
@@ -8673,12 +8722,18 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             active_filters.append(f"Year: {selected_years[0]}")
         else:
             active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
-    if selected_area != "All":
-        active_filters.append(f"Area: {selected_area}")
-    if selected_name != "All":
-        active_filters.append(f"Coroner: {selected_name}")
-    if selected_confidence != "All":
-        active_filters.append(f"Confidence: {selected_confidence}+")
+    if area_filter_type == "Select Specific Areas" and selected_areas:
+        if len(selected_areas) <= 3:
+            active_filters.append(f"Areas: {', '.join(selected_areas)}")
+        else:
+            active_filters.append(f"Areas: {len(selected_areas)} selected")
+    if name_filter_type == "Select Specific Coroners" and selected_names:
+        if len(selected_names) <= 3:
+            active_filters.append(f"Coroners: {', '.join(selected_names)}")
+        else:
+            active_filters.append(f"Coroners: {len(selected_names)} selected")
+    if confidence_filter_type == "Select Specific Levels" and selected_confidence_levels:
+        active_filters.append(f"Confidence: {', '.join(selected_confidence_levels)}")
     
     if active_filters:
         st.info("Active filters: " + " | ".join(active_filters))
