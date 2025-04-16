@@ -8226,6 +8226,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     ])
     
     # === TAB 1: FRAMEWORK HEATMAP ===
+    # === TAB 1: FRAMEWORK HEATMAP ===
     with tab1:
         st.subheader("Framework Theme Heatmap by Year")
         
@@ -8249,13 +8250,20 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     x='Count',
                     color='Framework',
                     title=f"Theme Distribution for Year {filtered_df['year'].iloc[0]}",
-                    height=max(400, len(theme_counts) * 25)
+                    height=max(400, len(theme_counts) * 25),
+                    color_discrete_map={
+                        "I-SIRch": "orange",
+                        "House of Commons": "royalblue",
+                        "Extended Analysis": "firebrick"
+                    }
                 )
                 
                 fig.update_layout(
                     xaxis_title="Number of Reports",
                     yaxis_title="Theme",
-                    yaxis={'categoryorder': 'total ascending'}
+                    yaxis={'categoryorder': 'total ascending'},
+                    font=dict(family="Arial, sans-serif"),
+                    margin=dict(l=200, r=40, t=60, b=60)
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
@@ -8321,15 +8329,16 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 count_pivot = count_pivot.reindex(sorted_themes)
                 
                 # Create color mapping for frameworks
-                framework_colors = {}
+                framework_colors = {
+                    "I-SIRch": "orange",
+                    "House of Commons": "royalblue",
+                    "Extended Analysis": "firebrick"
+                }
+                
+                # Default colors for any frameworks not specifically mapped
+                other_colors = ["forestgreen", "purple", "darkred"]
                 for i, framework in enumerate(frameworks_present):
-                    if framework == 'I-SIRch':
-                        framework_colors[framework] = "orange"  # Orange for I-SIRch
-                    elif framework == 'House of Commons':
-                        framework_colors[framework] = "royalblue"  # Blue for House of Commons
-                    else:
-                        # Use other colors for other frameworks
-                        other_colors = ["forestgreen", "purple", "darkred"]
+                    if framework not in framework_colors:
                         framework_colors[framework] = other_colors[i % len(other_colors)]
                 
                 # Create a visually distinctive dataframe for plotting
@@ -8371,7 +8380,14 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     z=pivot.values,
                     x=year_labels,
                     y=theme_display_df['clean_name'],
-                    colorscale='Blues',
+                    colorscale=[
+                        [0, '#f7fbff'],      # Lightest blue (almost white) for zero values
+                        [0.2, '#deebf7'],    # Very light blue
+                        [0.4, '#9ecae1'],    # Light blue
+                        [0.6, '#4292c6'],    # Medium blue
+                        [0.8, '#2171b5'],    # Deep blue
+                        [1.0, '#084594']     # Darkest blue
+                    ],
                     zmin=0,
                     zmax=min(100, pivot.values.max() * 1.2),  # Cap at 100% or 20% higher than max
                     colorbar=dict(title='Percentage (%)'),
@@ -8400,7 +8416,44 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                                 yshift=-12
                             )
                 
-                # Set y-axis ordering and color-coding
+                # Improved framework indicator styling
+                for framework, color in framework_colors.items():
+                    # Find rows corresponding to this framework
+                    framework_rows = theme_display_df[theme_display_df['framework'] == framework]
+                    
+                    if len(framework_rows) > 0:
+                        # Get the indices in the sorted display order
+                        indices = framework_rows.index.tolist()
+                        min_idx = min(indices)
+                        max_idx = max(indices)
+                        
+                        # Add a colored rectangle to indicate framework section
+                        fig.add_shape(
+                            type="rect",
+                            x0=-1.2,  # Further to the left
+                            x1=-0.7,  # Wider rectangle
+                            y0=min_idx - 0.5,  # Align with the heatmap cells
+                            y1=max_idx + 0.5,
+                            fillcolor=color,
+                            opacity=0.7,  # More visible
+                            layer="below",
+                            line=dict(width=1, color='rgba(0,0,0,0.3)')  # Subtle border
+                        )
+                        
+                        # Add framework label
+                        if len(framework_rows) > 1:  # Only add text if multiple themes in framework
+                            fig.add_annotation(
+                                x=-0.95,
+                                y=(min_idx + max_idx) / 2,
+                                text=framework,
+                                showarrow=False,
+                                textangle=90,  # Vertical text
+                                font=dict(size=10, color='white'),
+                                xanchor="center",
+                                yanchor="middle"
+                            )
+                
+                # Set y-axis formatting
                 fig.update_layout(
                     yaxis=dict(
                         tickmode='array',
@@ -8408,56 +8461,57 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         ticktext=theme_display_df['clean_name'],
                         tickfont=dict(
                             size=11,
-                            color='white'
+                            color='black'  # Better readability
                         ),
                     )
                 )
                 
-                # Add colored framework indicators
-                for framework, color in framework_colors.items():
-                    # Count themes for this framework
-                    framework_theme_count = theme_display_df[theme_display_df['framework'] == framework].shape[0]
-                    
-                    if framework_theme_count > 0:
-                        # Add a shape for the framework indicator
-                        fig.add_shape(
-                            type="rect",
-                            x0=-1,  # Slightly to the left of the y-axis
-                            x1=-0.5,
-                            y0=len(theme_display_df) - theme_display_df[theme_display_df['framework'] == framework].index[0] - framework_theme_count,
-                            y1=len(theme_display_df) - theme_display_df[theme_display_df['framework'] == framework].index[0],
-                            fillcolor=color,
-                            opacity=0.6,
-                            layer="below",
-                            line=dict(width=0)
-                        )
-                
-                # Add framework legend
-                for i, (framework, color) in enumerate(framework_colors.items()):
-                    fig.add_trace(go.Scatter(
-                        x=[None],
-                        y=[None],
-                        mode='markers',
-                        marker=dict(size=10, color=color),
-                        name=framework,
-                        showlegend=True
-                    ))
-                
-                # Update layout
+                # Update layout for better readability
                 fig.update_layout(
                     title="Theme Distribution by Year",
+                    font=dict(family="Arial, sans-serif"),  # Consistent font
+                    title_font=dict(size=18, color="#333333"),
                     xaxis_title="Year (number of reports)",
                     yaxis_title="Theme",
-                    height=len(pivot.index) * 30 + 200,  # Adjust height based on number of themes
-                    margin=dict(l=200, r=20, t=60, b=60),
+                    height=max(500, len(pivot.index) * 30 + 150),  # Dynamic height based on themes
+                    margin=dict(l=220, r=40, t=60, b=80),  # Increased left margin for theme labels
                     legend=dict(
                         orientation="h",
                         yanchor="bottom",
                         y=1.02,
                         xanchor="center",
-                        x=0.5
+                        x=0.5,
+                        bgcolor='rgba(255,255,255,0.7)',  # Semi-transparent background
+                        bordercolor='rgba(0,0,0,0.1)',
+                        borderwidth=1
                     )
                 )
+                
+                # Improve x-axis formatting
+                fig.update_xaxes(
+                    tickangle=-0,  # Horizontal labels
+                    title_font=dict(size=12),
+                    tickfont=dict(size=11)
+                )
+                
+                # Improve y-axis formatting
+                fig.update_yaxes(
+                    title_font=dict(size=12),
+                    tickfont=dict(size=10),
+                    automargin=True  # Ensure labels fit properly
+                )
+                
+                # Add framework legend
+                for i, (framework, color) in enumerate(framework_colors.items()):
+                    if framework in frameworks_present:  # Only show legends for frameworks present in data
+                        fig.add_trace(go.Scatter(
+                            x=[None],
+                            y=[None],
+                            mode='markers',
+                            marker=dict(size=10, color=color),
+                            name=framework,
+                            showlegend=True
+                        ))
                 
                 st.plotly_chart(fig, use_container_width=True)
     
