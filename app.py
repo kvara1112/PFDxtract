@@ -4676,7 +4676,7 @@ def render_scraping_tab():
 
         with row3_col2:
             end_page = st.number_input(
-                "End page:",
+                "End page (adjust so it only extracts from 10 pages at a time):",
                 min_value=0,
                 value=st.session_state.get("end_page_default", 0),
                 key="end_page",
@@ -4694,7 +4694,7 @@ def render_scraping_tab():
 
         with row4_col2:
             batch_size = st.number_input(
-                "Pages per batch:",
+                "Pages per batch: (ideally set to 5)",
                 min_value=1,
                 max_value=10,
                 value=st.session_state.get("batch_size_default", 5),
