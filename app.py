@@ -9965,7 +9965,7 @@ def main():
             if not validate_data_state():
                 handle_no_data_state("analysis")
             else:
-                render_analysis_tab2(st.session_state.current_data)
+                render_analysis_tab(st.session_state.current_data)
         
         elif current_tab == "(4)📝 Topic Analysis & Summaries":
             # Add tab-specific description here
