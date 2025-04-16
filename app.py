@@ -9994,13 +9994,14 @@ def main():
             render_theme_analysis_dashboard(st.session_state.current_data)
 
         # Sidebar data management
+        # Sidebar data management
         with st.sidebar:
             st.header("Data Management")
         
             if hasattr(st.session_state, "data_source"):
                 st.info(f"Current data: {st.session_state.data_source}")
             
-            if st.button("Clear All Data"):
+            if st.button("Clear All Data", key="clear_all_data_button"):
                 # Define a comprehensive list of keys to clear
                 keys_to_clear = [
                     # Core data keys
@@ -10014,6 +10015,10 @@ def main():
                     "bert_results",
                     "bert_initialized",
                     "bert_merged_data",
+                    
+                    # Dashboard specific keys
+                    "dashboard_data",
+                    "theme_analysis_dashboard_uploader",
                     
                     # File upload keys
                     "bert_file_uploader",
@@ -10030,7 +10035,7 @@ def main():
                     "duplicate_columns_static",
                     "merge_files_button_static",
                     
-                    # Analysis filter keys
+                    # Filter keys used in the dashboard
                     "start_date_filter",
                     "end_date_filter",
                     "doc_type_filter",
@@ -10047,6 +10052,7 @@ def main():
                         del st.session_state[key]
                 
                 # Force re-initialization of key values
+                # These explicit resets ensure clean state
                 st.session_state.current_data = None
                 st.session_state.uploaded_data = None
                 st.session_state.scraped_data = None
@@ -10054,14 +10060,16 @@ def main():
                 st.session_state.bert_results = {}
                 st.session_state.bert_initialized = False
                 st.session_state.bert_merged_data = None
+                st.session_state.dashboard_data = None
                 
-                # Increment reset counter to force new file uploader keys
+                # Generate a unique key for file uploaders to force reload
                 if "reset_counter" not in st.session_state:
                     st.session_state.reset_counter = 0
                 st.session_state.reset_counter += 1
                 
                 # Give feedback and rerun
                 st.success("All data cleared successfully")
+                time.sleep(0.5)  # Brief pause to ensure UI updates
                 st.rerun()
 
             # Add logout button
