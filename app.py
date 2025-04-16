@@ -8640,7 +8640,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 y="Count",
                 color="Theme",
                 markers=True,
-                title="Theme Trends Over Time",
+                #title="Theme Trends Over Time",
                 height=500,
             )
             
