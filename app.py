@@ -7636,7 +7636,7 @@ def render_footer():
     st.markdown("---")
     st.markdown(
         """<div style='text-align: center'>
-        <p>Built with Streamlit • Data Source: UK Judiciary • Copyright © 2023 Loughborough University • Contact: g.cosma@lboro.ac.uk • Developer: Georgina Cosma • All rights reserved.</p>
+        <p>Built with Streamlit • Data Source: UK Judiciary • Copyright © 2023 Loughborough University • Contact: g.cosma@lboro.ac.uk • Developer: Georgina Cosma • All rights reserved. Last updated: 16 April 2025 12:27</p>
         </div>""",
         unsafe_allow_html=True,
     )
@@ -8545,18 +8545,19 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     
     # If no data is available after upload
     if data is None or len(data) == 0:
-        st.markdown("""
-        ### To get theme analysis data:
+        with st.expander("💡 How to get theme analysis data?"):
+            st.markdown("""
+            #### To get theme analysis data:
         
-        1. **Upload Existing Results**
-           - Use the file uploader above to load previously saved theme analysis results
-        
-        2. **Run New Theme Analysis**
-           - Go to the 'Concept Annotation' tab 
-           - Upload your merged PFD reports file
-           - Run a new theme analysis
-        """)
-        
+            1. **Upload Existing Results**
+               - Use the file uploader above to load previously saved theme analysis results
+            
+            2. **Run New Theme Analysis**
+               - Go to the 'Concept Annotation' tab 
+               - Upload your merged PFD reports file
+               - Run a new theme analysis
+            """)
+            
         return  # Exit the function if no data
     
     # Validate required columns
@@ -9858,7 +9859,6 @@ def render_framework_heatmap(filtered_df, top_n_themes=5):
     
     return fig
 
-
 def main():
     """Updated main application entry point."""
     initialize_session_state()
@@ -9872,15 +9872,36 @@ def main():
     # Only show the main app content if authenticated
     st.title("UK Judiciary PFD Reports Analysis")
     
-    # Add the main descriptive text here, before any tab selection
+    # Add main description
     st.markdown(
         """
-        This application analyses Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
-        You can scrape new reports, analyse existing data, and explore thematic patterns.
+        This application analyses Prevention of Future Deaths (PFD) reports from the UK Judiciary website to uncover patterns, themes, and insights.
         """
     )
+    
+    # Add collapsible help section
+    with st.expander("💡 How to Use This Tool"):
+        st.markdown(
+            """
+            ### Complete Analysis Pipeline:
+            
+            1. **(1) 🔍 Scrape Reports**: Start by collecting PFD reports from the UK Judiciary website
+            2. **(2) 📂 Scraped File Preparation**: Process and merge your scraped reports
+            3. **(3) 📊 Scraped File Analysis**: Visualize and analyze basic report patterns
+            4. **(4) 📝 Topic Analysis & Summaries**: Generate basic themes from report content
+            5. **(5) 🔬 Concept Annotation**: Conduct advanced theme analysis with AI
+            6. **(6) 📈 Theme Analysis Dashboard**: Explore comprehensive theme visualizations
+            
+            Select each numbered tab in sequence to move through the complete analysis pipeline.
+            
+            ### Tips:
+            - Each step generates outputs that can be used in subsequent steps
+            - You can upload previously generated files at any step
+            - Use the "Clear All Data" button in the sidebar to reset the application
+            """
+        )
 
-    # Updated tab selection with the new BERT File Merger tab
+    # The radio button selection remains outside the expander
     current_tab = st.radio(
         "Select section:",
         [
@@ -9908,7 +9929,7 @@ def main():
                 - Filtering by keywords, categories, and date ranges
                 - Export options in CSV and Excel formats
 
-                Handling Large Result Sets: For extensive search results, use the 'Start page' and 'End page' number inputs to download reports in manageable batches (ideally no more than 5 pages per batch). The outputs of every batch will be displayed in a single excel file. 
+                Handling Large Result Sets: For extensive search results, use the 'Start page' and 'End page' number inputs to download reports in manageable batches.
                 """
             )
             render_scraping_tab()
@@ -9944,7 +9965,7 @@ def main():
             if not validate_data_state():
                 handle_no_data_state("analysis")
             else:
-                render_analysis_tab(st.session_state.current_data)
+                render_analysis_tab2(st.session_state.current_data)
         
         elif current_tab == "(4)📝 Topic Analysis & Summaries":
             # Add tab-specific description here
@@ -9979,21 +10000,16 @@ def main():
             # Add tab-specific description here
             st.markdown(
                 """
-                ## Interactive Theme Analysis Dashboard
-                Visualise and explore theme patterns across your Prevention of Future Deaths (PFD) reports.
+                Interactive Theme Analysis Dashboard
                 
-                - Upload your theme analysis results from step (5) (file named annotated_theme_analysis_*.xlsx)
+                - Upload theme analysis results from step (5) (file named annotated_theme_analysis_*.xlsx)
                 - Navigate through multiple visualization tabs: framework heatmaps, distribution charts, temporal analysis and more
                 - Filter results by framework, year, coroner area, and confidence level
-                - Discover relationships between themes using correlation analysis and network visualizations
-                - Export filtered data for further analysis
-                
-                Start by uploading your theme analysis file to generate comprehensive visualizations.
+                - Discover relationships between themes using correlation analysis
                 """
             )
             render_theme_analysis_dashboard(st.session_state.current_data)
 
-        # Sidebar data management
         # Sidebar data management
         with st.sidebar:
             st.header("Data Management")
@@ -10084,7 +10100,6 @@ def main():
         
         # Render footer even when an exception occurs
         render_footer()
-
 
 if __name__ == "__main__":
     try:
