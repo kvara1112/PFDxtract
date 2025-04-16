@@ -9925,7 +9925,7 @@ def main():
             st.markdown(
                 """
                 ## Interactive Theme Analysis Dashboard
-                Visualize and explore theme patterns across your Prevention of Future Deaths (PFD) reports.
+                Visualise and explore theme patterns across your Prevention of Future Deaths (PFD) reports.
                 
                 - Upload your theme analysis results from step (5) (file named annotated_theme_analysis_*.xlsx)
                 - Navigate through multiple visualization tabs: framework heatmaps, distribution charts, temporal analysis and more
