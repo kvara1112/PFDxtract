@@ -8250,7 +8250,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     x='Count',
                     color='Framework',
                     title=f"Theme Distribution for Year {filtered_df['year'].iloc[0]}",
-                    height=max(400, len(theme_counts) * 25),
+                    height=max(500, len(theme_counts) * 30),
                     color_discrete_map={
                         "I-SIRch": "orange",
                         "House of Commons": "royalblue",
@@ -8262,8 +8262,22 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     xaxis_title="Number of Reports",
                     yaxis_title="Theme",
                     yaxis={'categoryorder': 'total ascending'},
-                    font=dict(family="Arial, sans-serif"),
-                    margin=dict(l=200, r=40, t=60, b=60)
+                    font=dict(family="Arial, sans-serif", color="white"),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(l=200, r=40, t=80, b=60)
+                )
+                
+                # Update axes for dark mode
+                fig.update_xaxes(
+                    title_font=dict(color="white"),
+                    tickfont=dict(color="white"),
+                    gridcolor="rgba(255,255,255,0.1)"
+                )
+                
+                fig.update_yaxes(
+                    title_font=dict(color="white"),
+                    tickfont=dict(color="white")
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
@@ -8390,7 +8404,12 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     ],
                     zmin=0,
                     zmax=min(100, pivot.values.max() * 1.2),  # Cap at 100% or 20% higher than max
-                    colorbar=dict(title='Percentage (%)'),
+                    colorbar=dict(
+                        title=dict(text="Percentage (%)", font=dict(color="white", size=12)),
+                        tickfont=dict(color="white", size=10),
+                        outlinecolor="rgba(255,255,255,0.3)",
+                        outlinewidth=1
+                    ),
                     hoverongaps=False,
                     text=count_pivot.values,  # This will show the count in the hover
                     hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{text}<extra></extra>'
@@ -8404,16 +8423,22 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         if pivot.iloc[i, j] > 0:
                             count = count_pivot.iloc[i, j]
                             
-                            # Add an annotation for the actual count
+                            # Calculate appropriate text color based on cell value
+                            bg_intensity = pivot.iloc[i, j] / 100  # Normalize to 0-1
+                            text_color = 'white' if bg_intensity > 0.4 else 'black'
+                            
+                            # Add an annotation with outline for better visibility
                             fig.add_annotation(
                                 x=j,
                                 y=i,
                                 text=f"({count})",
-                                font=dict(size=8, color='black' if pivot.iloc[i, j] < 50 else 'white'),
+                                font=dict(size=9, color=text_color),
                                 showarrow=False,
-                                xanchor='center',
-                                yanchor='top',
-                                yshift=-12
+                                xanchor="center",
+                                yanchor="center",
+                                bordercolor="rgba(0,0,0,0.2)",
+                                borderwidth=1,
+                                borderpad=2
                             )
                 
                 # Improved framework indicator styling
@@ -8427,33 +8452,61 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         min_idx = min(indices)
                         max_idx = max(indices)
                         
-                        # Add a colored rectangle to indicate framework section
+                        # Add a colored rectangle with higher contrast
                         fig.add_shape(
                             type="rect",
-                            x0=-1.2,  # Further to the left
+                            x0=-1.3,  # Further to the left
                             x1=-0.7,  # Wider rectangle
                             y0=min_idx - 0.5,  # Align with the heatmap cells
                             y1=max_idx + 0.5,
                             fillcolor=color,
-                            opacity=0.7,  # More visible
+                            opacity=0.85,  # More visible
                             layer="below",
-                            line=dict(width=1, color='rgba(0,0,0,0.3)')  # Subtle border
+                            line=dict(width=1, color='rgba(255,255,255,0.5)')  # White border
                         )
                         
-                        # Add framework label
+                        # Add framework label with black or white text based on background color
                         if len(framework_rows) > 1:  # Only add text if multiple themes in framework
+                            # Determine text color (black for light backgrounds, white for dark)
+                            text_color = "black" if framework in ["I-SIRch"] else "white"
+                            
                             fig.add_annotation(
-                                x=-0.95,
+                                x=-1.0,
                                 y=(min_idx + max_idx) / 2,
                                 text=framework,
                                 showarrow=False,
                                 textangle=90,  # Vertical text
-                                font=dict(size=10, color='white'),
+                                font=dict(size=12, color=text_color, family="Arial, sans-serif"),
                                 xanchor="center",
                                 yanchor="middle"
                             )
                 
-                # Set y-axis formatting
+                # Update layout for better readability on dark background
+                fig.update_layout(
+                    title="Framework Theme Heatmap by Year",
+                    font=dict(family="Arial, sans-serif", color="white"),  # White font for dark background
+                    title_font=dict(size=20, color="white"),  # Larger title with white color
+                    xaxis_title="Year (number of reports)",
+                    yaxis_title="Theme",
+                    height=max(650, len(pivot.index) * 35),  # Increased height
+                    width=900,  # Set explicit width
+                    margin=dict(l=220, r=60, t=80, b=80),  # Increased margins
+                    paper_bgcolor="rgba(0,0,0,0)",  # Transparent background
+                    plot_bgcolor="rgba(0,0,0,0)",  # Transparent background
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.05,  # Moved up for more space
+                        xanchor="center",
+                        x=0.5,
+                        bgcolor="rgba(50,50,50,0.8)",  # Dark semi-transparent background
+                        bordercolor="rgba(255,255,255,0.3)",
+                        borderwidth=1,
+                        font=dict(color="white")  # White text for legend
+                    )
+                )
+                
+                # Set y-axis formatting for dark mode
                 fig.update_layout(
                     yaxis=dict(
                         tickmode='array',
@@ -8461,43 +8514,24 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         ticktext=theme_display_df['clean_name'],
                         tickfont=dict(
                             size=11,
-                            color='black'  # Better readability
+                            color='white'  # White text for y-axis labels
                         ),
+                        gridcolor="rgba(255,255,255,0.1)",  # Very subtle grid
                     )
                 )
                 
-                # Update layout for better readability
-                fig.update_layout(
-                    title="Theme Distribution by Year",
-                    font=dict(family="Arial, sans-serif"),  # Consistent font
-                    title_font=dict(size=18, color="#333333"),
-                    xaxis_title="Year (number of reports)",
-                    yaxis_title="Theme",
-                    height=max(500, len(pivot.index) * 30 + 150),  # Dynamic height based on themes
-                    margin=dict(l=220, r=40, t=60, b=80),  # Increased left margin for theme labels
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.02,
-                        xanchor="center",
-                        x=0.5,
-                        bgcolor='rgba(255,255,255,0.7)',  # Semi-transparent background
-                        bordercolor='rgba(0,0,0,0.1)',
-                        borderwidth=1
-                    )
-                )
-                
-                # Improve x-axis formatting
+                # Improve x-axis formatting for dark mode
                 fig.update_xaxes(
                     tickangle=-0,  # Horizontal labels
-                    title_font=dict(size=12),
-                    tickfont=dict(size=11)
+                    title_font=dict(size=14, color="white"),  # White color for axis title
+                    tickfont=dict(size=12, color="white"),  # White color for tick labels
+                    gridcolor="rgba(255,255,255,0.1)"  # Very subtle grid
                 )
                 
-                # Improve y-axis formatting
+                # Improve y-axis formatting for dark mode
                 fig.update_yaxes(
-                    title_font=dict(size=12),
-                    tickfont=dict(size=10),
+                    title_font=dict(size=14, color="white"),  # White color for axis title
+                    tickfont=dict(size=11, color="white"),  # White color for tick labels
                     automargin=True  # Ensure labels fit properly
                 )
                 
@@ -8513,8 +8547,22 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                             showlegend=True
                         ))
                 
-                st.plotly_chart(fig, use_container_width=True)
-    
+                # Use st.plotly_chart's config parameter for better sizing
+                st.plotly_chart(
+                    fig, 
+                    use_container_width=True,
+                    config={
+                        'displayModeBar': True,
+                        'responsive': True,
+                        'toImageButtonOptions': {
+                            'format': 'png',
+                            'filename': 'theme_heatmap',
+                            'height': 800,
+                            'width': 1200,
+                            'scale': 2  # Higher resolution
+                        }
+                    }
+                )
     # === TAB 2: THEME DISTRIBUTION ===
     with tab2:
         st.subheader("Theme Distribution Analysis")
