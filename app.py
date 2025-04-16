@@ -9921,6 +9921,36 @@ def main():
             render_bert_analysis_tab(st.session_state.current_data)
             
         elif current_tab == "(6)📈 Theme Analysis Dashboard":
+             # Add tab-specific description here
+            # Add tab-specific description here
+            st.markdown(
+                """
+                ## Interactive Theme Analysis Dashboard
+                
+                Visualize and explore theme patterns across your Prevention of Future Deaths (PFD) reports.
+                
+                - Upload your theme analysis results from step (5) (file named annotated_theme_analysis_*.xlsx)
+                - Navigate through multiple visualization tabs: framework heatmaps, distribution charts, temporal analysis and more
+                - Filter results by framework, year, coroner area, and confidence level
+                - Discover relationships between themes using correlation analysis and network visualizations
+                - Export filtered data for further analysis
+                
+                Start by uploading your theme analysis file to generate comprehensive visualizations.
+                """
+            )
+    render_theme_analysis_dashboard(st.session_state.current_data)
+This improved description:
+
+Adds a clear heading
+Better explains what the dashboard actually does
+Provides more specific information about what each visualization tab offers
+Highlights the filtering capabilities more clearly
+Mentions the advanced analysis features like correlation and network visualizations
+Ends with a clear call to action for users
+
+
+
+
             render_theme_analysis_dashboard(st.session_state.current_data)
 
         # Sidebar data management
