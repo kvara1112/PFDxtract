@@ -8508,7 +8508,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     Args:
         data: Optional DataFrame containing theme analysis results
     """
-    st.title("Theme Analysis Dashboard")
+    #st.title("Theme Analysis Dashboard")
     
     # Check for existing data in session state
     if data is None:
