@@ -5854,6 +5854,8 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                 st.error(f"Error preparing Excel export: {str(e)}")
         ##
         # PDF Export section
+        # PDF Export section
+        # PDF Export section
         if any(col.startswith("PDF_") and col.endswith("_Path") for col in df.columns):
             st.subheader("Download PDFs")
             try:
@@ -5868,16 +5870,28 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                     
                     # Process each PDF file
                     for idx, row in df.iterrows():
-                        # Determine folder name based on deceased name
+                        # Build folder name using ref and deceased_name
+                        folder_parts = []
+                        
+                        # Add reference number if available
+                        if "ref" in row and pd.notna(row["ref"]):
+                            folder_parts.append(str(row["ref"]))
+                        
+                        # Add deceased name if available
                         if "deceased_name" in row and pd.notna(row["deceased_name"]):
                             # Clean up deceased name for folder name
-                            deceased_name = row["deceased_name"]
+                            deceased_name = str(row["deceased_name"])
                             # Remove invalid characters for folder names
-                            folder_name = re.sub(r'[<>:"/\\|?*]', '_', deceased_name)
+                            clean_name = re.sub(r'[<>:"/\\|?*]', '_', deceased_name)
                             # Limit folder name length
-                            folder_name = folder_name[:50].strip()
+                            clean_name = clean_name[:50].strip()
+                            folder_parts.append(clean_name)
+                        
+                        # Create folder name from parts
+                        if folder_parts:
+                            folder_name = "_".join(folder_parts)
                         else:
-                            # Fallback if no deceased name
+                            # Fallback if no ref or deceased name
                             record_id = str(row.get("Record ID", idx))
                             folder_name = f"report_{record_id}"
                         
@@ -5894,26 +5908,16 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                             if pd.isna(pdf_path) or not pdf_path or not os.path.exists(pdf_path) or pdf_path in added_files:
                                 continue
                             
-                            # Get PDF type (report or response)
-                            pdf_type_col = col.replace("_Path", "_Type")
-                            if pdf_type_col in row and pd.notna(row[pdf_type_col]):
-                                pdf_type = row[pdf_type_col].lower()
-                            else:
-                                # Try to infer from filename
-                                basename = os.path.basename(pdf_path).lower()
-                                pdf_type = "response" if "response" in basename or "reply" in basename else "report"
+                            # Get the original filename without any modifications
+                            original_filename = os.path.basename(pdf_path)
                             
-                            # Add PDF file to the ZIP archive
-                            basename = os.path.basename(pdf_path)
+                            # Create archive path with folder structure
+                            zip_path = f"{folder_name}/{original_filename}"
                             
-                            # Prepend file type for clarity
-                            enhanced_filename = f"{pdf_type}_{basename}"
+                            # Read the file content and write it to the ZIP
+                            with open(pdf_path, 'rb') as file:
+                                zipf.writestr(zip_path, file.read())
                             
-                            # Construct the path within the ZIP file
-                            zip_path = os.path.join(folder_name, enhanced_filename)
-                            
-                            # Write the file to the ZIP archive
-                            zipf.write(pdf_path, zip_path)
                             added_files.add(pdf_path)
                             pdf_count += 1
                 
