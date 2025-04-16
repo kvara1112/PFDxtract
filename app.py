@@ -4936,7 +4936,7 @@ def construct_search_url(
 
 
 
-def render_scraping_tab():
+def render_scraping_tab2():
     """Render the scraping tab with a clean 2x2 filter layout and page range selection"""
     st.subheader("Scrape PFD Reports")
 
