@@ -8483,9 +8483,9 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 
                 # Update layout for better readability on dark background
                 fig.update_layout(
-                    #title="Framework Theme Heatmap by Year",
+                    title="Framework Theme Heatmap by Year",
                     font=dict(family="Arial, sans-serif", color="white"),  # White font for dark background
-                    title_font=dict(size=20, color="white"),  # Larger title with white color
+                    title_font=dict(size=8, color="white"),  # Larger title with white color
                     xaxis_title="Year (number of reports)",
                     yaxis_title="Theme",
                     height=max(650, len(pivot.index) * 35),  # Increased height
