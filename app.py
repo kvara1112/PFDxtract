@@ -4282,8 +4282,491 @@ def get_category_slug(category: str) -> str:
     logging.info(f"Generated category slug: {slug} from category: {category}")
     return slug
 
-
 def scrape_pfd_reports(
+    keyword: Optional[str] = None,
+    category: Optional[str] = None,
+    order: str = "relevance",
+    start_page: int = 1,
+    end_page: Optional[int] = None,
+    auto_save_batches: bool = True,
+    batch_size: int = 5
+) -> List[Dict]:
+    """
+    Scrape PFD reports with enhanced progress tracking, proper pagination, and automatic batch saving
+    
+    Args:
+        keyword: Optional keyword to search for
+        category: Optional category to filter by
+        order: Sort order ("relevance", "desc", "asc")
+        start_page: First page to scrape
+        end_page: Last page to scrape (None for all pages)
+        auto_save_batches: Whether to automatically save batches of results
+        batch_size: Number of pages per batch
+        
+    Returns:
+        List of report dictionaries
+    """
+    all_reports = []
+    base_url = "https://www.judiciary.uk/"
+    batch_number = 1
+
+    try:
+        # Initialize progress tracking
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        report_count_text = st.empty()
+        batch_status = st.empty()
+
+        # Validate and prepare category
+        category_slug = None
+        if category:
+            category_slug = (
+                category.lower()
+                .replace(" ", "-")
+                .replace("&", "and")
+                .replace("--", "-")
+                .strip("-")
+            )
+            logging.info(f"Using category: {category}, slug: {category_slug}")
+
+        # Construct initial search URL
+        base_search_url = construct_search_url(
+            base_url=base_url,
+            keyword=keyword,
+            category=category,
+            category_slug=category_slug,
+        )
+
+        st.info(f"Searching at: {base_search_url}")
+
+        # Get total pages and results count
+        total_pages, total_results = get_total_pages(base_search_url)
+
+        if total_results == 0:
+            st.warning("No results found matching your search criteria")
+            return []
+
+        st.info(f"Found {total_results} matching reports across {total_pages} pages")
+
+        # Apply page range limits
+        start_page = max(1, start_page)  # Ensure start_page is at least 1
+        if end_page is None:
+            end_page = total_pages
+        else:
+            end_page = min(
+                end_page, total_pages
+            )  # Ensure end_page doesn't exceed total_pages
+
+        if start_page > end_page:
+            st.warning(f"Invalid page range: {start_page} to {end_page}")
+            return []
+
+        st.info(f"Scraping pages {start_page} to {end_page}")
+        
+        # Variables for batch processing
+        batch_reports = []
+        current_batch_start = start_page
+        batch_end = min(start_page + batch_size - 1, end_page)
+
+        # Process each page in the specified range
+        for current_page in range(start_page, end_page + 1):
+            try:
+                # Check if scraping should be stopped
+                if (
+                    hasattr(st.session_state, "stop_scraping")
+                    and st.session_state.stop_scraping
+                ):
+                    # Save the current batch before stopping
+                    if auto_save_batches and batch_reports:
+                        save_batch(
+                            batch_reports, 
+                            batch_number, 
+                            keyword, 
+                            category, 
+                            current_batch_start, 
+                            current_page - 1
+                        )
+                    st.warning("Scraping stopped by user")
+                    break
+
+                # Update progress
+                progress = (current_page - start_page) / (end_page - start_page + 1)
+                progress_bar.progress(progress)
+                status_text.text(
+                    f"Processing page {current_page} of {end_page} (out of {total_pages} total pages)"
+                )
+
+                # Construct current page URL
+                page_url = construct_search_url(
+                    base_url=base_url,
+                    keyword=keyword,
+                    category=category,
+                    category_slug=category_slug,
+                    page=current_page,
+                )
+
+                # Scrape current page
+                page_reports = scrape_page(page_url)
+
+                if page_reports:
+                    # Deduplicate based on title and URL
+                    existing_reports = {(r["Title"], r["URL"]) for r in all_reports}
+                    existing_batch_reports = {(r["Title"], r["URL"]) for r in batch_reports}
+                    
+                    new_reports = [
+                        r
+                        for r in page_reports
+                        if (r["Title"], r["URL"]) not in existing_reports 
+                        and (r["Title"], r["URL"]) not in existing_batch_reports
+                    ]
+
+                    # Add to both all_reports and batch_reports
+                    all_reports.extend(new_reports)
+                    batch_reports.extend(new_reports)
+                    
+                    report_count_text.text(
+                        f"Retrieved {len(all_reports)} unique reports so far..."
+                    )
+
+                # Check if we've reached the end of a batch
+                if auto_save_batches and (current_page == batch_end or current_page == end_page):
+                    if batch_reports:
+                        # Automatically save the batch
+                        saved_file = save_batch(
+                            batch_reports, 
+                            batch_number, 
+                            keyword, 
+                            category, 
+                            current_batch_start, 
+                            current_page
+                        )
+                        batch_status.success(
+                            f"Saved batch #{batch_number} (pages {current_batch_start}-{current_page}) to {saved_file}"
+                        )
+                        
+                        # Reset for next batch
+                        batch_reports = []
+                        batch_number += 1
+                        current_batch_start = current_page + 1
+                        batch_end = min(current_batch_start + batch_size - 1, end_page)
+                
+                # Add delay between pages
+                time.sleep(2)
+
+            except Exception as e:
+                logging.error(f"Error processing page {current_page}: {e}")
+                st.warning(
+                    f"Error on page {current_page}. Continuing with next page..."
+                )
+                continue
+
+        # Sort results if specified
+        if order != "relevance":
+            all_reports = sort_reports(all_reports, order)
+
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+        report_count_text.empty()
+
+        if all_reports:
+            st.success(f"Successfully scraped {len(all_reports)} unique reports")
+            
+            # Final report
+            if auto_save_batches:
+                st.info(f"Reports were automatically saved in {batch_number} batches")
+        else:
+            st.warning("No reports were successfully retrieved")
+
+        return all_reports
+
+    except Exception as e:
+        logging.error(f"Error in scrape_pfd_reports: {e}")
+        st.error(f"An error occurred while scraping reports: {e}")
+        # Save any unsaved reports if an error occurs
+        if auto_save_batches and batch_reports:
+            save_batch(
+                batch_reports, 
+                batch_number, 
+                keyword, 
+                category, 
+                current_batch_start, 
+                "error"
+            )
+        return []
+
+
+def save_batch(
+    reports: List[Dict], 
+    batch_number: int, 
+    keyword: Optional[str], 
+    category: Optional[str], 
+    start_page: int, 
+    end_page: Union[int, str]
+) -> str:
+    """
+    Save a batch of reports to Excel file with appropriate naming
+    
+    Args:
+        reports: List of report dictionaries to save
+        batch_number: Current batch number
+        keyword: Search keyword used (for filename)
+        category: Category used (for filename)
+        start_page: Starting page of this batch
+        end_page: Ending page of this batch (or "error" if saving due to error)
+        
+    Returns:
+        Filename of the saved file
+    """
+    if not reports:
+        return ""
+    
+    # Process the data
+    df = pd.DataFrame(reports)
+    df = process_scraped_data(df)
+    
+    # Create timestamp for filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Create descriptive filename parts
+    keyword_part = f"kw_{keyword.replace(' ', '_')}" if keyword else "no_keyword"
+    category_part = f"cat_{category.replace(' ', '_')}" if category else "no_category"
+    page_part = f"pages_{start_page}_to_{end_page}"
+    
+    # Generate filename
+    filename = f"pfd_reports_scraped_batch{batch_number}_{keyword_part}_{category_part}_{page_part}_{timestamp}.xlsx"
+    
+    # Ensure filename is valid (remove any problematic characters)
+    filename = re.sub(r'[\\/*?:"<>|]', "", filename)
+    
+    # Create directory if it doesn't exist
+    os.makedirs("scraped_reports", exist_ok=True)
+    file_path = os.path.join("scraped_reports", filename)
+    
+    # Save to Excel
+    df.to_excel(file_path, index=False, engine="openpyxl")
+    
+    logging.info(f"Saved batch {batch_number} to {file_path}")
+    return filename
+
+
+def render_scraping_tab():
+    """Render the scraping tab with batch saving options"""
+    st.subheader("Scrape PFD Reports")
+
+    # Initialize default values if not in session state
+    if "init_done" not in st.session_state:
+        st.session_state.init_done = True
+        st.session_state["search_keyword_default"] = "report"
+        st.session_state["category_default"] = ""
+        st.session_state["order_default"] = "relevance"
+        st.session_state["start_page_default"] = 1
+        st.session_state["end_page_default"] = None
+        st.session_state["auto_save_batches_default"] = True
+        st.session_state["batch_size_default"] = 5
+
+    if "scraped_data" in st.session_state and st.session_state.scraped_data is not None:
+        st.success(f"Found {len(st.session_state.scraped_data)} reports")
+
+        st.subheader("Results")
+        st.dataframe(
+            st.session_state.scraped_data,
+            column_config={
+                "URL": st.column_config.LinkColumn("Report Link"),
+                "date_of_report": st.column_config.DateColumn(
+                    "Date of Report", format="DD/MM/YYYY"
+                ),
+                "categories": st.column_config.ListColumn("Categories"),
+            },
+            hide_index=True,
+        )
+
+        show_export_options(st.session_state.scraped_data, "scraped")
+
+    # Create the search form with page range selection and batch options
+    with st.form("scraping_form"):
+        # Create two rows with two columns each
+        row1_col1, row1_col2 = st.columns(2)
+        row2_col1, row2_col2 = st.columns(2)
+        row3_col1, row3_col2 = st.columns(2)
+        row4_col1, row4_col2 = st.columns(2)
+
+        # First row
+        with row1_col1:
+            search_keyword = st.text_input(
+                "Search keywords:",
+                value=st.session_state.get("search_keyword_default", "report"),
+                key="search_keyword",
+                help="Do not leave empty, use 'report' or another search term",
+            )
+
+        with row1_col2:
+            category = st.selectbox(
+                "PFD Report type:",
+                [""] + get_pfd_categories(),
+                index=0,
+                key="category",
+                format_func=lambda x: x if x else "Select a category",
+            )
+
+        # Second row
+        with row2_col1:
+            order = st.selectbox(
+                "Sort by:",
+                ["relevance", "desc", "asc"],
+                index=0,
+                key="order",
+                format_func=lambda x: {
+                    "relevance": "Relevance",
+                    "desc": "Newest first",
+                    "asc": "Oldest first",
+                }[x],
+            )
+
+        with row2_col2:
+            # Get total pages for the query (preview)
+            if search_keyword or category:
+                base_url = "https://www.judiciary.uk/"
+
+                # Prepare category slug
+                category_slug = None
+                if category:
+                    category_slug = (
+                        category.lower()
+                        .replace(" ", "-")
+                        .replace("&", "and")
+                        .replace("--", "-")
+                        .strip("-")
+                    )
+
+                # Create preview URL
+                preview_url = construct_search_url(
+                    base_url=base_url,
+                    keyword=search_keyword,
+                    category=category,
+                    category_slug=category_slug,
+                )
+
+                try:
+                    with st.spinner("Checking total pages..."):
+                        total_pages, total_results = get_total_pages(preview_url)
+                        if total_pages > 0:
+                            st.info(
+                                f"This search has {total_pages} pages with {total_results} results"
+                            )
+                            st.session_state["total_pages_preview"] = total_pages
+                        else:
+                            st.warning("No results found for this search")
+                            st.session_state["total_pages_preview"] = 0
+                except Exception as e:
+                    st.error(f"Error checking pages: {str(e)}")
+                    st.session_state["total_pages_preview"] = 0
+            else:
+                st.session_state["total_pages_preview"] = 0
+
+        # Third row for page range
+        with row3_col1:
+            start_page = st.number_input(
+                "Start page:",
+                min_value=1,
+                value=st.session_state.get("start_page_default", 1),
+                key="start_page",
+                help="First page to scrape (minimum 1)",
+            )
+
+        with row3_col2:
+            end_page = st.number_input(
+                "End page:",
+                min_value=0,
+                value=st.session_state.get("end_page_default", 0),
+                key="end_page",
+                help="Last page to scrape (0 for all pages)",
+            )
+
+        # Fourth row for batch options
+        with row4_col1:
+            auto_save_batches = st.checkbox(
+                "Auto-save batches",
+                value=st.session_state.get("auto_save_batches_default", True),
+                key="auto_save_batches",
+                help="Automatically save results in batches as they are scraped",
+            )
+
+        with row4_col2:
+            batch_size = st.number_input(
+                "Pages per batch:",
+                min_value=1,
+                max_value=10,
+                value=st.session_state.get("batch_size_default", 5),
+                key="batch_size",
+                help="Number of pages to process before saving a batch",
+            )
+
+        # Action buttons in a row
+        button_col1, button_col2 = st.columns(2)
+        with button_col1:
+            submitted = st.form_submit_button("Search Reports")
+        with button_col2:
+            stop_scraping = st.form_submit_button("Stop Scraping")
+
+    # Handle stop scraping
+    if stop_scraping:
+        st.session_state.stop_scraping = True
+        st.warning("Scraping will be stopped after the current page completes...")
+        return
+
+    if submitted:
+        try:
+            # Store search parameters in session state
+            st.session_state.last_search_params = {
+                "keyword": search_keyword,
+                "category": category,
+                "order": order,
+                "start_page": start_page,
+                "end_page": end_page,
+                "auto_save_batches": auto_save_batches,
+                "batch_size": batch_size,
+            }
+
+            # Initialize stop_scraping flag
+            st.session_state.stop_scraping = False
+
+            # Convert end_page=0 to None (all pages)
+            end_page_val = None if end_page == 0 else end_page
+
+            # Perform scraping with batch options
+            reports = scrape_pfd_reports(
+                keyword=search_keyword,
+                category=category if category else None,
+                order=order,
+                start_page=start_page,
+                end_page=end_page_val,
+                auto_save_batches=auto_save_batches,
+                batch_size=batch_size,
+            )
+
+            if reports:
+                # Process the data
+                df = pd.DataFrame(reports)
+                df = process_scraped_data(df)
+
+                # Store in session state
+                st.session_state.scraped_data = df
+                st.session_state.data_source = "scraped"
+                st.session_state.current_data = df
+
+                # Trigger a rerun to refresh the page
+                st.rerun()
+            else:
+                st.warning("No reports found matching your search criteria")
+
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+            logging.error(f"Scraping error: {e}")
+            return False
+            
+
+def scrape_pfd_reports2(
     keyword: Optional[str] = None,
     category: Optional[str] = None,
     order: str = "relevance",
