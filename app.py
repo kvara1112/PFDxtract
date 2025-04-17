@@ -8403,7 +8403,7 @@ def render_bert_file_merger():
         render_filter_data_tab()
 
 
-def render_filter_data_tabhaserrorswithelse():
+def render_filter_data_tab():
     """Render a filtering tab within the Scraped File Preparation section"""
     st.subheader("Filter & Explore Data")
 
