@@ -4755,7 +4755,7 @@ def render_scraping_tab():
         with row1_col1:
             search_keyword = st.text_input(
                 "Search keywords:",
-                value=st.session_state.get("search_keyword_default", "report"),
+                value=st.session_state.get("search_keyword_default", ""),
                 key="search_keyword",
                 help="Do not leave empty, use 'report' or another search term",
             )
