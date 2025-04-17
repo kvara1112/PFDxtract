@@ -8768,37 +8768,7 @@ def render_filter_data_tab():
                 ]
                 active_filters.append(f"Categories: {', '.join(selected_categories)}")
             
-            # Additional filters
-            st.write("**Additional Filters**")
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Document Type Filter
-                doc_type = st.multiselect(
-                    "Document Type",
-                    ["Report", "Response"],
-                    default=[],
-                    key="filter_doc_type",
-                    help="Filter by document type"
-                )
-                
-                # Deceased Name Filter
-                deceased_search = st.text_input(
-                    "Deceased Name",
-                    key="filter_deceased_name",
-                    help="Enter partial or full name"
-                )
-            
-            with col2:
-                # Reference Number Filter
-                if "ref" in data.columns:
-                    ref_numbers = sorted(data['ref'].dropna().unique())
-                    selected_refs = st.multiselect(
-                        "Reference Numbers",
-                        options=ref_numbers,
-                        key="filter_ref_numbers"
-                    )
-                
+
                 # Option to exclude records without extracted concerns
                 if "Extracted_Concerns" in data.columns:
                     exclude_no_concerns = st.checkbox(
