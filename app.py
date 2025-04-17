@@ -1008,6 +1008,44 @@ class BERTResultsAnalyzer:
                 
                 if example_changes:
                     st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
+        
+        # Clean categories column
+        if "categories" in merged_df.columns:
+            # Save the original values for comparison
+            original_categories = merged_df["categories"].copy()
+            
+            # Apply cleaning
+            merged_df = self._clean_categories(merged_df)
+            
+            # Count changes - this is more complex since categories can be lists
+            changes_made = 0
+            example_changes = []
+            
+            # Check each row for changes
+            for i, (old, new) in enumerate(zip(original_categories, merged_df["categories"])):
+                # Handle list case
+                if isinstance(old, list) and isinstance(new, list):
+                    # Consider it changed if any element changed
+                    if any(o != n for o, n in zip(old, new) if isinstance(o, str) and isinstance(n, str)):
+                        changes_made += 1
+                        # Add example if we don't have many yet
+                        if len(example_changes) < 3:
+                            old_str = ", ".join(old) if all(isinstance(x, str) for x in old) else str(old)
+                            new_str = ", ".join(new) if all(isinstance(x, str) for x in new) else str(new)
+                            example_changes.append(f"'{old_str}' → '{new_str}'")
+                # Handle string case
+                elif isinstance(old, str) and isinstance(new, str) and old != new:
+                    changes_made += 1
+                    if len(example_changes) < 3:
+                        example_changes.append(f"'{old}' → '{new}'")
+            
+            # Report changes
+            if changes_made > 0:
+                st.success(f"Cleaned {changes_made} categories entries")
+                if example_changes:
+                    st.info("Examples of cleaned categories:\n" + "\n".join(example_changes))
+
+        
                     
         # Store the result
         self.data = merged_df
@@ -1099,7 +1137,7 @@ class BERTResultsAnalyzer:
         cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_coroner_area)
         
         return cleaned_df
-    #
+    
     def _clean_categories(self, df):
         """
         Clean categories column by removing "These reports are being sent to:" and any text that follows
