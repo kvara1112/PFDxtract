@@ -10645,11 +10645,11 @@ def main():
                 st.success("All data cleared successfully")
                 time.sleep(0.5)  # Brief pause to ensure UI updates
                 st.rerun()
-            
-                        # Add logout button
-                        if st.button("Logout"):
-                            st.session_state.authenticated = False
-                            st.rerun()
+
+            # Add logout button
+            if st.button("Logout"):
+                st.session_state.authenticated = False
+                st.rerun()
 
         render_footer()
 
