@@ -8703,9 +8703,7 @@ def render_filter_data_tab():
                     hide_index=True,
                     use_container_width=True
                 )
-
-        
-
+            
                 # Update session state with filtered data
                 st.session_state.filtered_data = filtered_df
                 
@@ -8713,10 +8711,8 @@ def render_filter_data_tab():
                 st.markdown("---")
                 st.subheader("Export Options")
             else:
-                st.warning("No reports match your filter criteria. Try adjusting the filters.")    
+                st.warning("No reports match your filter criteria. Try adjusting the filters.")
 
-
-                
                 # Generate timestamp for filenames
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 
