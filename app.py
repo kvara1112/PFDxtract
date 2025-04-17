@@ -8742,7 +8742,6 @@ def render_filter_data_tab():
                         help="Select one or more categories"
                     )
             
-            # Rest of the filtering logic...
             # Apply filters to data
             filtered_df = data.copy()
             active_filters = []
@@ -8828,32 +8827,6 @@ def render_filter_data_tab():
                     ]
                     active_filters.append(f"Year: {selected_years[0]} to {selected_years[1]}")
             
-            # Document type filter
-            if doc_type:
-                if "Report" in doc_type and "Response" in doc_type:
-                    pass  # No filtering needed, include all
-                elif "Report" in doc_type:
-                    filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
-                    active_filters.append("Document Type: Report")
-                elif "Response" in doc_type:
-                    filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
-                    active_filters.append("Document Type: Response")
-            
-            # Reference number filter
-            if 'selected_refs' in locals() and selected_refs:
-                filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
-                active_filters.append(f"References: {', '.join(selected_refs)}")
-            
-            # Deceased name filter
-            if deceased_search:
-                filtered_df = filtered_df[
-                    filtered_df['deceased_name'].fillna('').str.contains(
-                        deceased_search, 
-                        case=False, 
-                        na=False
-                    )
-                ]
-                active_filters.append(f"Deceased name contains: {deceased_search}")
             
             # Coroner name filter
             if 'selected_coroners' in locals() and selected_coroners:
