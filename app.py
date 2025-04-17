@@ -6089,6 +6089,11 @@ def initialize_session_state():
             "max_features": 1000,
             "similarity_threshold": 0.3,
         }
+        
+        # Clear any filter-related keys
+        for key in list(st.session_state.keys()):
+            if key.startswith('filter_'):
+                del st.session_state[key]
     
     # Perform PDF cleanup if not done
     if not st.session_state.get("cleanup_done", False):
@@ -6116,61 +6121,6 @@ def initialize_session_state():
         finally:
             st.session_state.cleanup_done = True
             
-def initialize_session_state2():
-    """Initialize all required session state variables"""
-    # Initialize basic state variables if they don't exist
-    if not hasattr(st.session_state, "initialized"):
-        # Clear all existing session state
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-
-        # Set new session state variables
-        st.session_state.data_source = None
-        st.session_state.current_data = None
-        st.session_state.scraped_data = None
-        st.session_state.uploaded_data = None
-        st.session_state.topic_model = None
-        st.session_state.cleanup_done = False
-        st.session_state.last_scrape_time = None
-        st.session_state.last_upload_time = None
-        st.session_state.analysis_filters = {
-            "date_range": None,
-            "selected_categories": None,
-            "selected_areas": None,
-        }
-        st.session_state.topic_model_settings = {
-            "num_topics": 5,
-            "max_features": 1000,
-            "similarity_threshold": 0.3,
-        }
-        st.session_state.initialized = True
-
-    # Perform PDF cleanup if not done
-    if not st.session_state.cleanup_done:
-        try:
-            pdf_dir = "pdfs"
-            os.makedirs(pdf_dir, exist_ok=True)
-
-            current_time = time.time()
-            cleanup_count = 0
-
-            for file in os.listdir(pdf_dir):
-                file_path = os.path.join(pdf_dir, file)
-                try:
-                    if os.path.isfile(file_path):
-                        if os.stat(file_path).st_mtime < current_time - 86400:
-                            os.remove(file_path)
-                            cleanup_count += 1
-                except Exception as e:
-                    logging.warning(f"Error cleaning up file {file_path}: {e}")
-                    continue
-
-            if cleanup_count > 0:
-                logging.info(f"Cleaned up {cleanup_count} old PDF files")
-        except Exception as e:
-            logging.error(f"Error during PDF cleanup: {e}")
-        finally:
-            st.session_state.cleanup_done = True
 
 
 def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
@@ -8665,6 +8615,7 @@ def render_bert_file_merger():
         render_filter_data_tab()
 
 
+
 def render_filter_data_tab():
     """Render a filtering tab within the Scraped File Preparation section"""
     st.subheader("Filter & Explore Data")
@@ -8698,7 +8649,10 @@ def render_filter_data_tab():
                 st.metric("Total Reports", len(data))
             with col2:
                 if "date_of_report" in data.columns and not data["date_of_report"].isna().all():
-                    year_range = f"{data['date_of_report'].dt.year.min()}-{data['date_of_report'].dt.year.max()}"
+                    # Format year range with integers instead of decimals
+                    min_year = int(data['date_of_report'].dt.year.min())
+                    max_year = int(data['date_of_report'].dt.year.max())
+                    year_range = f"{min_year}-{max_year}"
                     st.metric("Year Range", year_range)
                 else:
                     st.metric("Year Range", "N/A")
@@ -8791,15 +8745,6 @@ def render_filter_data_tab():
             col1, col2 = st.columns(2)
             
             with col1:
-                # Document Type Filter
-                doc_type = st.multiselect(
-                    "Document Type",
-                    ["Report", "Response"],
-                    default=[],
-                    key="filter_doc_type",
-                    help="Filter by document type"
-                )
-                
                 # Deceased Name Filter
                 deceased_search = st.text_input(
                     "Deceased Name",
@@ -8830,7 +8775,7 @@ def render_filter_data_tab():
                 if "year" in data.columns and "date_of_report" not in data.columns:
                     years = sorted(data['year'].dropna().unique())
                     if years:
-                        min_year, max_year = min(years), max(years)
+                        min_year, max_year = int(min(years)), int(max(years))
                         selected_years = st.slider(
                             "Year Range", 
                             min_year, 
@@ -8849,7 +8794,8 @@ def render_filter_data_tab():
             
             # Reset Filters Button
             if st.button("🔄 Reset Filters", key="reset_filters_button"):
-                for key in st.session_state:
+                # Only clear filter-related keys, not the data itself
+                for key in list(st.session_state.keys()):
                     if key.startswith('filter_'):
                         del st.session_state[key]
                 st.rerun()
@@ -8875,17 +8821,6 @@ def render_filter_data_tab():
                         (filtered_df['year'] <= selected_years[1])
                     ]
                     active_filters.append(f"Year: {selected_years[0]} to {selected_years[1]}")
-            
-            # Document type filter
-            if doc_type:
-                if "Report" in doc_type and "Response" in doc_type:
-                    pass  # No filtering needed, include all
-                elif "Report" in doc_type:
-                    filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
-                    active_filters.append("Document Type: Report")
-                elif "Response" in doc_type:
-                    filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
-                    active_filters.append("Document Type: Response")
             
             # Reference number filter
             if 'selected_refs' in locals() and selected_refs:
@@ -9171,9 +9106,7 @@ def render_filter_data_tab():
             
             Files created from the File Merger tab should contain all these columns.
             """)
-
-
-
+            
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analyzing themes by various metadata fields
@@ -10689,7 +10622,7 @@ def main():
         
             if hasattr(st.session_state, "data_source"):
                 st.info(f"Current data: {st.session_state.data_source}")
-            
+            #
             if st.button("Clear All Data", key="clear_all_data_button"):
                 # Define a comprehensive list of keys to clear
                 keys_to_clear = [
@@ -10723,16 +10656,6 @@ def main():
                     "fill_empty_content_static",
                     "duplicate_columns_static",
                     "merge_files_button_static",
-                    
-                    # Filter keys used in the dashboard
-                    "start_date_filter",
-                    "end_date_filter",
-                    "doc_type_filter",
-                    "ref_filter",
-                    "deceased_filter",
-                    "coroner_filter",
-                    "areas_filter",
-                    "categories_filter",
                 ]
                 
                 # Clear each key if it exists
@@ -10751,6 +10674,11 @@ def main():
                 st.session_state.bert_merged_data = None
                 st.session_state.dashboard_data = None
                 
+                # Clear all filter-related keys
+                for key in list(st.session_state.keys()):
+                    if key.startswith('filter_'):
+                        del st.session_state[key]
+                
                 # Generate a unique key for file uploaders to force reload
                 if "reset_counter" not in st.session_state:
                     st.session_state.reset_counter = 0
@@ -10760,6 +10688,7 @@ def main():
                 st.success("All data cleared successfully")
                 time.sleep(0.5)  # Brief pause to ensure UI updates
                 st.rerun()
+  
 
             # Add logout button
             if st.button("Logout"):
