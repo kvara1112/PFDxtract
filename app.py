@@ -1099,7 +1099,61 @@ class BERTResultsAnalyzer:
         cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_coroner_area)
         
         return cleaned_df
-
+    #
+    def _clean_categories(self, df):
+        """
+        Clean categories column by removing "These reports are being sent to:" and any text that follows
+        
+        Args:
+            df (pd.DataFrame): DataFrame containing a 'categories' column
+            
+        Returns:
+            pd.DataFrame: DataFrame with cleaned 'categories' column
+        """
+        if df is None or len(df) == 0 or 'categories' not in df.columns:
+            return df
+        
+        # Create a copy to avoid modifying the original
+        cleaned_df = df.copy()
+        
+        # Define the cleaning function for a single value
+        def clean_categories_value(categories_text):
+            if pd.isna(categories_text) or not isinstance(categories_text, str):
+                return categories_text
+            
+            # Find the position of the target phrase
+            phrase_pos = categories_text.find('These reports are being sent to:')
+            if phrase_pos == -1:
+                # Try alternative phrasing
+                phrase_pos = categories_text.find('This report is being sent to:')
+            
+            # If either phrase is found, truncate the text
+            if phrase_pos != -1:
+                return categories_text[:phrase_pos].strip()
+            
+            # If the phrase is not found, return the original text
+            return categories_text.strip()
+        
+        # Apply the cleaning function to the DataFrame
+        # Handle both string values and list values
+        before_cleaning = cleaned_df["categories"].copy()
+        
+        # Process based on data type
+        for idx, value in enumerate(cleaned_df["categories"]):
+            if isinstance(value, list):
+                # For list values, we need to check each element
+                cleaned_list = []
+                for item in value:
+                    if isinstance(item, str):
+                        cleaned_list.append(clean_categories_value(item))
+                    else:
+                        cleaned_list.append(item)
+                cleaned_df.at[idx, "categories"] = cleaned_list
+            elif isinstance(value, str):
+                # For string values, clean directly
+                cleaned_df.at[idx, "categories"] = clean_categories_value(value)
+        
+        return cleaned_df
     # End of BERTResultsAnalyzer class
 
 
