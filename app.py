@@ -62,26 +62,26 @@ class BERTResultsAnalyzer:
 
     
     def __init__(self):
-    """Initialize the analyzer with default settings."""
-    self.data = None
-    # Define the essential columns you want in the reduced output
-    self.essential_columns = [
-        "Title",
-        "URL",
-        "Content",
-        "date_of_report",
-        "ref", 
-        "deceased_name",
-        "coroner_name",
-        "coroner_area",
-        "categories",
-        "Report ID",
-        "Deceased Name",
-        "Death Type",
-        "Year",
-        "year",
-        "Extracted_Concerns",
-    ]
+        """Initialize the analyzer with default settings."""
+        self.data = None
+        # Define the essential columns you want in the reduced output
+        self.essential_columns = [
+            "Title",
+            "URL",
+            "Content",
+            "date_of_report",
+            "ref", 
+            "deceased_name",
+            "coroner_name",
+            "coroner_area",
+            "categories",
+            "Report ID",
+            "Deceased Name",
+            "Death Type",
+            "Year",
+            "year",
+            "Extracted_Concerns",
+        ]
         
     def render_analyzer_ui(self):
         """Render the file merger UI."""
