@@ -324,84 +324,7 @@ class BERTResultsAnalyzer:
         
         return processed_df
     
-    #REDUNDANT 
-    def _fill_empty_content_from_pdfALLPDFS(self, df):
-        """
-        Fill empty Content fields from PDF content.
-
-        Args:
-            df: DataFrame with merged data
-
-        Returns:
-            DataFrame with filled Content fields
-        """
-        if df is None or len(df) == 0:
-            return df
-
-        # Make a copy to avoid modifying the original
-        processed_df = df.copy()
-
-        # Identify records with missing Content
-        missing_content_mask = processed_df["Content"].isna() | (
-            processed_df["Content"].astype(str).str.strip() == ""
-        )
-        missing_content_count = missing_content_mask.sum()
-
-        if missing_content_count == 0:
-            return processed_df
-
-        # Add a progress bar for processing
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        status_text.text(
-            f"Filling empty Content fields from PDF content for {missing_content_count} records..."
-        )
-
-        # Identify PDF content columns
-        pdf_columns = [
-            col
-            for col in processed_df.columns
-            if col.startswith("PDF_") and col.endswith("_Content")
-        ]
-        if not pdf_columns:
-            progress_bar.empty()
-            status_text.empty()
-            return processed_df
-
-        # Process each record with missing Content
-        missing_indices = processed_df[missing_content_mask].index
-        filled_count = 0
-
-        for i, idx in enumerate(missing_indices):
-            # Update progress
-            progress = (i + 1) / len(missing_indices)
-            progress_bar.progress(progress)
-
-            # Check each PDF content column
-            for pdf_col in pdf_columns:
-                if (
-                    pd.notna(processed_df.at[idx, pdf_col])
-                    and processed_df.at[idx, pdf_col].strip() != ""
-                ):
-                    # Use the PDF content as the main Content
-                    processed_df.at[idx, "Content"] = processed_df.at[idx, pdf_col]
-                    processed_df.at[
-                        idx, "Content_Source"
-                    ] = pdf_col  # Track where content came from
-                    filled_count += 1
-                    break  # Move to next record once content is found
-
-            # Update status
-            status_text.text(
-                f"Filled Content for {filled_count} of {i+1}/{missing_content_count} records..."
-            )
-
-        # Clear progress indicators
-        progress_bar.empty()
-        status_text.empty()
-
-        return processed_df
-
+    
     def _extract_missing_concerns_from_pdf(self, df):
         """
         Extract concerns from PDF content for records with missing Extracted_Concerns.
@@ -8665,6 +8588,7 @@ def render_bert_file_merger():
         render_filter_data_tab()
 
 
+
 def render_filter_data_tab():
     """Render a filtering tab within the Scraped File Preparation section"""
     st.subheader("Filter & Explore Data")
@@ -8705,7 +8629,13 @@ def render_filter_data_tab():
                                                                 format='%Y-%m-%d', 
                                                                 errors='raise')
                     except:
-                        st.warning("Could not convert date_of_report to datetime. Date filtering may not work correctly.")
+                        try:
+                            # Use pandas' smart parsing if specific formats fail
+                            data['date_of_report'] = pd.to_datetime(data['date_of_report'], 
+                                                                    infer_datetime_format=True, 
+                                                                    errors='coerce')
+                        except:
+                            st.warning("Could not convert date_of_report to datetime. Date filtering may not work correctly.")
             
             st.success(f"File uploaded successfully! Found {len(data)} records.")
             
@@ -8727,11 +8657,13 @@ def render_filter_data_tab():
                     st.metric("Coroner Areas", "N/A")
             with col4:
                 if "categories" in data.columns:
-                    # Calculate total unique categories across all records
+                    # Extract unique categories by splitting and cleaning
                     all_categories = set()
-                    for cats in data["categories"].dropna():
-                        if isinstance(cats, list):
-                            all_categories.update(cats)
+                    for cats in data['categories'].dropna():
+                        # Split by comma and strip whitespace
+                        split_cats = [cat.strip() for cat in str(cats).split(',')]
+                        all_categories.update(split_cats)
+                    
                     st.metric("Categories", len(all_categories))
                 else:
                     st.metric("Categories", "N/A")
@@ -8792,169 +8724,49 @@ def render_filter_data_tab():
                 
                 # Categories Filter
                 if "categories" in data.columns:
+                    # Extract unique categories by splitting and cleaning
                     all_categories = set()
                     for cats in data['categories'].dropna():
-                        if isinstance(cats, list):
-                            all_categories.update(cats)
+                        # Split by comma and strip whitespace
+                        split_cats = [cat.strip() for cat in str(cats).split(',')]
+                        all_categories.update(split_cats)
+                    
+                    # Sort and remove any empty strings
+                    sorted_categories = sorted(cat for cat in all_categories if cat)
+                    
+                    # Create multiselect for categories
                     selected_categories = st.multiselect(
                         "Categories",
-                        options=sorted(all_categories),
+                        options=sorted_categories,
                         key="filter_categories_fresh",
                         help="Select one or more categories"
                     )
             
-            # Rest of the method remains the same as in the previous implementation
-            # ... (paste the rest of the method from the previous implementation)
-        
-        except Exception as e:
-            st.error(f"Error processing file: {str(e)}")
-            logging.error(f"File processing error: {e}", exc_info=True)
-    
-    else:
-        # When no file is uploaded, show instructions
-        st.info("Please upload a PFD reports dataset (CSV or Excel file).")
-        
-        with st.expander("📋 File Requirements", expanded=False):
-            st.markdown("""
-            ## Required Columns
+            # Rest of the filtering logic...
+            # Apply filters to data
+            filtered_df = data.copy()
+            active_filters = []
             
-            For optimal filtering, your file should include these columns:
+            # Date filter
+            if "date_of_report" in filtered_df.columns:
+                if start_date != min_date or end_date != max_date:
+                    filtered_df = filtered_df[
+                        (filtered_df['date_of_report'].dt.date >= start_date) &
+                        (filtered_df['date_of_report'].dt.date <= end_date)
+                    ]
+                    active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
             
-            - **Title**: Report title
-            - **URL**: Link to the original report
-            - **date_of_report**: Date in format DD/MM/YYYY
-            - **ref**: Reference number
-            - **deceased_name**: Name of deceased person (if applicable)
-            - **coroner_name**: Name of the coroner
-            - **coroner_area**: Coroner jurisdiction area
-            - **categories**: Report categories
-            - **Content**: Report text content
-            - **Extracted_Concerns**: Extracted coroner concerns text
-            
-            Files created from the File Merger tab should contain all these columns.
-            """)
-            
-
-def render_filter_data_tab2():
-    """Render a filtering tab within the Scraped File Preparation section"""
-    st.subheader("Filter & Explore Data")
-    
-    # File upload section
-    uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file", 
-        type=['csv', 'xlsx'],
-        help="Upload your PFD reports dataset",
-        key="filter_file_uploader"
-    )
-    
-    # Process uploaded file
-    if uploaded_file is not None:
-        try:
-            if uploaded_file.name.endswith('.csv'):
-                data = pd.read_csv(uploaded_file)
-            else:
-                data = pd.read_excel(uploaded_file)
-            
-            # Process uploaded data
-            data = process_scraped_data(data)
-            st.success(f"File uploaded successfully! Found {len(data)} records.")
-            
-            # Update session state
-            st.session_state.filtered_data = data.copy()
-            
-            # Display overview metrics
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Total Reports", len(data))
-            with col2:
-                if "date_of_report" in data.columns and not data["date_of_report"].isna().all():
-                    year_range = f"{data['date_of_report'].dt.year.min()}-{data['date_of_report'].dt.year.max()}"
-                    st.metric("Year Range", year_range)
-                else:
-                    st.metric("Year Range", "N/A")
-            with col3:
-                if "coroner_area" in data.columns:
-                    areas_count = data["coroner_area"].nunique()
-                    st.metric("Coroner Areas", areas_count)
-                else:
-                    st.metric("Coroner Areas", "N/A")
-            with col4:
-                if "categories" in data.columns:
-                    # Calculate total unique categories across all records
-                    all_categories = set()
-                    for cats in data["categories"].dropna():
-                        if isinstance(cats, list):
-                            all_categories.update(cats)
-                    st.metric("Categories", len(all_categories))
-                else:
-                    st.metric("Categories", "N/A")
-            
-            # Filters section
-            st.markdown("---")
-            st.subheader("Filter Data")
-            
-            # Create filter columns
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Date Range Filter
-                if "date_of_report" in data.columns and not data["date_of_report"].isna().all():
-                    min_date = data['date_of_report'].min().date()
-                    max_date = data['date_of_report'].max().date()
-                    st.write("**Date Range**")
-                    date_col1, date_col2 = st.columns(2)
-                    with date_col1:
-                        start_date = st.date_input(
-                            "From",
-                            value=min_date,
-                            min_value=min_date,
-                            max_value=max_date,
-                            key="filter_start_date",
-                            format="DD/MM/YYYY"
+            # Categories filter
+            if 'selected_categories' in locals() and selected_categories:
+                filtered_df = filtered_df[
+                    filtered_df['categories'].apply(
+                        lambda x: any(
+                            cat.strip() in str(x) 
+                            for cat in selected_categories
                         )
-                    with date_col2:
-                        end_date = st.date_input(
-                            "To",
-                            value=max_date,
-                            min_value=min_date,
-                            max_value=max_date,
-                            key="filter_end_date",
-                            format="DD/MM/YYYY"
-                        )
-                
-                # Coroner Name Filter
-                if "coroner_name" in data.columns:
-                    coroner_names = sorted(data['coroner_name'].dropna().unique())
-                    selected_coroners = st.multiselect(
-                        "Coroner Names",
-                        options=coroner_names,
-                        key="filter_coroner_names",
-                        help="Select one or more coroner names"
                     )
-            
-            with col2:
-                # Coroner Area Filter
-                if "coroner_area" in data.columns:
-                    coroner_areas = sorted(data['coroner_area'].dropna().unique())
-                    selected_areas = st.multiselect(
-                        "Coroner Areas",
-                        options=coroner_areas,
-                        key="filter_coroner_areas",
-                        help="Select one or more coroner areas"
-                    )
-                
-                # Categories Filter
-                if "categories" in data.columns:
-                    all_categories = set()
-                    for cats in data['categories'].dropna():
-                        if isinstance(cats, list):
-                            all_categories.update(cats)
-                    selected_categories = st.multiselect(
-                        "Categories",
-                        options=sorted(all_categories),
-                        key="filter_categories",
-                        help="Select one or more categories"
-                    )
+                ]
+                active_filters.append(f"Categories: {', '.join(selected_categories)}")
             
             # Additional filters
             st.write("**Additional Filters**")
