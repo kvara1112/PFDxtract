@@ -8664,6 +8664,7 @@ def render_bert_file_merger():
     with filter_tab:
         render_filter_data_tab()
 
+
 def render_filter_data_tab():
     """Render a filtering tab within the Scraped File Preparation section"""
     st.subheader("Filter & Explore Data")
@@ -8691,6 +8692,21 @@ def render_filter_data_tab():
             # Basic data cleaning
             data = data.dropna(how='all')  # Remove completely empty rows
             
+            # Convert date_of_report to datetime if it exists
+            if 'date_of_report' in data.columns:
+                try:
+                    # Try multiple date formats
+                    data['date_of_report'] = pd.to_datetime(data['date_of_report'], 
+                                                            format='%d/%m/%Y', 
+                                                            errors='raise')
+                except:
+                    try:
+                        data['date_of_report'] = pd.to_datetime(data['date_of_report'], 
+                                                                format='%Y-%m-%d', 
+                                                                errors='raise')
+                    except:
+                        st.warning("Could not convert date_of_report to datetime. Date filtering may not work correctly.")
+            
             st.success(f"File uploaded successfully! Found {len(data)} records.")
             
             # Display overview metrics
@@ -8698,7 +8714,7 @@ def render_filter_data_tab():
             with col1:
                 st.metric("Total Reports", len(data))
             with col2:
-                if "date_of_report" in data.columns and not data["date_of_report"].isna().all():
+                if "date_of_report" in data.columns and pd.api.types.is_datetime64_any_dtype(data["date_of_report"]):
                     year_range = f"{data['date_of_report'].dt.year.min()}-{data['date_of_report'].dt.year.max()}"
                     st.metric("Year Range", year_range)
                 else:
@@ -8729,7 +8745,7 @@ def render_filter_data_tab():
             
             with col1:
                 # Date Range Filter
-                if "date_of_report" in data.columns and not data["date_of_report"].isna().all():
+                if "date_of_report" in data.columns and pd.api.types.is_datetime64_any_dtype(data["date_of_report"]):
                     min_date = data['date_of_report'].min().date()
                     max_date = data['date_of_report'].max().date()
                     st.write("**Date Range**")
@@ -8753,7 +8769,7 @@ def render_filter_data_tab():
                             format="DD/MM/YYYY"
                         )
                 
-                # Coroner Name Filter - explicitly reset
+                # Coroner Name Filter
                 if "coroner_name" in data.columns:
                     coroner_names = sorted(data['coroner_name'].dropna().unique())
                     selected_coroners = st.multiselect(
@@ -8764,7 +8780,7 @@ def render_filter_data_tab():
                     )
             
             with col2:
-                # Coroner Area Filter - explicitly reset
+                # Coroner Area Filter
                 if "coroner_area" in data.columns:
                     coroner_areas = sorted(data['coroner_area'].dropna().unique())
                     selected_areas = st.multiselect(
@@ -8774,7 +8790,7 @@ def render_filter_data_tab():
                         help="Select one or more coroner areas"
                     )
                 
-                # Categories Filter - explicitly reset
+                # Categories Filter
                 if "categories" in data.columns:
                     all_categories = set()
                     for cats in data['categories'].dropna():
@@ -8787,7 +8803,7 @@ def render_filter_data_tab():
                         help="Select one or more categories"
                     )
             
-            # Rest of the method remains the same as in the original implementation
+            # Rest of the method remains the same as in the previous implementation
             # ... (paste the rest of the method from the previous implementation)
         
         except Exception as e:
@@ -8817,6 +8833,7 @@ def render_filter_data_tab():
             
             Files created from the File Merger tab should contain all these columns.
             """)
+            
 
 def render_filter_data_tab2():
     """Render a filtering tab within the Scraped File Preparation section"""
