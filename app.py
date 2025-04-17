@@ -9235,7 +9235,7 @@ def render_filter_data_tabhaserrorswithelse():
             st.markdown("---")
             st.subheader("Filtered Results")
             st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
-
+            ###
             if len(filtered_df) > 0:
                 # Determine columns to display
                 display_cols = list(filtered_df.columns)
@@ -9251,8 +9251,6 @@ def render_filter_data_tabhaserrorswithelse():
                         column_config[col] = st.column_config.LinkColumn(col)
                 
                 # Display the dataframe using the original column names
-
-                #FROM HERE
                 st.dataframe(
                     filtered_df[display_cols],
                     column_config=column_config,
@@ -9266,9 +9264,7 @@ def render_filter_data_tabhaserrorswithelse():
                 # Export options
                 st.markdown("---")
                 st.subheader("Export Options")
-            else:
-                st.warning("No reports match your filter criteria. Try adjusting the filters.")
-
+                
                 # Generate timestamp for filenames
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 
@@ -9378,7 +9374,7 @@ def render_filter_data_tabhaserrorswithelse():
                         st.error(f"Error preparing PDF download: {str(e)}")
                         logging.error(f"PDF download error: {e}", exc_info=True)
                 
-                # Summary visualizations - THIS IS WHERE THE ERROR LIKELY OCCURS
+                # Summary visualizations
                 if len(filtered_df) >= 5:  # Only show visualizations if we have enough data
                     st.markdown("---")
                     st.subheader("Summary Visualizations")
@@ -9410,8 +9406,8 @@ def render_filter_data_tabhaserrorswithelse():
                             if not cat_counts.empty:
                                 # Create a bar chart with individual values
                                 fig = px.bar(
-                                    x=cat_counts.index.tolist(),  # Convert to list
-                                    y=cat_counts.values.tolist(),  # Convert to list
+                                    x=cat_counts.index.tolist(),
+                                    y=cat_counts.values.tolist(),
                                     labels={"x": "Category", "y": "Count"},
                                     title="Top Categories"
                                 )
@@ -9439,8 +9435,8 @@ def render_filter_data_tabhaserrorswithelse():
                             
                             if not timeline_data.empty and len(timeline_data) > 1:
                                 fig = px.line(
-                                    timeline_data,  # Pass the DataFrame
-                                    x="Date",       # Specify column names
+                                    timeline_data,
+                                    x="Date",
                                     y="Count",
                                     title="Reports Over Time",
                                     labels={"Count": "Number of Reports"}
@@ -9468,8 +9464,8 @@ def render_filter_data_tabhaserrorswithelse():
                             
                             if not area_counts.empty:
                                 fig = px.bar(
-                                    x=area_counts.index.tolist(),  # Convert to list
-                                    y=area_counts.values.tolist(),  # Convert to list
+                                    x=area_counts.index.tolist(),
+                                    y=area_counts.values.tolist(),
                                     labels={"x": "Coroner Area", "y": "Count"},
                                     title="Top Coroner Areas"
                                 )
@@ -9485,7 +9481,7 @@ def render_filter_data_tabhaserrorswithelse():
                                 st.info("No coroner area data available for visualization.")
                         else:
                             st.info("Coroner area data not available for visualization.")
-            
+
             else:
                 st.warning("No reports match your filter criteria. Try adjusting the filters.")
         
