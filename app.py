@@ -9160,7 +9160,6 @@ def render_filter_data_tab():
             Files created from the File Merger tab should contain all these columns.
             """)
 
-
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analyzing themes by various metadata fields
