@@ -60,27 +60,29 @@ from matplotlib.patches import Patch
 class BERTResultsAnalyzer:
     """Enhanced class for merging BERT theme analysis results files with specific column outputs and year extraction."""
 
+    
     def __init__(self):
-        """Initialize the analyzer with default settings."""
-        self.data = None
-        # Define the essential columns you want in the reduced output
-        self.essential_columns = [
-            "Title",
-            "URL",
-            "Content",
-            "date_of_report",
-            "deceased_name",
-            "coroner_name",
-            "coroner_area",
-            "categories",
-            "Report ID",
-            "Deceased Name",
-            "Death Type",
-            "Year",
-            "year",
-            "Extracted_Concerns",
-        ]
-
+    """Initialize the analyzer with default settings."""
+    self.data = None
+    # Define the essential columns you want in the reduced output
+    self.essential_columns = [
+        "Title",
+        "URL",
+        "Content",
+        "date_of_report",
+        "ref", 
+        "deceased_name",
+        "coroner_name",
+        "coroner_area",
+        "categories",
+        "Report ID",
+        "Deceased Name",
+        "Death Type",
+        "Year",
+        "year",
+        "Extracted_Concerns",
+    ]
+        
     def render_analyzer_ui(self):
         """Render the file merger UI."""
         st.subheader("Scraped File Merger")
@@ -607,40 +609,44 @@ class BERTResultsAnalyzer:
 
 # block4
 
-
     def _provide_download_options(self):
         """Provide options to download the current data."""
         if self.data is None or len(self.data) == 0:
             return
-    
+        
         st.subheader("Download Merged Data")
-    
+        
         # Generate timestamp and random suffix for truly unique keys
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
         unique_id = f"{timestamp}_{random_suffix}"
-    
+        
         # Deduplicate data by Record ID before download if requested
         dedup_download = st.checkbox(
             "Remove duplicate Record IDs before download (keep only first occurrence)",
             value=True,
             key=f"dedup_checkbox_{unique_id}",
         )
-    
+        
         download_data = self.data
         if dedup_download and "Record ID" in self.data.columns:
             download_data = self.data.drop_duplicates(subset=["Record ID"], keep="first")
             st.info(
                 f"Download will contain {len(download_data)} rows after removing duplicate Record IDs (original had {len(self.data)} rows)"
             )
-    
+        
         # Prepare the reduced dataset with essential columns
         reduced_data = download_data.copy()
-    
+        
         # Get list of available essential columns
         available_essential_cols = [
             col for col in self.essential_columns if col in reduced_data.columns
         ]
+        
+        # Ensure 'ref' is in the available columns if it exists in the data
+        if "ref" in reduced_data.columns and "ref" not in available_essential_cols:
+            available_essential_cols.append("ref")
+            
         if available_essential_cols:
             reduced_data = reduced_data[available_essential_cols]
             st.success(
@@ -651,14 +657,14 @@ class BERTResultsAnalyzer:
                 "None of the essential columns found in the data. Will provide full dataset only."
             )
             reduced_data = None
-    
+        
         # Generate filename prefix
         filename_prefix = f"merged_{timestamp}"
-    
+        
         # Full Dataset Section
         st.markdown("### Full Dataset")
         full_col1, full_col2 = st.columns(2)
-    
+        
         # CSV download button for full data
         with full_col1:
             try:
@@ -682,7 +688,7 @@ class BERTResultsAnalyzer:
                 )
             except Exception as e:
                 st.error(f"Error preparing CSV export: {str(e)}")
-    
+        
         # Excel download button for full data
         with full_col2:
             try:
@@ -698,12 +704,12 @@ class BERTResultsAnalyzer:
                 )
             except Exception as e:
                 st.error(f"Error preparing Excel export: {str(e)}")
-    
+        
         # Only show reduced dataset options if we have essential columns
         if reduced_data is not None:
             st.markdown("### Reduced Dataset (Essential Columns)")
             reduced_col1, reduced_col2 = st.columns(2)
-    
+        
             # CSV download button for reduced data
             with reduced_col1:
                 try:
@@ -729,7 +735,7 @@ class BERTResultsAnalyzer:
                     )
                 except Exception as e:
                     st.error(f"Error preparing reduced CSV export: {str(e)}")
-    
+        
             # Excel download button for reduced data
             with reduced_col2:
                 try:
@@ -747,22 +753,22 @@ class BERTResultsAnalyzer:
                     )
                 except Exception as e:
                     st.error(f"Error preparing reduced Excel export: {str(e)}")
-    
+        
         # NEW: Add section to display and download reports with missing concerns
         st.markdown("### Reports Without Extracted Concerns")
-    
+        
         # Find records without concerns
         missing_concerns_df = self._identify_missing_concerns(download_data)
-    
+        
         if len(missing_concerns_df) > 0:
             st.warning(
                 f"Found {len(missing_concerns_df)} reports without properly extracted concerns."
             )
-    
+        
             # Display the dataframe with missing concerns
             essential_columns_for_display = [
                 col
-                for col in ["Title", "URL", "date_of_report", "year", "deceased_name"]
+                for col in ["Title", "URL", "date_of_report", "year", "deceased_name", "ref"]
                 if col in missing_concerns_df.columns
             ]
             if essential_columns_for_display:
@@ -770,10 +776,10 @@ class BERTResultsAnalyzer:
                     missing_concerns_df[essential_columns_for_display],
                     use_container_width=True,
                 )
-    
+        
             # Download options for missing concerns
             missing_col1, missing_col2 = st.columns(2)
-    
+        
             # CSV download
             with missing_col1:
                 try:
@@ -787,7 +793,7 @@ class BERTResultsAnalyzer:
                     )
                 except Exception as e:
                     st.error(f"Error preparing missing concerns CSV: {str(e)}")
-    
+        
             # Excel download
             with missing_col2:
                 try:
@@ -807,43 +813,43 @@ class BERTResultsAnalyzer:
                     st.error(f"Error preparing missing concerns Excel: {str(e)}")
         else:
             st.success("All reports have properly extracted concerns.")
-
-    # block5
-    def _is_response(self, row):
-        """Check if a row represents a response document."""
-        # Check title for response indicators
-        title = str(row.get("Title", "")).lower()
-        title_response = any(
-            word in title for word in ["response", "reply", "answered"]
-        )
-
-        # Check PDF types if available
-        for i in range(1, 5):  # Check PDF_1 to PDF_4
-            pdf_type = str(row.get(f"PDF_{i}_Type", "")).lower()
-            if pdf_type == "response":
-                return True
-
-        # Check PDF names as backup
-        for i in range(1, 5):
-            pdf_name = str(row.get(f"PDF_{i}_Name", "")).lower()
-            if "response" in pdf_name or "reply" in pdf_name:
-                return True
-
-        # Check content as final fallback if available
-        content = str(row.get("Content", "")).lower()
-        content_response = any(
-            phrase in content
-            for phrase in [
-                "in response to",
-                "responding to",
-                "reply to",
-                "response to",
-                "following the regulation 28",
-                "following receipt of the regulation 28",
-            ]
-        )
-
-        return title_response or content_response
+    
+        # block5
+        def _is_response(self, row):
+            """Check if a row represents a response document."""
+            # Check title for response indicators
+            title = str(row.get("Title", "")).lower()
+            title_response = any(
+                word in title for word in ["response", "reply", "answered"]
+            )
+    
+            # Check PDF types if available
+            for i in range(1, 5):  # Check PDF_1 to PDF_4
+                pdf_type = str(row.get(f"PDF_{i}_Type", "")).lower()
+                if pdf_type == "response":
+                    return True
+    
+            # Check PDF names as backup
+            for i in range(1, 5):
+                pdf_name = str(row.get(f"PDF_{i}_Name", "")).lower()
+                if "response" in pdf_name or "reply" in pdf_name:
+                    return True
+    
+            # Check content as final fallback if available
+            content = str(row.get("Content", "")).lower()
+            content_response = any(
+                phrase in content
+                for phrase in [
+                    "in response to",
+                    "responding to",
+                    "reply to",
+                    "response to",
+                    "following the regulation 28",
+                    "following receipt of the regulation 28",
+                ]
+            )
+    
+            return title_response or content_response
 
     def _filter_out_responses(self, df):
         """Filter out response documents, keeping only reports."""
