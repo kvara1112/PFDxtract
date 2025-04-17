@@ -8704,16 +8704,18 @@ def render_filter_data_tab():
                     use_container_width=True
                 )
 
-                else:
-                    # Fallback if priority columns not found
-                    st.dataframe(filtered_df, use_container_width=True)
-                
+        
+
                 # Update session state with filtered data
                 st.session_state.filtered_data = filtered_df
                 
                 # Export options
                 st.markdown("---")
                 st.subheader("Export Options")
+            else:
+                st.warning("No reports match your filter criteria. Try adjusting the filters.")    
+
+
                 
                 # Generate timestamp for filenames
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
