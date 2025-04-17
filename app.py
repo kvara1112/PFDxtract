@@ -83,23 +83,6 @@ class BERTResultsAnalyzer:
 
     def render_analyzer_ui(self):
             """Render the file merger UI with the new filter tab."""
-            st.subheader("Scraped File Merger")
-            st.markdown(
-                """
-                This tool merges multiple scraped files into a single dataset. It prepares the data for steps (3) - (5).
-                
-                - Run this step even if you only have one scraped file. This step extracts the year and applies other processing as described in the bullets below. 
-                - Combine data from multiple CSV or Excel files (the name of these files starts with pfd_reports_scraped_reportID_ )
-                - Extract missing concerns from PDF content and fill empty Content fields
-                - Extract year information from date fields
-                - Remove duplicate records
-                - Export full or reduced datasets with essential columns
-                - Filter data by coroner, year, or other attributes before export
-                
-                Use the options below to control how your files will be processed.
-                """
-            )
-    
             # Create tabs for different functionalities
             merge_tab, filter_tab = st.tabs(["📄 Merge Files", "🔍 Filter Data"])
             
