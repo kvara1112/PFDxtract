@@ -4836,7 +4836,7 @@ def render_scraping_tab():
 
         with row3_col2:
             end_page = st.number_input(
-                "End page (adjust so it only extracts from 10 pages at a time):",
+                "End page (recommended limit of 10 pages per extraction):",
                 min_value=0,
                 value=st.session_state.get("end_page_default", 0),
                 key="end_page",
