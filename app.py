@@ -82,17 +82,25 @@ class BERTResultsAnalyzer:
         ]
 
     def render_analyzer_ui(self):
-            """Render the file merger UI with the new filter tab."""
-            # Create tabs for different functionalities
-            merge_tab, filter_tab = st.tabs(["📄 Merge Files", "🔍 Filter Data"])
+        """Render the file merger UI."""
+        st.subheader("Scraped File Merger")
+        st.markdown(
+            """
+            This tool merges multiple scraped files into a single dataset. It prepares the data for steps (3) - (5).
             
-            # File merging tab
-            with merge_tab:
-                self._render_multiple_file_upload()
+            - Run this step even if you only have one scraped file. This step extracts the year and applies other processing as described in the bullets below. 
+            - Combine data from multiple CSV or Excel files (the name of these files starts with pfd_reports_scraped_reportID_ )
+            - Extract missing concerns from PDF content and fill empty Content fields
+            - Extract year information from date fields
+            - Remove duplicate records
+            - Export full or reduced datasets with essential columns
             
-            # Filtering tab
-            with filter_tab:
-                self._render_filter_tab()
+            Use the options below to control how your files will be processed.
+            """
+        )
+
+        # File upload section
+        self._render_multiple_file_upload()
 
     def _render_multiple_file_upload(self):
         """Render interface for multiple file upload and merging."""
@@ -316,7 +324,84 @@ class BERTResultsAnalyzer:
         
         return processed_df
     
-   
+    #REDUNDANT 
+    def _fill_empty_content_from_pdfALLPDFS(self, df):
+        """
+        Fill empty Content fields from PDF content.
+
+        Args:
+            df: DataFrame with merged data
+
+        Returns:
+            DataFrame with filled Content fields
+        """
+        if df is None or len(df) == 0:
+            return df
+
+        # Make a copy to avoid modifying the original
+        processed_df = df.copy()
+
+        # Identify records with missing Content
+        missing_content_mask = processed_df["Content"].isna() | (
+            processed_df["Content"].astype(str).str.strip() == ""
+        )
+        missing_content_count = missing_content_mask.sum()
+
+        if missing_content_count == 0:
+            return processed_df
+
+        # Add a progress bar for processing
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        status_text.text(
+            f"Filling empty Content fields from PDF content for {missing_content_count} records..."
+        )
+
+        # Identify PDF content columns
+        pdf_columns = [
+            col
+            for col in processed_df.columns
+            if col.startswith("PDF_") and col.endswith("_Content")
+        ]
+        if not pdf_columns:
+            progress_bar.empty()
+            status_text.empty()
+            return processed_df
+
+        # Process each record with missing Content
+        missing_indices = processed_df[missing_content_mask].index
+        filled_count = 0
+
+        for i, idx in enumerate(missing_indices):
+            # Update progress
+            progress = (i + 1) / len(missing_indices)
+            progress_bar.progress(progress)
+
+            # Check each PDF content column
+            for pdf_col in pdf_columns:
+                if (
+                    pd.notna(processed_df.at[idx, pdf_col])
+                    and processed_df.at[idx, pdf_col].strip() != ""
+                ):
+                    # Use the PDF content as the main Content
+                    processed_df.at[idx, "Content"] = processed_df.at[idx, pdf_col]
+                    processed_df.at[
+                        idx, "Content_Source"
+                    ] = pdf_col  # Track where content came from
+                    filled_count += 1
+                    break  # Move to next record once content is found
+
+            # Update status
+            status_text.text(
+                f"Filled Content for {filled_count} of {i+1}/{missing_content_count} records..."
+            )
+
+        # Clear progress indicators
+        progress_bar.empty()
+        status_text.empty()
+
+        return processed_df
+
     def _extract_missing_concerns_from_pdf(self, df):
         """
         Extract concerns from PDF content for records with missing Extracted_Concerns.
@@ -947,405 +1032,8 @@ class BERTResultsAnalyzer:
 
         return missing_concerns
 
-
-    def _render_filter_tab(self):
-        """Render a filtering interface for the merged data."""
-        st.subheader("Filter Merged Data")
-        
-        # Check if we have processed data
-        if self.data is None and "bert_merged_data" not in st.session_state:
-            st.warning("No merged data available. Please merge files first.")
-            return
-        
-        # Use either instance data or session state data
-        data_to_filter = self.data
-        if data_to_filter is None and st.session_state.bert_merged_data is not None:
-            data_to_filter = st.session_state.bert_merged_data
-        
-        if data_to_filter is None or len(data_to_filter) == 0:
-            st.warning("No data available to filter.")
-            return
-        
-        st.markdown("""
-        This tab allows you to filter your merged data before exporting it for analysis. 
-        Select your filter criteria below to focus on specific subsets of reports.
-        """)
-        
-        # Create two columns for filters
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Date range filter
-            st.markdown("### 📅 Date Range")
-            
-            # Parse dates if not already datetime
-            if "date_of_report" in data_to_filter.columns:
-                if not pd.api.types.is_datetime64_any_dtype(data_to_filter["date_of_report"]):
-                    try:
-                        data_to_filter["date_of_report"] = pd.to_datetime(data_to_filter["date_of_report"])
-                    except:
-                        st.warning("Could not parse dates properly. Date filtering may not work correctly.")
-                
-                # Get min and max dates
-                min_date = data_to_filter["date_of_report"].min()
-                max_date = data_to_filter["date_of_report"].max()
-                
-                if not pd.isna(min_date) and not pd.isna(max_date):
-                    date_col1, date_col2 = st.columns(2)
-                    with date_col1:
-                        start_date = st.date_input(
-                            "From",
-                            value=min_date.date(),
-                            min_value=min_date.date(),
-                            max_value=max_date.date(),
-                            key="filter_start_date"
-                        )
-                    with date_col2:
-                        end_date = st.date_input(
-                            "To",
-                            value=max_date.date(),
-                            min_value=min_date.date(),
-                            max_value=max_date.date(),
-                            key="filter_end_date"
-                        )
-                else:
-                    st.warning("No valid dates found in the data.")
-                    start_date = None
-                    end_date = None
-            else:
-                st.warning("No date column found in the data.")
-                start_date = None
-                end_date = None
-            
-            # Year filter
-            if "year" in data_to_filter.columns:
-                st.markdown("### 📊 Year")
-                years = sorted(data_to_filter["year"].dropna().unique())
-                selected_years = st.multiselect(
-                    "Select Years",
-                    options=years,
-                    default=years,
-                    key="filter_years"
-                )
-            else:
-                selected_years = None
-            
-            # Reference number filter
-            if "ref" in data_to_filter.columns:
-                st.markdown("### 🔢 Reference Number")
-                ref_numbers = sorted(data_to_filter["ref"].dropna().unique())
-                if len(ref_numbers) > 50:
-                    ref_search = st.text_input(
-                        "Search Reference Numbers",
-                        key="filter_ref_search",
-                        help="Enter part of a reference number to filter"
-                    )
-                    if ref_search:
-                        matching_refs = [ref for ref in ref_numbers if str(ref_search).lower() in str(ref).lower()]
-                        selected_refs = st.multiselect(
-                            "Select Reference Numbers",
-                            options=matching_refs,
-                            key="filter_refs"
-                        )
-                    else:
-                        selected_refs = []
-                else:
-                    selected_refs = st.multiselect(
-                        "Select Reference Numbers",
-                        options=ref_numbers,
-                        key="filter_refs"
-                    )
-            else:
-                selected_refs = None
-        
-        with col2:
-            # Coroner name filter
-            if "coroner_name" in data_to_filter.columns:
-                st.markdown("### 👤 Coroner")
-                coroner_names = sorted(data_to_filter["coroner_name"].dropna().unique())
-                if len(coroner_names) > 30:
-                    coroner_search = st.text_input(
-                        "Search Coroner Names",
-                        key="filter_coroner_search",
-                        help="Enter part of a coroner name to filter"
-                    )
-                    if coroner_search:
-                        matching_coroners = [name for name in coroner_names 
-                                            if str(coroner_search).lower() in str(name).lower()]
-                        selected_coroners = st.multiselect(
-                            "Select Coroner Names",
-                            options=matching_coroners,
-                            key="filter_coroners"
-                        )
-                    else:
-                        selected_coroners = []
-                else:
-                    selected_coroners = st.multiselect(
-                        "Select Coroner Names",
-                        options=coroner_names,
-                        key="filter_coroners"
-                    )
-            else:
-                selected_coroners = None
-            
-            # Coroner area filter
-            if "coroner_area" in data_to_filter.columns:
-                st.markdown("### 📍 Coroner Area")
-                coroner_areas = sorted(data_to_filter["coroner_area"].dropna().unique())
-                if len(coroner_areas) > 30:
-                    area_search = st.text_input(
-                        "Search Coroner Areas",
-                        key="filter_area_search",
-                        help="Enter part of a coroner area to filter"
-                    )
-                    if area_search:
-                        matching_areas = [area for area in coroner_areas 
-                                         if str(area_search).lower() in str(area).lower()]
-                        selected_areas = st.multiselect(
-                            "Select Coroner Areas",
-                            options=matching_areas,
-                            key="filter_areas"
-                        )
-                    else:
-                        selected_areas = []
-                else:
-                    selected_areas = st.multiselect(
-                        "Select Coroner Areas",
-                        options=coroner_areas,
-                        key="filter_areas"
-                    )
-            else:
-                selected_areas = None
-            
-            # Categories filter
-            if "categories" in data_to_filter.columns:
-                st.markdown("### 🏷️ Categories")
-                
-                # Extract all unique categories
-                all_categories = set()
-                for cats in data_to_filter["categories"].dropna():
-                    if isinstance(cats, list):
-                        all_categories.update(cats)
-                    elif isinstance(cats, str):
-                        # Try to handle string representation of lists
-                        try:
-                            import ast
-                            parsed_cats = ast.literal_eval(cats)
-                            if isinstance(parsed_cats, list):
-                                all_categories.update(parsed_cats)
-                        except:
-                            # If parsing fails, treat as a single category
-                            all_categories.add(cats)
-                
-                selected_categories = st.multiselect(
-                    "Select Categories",
-                    options=sorted(all_categories),
-                    key="filter_categories"
-                )
-            else:
-                selected_categories = None
-        
-        # Apply filters button
-        if st.button("Apply Filters", type="primary"):
-            filtered_data = data_to_filter.copy()
-            
-            # Apply date filter
-            if start_date and end_date and "date_of_report" in filtered_data.columns:
-                filtered_data = filtered_data[
-                    (filtered_data["date_of_report"].dt.date >= start_date) &
-                    (filtered_data["date_of_report"].dt.date <= end_date)
-                ]
-                st.session_state.filter_message = f"Date filter: {start_date} to {end_date}"
-            
-            # Apply year filter
-            if selected_years and len(selected_years) > 0 and "year" in filtered_data.columns:
-                filtered_data = filtered_data[filtered_data["year"].isin(selected_years)]
-                st.session_state.filter_message = f"{st.session_state.get('filter_message', '')} | Years: {', '.join(map(str, selected_years))}"
-            
-            # Apply reference filter
-            if selected_refs and len(selected_refs) > 0 and "ref" in filtered_data.columns:
-                filtered_data = filtered_data[filtered_data["ref"].isin(selected_refs)]
-                st.session_state.filter_message = f"{st.session_state.get('filter_message', '')} | Refs: {len(selected_refs)} selected"
-            
-            # Apply coroner name filter
-            if selected_coroners and len(selected_coroners) > 0 and "coroner_name" in filtered_data.columns:
-                filtered_data = filtered_data[filtered_data["coroner_name"].isin(selected_coroners)]
-                st.session_state.filter_message = f"{st.session_state.get('filter_message', '')} | Coroners: {len(selected_coroners)} selected"
-            
-            # Apply coroner area filter
-            if selected_areas and len(selected_areas) > 0 and "coroner_area" in filtered_data.columns:
-                filtered_data = filtered_data[filtered_data["coroner_area"].isin(selected_areas)]
-                st.session_state.filter_message = f"{st.session_state.get('filter_message', '')} | Areas: {len(selected_areas)} selected"
-            
-            # Apply categories filter
-            if selected_categories and len(selected_categories) > 0 and "categories" in filtered_data.columns:
-                # Function to check if any selected category is in the list of categories for a row
-                def has_category(row_categories):
-                    if pd.isna(row_categories):
-                        return False
-                    
-                    # Handle different types of category storage
-                    if isinstance(row_categories, list):
-                        return any(cat in selected_categories for cat in row_categories)
-                    elif isinstance(row_categories, str):
-                        # Try to parse as list if it looks like a string representation of a list
-                        if row_categories.startswith('[') and row_categories.endswith(']'):
-                            try:
-                                import ast
-                                parsed_cats = ast.literal_eval(row_categories)
-                                if isinstance(parsed_cats, list):
-                                    return any(cat in selected_categories for cat in parsed_cats)
-                            except:
-                                pass
-                        
-                        # If parsing fails or it's not a list representation, check if it equals any selected category
-                        return row_categories in selected_categories
-                    
-                    return False
-                
-                filtered_data = filtered_data[filtered_data["categories"].apply(has_category)]
-                st.session_state.filter_message = f"{st.session_state.get('filter_message', '')} | Categories: {len(selected_categories)} selected"
-            
-            # Store the filtered data in session state
-            st.session_state.filtered_data = filtered_data
-            
-            # Summary of what was filtered
-            st.success(f"Applied filters: {len(filtered_data)} records found (out of {len(data_to_filter)})")
-        
-        # Show filtered data if available
-        if "filtered_data" in st.session_state and st.session_state.filtered_data is not None:
-            st.subheader("Filtered Data Preview")
-            
-            if st.session_state.get("filter_message"):
-                st.info(st.session_state.filter_message)
-            
-            st.dataframe(
-                st.session_state.filtered_data.head(10),
-                use_container_width=True
-            )
-            
-            # Export options for filtered data
-            self._provide_filtered_download_options(st.session_state.filtered_data)
-        
-        # Reset filters button
-        if st.button("Reset Filters"):
-            # Remove filtered data and filter message
-            if "filtered_data" in st.session_state:
-                del st.session_state.filtered_data
-            if "filter_message" in st.session_state:
-                del st.session_state.filter_message
-            
-            # Clear all filter keys
-            for key in list(st.session_state.keys()):
-                if key.startswith("filter_"):
-                    del st.session_state[key]
-            
-            st.success("Filters reset")
-            st.rerun()
-    
-    def _provide_filtered_download_options(self, df):
-        """Provide download options for filtered data"""
-        st.subheader("Export Filtered Data")
-        
-        # Generate timestamp for unique filenames
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
-        unique_id = f"{timestamp}_{random_suffix}"
-        filename_prefix = f"filtered_merged_{timestamp}"
-        
-        col1, col2 = st.columns(2)
-        
-        # CSV Export
-        with col1:
-            try:
-                # Create export copy with formatted dates
-                df_csv = df.copy()
-                if "date_of_report" in df_csv.columns and pd.api.types.is_datetime64_any_dtype(df_csv["date_of_report"]):
-                    df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
-                
-                csv_data = df_csv.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "📥 Download Filtered Data (CSV)",
-                    data=csv_data,
-                    file_name=f"{filename_prefix}.csv",
-                    mime="text/csv",
-                    key=f"download_filtered_csv_{unique_id}"
-                )
-            except Exception as e:
-                st.error(f"Error preparing CSV export: {str(e)}")
-        
-        # Excel Export
-        with col2:
-            try:
-                excel_buffer = io.BytesIO()
-                df.to_excel(excel_buffer, index=False, engine="openpyxl")
-                excel_buffer.seek(0)
-                st.download_button(
-                    "📥 Download Filtered Data (Excel)",
-                    data=excel_buffer,
-                    file_name=f"{filename_prefix}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"download_filtered_excel_{unique_id}"
-                )
-            except Exception as e:
-                st.error(f"Error preparing Excel export: {str(e)}")
-        
-        # Add Statistics Summary for the filtered data
-        with st.expander("Filtered Data Statistics"):
-            # Show basic statistics
-            st.write(f"Total Records: {len(df)}")
-            
-            # Year distribution if available
-            if "year" in df.columns:
-                year_counts = df["year"].value_counts().sort_index()
-                st.write("Year Distribution:")
-                year_data = pd.DataFrame({
-                    "Year": year_counts.index,
-                    "Count": year_counts.values
-                })
-                st.bar_chart(year_data.set_index("Year"))
-            
-            # Coroner area distribution if available
-            if "coroner_area" in df.columns:
-                area_counts = df["coroner_area"].value_counts().head(10)
-                st.write("Top Coroner Areas:")
-                area_data = pd.DataFrame({
-                    "Area": area_counts.index,
-                    "Count": area_counts.values
-                })
-                st.bar_chart(area_data.set_index("Area"))
-            
-            # Categories distribution if available
-            if "categories" in df.columns:
-                # Extract all categories
-                cat_counts = {}
-                for cats in df["categories"].dropna():
-                    if isinstance(cats, list):
-                        for cat in cats:
-                            cat_counts[cat] = cat_counts.get(cat, 0) + 1
-                    elif isinstance(cats, str):
-                        # Try to parse as list
-                        try:
-                            import ast
-                            parsed_cats = ast.literal_eval(cats)
-                            if isinstance(parsed_cats, list):
-                                for cat in parsed_cats:
-                                    cat_counts[cat] = cat_counts.get(cat, 0) + 1
-                        except:
-                            # If parsing fails, treat as a single category
-                            cat_counts[cats] = cat_counts.get(cats, 0) + 1
-                
-                if cat_counts:
-                    # Sort by count and get top 10
-                    top_cats = sorted(cat_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-                    st.write("Top Categories:")
-                    cat_data = pd.DataFrame({
-                        "Category": [cat for cat, count in top_cats],
-                        "Count": [count for cat, count in top_cats]
-                    })
-                    st.bar_chart(cat_data.set_index("Category"))
-
     # End of BERTResultsAnalyzer class
+
 
 ###########################
 class ThemeAnalyzer:
@@ -8807,8 +8495,11 @@ def render_bert_file_merger():
     # Create an instance of the analyzer
     analyzer = BERTResultsAnalyzer()
     
-    # Use the tabbed interface from render_analyzer_ui
-    analyzer.render_analyzer_ui()
+    # Skip the standard render_analyzer_ui and call the file upload directly
+    # This avoids the duplicate header and description
+    analyzer._render_multiple_file_upload()
+
+
 
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
