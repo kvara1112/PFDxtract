@@ -4717,7 +4717,7 @@ def render_scraping_tab():
     # Initialize default values if not in session state
     if "init_done" not in st.session_state:
         st.session_state.init_done = True
-        st.session_state["search_keyword_default"] = "report"
+        st.session_state["search_keyword_default"] = ""  # Changed from "report" to empty string
         st.session_state["category_default"] = ""
         st.session_state["order_default"] = "relevance"
         st.session_state["start_page_default"] = 1
@@ -4755,7 +4755,7 @@ def render_scraping_tab():
         with row1_col1:
             search_keyword = st.text_input(
                 "Search keywords:",
-                value=st.session_state.get("search_keyword_default", ""),
+                value=st.session_state.get("search_keyword_default", ""),  # Changed default to empty
                 key="search_keyword",
                 help="Do not leave empty, use 'report' or another search term",
             )
@@ -4924,7 +4924,6 @@ def render_scraping_tab():
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
-            
 
 def scrape_pfd_reports2(
     keyword: Optional[str] = None,
