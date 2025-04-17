@@ -988,7 +988,27 @@ class BERTResultsAnalyzer:
                 st.success(
                     f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)"
                 )
+        #
 
+        # Clean coroner_area column
+        if "coroner_area" in merged_df.columns:
+            before_cleaning = merged_df["coroner_area"].copy()
+            merged_df = self._clean_coroner_areas(merged_df)
+            
+            # Count changes made
+            changes_made = sum(before_cleaning != merged_df["coroner_area"])
+            if changes_made > 0:
+                st.success(f"Cleaned {changes_made} coroner area entries")
+                
+                # Show the first few changes as an example
+                example_changes = []
+                for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_area"])):
+                    if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
+                        example_changes.append(f"'{old}' → '{new}'")
+                
+                if example_changes:
+                    st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
+                    
         # Store the result
         self.data = merged_df
 
@@ -1031,6 +1051,54 @@ class BERTResultsAnalyzer:
         ].copy()
 
         return missing_concerns
+
+
+    def _clean_coroner_areas(self, df):
+        """
+        Clean coroner_area column by removing everything starting from 'Category:'
+        
+        Args:
+            df (pd.DataFrame): DataFrame containing a 'coroner_area' column
+            
+        Returns:
+            pd.DataFrame: DataFrame with cleaned 'coroner_area' column
+        """
+        if df is None or len(df) == 0 or 'coroner_area' not in df.columns:
+            return df
+        
+        # Create a copy to avoid modifying the original
+        cleaned_df = df.copy()
+        
+        # Define the cleaning function
+        def clean_coroner_area(area_text):
+            if pd.isna(area_text) or not isinstance(area_text, str):
+                return area_text
+            
+            # Find the position of 'Category'
+            category_pos = area_text.find('Category')
+            
+            # If 'Category' is found, truncate the text
+            if category_pos != -1:
+                return area_text[:category_pos].strip()
+            
+            # If 'Category' is not found, try alternative patterns that might appear
+            # Like "This report is being sent to:"
+            report_sent_pos = area_text.find('This report is being sent to')
+            if report_sent_pos != -1:
+                return area_text[:report_sent_pos].strip()
+            
+            # Try with just a pipe character, which often separates coroner area from categories
+            pipe_pos = area_text.find('|')
+            if pipe_pos != -1:
+                return area_text[:pipe_pos].strip()
+            
+            # If none of the patterns are found, return the original text
+            return area_text.strip()
+        
+        # Apply the cleaning function
+        cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_coroner_area)
+        
+        return cleaned_df
 
     # End of BERTResultsAnalyzer class
 
