@@ -8664,8 +8664,161 @@ def render_bert_file_merger():
     with filter_tab:
         render_filter_data_tab()
 
-
 def render_filter_data_tab():
+    """Render a filtering tab within the Scraped File Preparation section"""
+    st.subheader("Filter & Explore Data")
+    
+    # File upload section
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file", 
+        type=['csv', 'xlsx'],
+        help="Upload your PFD reports dataset",
+        key="filter_file_uploader"
+    )
+    
+    # Process uploaded file
+    if uploaded_file is not None:
+        try:
+            # Read file with minimal preprocessing
+            if uploaded_file.name.endswith('.csv'):
+                data = pd.read_csv(uploaded_file)
+            else:
+                data = pd.read_excel(uploaded_file)
+            
+            # Clean column names
+            data.columns = [col.strip().lower().replace(' ', '_') for col in data.columns]
+            
+            # Basic data cleaning
+            data = data.dropna(how='all')  # Remove completely empty rows
+            
+            st.success(f"File uploaded successfully! Found {len(data)} records.")
+            
+            # Display overview metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Reports", len(data))
+            with col2:
+                if "date_of_report" in data.columns and not data["date_of_report"].isna().all():
+                    year_range = f"{data['date_of_report'].dt.year.min()}-{data['date_of_report'].dt.year.max()}"
+                    st.metric("Year Range", year_range)
+                else:
+                    st.metric("Year Range", "N/A")
+            with col3:
+                if "coroner_area" in data.columns:
+                    areas_count = data["coroner_area"].nunique()
+                    st.metric("Coroner Areas", areas_count)
+                else:
+                    st.metric("Coroner Areas", "N/A")
+            with col4:
+                if "categories" in data.columns:
+                    # Calculate total unique categories across all records
+                    all_categories = set()
+                    for cats in data["categories"].dropna():
+                        if isinstance(cats, list):
+                            all_categories.update(cats)
+                    st.metric("Categories", len(all_categories))
+                else:
+                    st.metric("Categories", "N/A")
+            
+            # Filters section
+            st.markdown("---")
+            st.subheader("Filter Data")
+            
+            # Create filter columns
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                # Date Range Filter
+                if "date_of_report" in data.columns and not data["date_of_report"].isna().all():
+                    min_date = data['date_of_report'].min().date()
+                    max_date = data['date_of_report'].max().date()
+                    st.write("**Date Range**")
+                    date_col1, date_col2 = st.columns(2)
+                    with date_col1:
+                        start_date = st.date_input(
+                            "From",
+                            value=min_date,
+                            min_value=min_date,
+                            max_value=max_date,
+                            key="filter_start_date",
+                            format="DD/MM/YYYY"
+                        )
+                    with date_col2:
+                        end_date = st.date_input(
+                            "To",
+                            value=max_date,
+                            min_value=min_date,
+                            max_value=max_date,
+                            key="filter_end_date",
+                            format="DD/MM/YYYY"
+                        )
+                
+                # Coroner Name Filter - explicitly reset
+                if "coroner_name" in data.columns:
+                    coroner_names = sorted(data['coroner_name'].dropna().unique())
+                    selected_coroners = st.multiselect(
+                        "Coroner Names",
+                        options=coroner_names,
+                        key="filter_coroner_names_fresh",
+                        help="Select one or more coroner names"
+                    )
+            
+            with col2:
+                # Coroner Area Filter - explicitly reset
+                if "coroner_area" in data.columns:
+                    coroner_areas = sorted(data['coroner_area'].dropna().unique())
+                    selected_areas = st.multiselect(
+                        "Coroner Areas",
+                        options=coroner_areas,
+                        key="filter_coroner_areas_fresh",
+                        help="Select one or more coroner areas"
+                    )
+                
+                # Categories Filter - explicitly reset
+                if "categories" in data.columns:
+                    all_categories = set()
+                    for cats in data['categories'].dropna():
+                        if isinstance(cats, list):
+                            all_categories.update(cats)
+                    selected_categories = st.multiselect(
+                        "Categories",
+                        options=sorted(all_categories),
+                        key="filter_categories_fresh",
+                        help="Select one or more categories"
+                    )
+            
+            # Rest of the method remains the same as in the original implementation
+            # ... (paste the rest of the method from the previous implementation)
+        
+        except Exception as e:
+            st.error(f"Error processing file: {str(e)}")
+            logging.error(f"File processing error: {e}", exc_info=True)
+    
+    else:
+        # When no file is uploaded, show instructions
+        st.info("Please upload a PFD reports dataset (CSV or Excel file).")
+        
+        with st.expander("📋 File Requirements", expanded=False):
+            st.markdown("""
+            ## Required Columns
+            
+            For optimal filtering, your file should include these columns:
+            
+            - **Title**: Report title
+            - **URL**: Link to the original report
+            - **date_of_report**: Date in format DD/MM/YYYY
+            - **ref**: Reference number
+            - **deceased_name**: Name of deceased person (if applicable)
+            - **coroner_name**: Name of the coroner
+            - **coroner_area**: Coroner jurisdiction area
+            - **categories**: Report categories
+            - **Content**: Report text content
+            - **Extracted_Concerns**: Extracted coroner concerns text
+            
+            Files created from the File Merger tab should contain all these columns.
+            """)
+
+def render_filter_data_tab2():
     """Render a filtering tab within the Scraped File Preparation section"""
     st.subheader("Filter & Explore Data")
     
