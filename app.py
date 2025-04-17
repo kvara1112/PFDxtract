@@ -10689,7 +10689,8 @@ def main():
         
             if hasattr(st.session_state, "data_source"):
                 st.info(f"Current data: {st.session_state.data_source}")
-            
+
+            #
             if st.button("Clear All Data", key="clear_all_data_button"):
                 # Define a comprehensive list of keys to clear
                 keys_to_clear = [
@@ -10723,16 +10724,6 @@ def main():
                     "fill_empty_content_static",
                     "duplicate_columns_static",
                     "merge_files_button_static",
-                    
-                    # Filter keys used in the dashboard
-                    "start_date_filter",
-                    "end_date_filter",
-                    "doc_type_filter",
-                    "ref_filter",
-                    "deceased_filter",
-                    "coroner_filter",
-                    "areas_filter",
-                    "categories_filter",
                 ]
                 
                 # Clear each key if it exists
@@ -10751,6 +10742,15 @@ def main():
                 st.session_state.bert_merged_data = None
                 st.session_state.dashboard_data = None
                 
+                # Clear all filter-related keys
+                for key in list(st.session_state.keys()):
+                    if key.startswith('filter_'):
+                        del st.session_state[key]
+                
+                # Clear any cached file information
+                if 'last_uploaded_file_hash' in st.session_state:
+                    del st.session_state.last_uploaded_file_hash
+                
                 # Generate a unique key for file uploaders to force reload
                 if "reset_counter" not in st.session_state:
                     st.session_state.reset_counter = 0
@@ -10760,6 +10760,8 @@ def main():
                 st.success("All data cleared successfully")
                 time.sleep(0.5)  # Brief pause to ensure UI updates
                 st.rerun()
+
+    
 
             # Add logout button
             if st.button("Logout"):
