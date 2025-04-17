@@ -8615,17 +8615,20 @@ def render_bert_file_merger():
         render_filter_data_tab()
 
 
-
 def render_filter_data_tab():
     """Render a filtering tab within the Scraped File Preparation section"""
     st.subheader("Filter & Explore Data")
+    
+    # Generate a unique key for file uploader based on session state counter
+    # This forces the uploader to reset when needed
+    upload_key = f"filter_file_uploader_{st.session_state.get('reset_counter', 0)}"
     
     # File upload section
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file", 
         type=['csv', 'xlsx'],
         help="Upload your PFD reports dataset",
-        key="filter_file_uploader"
+        key=upload_key
     )
     
     # Process uploaded file
@@ -8640,8 +8643,9 @@ def render_filter_data_tab():
             data = process_scraped_data(data)
             st.success(f"File uploaded successfully! Found {len(data)} records.")
             
-            # Update session state
+            # Update session state - save both the full data and upload timestamp
             st.session_state.filtered_data = data.copy()
+            st.session_state.filtered_data_timestamp = time.time()
             
             # Display overview metrics
             col1, col2, col3, col4 = st.columns(4)
@@ -8677,15 +8681,15 @@ def render_filter_data_tab():
             st.markdown("---")
             st.subheader("Filter Data")
             
-            # Create filter columns
-            col1, col2 = st.columns(2)
+            # Create filter columns - make them more compact
+            col1, col2, col3 = st.columns(3)
             
             with col1:
                 # Date Range Filter
                 if "date_of_report" in data.columns and not data["date_of_report"].isna().all():
                     min_date = data['date_of_report'].min().date()
                     max_date = data['date_of_report'].max().date()
-                    st.write("**Date Range**")
+                    st.write("**Date Range**", help="Filter by date range")
                     date_col1, date_col2 = st.columns(2)
                     with date_col1:
                         start_date = st.date_input(
@@ -8693,7 +8697,7 @@ def render_filter_data_tab():
                             value=min_date,
                             min_value=min_date,
                             max_value=max_date,
-                            key="filter_start_date",
+                            key=f"filter_start_date_{st.session_state.get('reset_counter', 0)}",
                             format="DD/MM/YYYY"
                         )
                     with date_col2:
@@ -8702,31 +8706,39 @@ def render_filter_data_tab():
                             value=max_date,
                             min_value=min_date,
                             max_value=max_date,
-                            key="filter_end_date",
+                            key=f"filter_end_date_{st.session_state.get('reset_counter', 0)}",
                             format="DD/MM/YYYY"
                         )
-                
-                # Coroner Name Filter
+            
+            with col2:
+                # Coroner Name Filter - using the current data only
                 if "coroner_name" in data.columns:
                     coroner_names = sorted(data['coroner_name'].dropna().unique())
                     selected_coroners = st.multiselect(
                         "Coroner Names",
                         options=coroner_names,
-                        key="filter_coroner_names",
-                        help="Select one or more coroner names"
+                        key=f"filter_coroner_names_{st.session_state.get('reset_counter', 0)}",
+                        help="Select one or more coroner names",
+                        placeholder="Select coroner names"
                     )
             
-            with col2:
-                # Coroner Area Filter
+            with col3:
+                # Coroner Area Filter - ONLY use the current data, with a shorter height
                 if "coroner_area" in data.columns:
                     coroner_areas = sorted(data['coroner_area'].dropna().unique())
                     selected_areas = st.multiselect(
                         "Coroner Areas",
                         options=coroner_areas,
-                        key="filter_coroner_areas",
-                        help="Select one or more coroner areas"
+                        key=f"filter_coroner_areas_{st.session_state.get('reset_counter', 0)}",
+                        help="Select one or more coroner areas",
+                        placeholder="Select coroner areas",
+                        max_selections=5  # Limit visible selections to keep height reasonable
                     )
-                
+            
+            # Second row of filters
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
                 # Categories Filter
                 if "categories" in data.columns:
                     all_categories = set()
@@ -8736,38 +8748,42 @@ def render_filter_data_tab():
                     selected_categories = st.multiselect(
                         "Categories",
                         options=sorted(all_categories),
-                        key="filter_categories",
-                        help="Select one or more categories"
+                        key=f"filter_categories_{st.session_state.get('reset_counter', 0)}",
+                        help="Select one or more categories",
+                        placeholder="Select categories"
                     )
             
-            # Additional filters
-            st.write("**Additional Filters**")
-            col1, col2 = st.columns(2)
-            
-            with col1:
+            with col2:
                 # Deceased Name Filter
                 deceased_search = st.text_input(
                     "Deceased Name",
-                    key="filter_deceased_name",
-                    help="Enter partial or full name"
+                    key=f"filter_deceased_name_{st.session_state.get('reset_counter', 0)}",
+                    help="Enter partial or full name",
+                    placeholder="Enter name to search"
                 )
             
-            with col2:
+            with col3:
                 # Reference Number Filter
                 if "ref" in data.columns:
                     ref_numbers = sorted(data['ref'].dropna().unique())
                     selected_refs = st.multiselect(
                         "Reference Numbers",
                         options=ref_numbers,
-                        key="filter_ref_numbers"
+                        key=f"filter_ref_numbers_{st.session_state.get('reset_counter', 0)}",
+                        help="Select reference numbers",
+                        placeholder="Select reference numbers"
                     )
-                
+            
+            # Third row with additional filters
+            col1, col2 = st.columns(2)
+            
+            with col1:
                 # Option to exclude records without extracted concerns
                 if "Extracted_Concerns" in data.columns:
                     exclude_no_concerns = st.checkbox(
                         "Exclude records without extracted concerns",
                         value=False,
-                        key="filter_exclude_no_concerns",
+                        key=f"filter_exclude_no_concerns_{st.session_state.get('reset_counter', 0)}",
                         help="Show only records with extracted coroner concerns"
                     )
                 
@@ -8781,19 +8797,21 @@ def render_filter_data_tab():
                             min_year, 
                             max_year, 
                             (min_year, max_year),
-                            key="filter_years"
+                            key=f"filter_years_{st.session_state.get('reset_counter', 0)}"
                         )
             
-            # Keyword search for content
-            if "Content" in data.columns:
-                keyword_search = st.text_input(
-                    "Search in Content",
-                    key="filter_keyword_search",
-                    help="Enter keywords to search within report content"
-                )
+            with col2:
+                # Keyword search for content
+                if "Content" in data.columns:
+                    keyword_search = st.text_input(
+                        "Search in Content",
+                        key=f"filter_keyword_search_{st.session_state.get('reset_counter', 0)}",
+                        help="Enter keywords to search within report content",
+                        placeholder="Enter keywords to search"
+                    )
             
             # Reset Filters Button
-            if st.button("🔄 Reset Filters", key="reset_filters_button"):
+            if st.button("🔄 Reset Filters", key=f"reset_filters_button_{st.session_state.get('reset_counter', 0)}"):
                 # Only clear filter-related keys, not the data itself
                 for key in list(st.session_state.keys()):
                     if key.startswith('filter_'):
@@ -8946,7 +8964,7 @@ def render_filter_data_tab():
                         csv,
                         f"filtered_reports_{timestamp}.csv",
                         "text/csv",
-                        key="download_filtered_csv"
+                        key=f"download_filtered_csv_{st.session_state.get('reset_counter', 0)}"
                     )
                 
                 with col2:
@@ -8957,7 +8975,7 @@ def render_filter_data_tab():
                         excel_data,
                         f"filtered_reports_{timestamp}.xlsx",
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key="download_filtered_excel"
+                        key=f"download_filtered_excel_{st.session_state.get('reset_counter', 0)}"
                     )
                 
                 # PDF Download Section
@@ -9035,7 +9053,7 @@ def render_filter_data_tab():
                             zip_buffer,
                             f"filtered_pdfs_{timestamp}.zip",
                             "application/zip",
-                            key="download_filtered_pdfs"
+                            key=f"download_filtered_pdfs_{st.session_state.get('reset_counter', 0)}"
                         )
                             
                     except Exception as e:
