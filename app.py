@@ -1931,15 +1931,6 @@ class ThemeAnalyzer:
             
             return f"linear-gradient(135deg, {', '.join(stops)})"
 
-
-
-
-######
-
-
-
-    
-
     
     def _get_theme_color(self, theme_key):
         """Get a consistent color for a specific theme"""
@@ -8736,6 +8727,90 @@ def render_filter_data_tab():
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         key="download_filtered_excel"
                     )
+                
+                # PDF Download Section
+                if any(col.startswith("pdf_") and col.endswith("_path") for col in filtered_df.columns):
+                    st.subheader("Download PDFs")
+                    try:
+                        # Create the ZIP file in memory
+                        zip_buffer = io.BytesIO()
+                        
+                        with zipfile.ZipFile(zip_buffer, "w") as zipf:
+                            pdf_columns = [col for col in filtered_df.columns if col.startswith("pdf_") and col.endswith("_path")]
+                            added_files = set()
+                            pdf_count = 0
+                            folders_created = set()
+                            
+                            # Process each PDF file
+                            for idx, row in filtered_df.iterrows():
+                                # Build folder name using ref and deceased_name
+                                folder_parts = []
+                                
+                                # Add reference number if available
+                                if "ref" in row and pd.notna(row["ref"]):
+                                    folder_parts.append(str(row["ref"]))
+                                
+                                # Add deceased name if available
+                                if "deceased_name" in row and pd.notna(row["deceased_name"]):
+                                    # Clean up deceased name for folder name
+                                    deceased_name = str(row["deceased_name"])
+                                    # Remove invalid characters for folder names
+                                    clean_name = re.sub(r'[<>:"/\\|?*]', '_', deceased_name)
+                                    # Limit folder name length
+                                    clean_name = clean_name[:50].strip()
+                                    folder_parts.append(clean_name)
+                                
+                                # Create folder name from parts
+                                if folder_parts:
+                                    folder_name = "_".join(folder_parts)
+                                else:
+                                    # Fallback if no ref or deceased name
+                                    record_id = str(row.get("record_id", idx))
+                                    folder_name = f"report_{record_id}"
+                                
+                                # Add year to folder if available
+                                if "year" in row and pd.notna(row["year"]):
+                                    folder_name = f"{folder_name}_{row['year']}"
+                                
+                                # Keep track of created folders
+                                folders_created.add(folder_name)
+                                
+                                # Process each PDF for this row
+                                for col in pdf_columns:
+                                    pdf_path = row.get(col)
+                                    if pd.isna(pdf_path) or not pdf_path or not os.path.exists(pdf_path) or pdf_path in added_files:
+                                        continue
+                                    
+                                    # Get the original filename without any modifications
+                                    original_filename = os.path.basename(pdf_path)
+                                    
+                                    # Create archive path with folder structure
+                                    zip_path = f"{folder_name}/{original_filename}"
+                                    
+                                    # Read the file content and write it to the ZIP
+                                    with open(pdf_path, 'rb') as file:
+                                        zipf.writestr(zip_path, file.read())
+                                    
+                                    added_files.add(pdf_path)
+                                    pdf_count += 1
+                        
+                        # Reset buffer position
+                        zip_buffer.seek(0)
+                        
+                        # PDF Download Button with Unique Key
+                        st.download_button(
+                            f"📦 Download All PDFs ({pdf_count} files in {len(folders_created)} case folders)",
+                            zip_buffer,
+                            f"filtered_pdfs_{timestamp}.zip",
+                            "application/zip",
+                            key="download_filtered_pdfs"
+                        )
+                            
+                    except Exception as e:
+                        st.error(f"Error preparing PDF download: {str(e)}")
+                        logging.error(f"PDF download error: {e}", exc_info=True)
+
+
                 
                 # PDF Download Section
                 if any(col.startswith("pdf_") and col.endswith("_path") for col in filtered_df.columns):
