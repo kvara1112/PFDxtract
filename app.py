@@ -8681,38 +8681,29 @@ def render_filter_data_tab():
             st.markdown("---")
             st.subheader("Filtered Results")
             st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
-            
+
             if len(filtered_df) > 0:
-                # Display the filtered dataframe
-                # Determine available columns for display
-                display_cols = []
+                # Determine columns to display
+                display_cols = list(filtered_df.columns)
+                
+                # Create column configuration to preserve original names
                 column_config = {}
                 
-                # Priority columns for display
-                priority_cols = ["title", "url", "date_of_report", "ref", "deceased_name", 
-                                "coroner_name", "coroner_area", "categories"]
+                # Special handling for date and URL columns
+                for col in display_cols:
+                    if 'date' in col.lower():
+                        column_config[col] = st.column_config.DateColumn(col, format="DD/MM/YYYY")
+                    elif col.lower() == 'url':
+                        column_config[col] = st.column_config.LinkColumn(col)
                 
-                for col in priority_cols:
-                    if col in filtered_df.columns:
-                        display_cols.append(col)
-                        
-                        # Special column configurations
-                        if col == "url":
-                            column_config[col] = st.column_config.LinkColumn("Report Link")
-                        elif col == "date_of_report":
-                            column_config[col] = st.column_config.DateColumn(
-                                "Date of Report",
-                                format="DD/MM/YYYY"
-                            )
-                
-                # Display dataframe with appropriate columns
-                if display_cols:
-                    st.dataframe(
-                        filtered_df[display_cols],
-                        column_config=column_config,
-                        hide_index=True,
-                        use_container_width=True
-                    )
+                # Display the dataframe using the original column names
+                st.dataframe(
+                    filtered_df[display_cols],
+                    column_config=column_config,
+                    hide_index=True,
+                    use_container_width=True
+                )
+
                 else:
                     # Fallback if priority columns not found
                     st.dataframe(filtered_df, use_container_width=True)
