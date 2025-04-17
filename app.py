@@ -6089,11 +6089,6 @@ def initialize_session_state():
             "max_features": 1000,
             "similarity_threshold": 0.3,
         }
-        
-        # Clear any filter-related keys
-        for key in list(st.session_state.keys()):
-            if key.startswith('filter_'):
-                del st.session_state[key]
     
     # Perform PDF cleanup if not done
     if not st.session_state.get("cleanup_done", False):
@@ -6121,6 +6116,61 @@ def initialize_session_state():
         finally:
             st.session_state.cleanup_done = True
             
+def initialize_session_state2():
+    """Initialize all required session state variables"""
+    # Initialize basic state variables if they don't exist
+    if not hasattr(st.session_state, "initialized"):
+        # Clear all existing session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+
+        # Set new session state variables
+        st.session_state.data_source = None
+        st.session_state.current_data = None
+        st.session_state.scraped_data = None
+        st.session_state.uploaded_data = None
+        st.session_state.topic_model = None
+        st.session_state.cleanup_done = False
+        st.session_state.last_scrape_time = None
+        st.session_state.last_upload_time = None
+        st.session_state.analysis_filters = {
+            "date_range": None,
+            "selected_categories": None,
+            "selected_areas": None,
+        }
+        st.session_state.topic_model_settings = {
+            "num_topics": 5,
+            "max_features": 1000,
+            "similarity_threshold": 0.3,
+        }
+        st.session_state.initialized = True
+
+    # Perform PDF cleanup if not done
+    if not st.session_state.cleanup_done:
+        try:
+            pdf_dir = "pdfs"
+            os.makedirs(pdf_dir, exist_ok=True)
+
+            current_time = time.time()
+            cleanup_count = 0
+
+            for file in os.listdir(pdf_dir):
+                file_path = os.path.join(pdf_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        if os.stat(file_path).st_mtime < current_time - 86400:
+                            os.remove(file_path)
+                            cleanup_count += 1
+                except Exception as e:
+                    logging.warning(f"Error cleaning up file {file_path}: {e}")
+                    continue
+
+            if cleanup_count > 0:
+                logging.info(f"Cleaned up {cleanup_count} old PDF files")
+        except Exception as e:
+            logging.error(f"Error during PDF cleanup: {e}")
+        finally:
+            st.session_state.cleanup_done = True
 
 
 def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
@@ -8614,39 +8664,18 @@ def render_bert_file_merger():
     with filter_tab:
         render_filter_data_tab()
 
+
 def render_filter_data_tab():
     """Render a filtering tab within the Scraped File Preparation section"""
     st.subheader("Filter & Explore Data")
-    
-    # Keep track of file uploads with a unique ID to force component resets
-    file_uploader_key = f"filter_file_uploader_{st.session_state.get('reset_counter', 0)}"
-    
-    # Flag to track if we just uploaded a new file
-    new_file_uploaded = False
     
     # File upload section
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file", 
         type=['csv', 'xlsx'],
         help="Upload your PFD reports dataset",
-        key=file_uploader_key
+        key="filter_file_uploader"
     )
-    
-    # Check if we have a new file upload
-    if uploaded_file is not None:
-        # Get current file hash to detect changes
-        current_file_hash = hash(uploaded_file.name + str(uploaded_file.size))
-        
-        # Compare with previous hash
-        if 'last_uploaded_file_hash' not in st.session_state or st.session_state.last_uploaded_file_hash != current_file_hash:
-            # This is a new file - mark for full state reset
-            new_file_uploaded = True
-            st.session_state.last_uploaded_file_hash = current_file_hash
-            
-            # Clear all filter-related keys to ensure fresh state
-            for key in list(st.session_state.keys()):
-                if key.startswith('filter_'):
-                    del st.session_state[key]
     
     # Process uploaded file
     if uploaded_file is not None:
@@ -8662,7 +8691,6 @@ def render_filter_data_tab():
             
             # Update session state
             st.session_state.filtered_data = data.copy()
-            st.session_state.filtered_data_timestamp = time.time()
             
             # Display overview metrics
             col1, col2, col3, col4 = st.columns(4)
@@ -8670,10 +8698,7 @@ def render_filter_data_tab():
                 st.metric("Total Reports", len(data))
             with col2:
                 if "date_of_report" in data.columns and not data["date_of_report"].isna().all():
-                    # Format year range with integers instead of decimals
-                    min_year = int(data['date_of_report'].dt.year.min())
-                    max_year = int(data['date_of_report'].dt.year.max())
-                    year_range = f"{min_year}-{max_year}"
+                    year_range = f"{data['date_of_report'].dt.year.min()}-{data['date_of_report'].dt.year.max()}"
                     st.metric("Year Range", year_range)
                 else:
                     st.metric("Year Range", "N/A")
@@ -8698,135 +8723,227 @@ def render_filter_data_tab():
             st.markdown("---")
             st.subheader("Filter Data")
             
-            # Create a clean layout with consistent spacing
-            date_col, coroner_col = st.columns(2)
+            # Create filter columns
+            col1, col2 = st.columns(2)
             
-            with date_col:
+            with col1:
                 # Date Range Filter
                 if "date_of_report" in data.columns and not data["date_of_report"].isna().all():
                     min_date = data['date_of_report'].min().date()
                     max_date = data['date_of_report'].max().date()
                     st.write("**Date Range**")
-                    from_col, to_col = st.columns(2)
-                    with from_col:
+                    date_col1, date_col2 = st.columns(2)
+                    with date_col1:
                         start_date = st.date_input(
                             "From",
                             value=min_date,
                             min_value=min_date,
                             max_value=max_date,
-                            key=f"filter_start_date_{st.session_state.get('reset_counter', 0)}",
+                            key="filter_start_date",
                             format="DD/MM/YYYY"
                         )
-                    with to_col:
+                    with date_col2:
                         end_date = st.date_input(
                             "To",
                             value=max_date,
                             min_value=min_date,
                             max_value=max_date,
-                            key=f"filter_end_date_{st.session_state.get('reset_counter', 0)}",
+                            key="filter_end_date",
                             format="DD/MM/YYYY"
                         )
-            
-            with coroner_col:
-                # Coroner Names
+                
+                # Coroner Name Filter
                 if "coroner_name" in data.columns:
                     coroner_names = sorted(data['coroner_name'].dropna().unique())
-                    st.selectbox(
+                    selected_coroners = st.multiselect(
                         "Coroner Names",
-                        options=["Select coroner names"] + coroner_names,
-                        key=f"filter_coroner_names_{st.session_state.get('reset_counter', 0)}",
-                        help="Select a coroner name"
+                        options=coroner_names,
+                        key="filter_coroner_names",
+                        help="Select one or more coroner names"
                     )
             
-            # Categories and Coroner Areas
-            cat_col, area_col = st.columns(2)
-            
-            with cat_col:
+            with col2:
+                # Coroner Area Filter
+                if "coroner_area" in data.columns:
+                    coroner_areas = sorted(data['coroner_area'].dropna().unique())
+                    selected_areas = st.multiselect(
+                        "Coroner Areas",
+                        options=coroner_areas,
+                        key="filter_coroner_areas",
+                        help="Select one or more coroner areas"
+                    )
+                
                 # Categories Filter
                 if "categories" in data.columns:
                     all_categories = set()
                     for cats in data['categories'].dropna():
                         if isinstance(cats, list):
                             all_categories.update(cats)
-                    st.selectbox(
+                    selected_categories = st.multiselect(
                         "Categories",
-                        options=["Select categories"] + sorted(all_categories),
-                        key=f"filter_categories_{st.session_state.get('reset_counter', 0)}",
-                        help="Select a category"
+                        options=sorted(all_categories),
+                        key="filter_categories",
+                        help="Select one or more categories"
                     )
             
-            with area_col:
-                # Coroner Area Filter
-                if "coroner_area" in data.columns:
-                    # Extract ONLY coroner areas from the current data
-                    coroner_areas = sorted(data['coroner_area'].dropna().unique())
-                    st.selectbox(
-                        "Coroner Areas",
-                        options=["Select coroner areas"] + coroner_areas,
-                        key=f"filter_coroner_areas_{time.time()}",  # Use timestamp to force refresh
-                        help="Select a coroner area"
-                    )
+            # Additional filters
+            st.write("**Additional Filters**")
+            col1, col2 = st.columns(2)
             
-            # Additional filters row
-            ref_col, deceased_col = st.columns(2)
-            
-            with ref_col:
-                # Reference Numbers
-                if "ref" in data.columns:
-                    ref_numbers = sorted(data['ref'].dropna().unique())
-                    st.selectbox(
-                        "Reference Numbers",
-                        options=["Select reference numbers"] + ref_numbers,
-                        key=f"filter_ref_numbers_{st.session_state.get('reset_counter', 0)}",
-                        help="Select a reference number"
-                    )
-            
-            with deceased_col:
+            with col1:
+                # Document Type Filter
+                doc_type = st.multiselect(
+                    "Document Type",
+                    ["Report", "Response"],
+                    default=[],
+                    key="filter_doc_type",
+                    help="Filter by document type"
+                )
+                
                 # Deceased Name Filter
                 deceased_search = st.text_input(
                     "Deceased Name",
-                    key=f"filter_deceased_name_{st.session_state.get('reset_counter', 0)}",
-                    help="Enter partial or full name",
-                    placeholder="Enter name to search"
+                    key="filter_deceased_name",
+                    help="Enter partial or full name"
                 )
             
-            # Concerns and Content Search
-            concerns_col, search_col = st.columns(2)
-            
-            with concerns_col:
+            with col2:
+                # Reference Number Filter
+                if "ref" in data.columns:
+                    ref_numbers = sorted(data['ref'].dropna().unique())
+                    selected_refs = st.multiselect(
+                        "Reference Numbers",
+                        options=ref_numbers,
+                        key="filter_ref_numbers"
+                    )
+                
                 # Option to exclude records without extracted concerns
                 if "Extracted_Concerns" in data.columns:
                     exclude_no_concerns = st.checkbox(
                         "Exclude records without extracted concerns",
                         value=False,
-                        key=f"filter_exclude_no_concerns_{st.session_state.get('reset_counter', 0)}",
+                        key="filter_exclude_no_concerns",
                         help="Show only records with extracted coroner concerns"
                     )
+                
+                # Year Filter if date_of_report not available
+                if "year" in data.columns and "date_of_report" not in data.columns:
+                    years = sorted(data['year'].dropna().unique())
+                    if years:
+                        min_year, max_year = min(years), max(years)
+                        selected_years = st.slider(
+                            "Year Range", 
+                            min_year, 
+                            max_year, 
+                            (min_year, max_year),
+                            key="filter_years"
+                        )
             
-            with search_col:
-                # Keyword search for content
-                if "Content" in data.columns:
-                    keyword_search = st.text_input(
-                        "Search in Content",
-                        key=f"filter_keyword_search_{st.session_state.get('reset_counter', 0)}",
-                        help="Enter keywords to search within report content",
-                        placeholder="Enter keywords to search"
-                    )
+            # Keyword search for content
+            if "Content" in data.columns:
+                keyword_search = st.text_input(
+                    "Search in Content",
+                    key="filter_keyword_search",
+                    help="Enter keywords to search within report content"
+                )
             
             # Reset Filters Button
-            if st.button("🔄 Reset Filters", key=f"reset_filters_button_{st.session_state.get('reset_counter', 0)}"):
-                # Clear all filter-related keys to reset filters
-                for key in list(st.session_state.keys()):
+            if st.button("🔄 Reset Filters", key="reset_filters_button"):
+                for key in st.session_state:
                     if key.startswith('filter_'):
                         del st.session_state[key]
-                
-                # Force a complete component refresh
-                st.session_state.reset_counter = st.session_state.get('reset_counter', 0) + 1
                 st.rerun()
             
             # Apply filters to data
             filtered_df = data.copy()
             active_filters = []
+            
+            # Date filter
+            if "date_of_report" in filtered_df.columns:
+                if start_date != min_date or end_date != max_date:
+                    filtered_df = filtered_df[
+                        (filtered_df['date_of_report'].dt.date >= start_date) &
+                        (filtered_df['date_of_report'].dt.date <= end_date)
+                    ]
+                    active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
+            
+            # Year filter (if date_of_report not available)
+            if "year" in filtered_df.columns and "date_of_report" not in filtered_df.columns:
+                if 'selected_years' in locals() and selected_years != (min_year, max_year):
+                    filtered_df = filtered_df[
+                        (filtered_df['year'] >= selected_years[0]) &
+                        (filtered_df['year'] <= selected_years[1])
+                    ]
+                    active_filters.append(f"Year: {selected_years[0]} to {selected_years[1]}")
+            
+            # Document type filter
+            if doc_type:
+                if "Report" in doc_type and "Response" in doc_type:
+                    pass  # No filtering needed, include all
+                elif "Report" in doc_type:
+                    filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
+                    active_filters.append("Document Type: Report")
+                elif "Response" in doc_type:
+                    filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
+                    active_filters.append("Document Type: Response")
+            
+            # Reference number filter
+            if 'selected_refs' in locals() and selected_refs:
+                filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
+                active_filters.append(f"References: {', '.join(selected_refs)}")
+            
+            # Deceased name filter
+            if deceased_search:
+                filtered_df = filtered_df[
+                    filtered_df['deceased_name'].fillna('').str.contains(
+                        deceased_search, 
+                        case=False, 
+                        na=False
+                    )
+                ]
+                active_filters.append(f"Deceased name contains: {deceased_search}")
+            
+            # Coroner name filter
+            if 'selected_coroners' in locals() and selected_coroners:
+                filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
+                active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+            
+            # Coroner area filter
+            if 'selected_areas' in locals() and selected_areas:
+                filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
+                active_filters.append(f"Areas: {', '.join(selected_areas)}")
+            
+            # Categories filter
+            if 'selected_categories' in locals() and selected_categories:
+                filtered_df = filtered_df[
+                    filtered_df['categories'].apply(
+                        lambda x: bool(x) and any(cat in x for cat in selected_categories)
+                    )
+                ]
+                active_filters.append(f"Categories: {', '.join(selected_categories)}")
+            
+            # Content keyword search
+            if 'keyword_search' in locals() and keyword_search and "Content" in filtered_df.columns:
+                filtered_df = filtered_df[
+                    filtered_df['Content'].fillna('').str.contains(
+                        keyword_search, 
+                        case=False, 
+                        na=False
+                    )
+                ]
+                active_filters.append(f"Content contains: {keyword_search}")
+            
+            # Apply filter for records with extracted concerns
+            if 'exclude_no_concerns' in locals() and exclude_no_concerns and "Extracted_Concerns" in filtered_df.columns:
+                before_count = len(filtered_df)
+                filtered_df = filtered_df[
+                    filtered_df['Extracted_Concerns'].notna() & 
+                    (filtered_df['Extracted_Concerns'].astype(str).str.strip() != "") &
+                    (filtered_df['Extracted_Concerns'].astype(str).str.len() > 20)  # Ensure meaningful content
+                ]
+                after_count = len(filtered_df)
+                removed_count = before_count - after_count
+                active_filters.append(f"Excluding records without concerns (-{removed_count} records)")
             
             # Display active filters
             if active_filters:
@@ -8894,7 +9011,7 @@ def render_filter_data_tab():
                         csv,
                         f"filtered_reports_{timestamp}.csv",
                         "text/csv",
-                        key=f"download_filtered_csv_{st.session_state.get('reset_counter', 0)}"
+                        key="download_filtered_csv"
                     )
                 
                 with col2:
@@ -8905,7 +9022,7 @@ def render_filter_data_tab():
                         excel_data,
                         f"filtered_reports_{timestamp}.xlsx",
                         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key=f"download_filtered_excel_{st.session_state.get('reset_counter', 0)}"
+                        key="download_filtered_excel"
                     )
                 
                 # PDF Download Section
@@ -8983,7 +9100,7 @@ def render_filter_data_tab():
                             zip_buffer,
                             f"filtered_pdfs_{timestamp}.zip",
                             "application/zip",
-                            key=f"download_filtered_pdfs_{st.session_state.get('reset_counter', 0)}"
+                            key="download_filtered_pdfs"
                         )
                             
                     except Exception as e:
@@ -9026,11 +9143,6 @@ def render_filter_data_tab():
             
             else:
                 st.warning("No reports match your filter criteria. Try adjusting the filters.")
-                
-            # If this was a new file upload, increment the reset counter to force UI refresh on next run
-            if new_file_uploaded:
-                st.session_state.reset_counter = st.session_state.get('reset_counter', 0) + 1
-                st.rerun()
         
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
@@ -9059,6 +9171,8 @@ def render_filter_data_tab():
             
             Files created from the File Merger tab should contain all these columns.
             """)
+
+
 
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
@@ -10575,7 +10689,7 @@ def main():
         
             if hasattr(st.session_state, "data_source"):
                 st.info(f"Current data: {st.session_state.data_source}")
-            #
+            
             if st.button("Clear All Data", key="clear_all_data_button"):
                 # Define a comprehensive list of keys to clear
                 keys_to_clear = [
@@ -10609,6 +10723,16 @@ def main():
                     "fill_empty_content_static",
                     "duplicate_columns_static",
                     "merge_files_button_static",
+                    
+                    # Filter keys used in the dashboard
+                    "start_date_filter",
+                    "end_date_filter",
+                    "doc_type_filter",
+                    "ref_filter",
+                    "deceased_filter",
+                    "coroner_filter",
+                    "areas_filter",
+                    "categories_filter",
                 ]
                 
                 # Clear each key if it exists
@@ -10626,15 +10750,6 @@ def main():
                 st.session_state.bert_initialized = False
                 st.session_state.bert_merged_data = None
                 st.session_state.dashboard_data = None
-                
-                # Clear all filter-related keys
-                for key in list(st.session_state.keys()):
-                    if key.startswith('filter_'):
-                        del st.session_state[key]
-                
-                # Clear any cached file information
-                if 'last_uploaded_file_hash' in st.session_state:
-                    del st.session_state.last_uploaded_file_hash
                 
                 # Generate a unique key for file uploaders to force reload
                 if "reset_counter" not in st.session_state:
