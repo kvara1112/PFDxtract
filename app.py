@@ -8402,7 +8402,6 @@ def render_bert_file_merger():
     with filter_tab:
         render_filter_data_tab()
 
-
 def render_filter_data_tab():
     """Render a filtering tab within the Scraped File Preparation section"""
     st.subheader("Filter & Explore Data")
@@ -8734,7 +8733,7 @@ def render_filter_data_tab():
             st.markdown("---")
             st.subheader("Filtered Results")
             st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
-            ###
+
             if len(filtered_df) > 0:
                 # Determine columns to display
                 display_cols = list(filtered_df.columns)
@@ -8768,34 +8767,47 @@ def render_filter_data_tab():
 
                 # Generate timestamp for filenames
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+                unique_id = f"{timestamp}_{random_suffix}"
 
                 col1, col2 = st.columns(2)
 
                 with col1:
                     # CSV Export
-                    csv = filtered_df.to_csv(index=False).encode("utf-8")
-                    st.download_button(
-                        "📥 Download Filtered Results (CSV)",
-                        csv,
-                        f"filtered_reports_{timestamp}.csv",
-                        "text/csv",
-                        key="download_filtered_csv",
-                    )
+                    try:
+                        # Create export copy with formatted dates
+                        df_csv = filtered_df.copy()
+                        if "date_of_report" in df_csv.columns and pd.api.types.is_datetime64_any_dtype(df_csv["date_of_report"]):
+                            df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
+                        
+                        csv = df_csv.to_csv(index=False).encode("utf-8")
+                        st.download_button(
+                            "📥 Download Filtered Results (CSV)",
+                            data=csv,
+                            file_name=f"filtered_reports_{timestamp}.csv",
+                            mime="text/csv",
+                            key=f"download_filtered_csv_{unique_id}",
+                        )
+                    except Exception as e:
+                        st.error(f"Error preparing CSV export: {str(e)}")
 
                 with col2:
                     # Excel Export
-                    excel_data = export_to_excel(filtered_df)
-                    st.download_button(
-                        "📥 Download Filtered Results (Excel)",
-                        excel_data,
-                        f"filtered_reports_{timestamp}.xlsx",
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key="download_filtered_excel",
-                    )
+                    try:
+                        excel_data = export_to_excel(filtered_df)
+                        st.download_button(
+                            "📥 Download Filtered Results (Excel)",
+                            data=excel_data,
+                            file_name=f"filtered_reports_{timestamp}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key=f"download_filtered_excel_{unique_id}",
+                        )
+                    except Exception as e:
+                        st.error(f"Error preparing Excel export: {str(e)}")
 
                 # PDF Download Section
                 if any(
-                    col.startswith("pdf_") and col.endswith("_path")
+                    col.startswith("PDF_") and col.endswith("_Path")
                     for col in filtered_df.columns
                 ):
                     st.subheader("Download PDFs")
@@ -8807,7 +8819,7 @@ def render_filter_data_tab():
                             pdf_columns = [
                                 col
                                 for col in filtered_df.columns
-                                if col.startswith("pdf_") and col.endswith("_path")
+                                if col.startswith("PDF_") and col.endswith("_Path")
                             ]
                             added_files = set()
                             pdf_count = 0
@@ -8841,7 +8853,7 @@ def render_filter_data_tab():
                                     folder_name = "_".join(folder_parts)
                                 else:
                                     # Fallback if no ref or deceased name
-                                    record_id = str(row.get("record_id", idx))
+                                    record_id = str(row.get("Record ID", idx))
                                     folder_name = f"report_{record_id}"
 
                                 # Add year to folder if available
@@ -8879,12 +8891,13 @@ def render_filter_data_tab():
                         zip_buffer.seek(0)
 
                         # PDF Download Button with Unique Key
+                        pdf_key = f"download_filtered_pdfs_{unique_id}"
                         st.download_button(
                             f"📦 Download All PDFs ({pdf_count} files in {len(folders_created)} case folders)",
-                            zip_buffer,
-                            f"filtered_pdfs_{timestamp}.zip",
-                            "application/zip",
-                            key="download_filtered_pdfs",
+                            data=zip_buffer,
+                            file_name=f"filtered_pdfs_{timestamp}.zip",
+                            mime="application/zip",
+                            key=pdf_key,
                         )
 
                     except Exception as e:
@@ -9062,6 +9075,7 @@ def render_filter_data_tab():
             Files created from the File Merger tab should contain all these columns.
             """
             )
+
 
 
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
