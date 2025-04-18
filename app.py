@@ -30,6 +30,7 @@ from sklearn.preprocessing import normalize
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.cluster import AgglomerativeClustering
 import networkx as nx
+import pytz
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 from collections import Counter, defaultdict
@@ -7731,13 +7732,18 @@ def handle_error(error):
 
  
 def render_footer():
-    """Render application footer with auto-updating timestamp"""
-    # Get last modified time of this script
+    """Render footer with timestamp in UK time (GMT/BST)."""
+    # Get file modification time (UTC by default on Streamlit Cloud)
     file_path = os.path.abspath(__file__)
     last_modified_timestamp = os.path.getmtime(file_path)
-    last_modified_datetime = datetime.fromtimestamp(last_modified_timestamp)
-    formatted_time = last_modified_datetime.strftime("%d %B %Y %H:%M")
+    last_modified_datetime_utc = datetime.utcfromtimestamp(last_modified_timestamp)
+    
+    # Convert to UK time (handles GMT/BST automatically)
+    uk_tz = pytz.timezone("Europe/London")
+    last_modified_datetime_uk = last_modified_datetime_utc.replace(tzinfo=pytz.utc).astimezone(uk_tz)
+    formatted_time = last_modified_datetime_uk.strftime("%d %B %Y %H:%M (UK Time)")
 
+    # Display footer
     st.markdown("---")
     st.markdown(
         f"""<div style='text-align: center'>
