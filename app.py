@@ -1099,6 +1099,7 @@ class BERTResultsAnalyzer:
         cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_coroner_area)
         
         return cleaned_df
+
     def _clean_categories(self, df):
         """
         Clean categories column by removing "These reports are being sent to:" and any text that follows
@@ -1120,17 +1121,37 @@ class BERTResultsAnalyzer:
             if pd.isna(categories_text) or not isinstance(categories_text, str):
                 return categories_text
             
-            # Find the position of the target phrase
-            phrase_pos = categories_text.find('These reports are being sent to:')
-            if phrase_pos == -1:
-                # Try alternative phrasing
-                phrase_pos = categories_text.find('This report is being sent to:')
+            # Convert to lowercase for case-insensitive matching
+            categories_text_lower = categories_text.lower()
             
-            # If either phrase is found, truncate the text
-            if phrase_pos != -1:
-                return categories_text[:phrase_pos].strip()
+            # Patterns to look for and remove
+            report_patterns = [
+                "these reports are being sent to:",
+                "this report is being sent to:",
+                "the report is being sent to:",
+                "this report",
+                "these reports",
+                "the report"
+            ]
             
-            # If the phrase is not found, return the original text
+            # Find the earliest position of any report-related pattern
+            earliest_pos = len(categories_text)
+            for pattern in report_patterns:
+                pos = categories_text_lower.find(pattern)
+                if pos != -1 and pos < earliest_pos:
+                    earliest_pos = pos
+            
+            # If a report pattern was found, truncate
+            if earliest_pos != len(categories_text):
+                categories_text = categories_text[:earliest_pos].strip()
+            
+            # Normalize text: remove brackets, convert '&' and 'and' to a standard form
+            # Remove brackets
+            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
+            
+            # Replace variations of conjunctions
+            categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
+            
             return categories_text.strip()
         
         # Apply the cleaning function to the DataFrame
