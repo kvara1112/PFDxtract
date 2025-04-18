@@ -1036,53 +1036,53 @@ class BERTResultsAnalyzer:
 
         return missing_concerns
 
+    # Define the cleaning function
+    def clean_coroner_area(area_text):
+        if pd.isna(area_text) or not isinstance(area_text, str):
+            return area_text
+        
+        # Convert to lowercase for case-insensitive matching
+        area_text_lower = area_text.lower()
+        
+        # Patterns to look for at the start of the text
+        report_patterns = [
+            "this report is being sent to:",
+            "these reports are being sent to:",
+            "the report is being sent to:",
+            "this report",
+            "these reports",
+            "the report"
+        ]
+        
+        # Find the earliest position of any report-related pattern
+        earliest_pos = len(area_text)
+        for pattern in report_patterns:
+            pos = area_text_lower.find(pattern)
+            if pos != -1 and pos < earliest_pos:
+                earliest_pos = pos
+        
+        # If a report pattern was found, truncate
+        if earliest_pos != len(area_text):
+            return area_text[:earliest_pos].strip()
+        
+        # Find the position of 'Category'
+        category_pos = area_text_lower.find('category')
+        if category_pos != -1:
+            return area_text[:category_pos].strip()
+        
+        # Try with just a pipe character, which often separates coroner area from categories
+        pipe_pos = area_text.find('|')
+        if pipe_pos != -1:
+            return area_text[:pipe_pos].strip()
+        
+        # If none of the patterns are found, return the original text
+        return area_text.strip()
+    
+    # Apply the cleaning function
+    cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_coroner_area)
+    
+    return cleaned_df
 
-    def _clean_coroner_areas(self, df):
-        """
-        Clean coroner_area column by removing everything starting from 'Category:'
-        
-        Args:
-            df (pd.DataFrame): DataFrame containing a 'coroner_area' column
-            
-        Returns:
-            pd.DataFrame: DataFrame with cleaned 'coroner_area' column
-        """
-        if df is None or len(df) == 0 or 'coroner_area' not in df.columns:
-            return df
-        
-        # Create a copy to avoid modifying the original
-        cleaned_df = df.copy()
-        
-        # Define the cleaning function
-        def clean_coroner_area(area_text):
-            if pd.isna(area_text) or not isinstance(area_text, str):
-                return area_text
-            
-            # Find the position of 'Category'
-            category_pos = area_text.find('Category')
-            
-            # If 'Category' is found, truncate the text
-            if category_pos != -1:
-                return area_text[:category_pos].strip()
-            
-            # If 'Category' is not found, try alternative patterns that might appear
-            # Like "This report is being sent to:"
-            report_sent_pos = area_text.find('This report is being sent to')
-            if report_sent_pos != -1:
-                return area_text[:report_sent_pos].strip()
-            
-            # Try with just a pipe character, which often separates coroner area from categories
-            pipe_pos = area_text.find('|')
-            if pipe_pos != -1:
-                return area_text[:pipe_pos].strip()
-            
-            # If none of the patterns are found, return the original text
-            return area_text.strip()
-        
-        # Apply the cleaning function
-        cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_coroner_area)
-        
-        return cleaned_df
     
     def _clean_categories(self, df):
         """
