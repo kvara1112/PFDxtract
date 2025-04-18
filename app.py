@@ -22,7 +22,7 @@ import traceback
 import torch
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import plotly.express as px
+import plotly.express as pxf
 import plotly.graph_objects as go
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
@@ -4932,7 +4932,7 @@ def render_scraping_tab():
 
         with row3_col2:
             end_page = st.number_input(
-                "End page ("Optimal: 10 pages per extraction):",
+                "End page ("Optimal: 10 pages per extraction:)",
                 min_value=0,
                 value=st.session_state.get("end_page_default", 0),
                 key="end_page",
