@@ -8402,6 +8402,7 @@ def render_bert_file_merger():
     with filter_tab:
         render_filter_data_tab()
 
+
 def render_filter_data_tab():
     """Render a filtering tab within the Scraped File Preparation section"""
     st.subheader("Filter & Explore Data")
@@ -8806,15 +8807,18 @@ def render_filter_data_tab():
                         st.error(f"Error preparing Excel export: {str(e)}")
 
                 # PDF Download Section
-                if any(
-                    col.startswith("PDF_") and col.endswith("_Path")
-                    for col in filtered_df.columns
-                ):
+                if any(col.startswith("PDF_") and col.endswith("_Path") for col in filtered_df.columns):
                     st.subheader("Download PDFs")
+                    
+                    # Generate a unique timestamp-based ID for this section
+                    pdf_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    pdf_random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+                    pdf_unique_id = f"{pdf_timestamp}_{pdf_random_suffix}"
+                    
                     try:
                         # Create the ZIP file in memory
                         zip_buffer = io.BytesIO()
-
+                        
                         with zipfile.ZipFile(zip_buffer, "w") as zipf:
                             pdf_columns = [
                                 col
@@ -8824,48 +8828,55 @@ def render_filter_data_tab():
                             added_files = set()
                             pdf_count = 0
                             folders_created = set()
-
-                            # Process each PDF file
-                            for idx, row in filtered_df.iterrows():
+                            
+                            # Process each PDF file with a progress bar
+                            progress_bar = st.progress(0)
+                            status_text = st.empty()
+                            
+                            for idx, row in enumerate(filtered_df.iterrows()):
+                                # Update progress
+                                progress = (idx + 1) / len(filtered_df)
+                                progress_bar.progress(progress)
+                                status_text.text(f"Processing file {idx+1} of {len(filtered_df)}")
+                                
+                                # Unpack row tuple - second element is the data
+                                _, row_data = row
+                                
                                 # Build folder name using ref and deceased_name
                                 folder_parts = []
-
+                                
                                 # Add reference number if available
-                                if "ref" in row and pd.notna(row["ref"]):
-                                    folder_parts.append(str(row["ref"]))
-
+                                if "ref" in row_data and pd.notna(row_data["ref"]):
+                                    folder_parts.append(str(row_data["ref"]))
+                                
                                 # Add deceased name if available
-                                if "deceased_name" in row and pd.notna(
-                                    row["deceased_name"]
-                                ):
+                                if "deceased_name" in row_data and pd.notna(row_data["deceased_name"]):
                                     # Clean up deceased name for folder name
-                                    deceased_name = str(row["deceased_name"])
+                                    deceased_name = str(row_data["deceased_name"])
                                     # Remove invalid characters for folder names
-                                    clean_name = re.sub(
-                                        r'[<>:"/\\|?*]', "_", deceased_name
-                                    )
+                                    clean_name = re.sub(r'[<>:"/\\|?*]', "_", deceased_name)
                                     # Limit folder name length
                                     clean_name = clean_name[:50].strip()
                                     folder_parts.append(clean_name)
-
+                                
                                 # Create folder name from parts
                                 if folder_parts:
                                     folder_name = "_".join(folder_parts)
                                 else:
                                     # Fallback if no ref or deceased name
-                                    record_id = str(row.get("Record ID", idx))
+                                    record_id = str(row_data.get("Record ID", idx))
                                     folder_name = f"report_{record_id}"
-
+                                
                                 # Add year to folder if available
-                                if "year" in row and pd.notna(row["year"]):
-                                    folder_name = f"{folder_name}_{row['year']}"
-
+                                if "year" in row_data and pd.notna(row_data["year"]):
+                                    folder_name = f"{folder_name}_{row_data['year']}"
+                                
                                 # Keep track of created folders
                                 folders_created.add(folder_name)
-
+                                
                                 # Process each PDF for this row
                                 for col in pdf_columns:
-                                    pdf_path = row.get(col)
+                                    pdf_path = row_data.get(col)
                                     if (
                                         pd.isna(pdf_path)
                                         or not pdf_path
@@ -8873,33 +8884,36 @@ def render_filter_data_tab():
                                         or pdf_path in added_files
                                     ):
                                         continue
-
+                                    
                                     # Get the original filename without any modifications
                                     original_filename = os.path.basename(pdf_path)
-
+                                    
                                     # Create archive path with folder structure
                                     zip_path = f"{folder_name}/{original_filename}"
-
+                                    
                                     # Read the file content and write it to the ZIP
                                     with open(pdf_path, "rb") as file:
                                         zipf.writestr(zip_path, file.read())
-
+                                    
                                     added_files.add(pdf_path)
                                     pdf_count += 1
-
+                            
+                            # Clear progress indicators
+                            progress_bar.empty()
+                            status_text.empty()
+                            
                         # Reset buffer position
                         zip_buffer.seek(0)
-
-                        # PDF Download Button with Unique Key
-                        pdf_key = f"download_filtered_pdfs_{unique_id}"
+                        
+                        # Create download button directly
                         st.download_button(
                             f"📦 Download All PDFs ({pdf_count} files in {len(folders_created)} case folders)",
                             data=zip_buffer,
-                            file_name=f"filtered_pdfs_{timestamp}.zip",
+                            file_name=f"filtered_pdfs_{pdf_timestamp}.zip",
                             mime="application/zip",
-                            key=pdf_key,
+                            key=f"download_filtered_pdfs_{pdf_unique_id}",
                         )
-
+                        
                     except Exception as e:
                         st.error(f"Error preparing PDF download: {str(e)}")
                         logging.error(f"PDF download error: {e}", exc_info=True)
@@ -9075,8 +9089,6 @@ def render_filter_data_tab():
             Files created from the File Merger tab should contain all these columns.
             """
             )
-
-
 
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
