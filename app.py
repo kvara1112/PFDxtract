@@ -1089,6 +1089,9 @@ class BERTResultsAnalyzer:
             # Common format issues
             name = re.sub(r'\(.*?\)', '', name)  # Remove content in parentheses
             
+            # Remove all text starting with "Coroner"
+            name = re.sub(r'\s*Coroner.*$', '', name, flags=re.IGNORECASE)
+            
             return name.strip()
         
         # Apply the cleaning function
