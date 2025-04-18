@@ -1284,12 +1284,6 @@ class BERTResultsAnalyzer:
 
 
 
-    
-    # Apply the cleaning function
-    cleaned_df['coroner_name'] = cleaned_df['coroner_name'].apply(clean_name)
-    
-    return cleaned_df
-
     # End of BERTResultsAnalyzer class
 
 
