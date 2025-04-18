@@ -856,150 +856,149 @@ class BERTResultsAnalyzer:
         return df[~df.apply(self._is_response, axis=1)]
 
     def _merge_files_stack(self, files, duplicate_cols=None):
-            """Merge multiple files by stacking (appending) them."""
-            dfs = []
+        """Merge multiple files by stacking (appending) them."""
+        dfs = []
     
-            for file_index, file in enumerate(files):
-                try:
-                    # Read file
-                    if file.name.endswith(".csv"):
-                        df = pd.read_csv(file)
-                    else:
-                        df = pd.read_excel(file)
-    
-                    # Display file information
-                    st.info(
-                        f"Processing file {file_index+1}: {file.name} ({len(df)} rows, {len(df.columns)} columns)"
-                    )
-    
-                    # Add source filename
-                    df["Source File"] = file.name
-    
-                    # Add to the list of dataframes
-                    dfs.append(df)
-    
-                except Exception as e:
-                    st.warning(f"Error processing file {file.name}: {str(e)}")
-                    continue
-    
-            if not dfs:
-                raise ValueError("No valid files to merge")
-    
-            # Combine all dataframes
-            merged_df = pd.concat(dfs, ignore_index=True)
-    
-            # Remove duplicates if specified
-            if duplicate_cols:
-                valid_dup_cols = [col for col in duplicate_cols if col in merged_df.columns]
-                if valid_dup_cols:
-                    before_count = len(merged_df)
-                    merged_df = merged_df.drop_duplicates(
-                        subset=valid_dup_cols, keep="first"
-                    )
-                    after_count = len(merged_df)
-    
-                    if before_count > after_count:
-                        st.success(
-                            f"Removed {before_count - after_count} duplicate records based on {', '.join(valid_dup_cols)}"
-                        )
+        for file_index, file in enumerate(files):
+            try:
+                # Read file
+                if file.name.endswith(".csv"):
+                    df = pd.read_csv(file)
                 else:
-                    st.warning(
-                        f"Specified duplicate columns {duplicate_cols} not found in the merged data"
-                    )
+                    df = pd.read_excel(file)
     
-            # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
-            if "Record ID" in merged_df.columns:
+                # Display file information
+                st.info(
+                    f"Processing file {file_index+1}: {file.name} ({len(df)} rows, {len(df.columns)} columns)"
+                )
+    
+                # Add source filename
+                df["Source File"] = file.name
+    
+                # Add to the list of dataframes
+                dfs.append(df)
+    
+            except Exception as e:
+                st.warning(f"Error processing file {file.name}: {str(e)}")
+                continue
+    
+        if not dfs:
+            raise ValueError("No valid files to merge")
+    
+        # Combine all dataframes
+        merged_df = pd.concat(dfs, ignore_index=True)
+    
+        # Remove duplicates if specified
+        if duplicate_cols:
+            valid_dup_cols = [col for col in duplicate_cols if col in merged_df.columns]
+            if valid_dup_cols:
                 before_count = len(merged_df)
-                merged_df = merged_df.drop_duplicates(subset=["Record ID"], keep="first")
+                merged_df = merged_df.drop_duplicates(
+                    subset=valid_dup_cols, keep="first"
+                )
                 after_count = len(merged_df)
     
                 if before_count > after_count:
                     st.success(
-                        f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)"
+                        f"Removed {before_count - after_count} duplicate records based on {', '.join(valid_dup_cols)}"
                     )
+            else:
+                st.warning(
+                    f"Specified duplicate columns {duplicate_cols} not found in the merged data"
+                )
     
-            # Clean coroner_area column
-            if "coroner_area" in merged_df.columns:
-                before_cleaning = merged_df["coroner_area"].copy()
-                merged_df = self._clean_coroner_areas(merged_df)
-                
-                # Count changes made
-                changes_made = sum(before_cleaning != merged_df["coroner_area"])
-                if changes_made > 0:
-                    st.success(f"Cleaned {changes_made} coroner area entries")
-                    
-                    # Show the first few changes as an example
-                    example_changes = []
-                    for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_area"])):
-                        if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
-                            example_changes.append(f"'{old}' → '{new}'")
-                    
-                    if example_changes:
-                        st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
+        # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
+        if "Record ID" in merged_df.columns:
+            before_count = len(merged_df)
+            merged_df = merged_df.drop_duplicates(subset=["Record ID"], keep="first")
+            after_count = len(merged_df)
+    
+            if before_count > after_count:
+                st.success(
+                    f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)"
+                )
+    
+        # Clean coroner_name column
+        if "coroner_name" in merged_df.columns:
+            before_cleaning = merged_df["coroner_name"].copy()
+            merged_df = self._clean_coroner_names(merged_df)
             
-            # Clean coroner_name column
-            if "coroner_name" in merged_df.columns:
-                before_cleaning = merged_df["coroner_name"].copy()
-                merged_df = self._clean_coroner_names(merged_df)
+            # Count changes made
+            changes_made = sum(before_cleaning != merged_df["coroner_name"])
+            if changes_made > 0:
+                st.success(f"Cleaned {changes_made} coroner name entries")
                 
-                # Count changes made
-                changes_made = sum(before_cleaning != merged_df["coroner_name"])
-                if changes_made > 0:
-                    st.success(f"Cleaned {changes_made} coroner name entries")
-                    
-                    # Show the first few changes as an example
-                    example_changes = []
-                    for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_name"])):
-                        if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
-                            example_changes.append(f"'{old}' → '{new}'")
-                    
-                    if example_changes:
-                        st.info("Examples of cleaned coroner names:\n" + "\n".join(example_changes))
-            
-            # Clean categories column
-            if "categories" in merged_df.columns:
-                # Save the original values for comparison
-                original_categories = merged_df["categories"].copy()
-                
-                # Apply cleaning
-                merged_df = self._clean_categories(merged_df)
-                
-                # Count changes - this is more complex since categories can be lists
-                changes_made = 0
+                # Show the first few changes as an example
                 example_changes = []
+                for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_name"])):
+                    if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
+                        example_changes.append(f"'{old}' → '{new}'")
                 
-                # Check each row for changes
-                for i, (old, new) in enumerate(zip(original_categories, merged_df["categories"])):
-                    # Handle list case
-                    if isinstance(old, list) and isinstance(new, list):
-                        # Consider it changed if any element changed
-                        if any(o != n for o, n in zip(old, new) if isinstance(o, str) and isinstance(n, str)):
-                            changes_made += 1
-                            # Add example if we don't have many yet
-                            if len(example_changes) < 3:
-                                old_str = ", ".join(old) if all(isinstance(x, str) for x in old) else str(old)
-                                new_str = ", ".join(new) if all(isinstance(x, str) for x in new) else str(new)
-                                example_changes.append(f"'{old_str}' → '{new_str}'")
-                    # Handle string case
-                    elif isinstance(old, str) and isinstance(new, str) and old != new:
-                        changes_made += 1
-                        if len(example_changes) < 3:
-                            example_changes.append(f"'{old}' → '{new}'")
-                
-                # Report changes
-                if changes_made > 0:
-                    st.success(f"Cleaned {changes_made} categories entries")
-                    if example_changes:
-                        st.info("Examples of cleaned categories:\n" + "\n".join(example_changes))
-                        
-            # Store the result
-            self.data = merged_df
+                if example_changes:
+                    st.info("Examples of cleaned coroner names:\n" + "\n".join(example_changes))
     
-            # Show summary of the merged data
-            st.subheader("Merged Data Summary")
-            st.write(f"Total rows: {len(merged_df)}")
-            st.write(f"Columns: {', '.join(merged_df.columns)}")
+        # Clean coroner_area column
+        if "coroner_area" in merged_df.columns:
+            before_cleaning = merged_df["coroner_area"].copy()
+            merged_df = self._clean_coroner_areas(merged_df)
+            
+            # Count changes made
+            changes_made = sum(before_cleaning != merged_df["coroner_area"])
+            if changes_made > 0:
+                st.success(f"Cleaned {changes_made} coroner area entries")
+                
+                # Show the first few changes as an example
+                example_changes = []
+                for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_area"])):
+                    if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
+                        example_changes.append(f"'{old}' → '{new}'")
+                
+                if example_changes:
+                    st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
         
+        # Clean categories column
+        if "categories" in merged_df.columns:
+            # Save the original values for comparison
+            original_categories = merged_df["categories"].copy()
+            
+            # Apply cleaning
+            merged_df = self._clean_categories(merged_df)
+            
+            # Count changes - this is more complex since categories can be lists
+            changes_made = 0
+            example_changes = []
+            
+            # Check each row for changes
+            for i, (old, new) in enumerate(zip(original_categories, merged_df["categories"])):
+                # Handle list case
+                if isinstance(old, list) and isinstance(new, list):
+                    # Consider it changed if any element changed
+                    if any(o != n for o, n in zip(old, new) if isinstance(o, str) and isinstance(n, str)):
+                        changes_made += 1
+                        # Add example if we don't have many yet
+                        if len(example_changes) < 3:
+                            old_str = ", ".join(old) if all(isinstance(x, str) for x in old) else str(old)
+                            new_str = ", ".join(new) if all(isinstance(x, str) for x in new) else str(new)
+                            example_changes.append(f"'{old_str}' → '{new_str}'")
+                # Handle string case
+                elif isinstance(old, str) and isinstance(new, str) and old != new:
+                    changes_made += 1
+                    if len(example_changes) < 3:
+                        example_changes.append(f"'{old}' → '{new}'")
+            
+            # Report changes
+            if changes_made > 0:
+                st.success(f"Cleaned {changes_made} categories entries")
+                if example_changes:
+                    st.info("Examples of cleaned categories:\n" + "\n".join(example_changes))
+                    
+        # Store the result
+        self.data = merged_df
+    
+        # Show summary of the merged data
+        st.subheader("Merged Data Summary")
+        st.write(f"Total rows: {len(merged_df)}")
+        st.write(f"Columns: {', '.join(merged_df.columns)}")
 
     def _identify_missing_concerns(self, df):
         """
@@ -1037,9 +1036,11 @@ class BERTResultsAnalyzer:
         return missing_concerns
 
 
+
     def _clean_coroner_areas(self, df):
         """
-        Clean coroner_area column by removing everything starting from specific patterns
+        Clean coroner_area column by standardizing format, removing brackets, converting to lowercase,
+        and replacing & with 'and'
         
         Args:
             df (pd.DataFrame): DataFrame containing a 'coroner_area' column
@@ -1054,15 +1055,30 @@ class BERTResultsAnalyzer:
         cleaned_df = df.copy()
         
         # Define the cleaning function
-        def clean_coroner_area(area_text):
+        def clean_area(area_text):
             if pd.isna(area_text) or not isinstance(area_text, str):
                 return area_text
             
-            # Convert to lowercase for case-insensitive matching
-            area_text_lower = area_text.lower()
+            import re
             
-            # Patterns to look for at the start of the text
-            report_patterns = [
+            # Convert to lowercase
+            area = area_text.lower()
+            
+            # Remove content in brackets
+            area = re.sub(r'\(.*?\)', '', area)
+            area = re.sub(r'\[.*?\]', '', area)
+            
+            # Replace & with 'and'
+            area = area.replace('&', ' and ')
+            
+            # Replace multiple spaces with a single space
+            area = re.sub(r'\s+', ' ', area)
+            
+            # Remove common patterns that indicate the end of the coroner area
+            end_patterns = [
+                "coroner's concerns", 
+                "matters of concern",
+                "the matters of concern",
                 "this report is being sent to:",
                 "these reports are being sent to:",
                 "the report is being sent to:",
@@ -1073,34 +1089,36 @@ class BERTResultsAnalyzer:
                 "category"
             ]
             
-            # Find the earliest position of any report-related pattern
-            earliest_pos = len(area_text)
-            for pattern in report_patterns:
-                pos = area_text_lower.find(pattern)
+            # Find the earliest position of any pattern
+            earliest_pos = len(area)
+            for pattern in end_patterns:
+                pos = area.find(pattern)
                 if pos != -1 and pos < earliest_pos:
                     earliest_pos = pos
             
-            # If a report pattern was found, truncate
-            if earliest_pos != len(area_text):
-                return area_text[:earliest_pos].strip()
+            # If a pattern was found, truncate
+            if earliest_pos != len(area):
+                area = area[:earliest_pos]
             
             # Find the position of 'Category'
-            category_pos = area_text_lower.find('category')
+            category_pos = area.find('category')
             if category_pos != -1:
-                return area_text[:category_pos].strip()
+                area = area[:category_pos]
             
             # Try with just a pipe character, which often separates coroner area from categories
-            pipe_pos = area_text.find('|')
+            pipe_pos = area.find('|')
             if pipe_pos != -1:
-                return area_text[:pipe_pos].strip()
+                area = area[:pipe_pos]
+                
+            # Remove any remaining special characters at the beginning or end
+            area = re.sub(r'^[^a-z0-9]+|[^a-z0-9]+$', '', area)
             
-            # If none of the patterns are found, return the original text
-            return area_text.strip()
-        
-        # Apply the cleaning function
-        cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_coroner_area)
-        
-        return cleaned_df
+            return area.strip()
+    
+    # Apply the cleaning function
+    cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_area)
+    
+    return cleaned_df
 
     def _clean_categories(self, df):
         """
@@ -1179,48 +1197,65 @@ class BERTResultsAnalyzer:
         return cleaned_df
 
     def _clean_coroner_names(self, df):
-        """
-        Clean coroner_name column by removing everything starting from 'Coroner' and similar patterns
+    """
+    Clean coroner_name column by removing titles/prefixes and standardizing format
+    
+    Args:
+        df (pd.DataFrame): DataFrame containing a 'coroner_name' column
         
-        Args:
-            df (pd.DataFrame): DataFrame containing a 'coroner_name' column
-            
-        Returns:
-            pd.DataFrame: DataFrame with cleaned 'coroner_name' column
-        """
-        if df is None or len(df) == 0 or 'coroner_name' not in df.columns:
-            return df
+    Returns:
+        pd.DataFrame: DataFrame with cleaned 'coroner_name' column
+    """
+    if df is None or len(df) == 0 or 'coroner_name' not in df.columns:
+        return df
+    
+    # Create a copy to avoid modifying the original
+    cleaned_df = df.copy()
+    
+    # Common titles and prefixes to remove
+    titles = [
+        'Dr\\.?\\s+', 'Doctor\\s+', 
+        'Mr\\.?\\s+', 'Mrs\\.?\\s+', 'Ms\\.?\\s+', 'Miss\\.?\\s+',
+        'Prof\\.?\\s+', 'Professor\\s+',
+        'Sir\\s+', 'Dame\\s+',
+        'HM\\s+', 'HM\\s+Senior\\s+',
+        'Hon\\.?\\s+', 'Honorable\\s+',
+        'Justice\\s+', 'Judge\\s+',
+        'QC\\s+', 'KC\\s+'
+    ]
+    
+    # Define the cleaning function
+    def clean_name(name_text):
+        if pd.isna(name_text) or not isinstance(name_text, str):
+            return name_text
         
-        # Create a copy to avoid modifying the original
-        cleaned_df = df.copy()
+        # Convert to string and strip whitespace
+        name = str(name_text).strip()
         
-        # Define the cleaning function
-        def clean_coroner_name(name_text):
-            if pd.isna(name_text) or not isinstance(name_text, str):
-                return name_text
-            
-            # Common patterns to truncate at
-            patterns = [
-                "Coroner",
-                "Area:",
-                "Category:",
-                "This report is being sent to:",
-                "|"
-            ]
-            
-            # Find the first occurrence of any pattern and truncate
-            for pattern in patterns:
-                pos = name_text.find(pattern)
-                if pos != -1:
-                    return name_text[:pos].strip()
-            
-            # If no pattern is found, just return the original text
-            return name_text.strip()
+        # Remove titles from the beginning of the name
+        import re
+        pattern = '^(' + '|'.join(titles) + ')+'
+        name = re.sub(pattern, '', name, flags=re.IGNORECASE)
         
-        # Apply the cleaning function
-        cleaned_df['coroner_name'] = cleaned_df['coroner_name'].apply(clean_coroner_name)
+        # Remove any common suffixes
+        name = re.sub(r'\s+QC$|\s+KC$|\s+Esq\.?$|\s+Jr\.?$|\s+Sr\.?$', '', name, flags=re.IGNORECASE)
         
-        return cleaned_df
+        # Remove any trailing punctuation and normalize whitespace
+        name = re.sub(r'[,;:\.]$', '', name)
+        name = re.sub(r'\s+', ' ', name).strip()
+        
+        # Remove multiple instances of title (e.g., "Dr Dr" -> "")
+        name = re.sub(r'^(Dr\s+){2,}', '', name, flags=re.IGNORECASE)
+        
+        # Common format issues
+        name = re.sub(r'\(.*?\)', '', name)  # Remove content in parentheses
+        
+        return name.strip()
+    
+    # Apply the cleaning function
+    cleaned_df['coroner_name'] = cleaned_df['coroner_name'].apply(clean_name)
+    
+    return cleaned_df
 
     # End of BERTResultsAnalyzer class
 
