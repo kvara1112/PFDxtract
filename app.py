@@ -8648,7 +8648,7 @@ def render_bert_file_merger():
 
 
 def render_filter_data_tab():
-    """Render a filtering tab within the Scraped File Preparation section"""
+    """Render a filtering tab within the Scraped File Preparation section with advanced keyword search"""
     st.subheader("Filter & Explore Data")
 
     # File upload section
@@ -8847,14 +8847,23 @@ def render_filter_data_tab():
                         key="filter_years",
                     )
 
-            # Keyword search for content
+            # NEW: Advanced Keyword search for content with AND/OR operators
             if "content" in data.columns or "Content" in data.columns:
                 content_col = "content" if "content" in data.columns else "Content"
+                st.markdown("### Advanced Content Search")
                 keyword_search = st.text_input(
                     "Search in Content",
                     key="filter_keyword_search",
-                    help="Enter keywords to search within report content",
+                    help="Enter search terms with operators: 'term1 and term2' (both must appear) or 'term1 or term2' (either may appear)",
                 )
+                
+                # Add examples and guidance for advanced search
+                st.caption("""
+                **Advanced Search Examples:**
+                - Simple search: `medication` (finds documents containing this term)
+                - AND search: `medication and safety` (finds documents containing both terms)
+                - OR search: `medication or drug` (finds documents containing either term)
+                """)
 
             # Reset Filters Button
             if st.button("🔄 Reset Filters", key="reset_filters_button"):
@@ -8933,19 +8942,40 @@ def render_filter_data_tab():
                     ]
                 active_filters.append(f"Categories: {', '.join(selected_categories)}")
 
-            # Content keyword search
+            # Content keyword search with advanced AND/OR operators
             if (
                 "keyword_search" in locals()
                 and keyword_search
                 and content_col in filtered_df.columns
             ):
+                before_count = len(filtered_df)
+                
+                # Apply the advanced search with AND/OR operators
                 filtered_df = filtered_df[
                     filtered_df[content_col]
                     .fillna("")
                     .astype(str)
-                    .str.contains(keyword_search, case=False, na=False)
+                    .apply(lambda x: perform_advanced_keyword_search(x, keyword_search))
                 ]
-                active_filters.append(f"Content contains: {keyword_search}")
+                
+                after_count = len(filtered_df)
+                
+                # Create description of search for active filters
+                if " and " in keyword_search.lower():
+                    search_type = "AND search"
+                    terms = keyword_search.lower().split(" and ")
+                    terms_count = len(terms)
+                    search_desc = f"Content contains all: '{keyword_search}' ({terms_count} terms)"
+                elif " or " in keyword_search.lower():
+                    search_type = "OR search"
+                    terms = keyword_search.lower().split(" or ")
+                    terms_count = len(terms)
+                    search_desc = f"Content contains any: '{keyword_search}' ({terms_count} terms)"
+                else:
+                    search_type = "simple search"
+                    search_desc = f"Content contains: '{keyword_search}'"
+                
+                active_filters.append(f"{search_desc} ({after_count}/{before_count} records)")
 
             # Apply filter for records with extracted concerns
             if (
@@ -9333,6 +9363,38 @@ def render_filter_data_tab():
             Files created from the File Merger tab should contain all these columns.
             """
             )
+
+# Helper function for advanced keyword search
+def perform_advanced_keyword_search(text, search_query):
+    """
+    Perform advanced keyword search with AND/OR operators
+    
+    Args:
+        text (str): Text to search within
+        search_query (str): Search query with AND/OR operators
+    
+    Returns:
+        bool: True if text matches search criteria, False otherwise
+    """
+    if not text or not search_query:
+        return False
+    
+    # Convert text to lowercase for case-insensitive search
+    text = str(text).lower()
+    
+    # Check if we have an AND search (contains all keywords)
+    if " and " in search_query.lower():
+        keywords = [k.strip() for k in search_query.lower().split(" and ")]
+        return all(keyword.lower() in text for keyword in keywords if keyword)
+    
+    # Check if we have an OR search (contains any keyword)
+    elif " or " in search_query.lower():
+        keywords = [k.strip() for k in search_query.lower().split(" or ")]
+        return any(keyword.lower() in text for keyword in keywords if keyword)
+    
+    # Default to exact match for single keywords
+    else:
+        return search_query.lower() in text
 
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
