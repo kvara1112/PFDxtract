@@ -7731,11 +7731,19 @@ def handle_error(error):
 
 
 def render_footer():
-    """Render application footer"""
+    """Render application footer with auto-updating timestamp"""
+    # Get last modified time of this script
+    file_path = os.path.abspath(__file__)
+    last_modified_timestamp = os.path.getmtime(file_path)
+    last_modified_datetime = datetime.fromtimestamp(last_modified_timestamp)
+    formatted_time = last_modified_datetime.strftime("%d %B %Y %H:%M")
+
     st.markdown("---")
     st.markdown(
-        """<div style='text-align: center'>
-        <p>Built with Streamlit • Data Source: UK Judiciary • Copyright © 2025 Loughborough University • Contact: g.cosma@lboro.ac.uk • Developer: Georgina Cosma • All rights reserved. Last updated: 16 April 2025 12:27</p>
+        f"""<div style='text-align: center'>
+        <p>Built with Streamlit • Data Source: UK Judiciary • Copyright © 2025 Loughborough University • 
+        Contact: g.cosma@lboro.ac.uk • Developer: Georgina Cosma • All rights reserved. 
+        Last updated: {formatted_time}</p>
         </div>""",
         unsafe_allow_html=True,
     )
