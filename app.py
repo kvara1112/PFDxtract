@@ -7747,9 +7747,8 @@ def render_footer():
     st.markdown("---")
     st.markdown(
         f"""<div style='text-align: center'>
-        <p>Built with Streamlit • Data Source: UK Judiciary • Copyright © 2025 Loughborough University • 
-        Contact: g.cosma@lboro.ac.uk • Developer: Georgina Cosma • All rights reserved. 
-        Last updated: {formatted_time}</p>
+        <p>Built with Streamlit • Data Source: UK Judiciary • Copyright © 2025 Loughborough University • Developer: Georgina Cosma • 
+        Contact: g.cosma@lboro.ac.uk • All rights reserved. Last update:{formatted_time}</p>
         </div>""",
         unsafe_allow_html=True,
     )
