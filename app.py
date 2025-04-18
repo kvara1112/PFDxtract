@@ -8707,7 +8707,9 @@ def render_filter_data_tab():
                     "date_of_report" in data.columns
                     and pd.api.types.is_datetime64_any_dtype(data["date_of_report"])
                 ):
-                    year_range = f"{data['date_of_report'].dt.year.min()}-{data['date_of_report'].dt.year.max()}"
+                    min_year = int(data["date_of_report"].dt.year.min())
+                    max_year = int(data["date_of_report"].dt.year.max())
+                    year_range = f"{min_year}-{max_year}"
                     st.metric("Year Range", year_range)
                 else:
                     st.metric("Year Range", "N/A")
