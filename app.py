@@ -1121,6 +1121,51 @@ class BERTResultsAnalyzer:
                 cleaned_df.at[idx, "categories"] = clean_categories_value(value)
         
         return cleaned_df
+
+    def _clean_coroner_names(self, df):
+        """
+        Clean coroner_name column by removing everything starting from 'Coroner' and similar patterns
+        
+        Args:
+            df (pd.DataFrame): DataFrame containing a 'coroner_name' column
+            
+        Returns:
+            pd.DataFrame: DataFrame with cleaned 'coroner_name' column
+        """
+        if df is None or len(df) == 0 or 'coroner_name' not in df.columns:
+            return df
+        
+        # Create a copy to avoid modifying the original
+        cleaned_df = df.copy()
+        
+        # Define the cleaning function
+        def clean_coroner_name(name_text):
+            if pd.isna(name_text) or not isinstance(name_text, str):
+                return name_text
+            
+            # Common patterns to truncate at
+            patterns = [
+                "Coroner",
+                "Area:",
+                "Category:",
+                "This report is being sent to:",
+                "|"
+            ]
+            
+            # Find the first occurrence of any pattern and truncate
+            for pattern in patterns:
+                pos = name_text.find(pattern)
+                if pos != -1:
+                    return name_text[:pos].strip()
+            
+            # If no pattern is found, just return the original text
+            return name_text.strip()
+        
+        # Apply the cleaning function
+        cleaned_df['coroner_name'] = cleaned_df['coroner_name'].apply(clean_coroner_name)
+        
+        return cleaned_df
+
     # End of BERTResultsAnalyzer class
 
 
