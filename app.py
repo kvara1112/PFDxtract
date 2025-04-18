@@ -6754,6 +6754,42 @@ def filter_by_categories(
 
     return df[df["categories"].apply(has_matching_category)]
 
+def filter_by_areas(df: pd.DataFrame, selected_areas: List[str]) -> pd.DataFrame:
+    if not selected_areas:
+        return df
+
+    # Normalize both selected areas and dataframe areas
+    df_normalized = df.copy()
+    df_normalized['coroner_area_norm'] = df['coroner_area'].str.lower().str.strip()
+    
+    # Normalize selected areas
+    selected_areas_norm = [str(area).lower().strip() for area in selected_areas]
+
+    # Create a mask for matching
+    mask = df_normalized['coroner_area_norm'].apply(
+        lambda x: any(area in x or x in area for area in selected_areas_norm)
+    )
+
+    return df[mask]
+
+
+def filter_by_coroner_names(df: pd.DataFrame, selected_names: List[str]) -> pd.DataFrame:
+    if not selected_names:
+        return df
+
+    # Normalize both selected names and dataframe names
+    df_normalized = df.copy()
+    df_normalized['coroner_name_norm'] = df['coroner_name'].str.lower().str.strip()
+    
+    # Normalize selected names
+    selected_names_norm = [str(name).lower().strip() for name in selected_names]
+
+    # Create a mask for matching
+    mask = df_normalized['coroner_name_norm'].apply(
+        lambda x: any(name in x or x in name for name in selected_names_norm)
+    )
+
+    return df[mask]
 
 def filter_by_document_type(df: pd.DataFrame, doc_types: List[str]) -> pd.DataFrame:
     """
@@ -8158,7 +8194,8 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                 )
             else:
                 st.warning("HTML report not available")
-        
+
+
 def render_analysis_tab(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
 
@@ -8250,11 +8287,14 @@ def render_analysis_tab(data: pd.DataFrame = None):
             deceased_search = st.text_input(
                 "Deceased Name",
                 key="deceased_filter",
-                help="Enter partial or full name"
+                help="Enter partial or full name (case-insensitive)"
             )
             
             # Coroner Name
-            coroner_names = sorted(data['coroner_name'].dropna().unique())
+            # Normalize coroner names for selection and ensure uniqueness
+            coroner_names = sorted(set(
+                str(name).strip() for name in data['coroner_name'].dropna().unique()
+            ))
             selected_coroners = st.multiselect(
                 "Coroner Names",
                 options=coroner_names,
@@ -8262,7 +8302,10 @@ def render_analysis_tab(data: pd.DataFrame = None):
             )
             
             # Coroner Area
-            coroner_areas = sorted(data['coroner_area'].dropna().unique())
+            # Normalize coroner areas for selection and ensure uniqueness
+            coroner_areas = sorted(set(
+                str(area).strip() for area in data['coroner_area'].dropna().unique()
+            ))
             selected_areas = st.multiselect(
                 "Coroner Areas",
                 options=coroner_areas,
@@ -8273,7 +8316,10 @@ def render_analysis_tab(data: pd.DataFrame = None):
             all_categories = set()
             for cats in data['categories'].dropna():
                 if isinstance(cats, list):
-                    all_categories.update(cats)
+                    all_categories.update(str(cat).strip() for cat in cats)
+                elif isinstance(cats, str):
+                    all_categories.update(str(cat).strip() for cat in cats.split(','))
+            
             selected_categories = st.multiselect(
                 "Categories",
                 options=sorted(all_categories),
@@ -8299,39 +8345,79 @@ def render_analysis_tab(data: pd.DataFrame = None):
 
         # Document type filter
         if doc_type:
-            filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
+            if "Response" in doc_type and "Report" not in doc_type:
+                # Only responses
+                filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
+            elif "Report" in doc_type and "Response" not in doc_type:
+                # Only reports
+                filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
 
         # Reference number filter
         if selected_refs:
             filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
 
+        # Deceased name filter - case-insensitive partial match
         if deceased_search:
+            search_lower = deceased_search.lower().strip()
             filtered_df = filtered_df[
-                filtered_df['deceased_name'].fillna('').str.contains(
-                    deceased_search, 
+                filtered_df['deceased_name'].fillna('').str.lower().str.contains(
+                    search_lower, 
                     case=False, 
                     na=False
                 )
             ]
 
+        # Coroner name filter - case-insensitive partial match
         if selected_coroners:
-            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
-
-        if selected_areas:
-            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
-
-        if selected_categories:
+            # Normalize selected coroners and create a case-insensitive filter
+            selected_coroners_norm = [str(name).lower().strip() for name in selected_coroners]
             filtered_df = filtered_df[
-                filtered_df['categories'].apply(
-                    lambda x: bool(x) and any(cat in x for cat in selected_categories)
+                filtered_df['coroner_name'].fillna('').str.lower().apply(
+                    lambda x: any(selected_name in x or x in selected_name for selected_name in selected_coroners_norm)
                 )
             ]
+
+        # Coroner area filter - case-insensitive partial match
+        if selected_areas:
+            # Normalize selected areas and create a case-insensitive filter
+            selected_areas_norm = [str(area).lower().strip() for area in selected_areas]
+            filtered_df = filtered_df[
+                filtered_df['coroner_area'].fillna('').str.lower().apply(
+                    lambda x: any(selected_area in x or x in selected_area for selected_area in selected_areas_norm)
+                )
+            ]
+
+        # Categories filter - handle both list and string types with case-insensitive partial match
+        if selected_categories:
+            # Normalize selected categories
+            selected_cats_norm = [str(cat).lower().strip() for cat in selected_categories]
+            
+            def category_matches(row_cats):
+                # Handle both list and string types
+                if pd.isna(row_cats):
+                    return False
+                
+                # Convert to list if it's a string
+                if isinstance(row_cats, str):
+                    row_cats = [cat.strip() for cat in row_cats.split(',')]
+                
+                # Normalize row categories
+                row_cats_norm = [str(cat).lower().strip() for cat in row_cats]
+                
+                # Check for partial matches
+                return any(
+                    any(selected_cat in row_cat or row_cat in selected_cat 
+                        for row_cat in row_cats_norm)
+                    for selected_cat in selected_cats_norm
+                )
+            
+            filtered_df = filtered_df[filtered_df['categories'].apply(category_matches)]
 
         # Show active filters
         active_filters = []
         if start_date != min_date or end_date != max_date:
             active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
-        if doc_type and doc_type != ["Report", "Response"]:
+        if doc_type:
             active_filters.append(f"Document Types: {', '.join(doc_type)}")
         if selected_refs:
             active_filters.append(f"References: {', '.join(selected_refs)}")
@@ -8374,7 +8460,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
             st.markdown("---")
             quality_tab, temporal_tab, distribution_tab = st.tabs([
                 "📊 Data Quality Analysis",
-                "📅 Temporal Analysis",
+                "📅 Temporal Analysis", 
                 "📍 Distribution Analysis"
             ])
 
@@ -8422,35 +8508,14 @@ def render_analysis_tab(data: pd.DataFrame = None):
 
             # Export options
             st.markdown("---")
-            st.subheader("Export Options")
-            col1, col2 = st.columns(2)
-            
-            # CSV Export
-            with col1:
-                csv = filtered_df.to_csv(index=False).encode('utf-8')
-                st.download_button(
-                    "📥 Download Results (CSV)",
-                    csv,
-                    "filtered_reports.csv",
-                    "text/csv"
-                )
-            
-            # Excel Export
-            with col2:
-                excel_data = export_to_excel(filtered_df)
-                st.download_button(
-                    "📥 Download Results (Excel)",
-                    excel_data,
-                    "filtered_reports.xlsx",
-                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                )
+            show_export_options(filtered_df, "analysis")
+
         else:
-            st.warning("No data matches the selected filters.")
+            st.warning("No reports match your filter criteria. Try adjusting the filters.")
 
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
-
 
 def check_app_password():
     """Check if user has entered the correct password to access the app"""
