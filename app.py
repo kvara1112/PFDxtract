@@ -1034,7 +1034,70 @@ class BERTResultsAnalyzer:
         ].copy()
 
         return missing_concerns
+        
+    def _clean_coroner_names(self, df):
+        """
+        Clean coroner_name column by removing titles/prefixes and standardizing format
+        
+        Args:
+            df (pd.DataFrame): DataFrame containing a 'coroner_name' column
+            
+        Returns:
+            pd.DataFrame: DataFrame with cleaned 'coroner_name' column
+        """
+        if df is None or len(df) == 0 or 'coroner_name' not in df.columns:
+            return df
+        
+        # Create a copy to avoid modifying the original
+        cleaned_df = df.copy()
+        
+        # Common titles and prefixes to remove
+        titles = [
+            'Dr\\.?\\s+', 'Doctor\\s+', 
+            'Mr\\.?\\s+', 'Mrs\\.?\\s+', 'Ms\\.?\\s+', 'Miss\\.?\\s+',
+            'Prof\\.?\\s+', 'Professor\\s+',
+            'Sir\\s+', 'Dame\\s+',
+            'HM\\s+', 'HM\\s+Senior\\s+',
+            'Hon\\.?\\s+', 'Honorable\\s+',
+            'Justice\\s+', 'Judge\\s+',
+            'QC\\s+', 'KC\\s+'
+        ]
+        
+        # Define the cleaning function
+        def clean_name(name_text):
+            if pd.isna(name_text) or not isinstance(name_text, str):
+                return name_text
+            
+            # Convert to string and strip whitespace
+            name = str(name_text).strip()
+            
+            # Remove titles from the beginning of the name
+            import re
+            pattern = '^(' + '|'.join(titles) + ')+'
+            name = re.sub(pattern, '', name, flags=re.IGNORECASE)
+            
+            # Remove any common suffixes
+            name = re.sub(r'\s+QC$|\s+KC$|\s+Esq\.?$|\s+Jr\.?$|\s+Sr\.?$', '', name, flags=re.IGNORECASE)
+            
+            # Remove any trailing punctuation and normalize whitespace
+            name = re.sub(r'[,;:\.]$', '', name)
+            name = re.sub(r'\s+', ' ', name).strip()
+            
+            # Remove multiple instances of title (e.g., "Dr Dr" -> "")
+            name = re.sub(r'^(Dr\s+){2,}', '', name, flags=re.IGNORECASE)
+            
+            # Common format issues
+            name = re.sub(r'\(.*?\)', '', name)  # Remove content in parentheses
+            
+            return name.strip()
+        
+        # Apply the cleaning function
+        cleaned_df['coroner_name'] = cleaned_df['coroner_name'].apply(clean_name)
+        
+        return cleaned_df
 
+
+    
     def _clean_coroner_areas(self, df):
         """
         Clean coroner_area column by:
@@ -1219,61 +1282,8 @@ class BERTResultsAnalyzer:
         
         return cleaned_df
 
-    def _clean_coroner_names(self, df):
-    """
-    Clean coroner_name column by removing titles/prefixes and standardizing format
-    
-    Args:
-        df (pd.DataFrame): DataFrame containing a 'coroner_name' column
-        
-    Returns:
-        pd.DataFrame: DataFrame with cleaned 'coroner_name' column
-    """
-    if df is None or len(df) == 0 or 'coroner_name' not in df.columns:
-        return df
-    
-    # Create a copy to avoid modifying the original
-    cleaned_df = df.copy()
-    
-    # Common titles and prefixes to remove
-    titles = [
-        'Dr\\.?\\s+', 'Doctor\\s+', 
-        'Mr\\.?\\s+', 'Mrs\\.?\\s+', 'Ms\\.?\\s+', 'Miss\\.?\\s+',
-        'Prof\\.?\\s+', 'Professor\\s+',
-        'Sir\\s+', 'Dame\\s+',
-        'HM\\s+', 'HM\\s+Senior\\s+',
-        'Hon\\.?\\s+', 'Honorable\\s+',
-        'Justice\\s+', 'Judge\\s+',
-        'QC\\s+', 'KC\\s+'
-    ]
-    
-    # Define the cleaning function
-    def clean_name(name_text):
-        if pd.isna(name_text) or not isinstance(name_text, str):
-            return name_text
-        
-        # Convert to string and strip whitespace
-        name = str(name_text).strip()
-        
-        # Remove titles from the beginning of the name
-        import re
-        pattern = '^(' + '|'.join(titles) + ')+'
-        name = re.sub(pattern, '', name, flags=re.IGNORECASE)
-        
-        # Remove any common suffixes
-        name = re.sub(r'\s+QC$|\s+KC$|\s+Esq\.?$|\s+Jr\.?$|\s+Sr\.?$', '', name, flags=re.IGNORECASE)
-        
-        # Remove any trailing punctuation and normalize whitespace
-        name = re.sub(r'[,;:\.]$', '', name)
-        name = re.sub(r'\s+', ' ', name).strip()
-        
-        # Remove multiple instances of title (e.g., "Dr Dr" -> "")
-        name = re.sub(r'^(Dr\s+){2,}', '', name, flags=re.IGNORECASE)
-        
-        # Common format issues
-        name = re.sub(r'\(.*?\)', '', name)  # Remove content in parentheses
-        
-        return name.strip()
+
+
     
     # Apply the cleaning function
     cleaned_df['coroner_name'] = cleaned_df['coroner_name'].apply(clean_name)
