@@ -8743,44 +8743,53 @@ def render_filter_data_tab():
 
             # Create filter columns
             col1, col2 = st.columns(2)
-
+            # Create filter columns
+            col1, col2 = st.columns(2)
+            
             with col1:
                 # Date Range Filter
-                if (
-                    "date_of_report" in data.columns
-                    and pd.api.types.is_datetime64_any_dtype(data["date_of_report"])
-                ):
+                if "date_of_report" in data.columns and pd.api.types.is_datetime64_any_dtype(data["date_of_report"]):
                     min_date = data["date_of_report"].min().date()
                     max_date = data["date_of_report"].max().date()
                     st.write("**Date Range**")
-                    date_col1, date_col2 = st.columns(2)
-                    with date_col1:
+                    
+                    # Use a container instead of columns for the date inputs
+                    date_container = st.container()
+                    with date_container:
+                        # Add a label for "From"
+                        st.write("From")
                         start_date = st.date_input(
-                            "From",
+                            label="",  # Empty label as we've added it separately
                             value=min_date,
                             min_value=min_date,
                             max_value=max_date,
                             key="filter_start_date",
                             format="DD/MM/YYYY",
+                            label_visibility="collapsed"  # Hide the label
                         )
-                    with date_col2:
+                    
+                        # Add a label for "To"
+                        st.write("To")
                         end_date = st.date_input(
-                            "To",
+                            label="",  # Empty label as we've added it separately
                             value=max_date,
                             min_value=min_date,
                             max_value=max_date,
                             key="filter_end_date",
                             format="DD/MM/YYYY",
+                            label_visibility="collapsed"  # Hide the label
                         )
-
+            
                 # Coroner Name Filter
+                st.write("**Coroner Names**")
                 if "coroner_name" in data.columns:
                     coroner_names = sorted(data["coroner_name"].dropna().unique())
                     selected_coroners = st.multiselect(
-                        "Coroner Names",
+                        label="",  # Empty label to align with the pattern
                         options=coroner_names,
                         key="filter_coroner_names_fresh",
                         help="Select one or more coroner names",
+                        label_visibility="collapsed"  # Hide the label
                     )
 
             with col2:
