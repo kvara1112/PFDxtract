@@ -1133,7 +1133,8 @@ class BERTResultsAnalyzer:
                 "the report is being sent to:",
                 "this report",
                 "these reports",
-                "the report"
+                "the report",
+                "this is being"
             ]
             
             # Find the earliest position of any report-related pattern
