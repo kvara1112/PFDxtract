@@ -856,133 +856,150 @@ class BERTResultsAnalyzer:
         return df[~df.apply(self._is_response, axis=1)]
 
     def _merge_files_stack(self, files, duplicate_cols=None):
-        """Merge multiple files by stacking (appending) them."""
-        dfs = []
-
-        for file_index, file in enumerate(files):
-            try:
-                # Read file
-                if file.name.endswith(".csv"):
-                    df = pd.read_csv(file)
+            """Merge multiple files by stacking (appending) them."""
+            dfs = []
+    
+            for file_index, file in enumerate(files):
+                try:
+                    # Read file
+                    if file.name.endswith(".csv"):
+                        df = pd.read_csv(file)
+                    else:
+                        df = pd.read_excel(file)
+    
+                    # Display file information
+                    st.info(
+                        f"Processing file {file_index+1}: {file.name} ({len(df)} rows, {len(df.columns)} columns)"
+                    )
+    
+                    # Add source filename
+                    df["Source File"] = file.name
+    
+                    # Add to the list of dataframes
+                    dfs.append(df)
+    
+                except Exception as e:
+                    st.warning(f"Error processing file {file.name}: {str(e)}")
+                    continue
+    
+            if not dfs:
+                raise ValueError("No valid files to merge")
+    
+            # Combine all dataframes
+            merged_df = pd.concat(dfs, ignore_index=True)
+    
+            # Remove duplicates if specified
+            if duplicate_cols:
+                valid_dup_cols = [col for col in duplicate_cols if col in merged_df.columns]
+                if valid_dup_cols:
+                    before_count = len(merged_df)
+                    merged_df = merged_df.drop_duplicates(
+                        subset=valid_dup_cols, keep="first"
+                    )
+                    after_count = len(merged_df)
+    
+                    if before_count > after_count:
+                        st.success(
+                            f"Removed {before_count - after_count} duplicate records based on {', '.join(valid_dup_cols)}"
+                        )
                 else:
-                    df = pd.read_excel(file)
-
-                # Display file information
-                st.info(
-                    f"Processing file {file_index+1}: {file.name} ({len(df)} rows, {len(df.columns)} columns)"
-                )
-
-                # Add source filename
-                df["Source File"] = file.name
-
-                # Add to the list of dataframes
-                dfs.append(df)
-
-            except Exception as e:
-                st.warning(f"Error processing file {file.name}: {str(e)}")
-                continue
-
-        if not dfs:
-            raise ValueError("No valid files to merge")
-
-        # Combine all dataframes
-        merged_df = pd.concat(dfs, ignore_index=True)
-
-        # Remove duplicates if specified
-        if duplicate_cols:
-            valid_dup_cols = [col for col in duplicate_cols if col in merged_df.columns]
-            if valid_dup_cols:
+                    st.warning(
+                        f"Specified duplicate columns {duplicate_cols} not found in the merged data"
+                    )
+    
+            # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
+            if "Record ID" in merged_df.columns:
                 before_count = len(merged_df)
-                merged_df = merged_df.drop_duplicates(
-                    subset=valid_dup_cols, keep="first"
-                )
+                merged_df = merged_df.drop_duplicates(subset=["Record ID"], keep="first")
                 after_count = len(merged_df)
-
+    
                 if before_count > after_count:
                     st.success(
-                        f"Removed {before_count - after_count} duplicate records based on {', '.join(valid_dup_cols)}"
+                        f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)"
                     )
-            else:
-                st.warning(
-                    f"Specified duplicate columns {duplicate_cols} not found in the merged data"
-                )
-
-        # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
-        if "Record ID" in merged_df.columns:
-            before_count = len(merged_df)
-            merged_df = merged_df.drop_duplicates(subset=["Record ID"], keep="first")
-            after_count = len(merged_df)
-
-            if before_count > after_count:
-                st.success(
-                    f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)"
-                )
-        #
-
-        # Clean coroner_area column
-        if "coroner_area" in merged_df.columns:
-            before_cleaning = merged_df["coroner_area"].copy()
-            merged_df = self._clean_coroner_areas(merged_df)
-            
-            # Count changes made
-            changes_made = sum(before_cleaning != merged_df["coroner_area"])
-            if changes_made > 0:
-                st.success(f"Cleaned {changes_made} coroner area entries")
+    
+            # Clean coroner_area column
+            if "coroner_area" in merged_df.columns:
+                before_cleaning = merged_df["coroner_area"].copy()
+                merged_df = self._clean_coroner_areas(merged_df)
                 
-                # Show the first few changes as an example
-                example_changes = []
-                for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_area"])):
-                    if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
-                        example_changes.append(f"'{old}' → '{new}'")
-                
-                if example_changes:
-                    st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
-        
-        # Clean categories column
-        if "categories" in merged_df.columns:
-            # Save the original values for comparison
-            original_categories = merged_df["categories"].copy()
-            
-            # Apply cleaning
-            merged_df = self._clean_categories(merged_df)
-            
-            # Count changes - this is more complex since categories can be lists
-            changes_made = 0
-            example_changes = []
-            
-            # Check each row for changes
-            for i, (old, new) in enumerate(zip(original_categories, merged_df["categories"])):
-                # Handle list case
-                if isinstance(old, list) and isinstance(new, list):
-                    # Consider it changed if any element changed
-                    if any(o != n for o, n in zip(old, new) if isinstance(o, str) and isinstance(n, str)):
-                        changes_made += 1
-                        # Add example if we don't have many yet
-                        if len(example_changes) < 3:
-                            old_str = ", ".join(old) if all(isinstance(x, str) for x in old) else str(old)
-                            new_str = ", ".join(new) if all(isinstance(x, str) for x in new) else str(new)
-                            example_changes.append(f"'{old_str}' → '{new_str}'")
-                # Handle string case
-                elif isinstance(old, str) and isinstance(new, str) and old != new:
-                    changes_made += 1
-                    if len(example_changes) < 3:
-                        example_changes.append(f"'{old}' → '{new}'")
-            
-            # Report changes
-            if changes_made > 0:
-                st.success(f"Cleaned {changes_made} categories entries")
-                if example_changes:
-                    st.info("Examples of cleaned categories:\n" + "\n".join(example_changes))
-
-        
+                # Count changes made
+                changes_made = sum(before_cleaning != merged_df["coroner_area"])
+                if changes_made > 0:
+                    st.success(f"Cleaned {changes_made} coroner area entries")
                     
-        # Store the result
-        self.data = merged_df
-
-        # Show summary of the merged data
-        st.subheader("Merged Data Summary")
-        st.write(f"Total rows: {len(merged_df)}")
-        st.write(f"Columns: {', '.join(merged_df.columns)}")
+                    # Show the first few changes as an example
+                    example_changes = []
+                    for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_area"])):
+                        if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
+                            example_changes.append(f"'{old}' → '{new}'")
+                    
+                    if example_changes:
+                        st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
+            
+            # Clean coroner_name column
+            if "coroner_name" in merged_df.columns:
+                before_cleaning = merged_df["coroner_name"].copy()
+                merged_df = self._clean_coroner_names(merged_df)
+                
+                # Count changes made
+                changes_made = sum(before_cleaning != merged_df["coroner_name"])
+                if changes_made > 0:
+                    st.success(f"Cleaned {changes_made} coroner name entries")
+                    
+                    # Show the first few changes as an example
+                    example_changes = []
+                    for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_name"])):
+                        if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
+                            example_changes.append(f"'{old}' → '{new}'")
+                    
+                    if example_changes:
+                        st.info("Examples of cleaned coroner names:\n" + "\n".join(example_changes))
+            
+            # Clean categories column
+            if "categories" in merged_df.columns:
+                # Save the original values for comparison
+                original_categories = merged_df["categories"].copy()
+                
+                # Apply cleaning
+                merged_df = self._clean_categories(merged_df)
+                
+                # Count changes - this is more complex since categories can be lists
+                changes_made = 0
+                example_changes = []
+                
+                # Check each row for changes
+                for i, (old, new) in enumerate(zip(original_categories, merged_df["categories"])):
+                    # Handle list case
+                    if isinstance(old, list) and isinstance(new, list):
+                        # Consider it changed if any element changed
+                        if any(o != n for o, n in zip(old, new) if isinstance(o, str) and isinstance(n, str)):
+                            changes_made += 1
+                            # Add example if we don't have many yet
+                            if len(example_changes) < 3:
+                                old_str = ", ".join(old) if all(isinstance(x, str) for x in old) else str(old)
+                                new_str = ", ".join(new) if all(isinstance(x, str) for x in new) else str(new)
+                                example_changes.append(f"'{old_str}' → '{new_str}'")
+                    # Handle string case
+                    elif isinstance(old, str) and isinstance(new, str) and old != new:
+                        changes_made += 1
+                        if len(example_changes) < 3:
+                            example_changes.append(f"'{old}' → '{new}'")
+                
+                # Report changes
+                if changes_made > 0:
+                    st.success(f"Cleaned {changes_made} categories entries")
+                    if example_changes:
+                        st.info("Examples of cleaned categories:\n" + "\n".join(example_changes))
+                        
+            # Store the result
+            self.data = merged_df
+    
+            # Show summary of the merged data
+            st.subheader("Merged Data Summary")
+            st.write(f"Total rows: {len(merged_df)}")
+            st.write(f"Columns: {', '.join(merged_df.columns)}")
+        
 
     def _identify_missing_concerns(self, df):
         """
