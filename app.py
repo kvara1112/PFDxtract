@@ -1069,7 +1069,8 @@ class BERTResultsAnalyzer:
                 "this report",
                 "these reports",
                 "the report",
-                "coroner"
+                "coroner",
+                "category"
             ]
             
             # Find the earliest position of any report-related pattern
