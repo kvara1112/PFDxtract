@@ -1035,12 +1035,15 @@ class BERTResultsAnalyzer:
 
         return missing_concerns
 
-
-
     def _clean_coroner_areas(self, df):
         """
-        Clean coroner_area column by standardizing format, removing brackets, converting to lowercase,
-        and replacing & with 'and'
+        Clean coroner_area column by:
+        1. Converting everything to lowercase
+        2. Removing brackets (but keeping their content)
+        3. Replacing & with the word "and"
+        4. Removing hyphens
+        5. Removing the word "the"
+        6. Making specific replacements for known locations
         
         Args:
             df (pd.DataFrame): DataFrame containing a 'coroner_area' column
@@ -1064,15 +1067,30 @@ class BERTResultsAnalyzer:
             # Convert to lowercase
             area = area_text.lower()
             
-            # Remove content in brackets
-            area = re.sub(r'\(.*?\)', '', area)
-            area = re.sub(r'\[.*?\]', '', area)
+            # Remove brackets but keep their content
+            # For example, "bbbb (aaa)" becomes "bbbb aaa"
+            area = re.sub(r'\(', ' ', area)  # Replace opening brackets with space
+            area = re.sub(r'\)', ' ', area)  # Replace closing brackets with space
+            area = re.sub(r'\[', ' ', area)  # Replace opening square brackets with space
+            area = re.sub(r'\]', ' ', area)  # Replace closing square brackets with space
             
             # Replace & with 'and'
-            area = area.replace('&', ' and ')
+            area = area.replace('&', ' and ')  # This ensures the ampersand is properly replaced
+            
+            # Remove hyphens
+            area = area.replace('-', ' ')  # Replace hyphens with spaces
+            
+            # Remove the word "the" - both standalone and as part of other words
+            area = re.sub(r'\bthe\b', ' ', area)  # Remove standalone "the" with word boundaries
             
             # Replace multiple spaces with a single space
             area = re.sub(r'\s+', ' ', area)
+            
+            # Specific replacements for known variations - do these AFTER other cleanings
+            # so they catch all variations including those with dashes or different spacing
+            area = re.sub(r'\bisle of scilly\b', 'isles of scilly', area)  # Change "isle of scilly" to "isles of scilly"
+            area = re.sub(r'\beast riding of yorkshire\b', 'east riding', area)  # Change "east riding of yorkshire" to "east riding"
+            area = re.sub(r'\b(city of )?kingston upon hull\b', 'kingston upon hull', area)  # Remove "city of" from "kingston upon hull"
             
             # Remove common patterns that indicate the end of the coroner area
             end_patterns = [
@@ -1110,15 +1128,20 @@ class BERTResultsAnalyzer:
             if pipe_pos != -1:
                 area = area[:pipe_pos]
                 
-            # Remove any remaining special characters at the beginning or end
+            # Remove any special characters at the beginning or end, but keep alphanumeric and spaces
             area = re.sub(r'^[^a-z0-9]+|[^a-z0-9]+$', '', area)
             
-            return area.strip()
+            # Final cleanup - replace multiple spaces again and strip
+            area = re.sub(r'\s+', ' ', area).strip()
+            
+            return area
+        
+        # Apply the cleaning function
+        cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_area)
+        
+        return cleaned_df
     
-    # Apply the cleaning function
-    cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_area)
-    
-    return cleaned_df
+        
 
     def _clean_categories(self, df):
         """
