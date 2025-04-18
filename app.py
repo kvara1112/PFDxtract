@@ -8983,9 +8983,9 @@ def render_filter_data_tab():
                 # Summary visualizations
                 if (
                     len(filtered_df) >= 5
-                ):  # Only show visualizations if we have enough data
+                ):  # Only show visualisations if we have enough data
                     st.markdown("---")
-                    st.subheader("Summary Visualizations")
+                    st.subheader("Summary Visualisations")
 
                     viz_tab1, viz_tab2, viz_tab3 = st.tabs(
                         [
@@ -10538,10 +10538,10 @@ def main():
             
             1. **(1) 🔍 Scrape Reports**: Start by collecting PFD reports from the UK Judiciary website
             2. **(2) 📂 Scraped File Preparation**: Process and merge your scraped reports
-            3. **(3) 📊 Scraped File Analysis**: Visualize and analyze basic report patterns
+            3. **(3) 📊 Scraped File Analysis**: Visualise and analyse basic report patterns
             4. **(4) 📝 Topic Analysis & Summaries**: Generate basic themes from report content
             5. **(5) 🔬 Concept Annotation**: Conduct advanced theme analysis with AI
-            6. **(6) 📈 Theme Analysis Dashboard**: Explore comprehensive theme visualizations
+            6. **(6) 📈 Theme Analysis Dashboard**: Explore comprehensive theme visualisations
             
             Select each numbered tab in sequence to move through the complete analysis pipeline.
             
