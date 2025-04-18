@@ -7729,7 +7729,7 @@ def handle_error(error):
     """
     )
 
-
+ 
 def render_footer():
     """Render application footer with auto-updating timestamp"""
     # Get last modified time of this script
