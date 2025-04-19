@@ -8044,9 +8044,18 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
         st.session_state.bert_initialized = False
         
     # Initialize framework selections if not present
+
+
+    # Safer initialization with validation
     if "selected_frameworks" not in st.session_state:
-        st.session_state.selected_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
-        
+        # Only include frameworks that actually exist
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        st.session_state.selected_frameworks = default_frameworks
+    else:
+        # Validate existing selections against available options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"] + list(st.session_state.get("custom_frameworks", {}).keys())
+        st.session_state.selected_frameworks = [f for f in st.session_state.selected_frameworks if f in available_frameworks]
+    
     # Initialize custom frameworks dictionary if not present
     if "custom_frameworks" not in st.session_state:
         st.session_state.custom_frameworks = {}
