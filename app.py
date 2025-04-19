@@ -9057,6 +9057,391 @@ def render_filter_data_tab():
         logging.error(f"File processing error: {e}", exc_info=True)
 
 
+def render_bert_analysis_tab(data: pd.DataFrame = None):
+    """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
+    
+    # Ensure the bert_results dictionary exists in session state
+    if "bert_results" not in st.session_state:
+        st.session_state.bert_results = {}
+    
+    # Track if BERT model is initialized
+    if "bert_initialized" not in st.session_state:
+        st.session_state.bert_initialized = False
+    
+    # Initialize custom frameworks dictionary if not present
+    if "custom_frameworks" not in st.session_state:
+        st.session_state.custom_frameworks = {}
+        
+    # Safer initialization with validation
+    if "selected_frameworks" not in st.session_state:
+        # Only include frameworks that actually exist
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        st.session_state.selected_frameworks = default_frameworks
+    else:
+        # Validate existing selections against available options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"] + list(st.session_state.get("custom_frameworks", {}).keys())
+        st.session_state.selected_frameworks = [f for f in st.session_state.selected_frameworks if f in available_frameworks]
+
+    # File upload section
+    st.subheader("Upload Data")
+    reset_counter = st.session_state.get("reset_counter", 0)
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for BERT Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a file with reports for theme analysis",
+        key="bert_file_uploader",
+    )
+
+    # If a file is uploaded, process it
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_data = pd.read_csv(uploaded_file)
+            else:
+                uploaded_data = pd.read_excel(uploaded_file)
+
+            # Process the uploaded data
+            uploaded_data = process_scraped_data(uploaded_data)
+
+            # Update the data reference
+            data = uploaded_data
+
+            st.success("File uploaded and processed successfully!")
+                
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            return
+
+    # Check if data is available
+    if data is None or len(data) == 0:
+        st.warning(
+            "No data available. Please upload a file or ensure existing data is loaded."
+        )
+        return
+
+    # Framework selection section
+    st.subheader("Select Frameworks")
+    
+    # Create columns for the framework selection and custom framework upload
+    frame_col1, frame_col2 = st.columns([2, 1])
+    
+    with frame_col1:
+        # Get all available framework options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        if "custom_frameworks" in st.session_state:
+            available_frameworks.extend(list(st.session_state.custom_frameworks.keys()))
+        
+        # Predefined framework selection - use a unique key
+        st.session_state.selected_frameworks = st.multiselect(
+            "Choose Frameworks to Use",
+            options=available_frameworks,
+            default=st.session_state.selected_frameworks,
+            help="Select which conceptual frameworks to use for theme analysis",
+            key=f"framework_select_{reset_counter}"
+        )
+    
+    with frame_col2:
+        # Custom framework upload
+        custom_framework_file = st.file_uploader(
+            "Upload Custom Framework",
+            type=["json", "txt"],
+            help="Upload a JSON file containing custom framework definitions",
+            key=f"custom_framework_uploader_{reset_counter}"
+        )
+        
+        if custom_framework_file is not None:
+            try:
+                # Read framework definition
+                custom_framework_content = custom_framework_file.read().decode("utf-8")
+                custom_framework_data = json.loads(custom_framework_content)
+                
+                # Validate framework structure
+                if isinstance(custom_framework_data, list) and all(isinstance(item, dict) and "name" in item and "keywords" in item for item in custom_framework_data):
+                    # Framework name input
+                    custom_framework_name = st.text_input(
+                        "Custom Framework Name", 
+                        f"Custom Framework {len(st.session_state.custom_frameworks) + 1}",
+                        key=f"custom_framework_name_{reset_counter}"
+                    )
+                    
+                    # Add button for the custom framework
+                    if st.button("Add Custom Framework", key=f"add_custom_framework_{reset_counter}"):
+                        # Check if name already exists
+                        if custom_framework_name in st.session_state.custom_frameworks:
+                            st.warning(f"A framework with the name '{custom_framework_name}' already exists. Please choose a different name.")
+                        else:
+                            # Add to session state
+                            st.session_state.custom_frameworks[custom_framework_name] = custom_framework_data
+                            
+                            # Add to selected frameworks if not already there
+                            if custom_framework_name not in st.session_state.selected_frameworks:
+                                st.session_state.selected_frameworks.append(custom_framework_name)
+                            
+                            st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
+                            st.rerun()  # Refresh to update UI
+                else:
+                    st.error("Invalid framework format. Each item must have 'name' and 'keywords' fields.")
+            except json.JSONDecodeError:
+                st.error("Invalid JSON format. Please check your file.")
+            except Exception as e:
+                st.error(f"Error processing custom framework: {str(e)}")
+                logging.error(f"Custom framework error: {e}", exc_info=True)
+    
+    # Display currently loaded custom frameworks
+    if "custom_frameworks" in st.session_state and st.session_state.custom_frameworks:
+        st.subheader("Loaded Custom Frameworks")
+        for name, framework in st.session_state.custom_frameworks.items():
+            with st.expander(f"{name} ({len(framework)} themes)"):
+                # Display the first few themes as an example
+                for i, theme in enumerate(framework[:5]):
+                    st.markdown(f"**{theme['name']}**: {', '.join(theme['keywords'][:5])}...")
+                    if i >= 4 and len(framework) > 5:
+                        st.markdown(f"*... and {len(framework) - 5} more themes*")
+                        break
+                
+                # Add option to remove this framework
+                if st.button("Remove Framework", key=f"remove_{name}_{reset_counter}"):
+                    del st.session_state.custom_frameworks[name]
+                    if name in st.session_state.selected_frameworks:
+                        st.session_state.selected_frameworks.remove(name)
+                    st.success(f"Removed framework '{name}'")
+                    st.rerun()  # Refresh to update UI
+
+    # Column selection for analysis
+    st.subheader("Select Analysis Column")
+
+    # Find text columns (object/string type)
+    text_columns = data.select_dtypes(include=["object"]).columns.tolist()
+
+    # If no text columns found
+    if not text_columns:
+        st.error("No text columns found in the dataset.")
+        return
+
+    # Column selection with dropdown
+    content_column = st.selectbox(
+        "Choose the column to analyse:",
+        options=text_columns,
+        index=text_columns.index("Content") if "Content" in text_columns else 0,
+        help="Select the column containing the text you want to analyse",
+        key="bert_content_column",
+    )
+
+    # Filtering options
+    st.subheader("Select Documents to Analyse")
+
+    # Option to select all or specific records
+    analysis_type = st.radio(
+        "Analysis Type",
+        ["All Reports", "Selected Reports"],
+        horizontal=True,
+        key="bert_analysis_type",
+    )
+
+    if analysis_type == "Selected Reports":
+        # Multi-select for reports
+        selected_indices = st.multiselect(
+            "Choose specific reports to analyse",
+            options=list(range(len(data))),
+            format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
+            key="bert_selected_indices",
+        )
+        selected_data = data.iloc[selected_indices] if selected_indices else None
+    else:
+        selected_data = data
+
+    # Analysis parameters
+    st.subheader("Analysis Parameters")
+    similarity_threshold = st.slider(
+        "Similarity Threshold",
+        min_value=0.3,
+        max_value=0.9,
+        value=0.65,
+        step=0.05,
+        help="Minimum similarity score for theme detection (higher = more strict)",
+        key="bert_similarity_threshold",
+    )
+
+    # Analysis button
+    run_analysis = st.button(
+        "Run Analysis", type="primary", key="bert_run_analysis"
+    )
+
+    # Run analysis if button is clicked
+    if run_analysis:
+        with st.spinner("Performing Theme Analysis..."):
+            try:
+                # Validate data selection
+                if selected_data is None or len(selected_data) == 0:
+                    st.warning("No documents selected for analysis.")
+                    return
+
+                # Initialize the theme analyzer (with loading message in a spinner)
+                with st.spinner("Loading annotation model and tokenizer..."):
+                    # Initialize the analyzer
+                    theme_analyzer = ThemeAnalyzer(
+                        model_name="emilyalsentzer/Bio_ClinicalBERT"
+                    )
+                    
+                    # Mark as initialized
+                    st.session_state.bert_initialized = True
+                
+                # Set custom configuration
+                theme_analyzer.config[
+                    "base_similarity_threshold"
+                ] = similarity_threshold
+                
+                # Filter frameworks based on user selection
+                filtered_frameworks = {}
+                
+                # Add selected built-in frameworks
+                for framework in st.session_state.selected_frameworks:
+                    if framework == "I-SIRch":
+                        filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
+                    elif framework == "House of Commons":
+                        filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
+                    elif framework == "Extended Analysis":
+                        filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
+                    elif framework in st.session_state.custom_frameworks:
+                        # Add custom framework
+                        filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
+                
+                # Set the filtered frameworks
+                theme_analyzer.frameworks = filtered_frameworks
+                
+                # If no frameworks selected, show error
+                if not filtered_frameworks:
+                    st.error("Please select at least one framework for analysis.")
+                    return
+
+                # Use the enhanced create_detailed_results method
+                (
+                    results_df,
+                    highlighted_texts,
+                ) = theme_analyzer.create_detailed_results(
+                    selected_data, content_column=content_column
+                )
+
+                # Save results to session state to ensure persistence
+                st.session_state.bert_results["results_df"] = results_df
+                st.session_state.bert_results["highlighted_texts"] = highlighted_texts
+
+                st.success(f"Analysis complete using {len(filtered_frameworks)} frameworks!")
+
+            except Exception as e:
+                st.error(f"Error during annotation analysis: {str(e)}")
+                logging.error(f"Annotation analysis error: {e}", exc_info=True)
+
+    # Display results if they exist
+    if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+        results_df = st.session_state.bert_results["results_df"]
+        
+        # Summary stats
+        st.subheader("Results")
+        
+        # Show framework distribution
+        if "Framework" in results_df.columns:
+            framework_counts = results_df["Framework"].value_counts()
+            
+            # Create columns for framework distribution metrics
+            framework_cols = st.columns(len(framework_counts))
+            
+            for i, (framework, count) in enumerate(framework_counts.items()):
+                with framework_cols[i]:
+                    st.metric(framework, count, help=f"Number of theme identifications from {framework} framework")
+        
+        st.write(f"Total Theme Identifications: {len(results_df)}")
+        
+        # Clean up the results DataFrame to display only the essential columns
+        display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
+        
+        # Add metadata columns if available
+        for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
+            if col in results_df.columns:
+                display_cols.append(col)
+        
+        # Add matched sentences at the end
+        if "Matched Sentences" in results_df.columns:
+            display_cols.append("Matched Sentences")
+        
+        # Create the display DataFrame with only existing columns
+        valid_cols = [col for col in display_cols if col in results_df.columns]
+        clean_df = results_df[valid_cols].copy()
+        
+        # Display the results table
+        st.dataframe(
+            clean_df,
+            use_container_width=True,
+            column_config={
+                "Title": st.column_config.TextColumn("Document Title"),
+                "Framework": st.column_config.TextColumn("Framework"),
+                "Theme": st.column_config.TextColumn("Theme"),
+                "Confidence": st.column_config.TextColumn("Confidence"),
+                "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                "Matched Sentences": st.column_config.TextColumn("Matched Sentences"),
+                "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                "year": st.column_config.NumberColumn("Year"),
+                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY")
+            }
+        )
+        
+        # Add download options
+        st.subheader("Export Results")
+        
+        # Generate timestamp for filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create columns for download buttons
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Excel download button using the enhanced export_to_excel function
+            excel_data = export_to_excel(clean_df)
+            st.download_button(
+                "📥 Download Results Table",
+                data=excel_data,
+                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="bert_excel_download",
+            )
+        
+        with col2:
+            # Always regenerate HTML report when results are available
+            if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
+                # Generate fresh HTML report based on current results
+                theme_analyzer = ThemeAnalyzer()
+                
+                # Set custom frameworks if they exist
+                if st.session_state.custom_frameworks:
+                    for name, framework in st.session_state.custom_frameworks.items():
+                        if name in st.session_state.selected_frameworks:
+                            theme_analyzer.frameworks[name] = framework
+                
+                html_content = theme_analyzer._create_integrated_html_for_pdf(
+                    results_df, st.session_state.bert_results["highlighted_texts"]
+                )
+                html_filename = f"theme_analysis_report_{timestamp}.html"
+                
+                with open(html_filename, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                    
+                st.session_state.bert_results["html_filename"] = html_filename
+                
+                # Provide download button for fresh HTML
+                with open(html_filename, "rb") as f:
+                    html_data = f.read()
+                
+                st.download_button(
+                    "📄 Download Annotated Reports (HTML)",
+                    data=html_data,
+                    file_name=os.path.basename(html_filename),
+                    mime="text/html",
+                    key="bert_html_download",
+                )
+            else:
+                st.warning("HTML report not available")
 ###
 def render_analysis_tab2(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
