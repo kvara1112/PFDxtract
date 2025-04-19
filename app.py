@@ -3945,7 +3945,8 @@ def extract_concern_text2(content):
         "INVESTIGATION FINDINGS",
         "THE CORONER'S MATTER OF CONCERN",
         "CONCERNS AND RECOMMENDATIONS",
-        "CONCERNS IDENTIFIED"
+        "CONCERNS IDENTIFIED",
+        "Concerns of the Coroner:"
     ]
     
     # Make case-insensitive search by converting content to lowercase once
