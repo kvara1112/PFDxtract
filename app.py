@@ -8042,10 +8042,11 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
     # Track if BERT model is initialized
     if "bert_initialized" not in st.session_state:
         st.session_state.bert_initialized = False
+    
+    # Initialize custom frameworks dictionary if not present
+    if "custom_frameworks" not in st.session_state:
+        st.session_state.custom_frameworks = {}
         
-    # Initialize framework selections if not present
-
-
     # Safer initialization with validation
     if "selected_frameworks" not in st.session_state:
         # Only include frameworks that actually exist
@@ -8055,10 +8056,6 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
         # Validate existing selections against available options
         available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"] + list(st.session_state.get("custom_frameworks", {}).keys())
         st.session_state.selected_frameworks = [f for f in st.session_state.selected_frameworks if f in available_frameworks]
-    
-    # Initialize custom frameworks dictionary if not present
-    if "custom_frameworks" not in st.session_state:
-        st.session_state.custom_frameworks = {}
 
     # File upload section
     st.subheader("Upload Data")
@@ -8104,12 +8101,18 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
     frame_col1, frame_col2 = st.columns([2, 1])
     
     with frame_col1:
-        # Predefined framework selection
+        # Get all available framework options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        if "custom_frameworks" in st.session_state:
+            available_frameworks.extend(list(st.session_state.custom_frameworks.keys()))
+        
+        # Predefined framework selection - use a unique key
         st.session_state.selected_frameworks = st.multiselect(
             "Choose Frameworks to Use",
-            options=["I-SIRch", "House of Commons", "Extended Analysis"],
+            options=available_frameworks,
             default=st.session_state.selected_frameworks,
-            help="Select which conceptual frameworks to use for theme analysis"
+            help="Select which conceptual frameworks to use for theme analysis",
+            key=f"framework_select_{reset_counter}"
         )
     
     with frame_col2:
@@ -8118,7 +8121,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             "Upload Custom Framework",
             type=["json", "txt"],
             help="Upload a JSON file containing custom framework definitions",
-            key="custom_framework_uploader"
+            key=f"custom_framework_uploader_{reset_counter}"
         )
         
         if custom_framework_file is not None:
@@ -8138,23 +8141,29 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                     
                     # Add button for the custom framework
                     if st.button("Add Custom Framework", key=f"add_custom_framework_{reset_counter}"):
-                        # Add to session state
-                        st.session_state.custom_frameworks[custom_framework_name] = custom_framework_data
-                        
-                        # Add to selected frameworks if not already there
-                        if custom_framework_name not in st.session_state.selected_frameworks:
-                            st.session_state.selected_frameworks.append(custom_framework_name)
-                        
-                        st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
-                        st.rerun()  # Refresh to update UI
+                        # Check if name already exists
+                        if custom_framework_name in st.session_state.custom_frameworks:
+                            st.warning(f"A framework with the name '{custom_framework_name}' already exists. Please choose a different name.")
+                        else:
+                            # Add to session state
+                            st.session_state.custom_frameworks[custom_framework_name] = custom_framework_data
+                            
+                            # Add to selected frameworks if not already there
+                            if custom_framework_name not in st.session_state.selected_frameworks:
+                                st.session_state.selected_frameworks.append(custom_framework_name)
+                            
+                            st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
+                            st.rerun()  # Refresh to update UI
                 else:
                     st.error("Invalid framework format. Each item must have 'name' and 'keywords' fields.")
+            except json.JSONDecodeError:
+                st.error("Invalid JSON format. Please check your file.")
             except Exception as e:
                 st.error(f"Error processing custom framework: {str(e)}")
                 logging.error(f"Custom framework error: {e}", exc_info=True)
     
     # Display currently loaded custom frameworks
-    if st.session_state.custom_frameworks:
+    if "custom_frameworks" in st.session_state and st.session_state.custom_frameworks:
         st.subheader("Loaded Custom Frameworks")
         for name, framework in st.session_state.custom_frameworks.items():
             with st.expander(f"{name} ({len(framework)} themes)"):
