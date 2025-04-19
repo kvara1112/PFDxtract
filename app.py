@@ -22,7 +22,7 @@ import traceback
 import torch
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import plotly.express as pxf
+import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
