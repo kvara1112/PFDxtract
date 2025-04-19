@@ -8859,7 +8859,7 @@ def render_filter_data_tab():
                     )
                 
                 # Submission buttons
-                submitted = st.form_submit_button("Apply Filters", type="primary")
+                submitted = st.form_submit_button("Apply Filters & Search", type="primary")
                 
             # Reset Filters Button (outside the form)
             if st.button("Reset Filters"):
@@ -9082,10 +9082,10 @@ def render_filter_data_tab():
                     st.write(f"Coroner names: {num_coroners}")
                 
                 # Advanced search examples
-                st.markdown("### Advanced Search Help")
+                st.markdown("### Content Search Help")
                 with st.expander("Search Examples", expanded=False):
                     st.markdown("""
-                    #### Advanced Search Syntax:
+                    #### Content Search Syntax:
                     
                     - **Simple search**: `medication`
                     - **AND search**: `medication and safety`
