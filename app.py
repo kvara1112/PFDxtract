@@ -8648,148 +8648,123 @@ def render_bert_file_merger():
 
 
 def render_filter_data_tab():
-    """Render a filtering tab within the Scraped File Preparation section with improved layout and styling"""
-    st.subheader("Filter & Explore Data")
+    """Render a filtering tab within the Scraped File Preparation section with layout similar to Scrape Reports tab"""
+    st.subheader("Filter Data")
 
-    # Create a clean form-like layout
-    with st.form("filter_data_form"):
-        # File upload section with clear instructions
+    # Create a two-column layout like in the Scrape Reports tab
+    left_col, right_col = st.columns([3, 2])
+    
+    with left_col:
+        # File upload section
         uploaded_file = st.file_uploader(
             "Upload CSV or Excel file",
             type=["csv", "xlsx"],
-            help="Upload your PFD reports dataset to filter and explore",
+            help="Upload your PFD reports dataset",
             key="filter_file_uploader",
         )
-
-        # Submit button for form
-        filter_submitted = st.form_submit_button("Load and Process Data", type="primary")
-    
-    # Process uploaded file
-    if uploaded_file is not None and filter_submitted:
-        try:
-            # Show loading spinner while processing
-            with st.spinner("Processing your data..."):
-                # Read file with minimal preprocessing
-                if uploaded_file.name.endswith(".csv"):
-                    data = pd.read_csv(uploaded_file)
-                else:
-                    data = pd.read_excel(uploaded_file)
-
-                # Basic data cleaning
-                data = data.dropna(how="all")  # Remove completely empty rows
-
-                # Convert date_of_report to datetime if it exists
-                if "date_of_report" in data.columns:
-                    try:
-                        # Try multiple date formats
-                        data["date_of_report"] = pd.to_datetime(
-                            data["date_of_report"], format="%d/%m/%Y", errors="coerce"
-                        )
-                        # Fill in any parsing failures with other formats
-                        mask = data["date_of_report"].isna()
-                        if mask.any():
-                            data.loc[mask, "date_of_report"] = pd.to_datetime(
-                                data.loc[mask, "date_of_report"], format="%Y-%m-%d", errors="coerce"
-                            )
-                        # Final attempt with pandas' smart parsing
-                        mask = data["date_of_report"].isna()
-                        if mask.any():
-                            data.loc[mask, "date_of_report"] = pd.to_datetime(
-                                data.loc[mask, "date_of_report"],
-                                infer_datetime_format=True,
-                                errors="coerce",
-                            )
-                    except Exception as e:
-                        st.warning(
-                            "Some date values could not be converted. Date filtering may not work completely."
-                        )
-
-            st.success(f"File uploaded successfully! Found {len(data)} records.")
-
-            # Display overview metrics in a clean, organized row
-            st.markdown("### Dataset Overview")
+        
+        # If no file is uploaded, show instructions
+        if uploaded_file is None:
+            st.info("Please upload a PFD reports dataset (CSV or Excel file) to begin filtering.")
             
-            metric_cols = st.columns(4)
-            
-            with metric_cols[0]:
-                st.metric("Total Reports", len(data))
-            
-            with metric_cols[1]:
-                if (
-                    "date_of_report" in data.columns
-                    and pd.api.types.is_datetime64_any_dtype(data["date_of_report"])
-                ):
-                    min_year = int(data["date_of_report"].dt.year.min())
-                    max_year = int(data["date_of_report"].dt.year.max())
-                    year_range = f"{min_year}-{max_year}"
-                    st.metric("Year Range", year_range)
-                else:
-                    st.metric("Year Range", "N/A")
-            
-            with metric_cols[2]:
-                if "coroner_area" in data.columns:
-                    areas_count = data["coroner_area"].nunique()
-                    st.metric("Coroner Areas", areas_count)
-                else:
-                    st.metric("Coroner Areas", "N/A")
-            
-            with metric_cols[3]:
-                if "categories" in data.columns:
-                    # Extract unique categories consistently
-                    all_categories = set()
-                    for cats in data["categories"].dropna():
-                        # Split by comma and strip whitespace for string categories
-                        if isinstance(cats, str):
-                            split_cats = [cat.strip() for cat in cats.split(",")]
-                            all_categories.update(split_cats)
-                        # Handle list categories
-                        elif isinstance(cats, list):
-                            all_categories.update(
-                                [cat.strip() for cat in cats if isinstance(cat, str)]
-                            )
-
-                    st.metric("Categories", len(all_categories))
-                else:
-                    st.metric("Categories", "N/A")
-
-            # Filters section with clear visual separation
-            st.markdown("---")
-            st.subheader("Filter Data")
-            
-            # Use expanded to create a clean, collapsible filter section
-            with st.expander("Filter Options", expanded=True):
-                # Create two column layout for filters like in Scrape Reports
-                filter_col1, filter_col2 = st.columns(2)
+            with st.expander("📋 File Requirements", expanded=False):
+                st.markdown(
+                    """
+                ## Recommended Columns
                 
-                with filter_col1:
+                For optimal filtering, your file should include these columns:
+                
+                - **Title**: Report title
+                - **URL**: Link to the original report
+                - **date_of_report**: Date in format DD/MM/YYYY
+                - **ref**: Reference number
+                - **deceased_name**: Name of deceased person (if applicable)
+                - **coroner_name**: Name of the coroner
+                - **coroner_area**: Coroner jurisdiction area
+                - **categories**: Report categories
+                - **Content**: Report text content
+                - **Extracted_Concerns**: Extracted coroner concerns text
+                
+                Files created from the File Merger tab should contain all these columns.
+                """
+                )
+            return
+        
+        # Process uploaded file
+        try:
+            # Read file
+            if uploaded_file.name.endswith(".csv"):
+                data = pd.read_csv(uploaded_file)
+            else:
+                data = pd.read_excel(uploaded_file)
+
+            # Basic data cleaning
+            data = data.dropna(how="all")  # Remove completely empty rows
+
+            # Convert date_of_report to datetime if it exists
+            if "date_of_report" in data.columns:
+                try:
+                    # Try multiple date formats
+                    data["date_of_report"] = pd.to_datetime(
+                        data["date_of_report"], format="%d/%m/%Y", errors="coerce"
+                    )
+                    # Fill in any parsing failures with other formats
+                    mask = data["date_of_report"].isna()
+                    if mask.any():
+                        data.loc[mask, "date_of_report"] = pd.to_datetime(
+                            data.loc[mask, "date_of_report"], format="%Y-%m-%d", errors="coerce"
+                        )
+                    # Final attempt with pandas' smart parsing
+                    mask = data["date_of_report"].isna()
+                    if mask.any():
+                        data.loc[mask, "date_of_report"] = pd.to_datetime(
+                            data.loc[mask, "date_of_report"],
+                            infer_datetime_format=True,
+                            errors="coerce",
+                        )
+                except Exception as e:
+                    st.warning(
+                        "Some date values could not be converted. Date filtering may not work completely."
+                    )
+            
+            # Create a form for filter settings - like in Scrape Reports tab
+            with st.form("filter_settings_form"):
+                st.subheader("Filter Settings")
+                
+                # Create two rows with two columns each
+                row1_col1, row1_col2 = st.columns(2)
+                row2_col1, row2_col2 = st.columns(2)
+                row3_col1, row3_col2 = st.columns(2)
+                
+                # First row
+                with row1_col1:
                     # Date Range Filter
                     if "date_of_report" in data.columns and pd.api.types.is_datetime64_any_dtype(data["date_of_report"]):
                         min_date = data["date_of_report"].min().date()
                         max_date = data["date_of_report"].max().date()
                         
                         st.markdown("**Date Range**")
-                        date_from, date_to = st.columns(2)
-                        
-                        with date_from:
-                            start_date = st.date_input(
-                                "From",
-                                value=min_date,
-                                min_value=min_date,
-                                max_value=max_date,
-                                key="filter_start_date",
-                                format="DD/MM/YYYY",
-                            )
-                        
-                        with date_to:
-                            end_date = st.date_input(
-                                "To",
-                                value=max_date,
-                                min_value=min_date,
-                                max_value=max_date,
-                                key="filter_end_date",
-                                format="DD/MM/YYYY",
-                            )
-                    
+                        start_date = st.date_input(
+                            "From",
+                            value=min_date,
+                            min_value=min_date,
+                            max_value=max_date,
+                            key="filter_start_date",
+                            format="DD/MM/YYYY",
+                        )
+                
+                with row1_col2:
+                    # Date Range (continued)
+                    if "date_of_report" in data.columns and pd.api.types.is_datetime64_any_dtype(data["date_of_report"]):
+                        st.markdown("&nbsp;")  # Add some spacing to align with "From"
+                        end_date = st.date_input(
+                            "To",
+                            value=max_date,
+                            min_value=min_date,
+                            max_value=max_date,
+                            key="filter_end_date",
+                            format="DD/MM/YYYY",
+                        )
                     # Year Filter if date_of_report not available
                     elif "year" in data.columns:
                         years = sorted(data["year"].dropna().unique())
@@ -8803,32 +8778,34 @@ def render_filter_data_tab():
                                 (min_year, max_year),
                                 key="filter_years",
                             )
-                    
+                
+                # Second row
+                with row2_col1:
                     # Coroner Area Filter
                     if "coroner_area" in data.columns:
                         st.markdown("**Coroner Areas**")
                         coroner_areas = sorted(data["coroner_area"].dropna().unique())
                         selected_areas = st.multiselect(
-                            "Select one or more coroner areas",
+                            "Select coroner areas",
                             options=coroner_areas,
-                            key="filter_coroner_areas_fresh",
-                            help="Select coroner areas to include",
-                            label_visibility="collapsed"
+                            key="filter_coroner_areas",
+                            help="Select coroner areas to include"
                         )
                 
-                with filter_col2:
+                with row2_col2:
                     # Coroner Name Filter
                     if "coroner_name" in data.columns:
                         st.markdown("**Coroner Names**")
                         coroner_names = sorted(data["coroner_name"].dropna().unique())
                         selected_coroners = st.multiselect(
-                            "Select one or more coroner names",
+                            "Select coroner names",
                             options=coroner_names,
-                            key="filter_coroner_names_fresh",
-                            help="Select coroner names to include",
-                            label_visibility="collapsed"
+                            key="filter_coroner_names",
+                            help="Select coroner names to include"
                         )
-                    
+                
+                # Third row
+                with row3_col1:
                     # Categories Filter
                     if "categories" in data.columns:
                         st.markdown("**Categories**")
@@ -8849,36 +8826,23 @@ def render_filter_data_tab():
 
                         # Create multiselect for categories
                         selected_categories = st.multiselect(
-                            "Select one or more categories",
+                            "Select categories",
                             options=sorted_categories,
-                            key="filter_categories_fresh",
-                            help="Select categories to include",
-                            label_visibility="collapsed"
+                            key="filter_categories",
+                            help="Select categories to include"
                         )
                 
-                # Advanced search in a section below the columns
-                st.markdown("### Advanced Content Search")
-                
-                # Add a container for search inputs
-                search_container = st.container()
-                with search_container:
+                with row3_col2:
+                    # Advanced content search
                     if "content" in data.columns or "Content" in data.columns:
                         content_col = "content" if "content" in data.columns else "Content"
-                        
+                        st.markdown("**Content Search**")
                         keyword_search = st.text_input(
-                            "Search in Content",
+                            "Search in content",
                             key="filter_keyword_search",
-                            help="Enter search terms with operators",
+                            help="Use 'term1 and term2' for AND, 'term1 or term2' for OR",
                             placeholder="Enter search terms"
                         )
-                
-                # Add examples and guidance for advanced search as a caption
-                st.caption("""
-                **Advanced Search Examples:**
-                - Simple search: `medication` (finds documents containing this term)
-                - AND search: `medication and safety` (finds documents containing both terms)
-                - OR search: `medication or drug` (finds documents containing either term)
-                """)
                 
                 # Option to exclude records without extracted concerns
                 if "extracted_concerns" in data.columns or "Extracted_Concerns" in data.columns:
@@ -8893,28 +8857,32 @@ def render_filter_data_tab():
                         key="filter_exclude_no_concerns",
                         help="Show only records with extracted coroner concerns",
                     )
-            
-            # Action buttons in a row
-            button_col1, button_col2 = st.columns(2)
-            with button_col1:
-                apply_filters = st.button("Apply Filters", type="primary", key="apply_filters_button")
-            with button_col2:
-                reset_filters = st.button("Reset Filters", key="reset_filters_button")
-
-            if reset_filters:
-                # Clear all filter-related session state
+                
+                # Submission buttons
+                submitted = st.form_submit_button("Apply Filters", type="primary")
+                
+            # Reset Filters Button (outside the form)
+            if st.button("Reset Filters"):
                 for key in list(st.session_state.keys()):
                     if key.startswith("filter_"):
                         del st.session_state[key]
                 st.rerun()
             
-            # Apply filters to data if button is clicked
-            filtered_df = data.copy()
-            active_filters = []
+            # Display results if form submitted or if this is a rerun with active filters
+            show_results = submitted or any(k.startswith("filter_") for k in st.session_state.keys())
             
-            if apply_filters:
+            if show_results:
+                # Apply filters to data
+                filtered_df = data.copy()
+                active_filters = []
+                
                 # Date filter
-                if "date_of_report" in filtered_df.columns and pd.api.types.is_datetime64_any_dtype(filtered_df["date_of_report"]):
+                if "date_of_report" in filtered_df.columns and "filter_start_date" in st.session_state and "filter_end_date" in st.session_state:
+                    start_date = st.session_state.filter_start_date
+                    end_date = st.session_state.filter_end_date
+                    min_date = filtered_df["date_of_report"].min().date()
+                    max_date = filtered_df["date_of_report"].max().date()
+                    
                     if start_date != min_date or end_date != max_date:
                         filtered_df = filtered_df[
                             (filtered_df["date_of_report"].dt.date >= start_date)
@@ -8925,8 +8893,12 @@ def render_filter_data_tab():
                         )
 
                 # Year filter (if date_of_report not available)
-                if "year" in filtered_df.columns and "date_of_report" not in filtered_df.columns:
-                    if "selected_years" in locals() and selected_years != (min_year, max_year):
+                if "year" in filtered_df.columns and "filter_years" in st.session_state:
+                    selected_years = st.session_state.filter_years
+                    years = sorted(data["year"].dropna().unique())
+                    min_year, max_year = min(years), max(years)
+                    
+                    if selected_years != (min_year, max_year):
                         filtered_df = filtered_df[
                             (filtered_df["year"] >= selected_years[0])
                             & (filtered_df["year"] <= selected_years[1])
@@ -8934,17 +8906,29 @@ def render_filter_data_tab():
                         active_filters.append(f"Year: {selected_years[0]} to {selected_years[1]}")
 
                 # Coroner name filter
-                if "selected_coroners" in locals() and selected_coroners:
+                if "coroner_name" in filtered_df.columns and "filter_coroner_names" in st.session_state and st.session_state.filter_coroner_names:
+                    selected_coroners = st.session_state.filter_coroner_names
                     filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_coroners)]
-                    active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+                    
+                    if len(selected_coroners) <= 3:
+                        active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+                    else:
+                        active_filters.append(f"Coroners: {len(selected_coroners)} selected")
 
                 # Coroner area filter
-                if "selected_areas" in locals() and selected_areas:
+                if "coroner_area" in filtered_df.columns and "filter_coroner_areas" in st.session_state and st.session_state.filter_coroner_areas:
+                    selected_areas = st.session_state.filter_coroner_areas
                     filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
-                    active_filters.append(f"Areas: {', '.join(selected_areas)}")
+                    
+                    if len(selected_areas) <= 3:
+                        active_filters.append(f"Areas: {', '.join(selected_areas)}")
+                    else:
+                        active_filters.append(f"Areas: {len(selected_areas)} selected")
 
                 # Categories filter
-                if "selected_categories" in locals() and selected_categories:
+                if "categories" in filtered_df.columns and "filter_categories" in st.session_state and st.session_state.filter_categories:
+                    selected_categories = st.session_state.filter_categories
+                    
                     # Handle both string and list categories
                     if isinstance(filtered_df["categories"].iloc[0] if len(filtered_df) > 0 else "", list):
                         # List case
@@ -8962,420 +8946,227 @@ def render_filter_data_tab():
                             .astype(str)
                             .apply(lambda x: any(cat in x for cat in selected_categories))
                         ]
-                    active_filters.append(f"Categories: {', '.join(selected_categories)}")
+                    
+                    if len(selected_categories) <= 3:
+                        active_filters.append(f"Categories: {', '.join(selected_categories)}")
+                    else:
+                        active_filters.append(f"Categories: {len(selected_categories)} selected")
 
                 # Content keyword search with advanced AND/OR operators
-                if "keyword_search" in locals() and keyword_search and content_col in filtered_df.columns:
-                    before_count = len(filtered_df)
+                if "filter_keyword_search" in st.session_state and st.session_state.filter_keyword_search:
+                    keyword_search = st.session_state.filter_keyword_search
+                    content_col = "content" if "content" in filtered_df.columns else "Content"
                     
-                    # Apply the advanced search with AND/OR operators
-                    filtered_df = filtered_df[
-                        filtered_df[content_col]
-                        .fillna("")
-                        .astype(str)
-                        .apply(lambda x: perform_advanced_keyword_search(x, keyword_search))
-                    ]
-                    
-                    after_count = len(filtered_df)
-                    
-                    # Add to active filters
-                    if " and " in keyword_search.lower():
-                        search_desc = f"Content contains all terms: '{keyword_search}'"
-                    elif " or " in keyword_search.lower():
-                        search_desc = f"Content contains any term: '{keyword_search}'"
-                    else:
-                        search_desc = f"Content contains: '{keyword_search}'"
-                    
-                    active_filters.append(f"{search_desc} ({after_count}/{before_count} records)")
+                    if content_col in filtered_df.columns:
+                        before_count = len(filtered_df)
+                        
+                        # Apply the advanced search with AND/OR operators
+                        filtered_df = filtered_df[
+                            filtered_df[content_col]
+                            .fillna("")
+                            .astype(str)
+                            .apply(lambda x: perform_advanced_keyword_search(x, keyword_search))
+                        ]
+                        
+                        after_count = len(filtered_df)
+                        
+                        # Add to active filters
+                        if " and " in keyword_search.lower():
+                            search_desc = f"Content contains all terms: '{keyword_search}'"
+                        elif " or " in keyword_search.lower():
+                            search_desc = f"Content contains any term: '{keyword_search}'"
+                        else:
+                            search_desc = f"Content contains: '{keyword_search}'"
+                        
+                        active_filters.append(f"{search_desc} ({after_count}/{before_count} records)")
 
                 # Apply filter for records with extracted concerns
-                if "exclude_no_concerns" in locals() and exclude_no_concerns and concerns_col in filtered_df.columns:
-                    before_count = len(filtered_df)
-                    filtered_df = filtered_df[
-                        filtered_df[concerns_col].notna()
-                        & (filtered_df[concerns_col].astype(str).str.strip() != "")
-                        & (filtered_df[concerns_col].astype(str).str.len() > 20)  # Ensure meaningful content
-                    ]
-                    after_count = len(filtered_df)
-                    removed_count = before_count - after_count
-                    active_filters.append(f"Excluding records without concerns (-{removed_count} records)")
+                if "filter_exclude_no_concerns" in st.session_state and st.session_state.filter_exclude_no_concerns:
+                    concerns_col = (
+                        "extracted_concerns"
+                        if "extracted_concerns" in filtered_df.columns
+                        else "Extracted_Concerns"
+                    )
+                    
+                    if concerns_col in filtered_df.columns:
+                        before_count = len(filtered_df)
+                        filtered_df = filtered_df[
+                            filtered_df[concerns_col].notna()
+                            & (filtered_df[concerns_col].astype(str).str.strip() != "")
+                            & (filtered_df[concerns_col].astype(str).str.len() > 20)  # Ensure meaningful content
+                        ]
+                        after_count = len(filtered_df)
+                        removed_count = before_count - after_count
+                        active_filters.append(f"Excluding records without concerns (-{removed_count} records)")
 
-            # Display active filters in a clean info box
-            if active_filters:
-                st.info(
-                    "Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters)
-                )
-            
-            # Display results
-            st.markdown("---")
-            st.subheader("Filtered Results")
-            
-            if apply_filters:
-                st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
-            else:
-                st.write(f"Showing all {len(data)} reports")
-
-            if len(filtered_df) > 0:
-                # Create tabs for results and visualizations
-                results_tab, viz_tab = st.tabs(["Data Table", "Visualizations"])
+                # Display active filters in a clean info box if there are any
+                if active_filters:
+                    st.info(
+                        "Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters)
+                    )
                 
-                with results_tab:
-                    # Determine columns to display
-                    display_cols = list(filtered_df.columns)
-
-                    # Create column configuration to preserve original names
+                # Update session state with filtered data
+                st.session_state.filtered_data = filtered_df
+                
+                # Display results
+                st.subheader("Results")
+                st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
+                
+                if len(filtered_df) > 0:
+                    # Display the dataframe with formatted columns
                     column_config = {}
-
-                    # Special handling for date and URL columns
-                    for col in display_cols:
-                        if "date" in col.lower():
-                            column_config[col] = st.column_config.DateColumn(
-                                col, format="DD/MM/YYYY"
-                            )
-                        elif col.lower() == "url":
-                            column_config[col] = st.column_config.LinkColumn(col)
-
-                    # Display the dataframe using the original column names
+                    
+                    # Configure special columns
+                    if "date_of_report" in filtered_df.columns:
+                        column_config["date_of_report"] = st.column_config.DateColumn(
+                            "Date of Report", format="DD/MM/YYYY"
+                        )
+                    
+                    if "URL" in filtered_df.columns:
+                        column_config["URL"] = st.column_config.LinkColumn("Report Link")
+                    
+                    if "categories" in filtered_df.columns:
+                        column_config["categories"] = st.column_config.ListColumn("Categories")
+                    
+                    # Display results in a Streamlit dataframe
                     st.dataframe(
-                        filtered_df[display_cols],
+                        filtered_df,
                         column_config=column_config,
                         hide_index=True,
-                        use_container_width=True,
+                        use_container_width=True
                     )
-
-                    # Update session state with filtered data
-                    st.session_state.filtered_data = filtered_df
-                
-                with viz_tab:
-                    if len(filtered_df) >= 5:  # Only show visualizations if we have enough data
-                        viz_tab1, viz_tab2, viz_tab3 = st.tabs(
-                            [
-                                "Category Distribution",
-                                "Timeline Analysis",
-                                "Coroner Distribution",
-                            ]
-                        )
-
-                        with viz_tab1:
-                            # Category distribution
-                            if "categories" in filtered_df.columns:
-                                st.subheader("Category Distribution")
-
-                                # Extract all categories - handle both list and string formats
-                                all_cats = []
-                                for cats in filtered_df["categories"].dropna():
-                                    if isinstance(cats, list):
-                                        all_cats.extend(cats)
-                                    elif isinstance(cats, str):
-                                        # Split by comma and strip whitespace
-                                        split_cats = [
-                                            cat.strip() for cat in cats.split(",")
-                                        ]
-                                        all_cats.extend(split_cats)
-
-                                # Count categories
-                                cat_counts = (
-                                    pd.Series(all_cats).value_counts().head(15)
-                                )  # Limit to top 15
-
-                                if not cat_counts.empty:
-                                    # Create a bar chart with individual values
-                                    fig = px.bar(
-                                        x=cat_counts.index.tolist(),
-                                        y=cat_counts.values.tolist(),
-                                        labels={"x": "Category", "y": "Count"},
-                                        title="Top Categories",
-                                    )
-
-                                    fig.update_layout(
-                                        xaxis_title="Category",
-                                        yaxis_title="Number of Reports",
-                                        xaxis={"tickangle": 45},
-                                    )
-
-                                    st.plotly_chart(fig, use_container_width=True)
-                                else:
-                                    st.info("No category data available for visualization.")
-                            else:
-                                st.info("Category data not available for visualization.")
-
-                        with viz_tab2:
-                            # Timeline analysis
-                            if (
-                                "date_of_report" in filtered_df.columns
-                                and pd.api.types.is_datetime64_any_dtype(
-                                    filtered_df["date_of_report"]
-                                )
-                            ):
-                                st.subheader("Reports Timeline")
-
-                                # Group by month and count
-                                timeline_data = (
-                                    filtered_df.groupby(
-                                        pd.Grouper(key="date_of_report", freq="M")
-                                    )
-                                    .size()
-                                    .reset_index()
-                                )
-                                timeline_data.columns = ["Date", "Count"]
-
-                                if not timeline_data.empty and len(timeline_data) > 1:
-                                    fig = px.line(
-                                        timeline_data,
-                                        x="Date",
-                                        y="Count",
-                                        title="Reports Over Time",
-                                        labels={"Count": "Number of Reports"},
-                                    )
-
-                                    fig.update_layout(
-                                        xaxis_title="Date",
-                                        yaxis_title="Number of Reports",
-                                        hovermode="x unified",
-                                    )
-
-                                    st.plotly_chart(fig, use_container_width=True)
-                                else:
-                                    st.info(
-                                        "Not enough data points for timeline visualization."
-                                    )
-                            else:
-                                st.info(
-                                    "Date data not available for timeline visualization."
-                                )
-
-                        with viz_tab3:
-                            # Coroner area distribution
-                            if "coroner_area" in filtered_df.columns:
-                                st.subheader("Coroner Area Distribution")
-
-                                # Count areas
-                                area_counts = (
-                                    filtered_df["coroner_area"].value_counts().head(10)
-                                )  # Top 10 areas
-
-                                if not area_counts.empty:
-                                    fig = px.bar(
-                                        x=area_counts.index.tolist(),
-                                        y=area_counts.values.tolist(),
-                                        labels={"x": "Coroner Area", "y": "Count"},
-                                        title="Top Coroner Areas",
-                                    )
-
-                                    fig.update_layout(
-                                        xaxis_title="Coroner Area",
-                                        yaxis_title="Number of Reports",
-                                        xaxis={"tickangle": 45},
-                                    )
-
-                                    st.plotly_chart(fig, use_container_width=True)
-                                else:
-                                    st.info(
-                                        "No coroner area data available for visualization."
-                                    )
-                            else:
-                                st.info(
-                                    "Coroner area data not available for visualization."
-                                )
-                    else:
-                        st.info("Not enough data for visualization. At least 5 records are needed.")
-
-                # Export options
-                st.markdown("---")
-                st.subheader("Export Options")
-
-                # Generate timestamp for filenames
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-                unique_id = f"{timestamp}_{random_suffix}"
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    # CSV Export
-                    try:
-                        # Create export copy with formatted dates
-                        df_csv = filtered_df.copy()
-                        if "date_of_report" in df_csv.columns and pd.api.types.is_datetime64_any_dtype(df_csv["date_of_report"]):
-                            df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime(
-                                "%d/%m/%Y"
-                            )
-                        
-                        csv = df_csv.to_csv(index=False).encode("utf-8")
-                        st.download_button(
-                            "📥 Download Filtered Results (CSV)",
-                            data=csv,
-                            file_name=f"filtered_reports_{timestamp}.csv",
-                            mime="text/csv",
-                            key=f"download_filtered_csv_{unique_id}",
-                        )
-                    except Exception as e:
-                        st.error(f"Error preparing CSV export: {str(e)}")
-
-                with col2:
-                    # Excel Export
-                    try:
-                        excel_data = export_to_excel(filtered_df)
-                        st.download_button(
-                            "📥 Download Filtered Results (Excel)",
-                            data=excel_data,
-                            file_name=f"filtered_reports_{timestamp}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            key=f"download_filtered_excel_{unique_id}",
-                        )
-                    except Exception as e:
-                        st.error(f"Error preparing Excel export: {str(e)}")
-
-                # PDF Download Section
-                if any(col.startswith("PDF_") and col.endswith("_Path") for col in filtered_df.columns):
-                    st.subheader("Download PDFs")
                     
-                    # Generate a unique timestamp-based ID for this section
-                    pdf_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    pdf_random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-                    pdf_unique_id = f"{pdf_timestamp}_{pdf_random_suffix}"
-                    
-                    if st.button("Prepare PDF Download", key=f"prepare_pdf_button_{pdf_unique_id}"):
-                        try:
-                            with st.spinner("Preparing PDF files..."):
-                                # Create the ZIP file in memory
-                                zip_buffer = io.BytesIO()
-                                
-                                with zipfile.ZipFile(zip_buffer, "w") as zipf:
-                                    pdf_columns = [
-                                        col
-                                        for col in filtered_df.columns
-                                        if col.startswith("PDF_") and col.endswith("_Path")
-                                    ]
-                                    added_files = set()
-                                    pdf_count = 0
-                                    folders_created = set()
-                                    
-                                    # Process each PDF file with a progress bar
-                                    progress_bar = st.progress(0)
-                                    status_text = st.empty()
-                                    
-                                    for idx, row in enumerate(filtered_df.iterrows()):
-                                        # Update progress
-                                        progress = (idx + 1) / len(filtered_df)
-                                        progress_bar.progress(progress)
-                                        status_text.text(f"Processing file {idx+1} of {len(filtered_df)}")
-                                        
-                                        # Unpack row tuple - second element is the data
-                                        _, row_data = row
-                                        
-                                        # Build folder name using ref and deceased_name
-                                        folder_parts = []
-                                        
-                                        # Add reference number if available
-                                        if "ref" in row_data and pd.notna(row_data["ref"]):
-                                            folder_parts.append(str(row_data["ref"]))
-                                        
-                                        # Add deceased name if available
-                                        if "deceased_name" in row_data and pd.notna(row_data["deceased_name"]):
-                                            # Clean up deceased name for folder name
-                                            deceased_name = str(row_data["deceased_name"])
-                                            # Remove invalid characters for folder names
-                                            clean_name = re.sub(r'[<>:"/\\|?*]', "_", deceased_name)
-                                            # Limit folder name length
-                                            clean_name = clean_name[:50].strip()
-                                            folder_parts.append(clean_name)
-                                        
-                                        # Create folder name from parts
-                                        if folder_parts:
-                                            folder_name = "_".join(folder_parts)
-                                        else:
-                                            # Fallback if no ref or deceased name
-                                            record_id = str(row_data.get("Record ID", idx))
-                                            folder_name = f"report_{record_id}"
-                                        
-                                        # Add year to folder if available
-                                        if "year" in row_data and pd.notna(row_data["year"]):
-                                            folder_name = f"{folder_name}_{row_data['year']}"
-                                        
-                                        # Keep track of created folders
-                                        folders_created.add(folder_name)
-                                        
-                                        # Process each PDF for this row
-                                        for col in pdf_columns:
-                                            pdf_path = row_data.get(col)
-                                            if (
-                                                pd.isna(pdf_path)
-                                                or not pdf_path
-                                                or not os.path.exists(pdf_path)
-                                                or pdf_path in added_files
-                                            ):
-                                                continue
-                                            
-                                            # Get the original filename without any modifications
-                                            original_filename = os.path.basename(pdf_path)
-                                            
-                                            # Create archive path with folder structure
-                                            zip_path = f"{folder_name}/{original_filename}"
-                                            
-                                            # Read the file content and write it to the ZIP
-                                            with open(pdf_path, "rb") as file:
-                                                zipf.writestr(zip_path, file.read())
-                                            
-                                            added_files.add(pdf_path)
-                                            pdf_count += 1
-                                    
-                                    # Clear progress indicators
-                                    progress_bar.empty()
-                                    status_text.empty()
-                                
-                                # Reset buffer position
-                                zip_buffer.seek(0)
-                                
-                                if pdf_count > 0:
-                                    # Create download button
-                                    st.success(f"Found {pdf_count} PDF files in {len(folders_created)} case folders")
-                                    st.download_button(
-                                        f"📦 Download All PDFs ({pdf_count} files)",
-                                        data=zip_buffer,
-                                        file_name=f"filtered_pdfs_{pdf_timestamp}.zip",
-                                        mime="application/zip",
-                                        key=f"download_filtered_pdfs_{pdf_unique_id}",
-                                    )
-                                else:
-                                    st.warning("No PDF files found for the filtered results.")
-                                
-                        except Exception as e:
-                            st.error(f"Error preparing PDF download: {str(e)}")
-                            logging.error(f"PDF download error: {e}", exc_info=True)
-
-            else:
-                st.warning(
-                    "No reports match your filter criteria. Try adjusting the filters."
-                )
-
+                    # Show export options
+                    show_export_options(filtered_df, "filtered")
+                else:
+                    st.warning("No reports match your filter criteria. Try adjusting the filters.")
+            
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
             logging.error(f"File processing error: {e}", exc_info=True)
-
-    else:
-        # When no file is uploaded, show instructions
-        st.info("Please upload a PFD reports dataset (CSV or Excel file) to begin filtering and exploration.")
-
-        with st.expander("📋 File Requirements", expanded=False):
-            st.markdown(
-                """
-            ## Required Columns
+    
+    with right_col:
+        # Show file info and dataset overview if file is uploaded
+        if uploaded_file is not None:
+            try:
+                st.markdown("### Dataset Overview")
+                
+                # Read file for info display (minimal processing)
+                if uploaded_file.name.endswith(".csv"):
+                    info_data = pd.read_csv(uploaded_file)
+                else:
+                    info_data = pd.read_excel(uploaded_file)
+                
+                # Display file info
+                st.info(f"File: {uploaded_file.name}")
+                st.write(f"Total records: {len(info_data)}")
+                st.write(f"Columns: {len(info_data.columns)}")
+                
+                # Display key metrics
+                if "date_of_report" in info_data.columns:
+                    try:
+                        info_data["date_of_report"] = pd.to_datetime(info_data["date_of_report"], errors="coerce")
+                        min_date = info_data["date_of_report"].min()
+                        max_date = info_data["date_of_report"].max()
+                        if not pd.isna(min_date) and not pd.isna(max_date):
+                            st.write(f"Date range: {min_date.strftime('%d/%m/%Y')} to {max_date.strftime('%d/%m/%Y')}")
+                    except:
+                        pass
+                
+                if "coroner_area" in info_data.columns:
+                    num_areas = info_data["coroner_area"].nunique()
+                    st.write(f"Coroner areas: {num_areas}")
+                
+                if "coroner_name" in info_data.columns:
+                    num_coroners = info_data["coroner_name"].nunique()
+                    st.write(f"Coroner names: {num_coroners}")
+                
+                # Advanced search examples
+                st.markdown("### Advanced Search Help")
+                with st.expander("Search Examples", expanded=False):
+                    st.markdown("""
+                    #### Advanced Search Syntax:
+                    
+                    - **Simple search**: `medication`
+                    - **AND search**: `medication and safety`
+                    - **OR search**: `medication or drug`
+                    
+                    #### Example Searches:
+                    
+                    - `hospital and discharge`
+                    - `mental health`
+                    - `train or railway`
+                    - `diabetes and insulin`
+                    """)
+                
+                # Visualization preview if available
+                if len(info_data) > 0:
+                    st.markdown("### Data Preview")
+                    with st.expander("Column Statistics", expanded=False):
+                        # Show non-null counts
+                        non_null_counts = info_data.count()
+                        non_null_pct = (non_null_counts / len(info_data) * 100).round(1)
+                        
+                        # Combine into a DataFrame
+                        stats_df = pd.DataFrame({
+                            'Column': non_null_counts.index,
+                            'Count': non_null_counts.values,
+                            'Percentage': non_null_pct.values
+                        })
+                        
+                        # Create a simple bar chart
+                        stats_df = stats_df.sort_values('Percentage', ascending=False)
+                        
+                        # Display top 10 columns with highest completion
+                        fig = px.bar(
+                            stats_df.head(10),
+                            x='Column',
+                            y='Percentage',
+                            text='Percentage',
+                            title='Column Completion Rates (%)',
+                            labels={'Percentage': '% Complete', 'Column': 'Column Name'}
+                        )
+                        
+                        fig.update_traces(
+                            texttemplate='%{text:.1f}%',
+                            textposition='outside'
+                        )
+                        
+                        fig.update_layout(
+                            xaxis_tickangle=-45,
+                            uniformtext_minsize=8,
+                            height=400
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
             
-            For optimal filtering, your file should include these columns:
+            except Exception as e:
+                st.error(f"Error analyzing file: {str(e)}")
+                logging.error(f"File analysis error: {e}", exc_info=True)
+        else:
+            # Show placeholder content when no file is loaded
+            st.markdown("### Filter Data Tool")
+            st.markdown("""
+            This tool allows you to filter and explore PFD reports from uploaded datasets.
             
-            - **Title**: Report title
-            - **URL**: Link to the original report
-            - **date_of_report**: Date in format DD/MM/YYYY
-            - **ref**: Reference number
-            - **deceased_name**: Name of deceased person (if applicable)
-            - **coroner_name**: Name of the coroner
-            - **coroner_area**: Coroner jurisdiction area
-            - **categories**: Report categories
-            - **Content**: Report text content
-            - **Extracted_Concerns**: Extracted coroner concerns text
+            **Features:**
+            - Filter by date range, coroner, area, and categories
+            - Advanced text search with AND/OR operators
+            - Export filtered results
+            - Download associated PDFs
+            
+            To begin, upload a CSV or Excel file using the uploader on the left.
+            """)
+            
+            # Show example image of filtering
+            st.markdown("### Example Workflow")
+            st.markdown("""
+            1. Upload your merged file from step (2)
+            2. Set filter criteria in the form
+            3. Click "Apply Filters" to see results
+            4. Export filtered data or download PDFs
+            """)
 
-            
 # Helper function for advanced keyword search
 def perform_advanced_keyword_search(text, search_query):
     """
