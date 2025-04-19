@@ -8275,7 +8275,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             else:
                 st.warning("HTML report not available")
 
-def render_filter_data_tab2():
+def render_filter_data_tab():
     """Render a filtering tab within the Scraped File Preparation section with layout similar to Scrape Reports tab"""
     st.subheader("Filter Data")
 
@@ -9044,7 +9044,7 @@ def render_bert_file_merger():
         render_filter_data_tab()
 
 
-def render_filter_data_tab():
+def render_filter_data_tab2():
     """Render a filtering tab within the Scraped File Preparation section with layout similar to Scrape Reports tab"""
     st.subheader("Filter Data")
 
