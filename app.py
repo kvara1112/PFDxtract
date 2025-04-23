@@ -5567,10 +5567,7 @@ def plot_category_distribution(df: pd.DataFrame) -> None:
         title="Category Distribution",
         labels={"x": "Category", "y": "Count"},
     )
-
-    fig.update_layout(
-        xaxis_title="Category", yaxis_title="Number of Reports", xaxis={"tickangle": 45}
-    )
+    fig.update_layout(xaxis_title="Category", yaxis_title="Number of Reports", xaxis={"tickangle": 45})
 
     st.plotly_chart(fig, use_container_width=True)
 
