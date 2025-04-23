@@ -7741,6 +7741,170 @@ def save_dashboard_images_as_zip(filtered_df):
         filtered_df: Filtered DataFrame containing theme analysis results
         
     Returns:
+        Tuple[bytes, int]: ZIP file containing images and number of images
+    """
+    import io
+    import sys
+    import zipfile
+    import traceback
+    from datetime import datetime
+    import plotly.express as px
+    import plotly.graph_objects as go
+    
+    # Create a buffer for the zip file
+    zip_buffer = io.BytesIO()
+    
+    # Create a timestamp for the filenames
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Track number of images
+    image_count = 0
+    
+    # Create a zipfile
+    with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+        # Helper function to save a figure to the zip
+        def add_figure_to_zip(fig, filename):
+            nonlocal image_count
+            if fig is not None:
+                try:
+                    # Update layout to improve export
+                    fig.update_layout(
+                        paper_bgcolor="white",
+                        plot_bgcolor="white",
+                        font=dict(color="black")
+                    )
+                    
+                    # Try PNG export
+                    img_bytes = fig.to_image(format="png", scale=2)
+                    
+                    if img_bytes and len(img_bytes) > 0:
+                        zip_file.writestr(filename, img_bytes)
+                        image_count += 1
+                        print(f"Successfully added {filename} to zip")
+                    else:
+                        print(f"No image bytes generated for {filename}")
+                except Exception as e:
+                    print(f"Error saving {filename}: {e}")
+                    print(f"Detailed error: {traceback.format_exc()}")
+                    print(f"Python version: {sys.version}")
+                    print(f"Plotly version: {px.__version__}")
+        
+        # Helper function to generate theme charts
+        def generate_theme_charts(filtered_df, top_n=10):
+            # Theme Distribution Chart
+            try:
+                theme_counts = filtered_df["Theme"].value_counts().head(top_n)
+                fig = px.bar(
+                    x=theme_counts.index,
+                    y=theme_counts.values,
+                    labels={"x": "Theme", "y": "Count"},
+                    title=f"Top {top_n} Themes Distribution",
+                    height=500,
+                )
+                fig.update_layout(xaxis_tickangle=-45)
+                add_figure_to_zip(fig, f"theme_distribution_{timestamp}.png")
+            except Exception as e:
+                print(f"Theme distribution chart error: {e}")
+            
+            # Theme Confidence Breakdown
+            try:
+                top_themes = theme_counts.index.tolist()
+                theme_confidence = filtered_df[filtered_df["Theme"].isin(top_themes)]\
+                    .groupby(["Theme", "Confidence"]).size().reset_index(name="Count")
+                
+                fig = px.bar(
+                    theme_confidence, 
+                    x="Theme", 
+                    y="Count", 
+                    color="Confidence",
+                    barmode="group",
+                    title="Theme Confidence Breakdown",
+                    color_discrete_map={
+                        "High": "#4CAF50", 
+                        "Medium": "#FFC107", 
+                        "Low": "#F44336"
+                    }
+                )
+                fig.update_layout(xaxis_tickangle=-45)
+                add_figure_to_zip(fig, f"theme_confidence_{timestamp}.png")
+            except Exception as e:
+                print(f"Theme confidence chart error: {e}")
+        
+        # Helper function to generate temporal charts
+        def generate_temporal_charts(filtered_df):
+            # Ensure year column exists and has data
+            if "year" not in filtered_df.columns or filtered_df["year"].isna().all():
+                print("No valid year data for temporal charts")
+                return
+            
+            try:
+                # Yearly Theme Distribution
+                year_theme_counts = filtered_df.groupby(["year", "Theme"]).size().reset_index(name="Count")
+                
+                # Get top themes
+                top_themes = filtered_df["Theme"].value_counts().head(5).index.tolist()
+                year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
+                
+                # Convert year to string
+                year_theme_counts['year_str'] = year_theme_counts['year'].astype(str)
+                
+                # Line chart of theme trends
+                fig = px.line(
+                    year_theme_counts,
+                    x="year_str",
+                    y="Count",
+                    color="Theme",
+                    markers=True,
+                    title="Theme Trends Over Time",
+                    height=500,
+                )
+                add_figure_to_zip(fig, f"theme_temporal_trends_{timestamp}.png")
+            except Exception as e:
+                print(f"Temporal trends chart error: {e}")
+        
+        # Helper function to generate area charts
+        def generate_area_charts(filtered_df):
+            # Coroner Area Distribution
+            if "coroner_area" not in filtered_df.columns or filtered_df["coroner_area"].isna().all():
+                print("No valid coroner area data")
+                return
+            
+            try:
+                area_counts = filtered_df["coroner_area"].value_counts().head(10)
+                fig = px.bar(
+                    x=area_counts.index,
+                    y=area_counts.values,
+                    labels={"x": "Coroner Area", "y": "Count"},
+                    title="Theme Identifications by Coroner Area",
+                    height=500,
+                )
+                fig.update_layout(xaxis_tickangle=-45)
+                add_figure_to_zip(fig, f"coroner_area_distribution_{timestamp}.png")
+            except Exception as e:
+                print(f"Coroner area chart error: {e}")
+        
+        # Generate all charts
+        generate_theme_charts(filtered_df)
+        generate_temporal_charts(filtered_df)
+        generate_area_charts(filtered_df)
+    
+    # Reset buffer position
+    zip_buffer.seek(0)
+    
+    # Check if zip is empty
+    if zip_buffer.getbuffer().nbytes == 0:
+        print("WARNING: No images were generated!")
+        raise ValueError("No images could be generated. Check the error logs.")
+    
+    return zip_buffer.getvalue(), image_count
+def save_dashboard_images_as_zip2(filtered_df):
+    """
+    Save all dashboard visualizations as images and package them into a zip file
+    
+    Args:
+        filtered_df: Filtered DataFrame containing theme analysis results
+        
+    Returns:
         bytes: ZIP file containing all visualization images
     """
     import io
@@ -10934,16 +11098,24 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 key=f"download_excel_{timestamp}",
             )
 
+
         with col3:
-            # All Images Export - NEW
-            images_zip = save_dashboard_images_as_zip(filtered_df)
-            st.download_button(
-                "📥 Download All Visualizations (ZIP)",
-                data=images_zip,
-                file_name=f"theme_analysis_images_{timestamp}.zip",
-                mime="application/zip",
-                key=f"download_images_{timestamp}",
-            )
+            # All Images Export
+            try:
+                # Get the zip file and image count
+                images_zip, image_count = save_dashboard_images_as_zip(filtered_df)
+                
+                # Update button text to show number of images
+                st.download_button(
+                    f"📥 Download {image_count} Visualizations (ZIP)",
+                    data=images_zip,
+                    file_name=f"theme_analysis_images_{timestamp}.zip",
+                    mime="application/zip",
+                    key=f"download_images_{timestamp}",
+                )
+            except Exception as e:
+                st.error(f"Error creating visualization zip: {e}")
+                logging.error(f"Visualization zip error: {e}", exc_info=True)
 
 def render_analysis_tab(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
