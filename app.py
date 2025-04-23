@@ -8191,7 +8191,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 available_themes = [theme for theme in top_themes if theme in theme_corr.index]
                 
                 # Create readable labels
-                available_themes_short = [truncate_text(theme, 20) for theme in available_themes]
+                available_themes_short = [truncate_text(theme, max_length=15) for theme in available_themes]
                 
                 # Filter correlation matrix
                 if available_themes:
@@ -8208,8 +8208,12 @@ def save_dashboard_images_as_zip(filtered_df):
                         title="Theme Correlation Matrix",
                         text_auto=".2f"
                     )
-                    
-                    fig.update_layout(xaxis_tickangle=-45)
+                    # Improve layout
+                    fig.update_layout(
+                        margin=dict(l=80, r=80, t=80, b=100),  # Add more bottom spacing
+                        xaxis_tickangle=-30  # Less extreme angle
+                    )
+                    #fig.update_layout(xaxis_tickangle=-45)
                     add_figure_to_zip(fig, f"theme_correlation_matrix_{timestamp}.png")
                     
                     # Create co-occurrence table visualization
@@ -10752,7 +10756,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         )
         
         st.plotly_chart(fig, use_container_width=True)
-        
+
         # Theme by confidence
         st.subheader("Theme Confidence Breakdown")
         
