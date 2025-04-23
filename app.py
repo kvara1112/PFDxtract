@@ -7832,7 +7832,7 @@ def apply_chart_truncation(fig, truncate_func=None, max_length=30, axis='both'):
 
 ###############Add this helper function to your app.py file
 
-def truncate_text(text, max_length=15):
+def truncate_text(text, max_length=25):
     """
     Truncate long text for better display in charts
     
@@ -7987,7 +7987,7 @@ def save_dashboard_images_as_zip(filtered_df):
                     theme_counts = filtered_df.groupby(['Framework', 'Theme']).size().reset_index(name='Count')
                     
                     # Truncate long theme names
-                    theme_counts['Theme_Short'] = theme_counts['Theme'].apply(lambda x: truncate_text(x, 15))
+                    theme_counts['Theme_Short'] = theme_counts['Theme'].apply(lambda x: truncate_text(x, 25))
                     
                     # Sort for better visualization
                     theme_counts = theme_counts.sort_values(['Framework', 'Count'], ascending=[True, False])
@@ -8019,7 +8019,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 else:
                     # Multi-year heatmap - create DataFrame with Framework_Theme field
                     framework_theme_df = filtered_df.copy()
-                    framework_theme_df['Framework_Theme'] = framework_theme_df['Framework'] + ': ' + framework_theme_df['Theme'].apply(lambda x: truncate_text(x, 15))
+                    framework_theme_df['Framework_Theme'] = framework_theme_df['Framework'] + ': ' + framework_theme_df['Theme'].apply(lambda x: truncate_text(x, 25))
                     
                     # Count reports per year
                     id_column = 'Record ID' if 'Record ID' in framework_theme_df.columns else framework_theme_df.columns[0]
@@ -8074,7 +8074,7 @@ def save_dashboard_images_as_zip(filtered_df):
             theme_counts = filtered_df["Theme"].value_counts().head(15)
             
             # Truncate long theme names
-            theme_names_short = [truncate_text(theme, 15) for theme in theme_counts.index]
+            theme_names_short = [truncate_text(theme, 25) for theme in theme_counts.index]
             
             # Create a bar chart
             fig = px.bar(
@@ -8101,7 +8101,7 @@ def save_dashboard_images_as_zip(filtered_df):
             theme_confidence = theme_confidence[theme_confidence["Theme"].isin(top_themes)]
             
             # Truncate theme names
-            theme_confidence["Theme_Short"] = theme_confidence["Theme"].apply(lambda x: truncate_text(x, 15))
+            theme_confidence["Theme_Short"] = theme_confidence["Theme"].apply(lambda x: truncate_text(x, 25))
             
             # Create a grouped bar chart
             fig = px.bar(
@@ -8149,7 +8149,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
                 
                 # Truncate theme names
-                year_theme_counts["Theme_Short"] = year_theme_counts["Theme"].apply(lambda x: truncate_text(x, 15))
+                year_theme_counts["Theme_Short"] = year_theme_counts["Theme"].apply(lambda x: truncate_text(x, 25))
                 
                 # Convert year to string for categorical plotting
                 year_theme_counts['year_str'] = year_theme_counts['year'].astype(str)
@@ -8201,7 +8201,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 area_counts = filtered_df["coroner_area"].value_counts().head(10)
                 
                 # Truncate long area names
-                area_names_short = [truncate_text(area, 15) for area in area_counts.index]
+                area_names_short = [truncate_text(area, 25) for area in area_counts.index]
                 
                 # Create a bar chart of top areas
                 fig = px.bar(
@@ -8231,7 +8231,7 @@ def save_dashboard_images_as_zip(filtered_df):
                         percentage = (count / area_totals * 100) if area_totals > 0 else 0
                         
                         area_theme_data.append({
-                            "Coroner Area": truncate_text(area, 15),
+                            "Coroner Area": truncate_text(area, 25),
                             "Theme": truncate_text(theme, 15),
                             "Count": count,
                             "Percentage": round(percentage, 1)
@@ -8292,7 +8292,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 available_themes = [theme for theme in top_themes if theme in theme_corr.index]
                 
                 # Create readable labels
-                available_themes_short = [truncate_text(theme, max_length=15) for theme in available_themes]
+                available_themes_short = [truncate_text(theme, max_length=25) for theme in available_themes]
                 
                 # Filter correlation matrix
                 if available_themes:
