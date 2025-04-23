@@ -7832,7 +7832,7 @@ def apply_chart_truncation(fig, truncate_func=None, max_length=30, axis='both'):
 
 ###############Add this helper function to your app.py file
 
-def truncate_textold(text, max_length=15):
+def truncate_text(text, max_length=15):
     """
     Truncate long text for better display in charts
     
