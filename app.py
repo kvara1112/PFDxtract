@@ -7832,7 +7832,7 @@ def apply_chart_truncation(fig, truncate_func=None, max_length=30, axis='both'):
 
 ###############Add this helper function to your app.py file
 
-def truncate_text(text, max_length=25):
+def truncate_text(text, max_length=30):
     """
     Truncate long text for better display in charts
     
@@ -7910,7 +7910,7 @@ def save_dashboard_images_as_zip(filtered_df):
     image_count = 0
     
     # Helper function to truncate long text
-    def truncate_text(text, max_length=25):
+    def truncate_text(text, max_length=30):
         if not text or len(text) <= max_length:
             return text
         return text[:max_length-3] + "..."
@@ -7987,7 +7987,7 @@ def save_dashboard_images_as_zip(filtered_df):
                     theme_counts = filtered_df.groupby(['Framework', 'Theme']).size().reset_index(name='Count')
                     
                     # Truncate long theme names
-                    theme_counts['Theme_Short'] = theme_counts['Theme'].apply(lambda x: truncate_text(x, 25))
+                    theme_counts['Theme_Short'] = theme_counts['Theme'].apply(lambda x: truncate_text(x, 30))
                     
                     # Sort for better visualization
                     theme_counts = theme_counts.sort_values(['Framework', 'Count'], ascending=[True, False])
@@ -8019,7 +8019,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 else:
                     # Multi-year heatmap - create DataFrame with Framework_Theme field
                     framework_theme_df = filtered_df.copy()
-                    framework_theme_df['Framework_Theme'] = framework_theme_df['Framework'] + ': ' + framework_theme_df['Theme'].apply(lambda x: truncate_text(x, 25))
+                    framework_theme_df['Framework_Theme'] = framework_theme_df['Framework'] + ': ' + framework_theme_df['Theme'].apply(lambda x: truncate_text(x, 30))
                     
                     # Count reports per year
                     id_column = 'Record ID' if 'Record ID' in framework_theme_df.columns else framework_theme_df.columns[0]
