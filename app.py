@@ -10738,11 +10738,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             title=f"Top {top_n_themes} Themes by Occurrence",
             height=500,
         )
-        
-      fig.update_layout(
-        xaxis_tickangle=-30,  # Reduce angle for better readability
-        margin=dict(b=100),   # Add more bottom margin for text
-      )
+        fig.update_layout(xaxis_tickangle=-30, margin=dict(b=100),)
 
         # Improve layout
         fig.update_layout(
