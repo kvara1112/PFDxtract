@@ -7732,6 +7732,55 @@ def handle_error(error):
     )
 
 
+###############Add this helper function to your app.py file
+
+def truncate_text(text, max_length=30):
+    """
+    Truncate long text for better display in charts
+    
+    Args:
+        text: String to truncate
+        max_length: Maximum length before truncation
+        
+    Returns:
+        Truncated or line-broken text
+    """
+    if not text or len(text) <= max_length:
+        return text
+    
+    # For theme names with ":" in them (framework:theme format)
+    if ":" in text:
+        parts = text.split(":", 1)
+        framework = parts[0].strip()
+        theme = parts[1].strip()
+        
+        # If theme part is too long, truncate it
+        if len(theme) > max_length - len(framework) - 2:  # -2 for ": "
+            theme = theme[:max_length - len(framework) - 5] + "..."
+        
+        return f"{framework}: {theme}"
+    
+    # For normal long strings, add line breaks at word boundaries
+    words = text.split()
+    lines = []
+    current_line = []
+    current_length = 0
+    
+    for word in words:
+        if current_length + len(word) + (1 if current_line else 0) <= max_length:
+            current_line.append(word)
+            current_length += len(word) + (1 if current_line else 0)
+        else:
+            lines.append(" ".join(current_line))
+            current_line = [word]
+            current_length = len(word)
+    
+    if current_line:
+        lines.append(" ".join(current_line))
+    
+    # For plotly charts, use <br> for line breaks
+    return "<br>".join(lines)
+
 ##### SAVE DASHBOARD IMAGES##############################################
 def save_dashboard_images_as_zip(filtered_df):
     """
@@ -10686,13 +10735,17 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         
         # Create a bar chart
         fig = px.bar(
-            x=theme_counts.index,
+           x=[truncate_text(theme) for theme in theme_counts.index],
             y=theme_counts.values,
             labels={"x": "Theme", "y": "Count"},
             title=f"Top {top_n_themes} Themes by Occurrence",
             height=500,
         )
-        
+      fig.update_layout(
+        xaxis_tickangle=-30,  # Reduce angle for better readability
+        margin=dict(b=100),   # Add more bottom margin for text
+    )
+
         # Improve layout
         fig.update_layout(
             xaxis_title="Theme",
