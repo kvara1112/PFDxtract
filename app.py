@@ -7735,10 +7735,11 @@ def handle_error(error):
 ##### SAVE DASHBOARD IMAGES##############################################
 def save_dashboard_images_as_zip(filtered_df):
     """
-    Save all dashboard visualizations as images and package them into a zip file
+    Save all dashboard visualizations as images and package them into a zip file.
+    Fixed version that properly generates and captures all visualizations.
     
     Args:
-        filtered_df: DataFrame containing theme analysis results
+        filtered_df: Filtered DataFrame containing theme analysis results
         
     Returns:
         Tuple[bytes, int]: ZIP file containing images and number of images
@@ -7746,7 +7747,6 @@ def save_dashboard_images_as_zip(filtered_df):
     import io
     import zipfile
     from datetime import datetime
-    import matplotlib.pyplot as plt
     import plotly.express as px
     import plotly.graph_objects as go
     import pandas as pd
@@ -7762,65 +7762,104 @@ def save_dashboard_images_as_zip(filtered_df):
     # Track number of images
     image_count = 0
     
+    # Helper function to truncate long text
+    def truncate_text(text, max_length=25):
+        if not text or len(text) <= max_length:
+            return text
+        return text[:max_length-3] + "..."
+    
     # Create a zipfile
     with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
         # Helper function to save a figure to the zip
         def add_figure_to_zip(fig, filename):
             nonlocal image_count
             try:
-                # Update layout to improve export
+                # Important: Set explicit dimensions for the image export
                 fig.update_layout(
+                    width=1000,
+                    height=700,
+                    margin=dict(l=100, r=80, t=80, b=80),
                     paper_bgcolor="white",
                     plot_bgcolor="white",
-                    font=dict(color="black"),
-                    title_font=dict(color="black")
+                    font=dict(color="black", size=12),
+                    title_font=dict(size=16, color="black"),
+                    legend=dict(font=dict(size=10))
                 )
                 
-                # Update axes for light mode
+                # Update axes for light mode export
                 fig.update_xaxes(
-                    title_font=dict(color="black"),
-                    tickfont=dict(color="black"),
+                    title_font=dict(color="black", size=14),
+                    tickfont=dict(color="black", size=10),
                     gridcolor="rgba(0,0,0,0.1)"
                 )
                 
                 fig.update_yaxes(
-                    title_font=dict(color="black"),
-                    tickfont=dict(color="black"),
+                    title_font=dict(color="black", size=14),
+                    tickfont=dict(color="black", size=10),
                     gridcolor="rgba(0,0,0,0.1)"
                 )
                 
-                # Generate PNG
-                img_bytes = fig.to_image(format="png", scale=2)
+                # Export as PNG with higher resolution
+                img_bytes = fig.to_image(format="png", scale=2, engine="kaleido")
                 
                 if img_bytes and len(img_bytes) > 0:
                     zip_file.writestr(filename, img_bytes)
                     image_count += 1
-                    print(f"Added {filename} to zip")
+                    logging.info(f"Successfully added {filename} to zip")
                     return True
                 else:
-                    print(f"No image bytes generated for {filename}")
+                    logging.warning(f"No image bytes generated for {filename}")
                     return False
             except Exception as e:
-                print(f"Error saving {filename}: {e}")
+                logging.error(f"Error saving {filename}: {str(e)}")
                 return False
         
         # === TAB 1: FRAMEWORK HEATMAP ===
         try:
-            # Check if year data is available
+            # Framework distribution chart
+            framework_counts = filtered_df["Framework"].value_counts()
+            fig = px.bar(
+                x=framework_counts.index,
+                y=framework_counts.values,
+                labels={"x": "Framework", "y": "Count"},
+                title="Framework Distribution",
+                color=framework_counts.index,
+                color_discrete_map={
+                    "I-SIRch": "orange",
+                    "House of Commons": "royalblue",
+                    "Extended Analysis": "firebrick"
+                }
+            )
+            add_figure_to_zip(fig, f"framework_distribution_{timestamp}.png")
+            
+            # Handle framework theme analysis by year
             if "year" in filtered_df.columns and not filtered_df["year"].isna().all():
-                # Handle single year case
                 if filtered_df["year"].nunique() == 1:
+                    # Single year case
                     year = filtered_df["year"].iloc[0]
                     theme_counts = filtered_df.groupby(['Framework', 'Theme']).size().reset_index(name='Count')
+                    
+                    # Truncate long theme names
+                    theme_counts['Theme_Short'] = theme_counts['Theme'].apply(lambda x: truncate_text(x, 30))
+                    
+                    # Sort for better visualization
                     theme_counts = theme_counts.sort_values(['Framework', 'Count'], ascending=[True, False])
+                    
+                    # Take top 15 themes overall to avoid overcrowding
+                    if len(theme_counts) > 15:
+                        # Get top 5 from each framework
+                        top_themes = []
+                        for framework in theme_counts['Framework'].unique():
+                            framework_themes = theme_counts[theme_counts['Framework'] == framework]
+                            top_themes.append(framework_themes.nlargest(5, 'Count'))
+                        theme_counts = pd.concat(top_themes)
                     
                     fig = px.bar(
                         theme_counts,
-                        y='Theme',
+                        y='Theme_Short',
                         x='Count',
                         color='Framework',
                         title=f"Theme Distribution for Year {year}",
-                        height=max(500, len(theme_counts) * 30),
                         color_discrete_map={
                             "I-SIRch": "orange",
                             "House of Commons": "royalblue",
@@ -7828,12 +7867,12 @@ def save_dashboard_images_as_zip(filtered_df):
                         }
                     )
                     
+                    fig.update_layout(yaxis={'categoryorder': 'total ascending'})
                     add_figure_to_zip(fig, f"framework_theme_single_year_{timestamp}.png")
                 else:
-                    # Multi-year heatmap
-                    # Create Framework_Theme field
+                    # Multi-year heatmap - create DataFrame with Framework_Theme field
                     framework_theme_df = filtered_df.copy()
-                    framework_theme_df['Framework_Theme'] = framework_theme_df['Framework'] + ': ' + framework_theme_df['Theme']
+                    framework_theme_df['Framework_Theme'] = framework_theme_df['Framework'] + ': ' + framework_theme_df['Theme'].apply(lambda x: truncate_text(x, 20))
                     
                     # Count reports per year
                     id_column = 'Record ID' if 'Record ID' in framework_theme_df.columns else framework_theme_df.columns[0]
@@ -7856,92 +7895,114 @@ def save_dashboard_images_as_zip(filtered_df):
                         top_themes.extend(theme_totals.head(5).index.tolist())
                     
                     # Filter to top themes
-                    counts = counts[counts['Framework_Theme'].isin(top_themes)]
-                    
-                    # Create pivot table
-                    pivot = counts.pivot_table(
-                        index='Framework_Theme',
-                        columns='year',
-                        values='Percentage',
-                        fill_value=0
-                    )
-                    
-                    # Create a heatmap
-                    fig = px.imshow(
-                        pivot.values,
-                        labels=dict(x="Year", y="Theme", color="Percentage (%)"),
-                        x=[str(year) for year in pivot.columns],
-                        y=pivot.index,
-                        title="Framework Theme Heatmap by Year",
-                        color_continuous_scale="Blues"
-                    )
-                    
-                    add_figure_to_zip(fig, f"framework_theme_heatmap_{timestamp}.png")
+                    if top_themes:
+                        counts = counts[counts['Framework_Theme'].isin(top_themes)]
+                        
+                        # Create pivot table
+                        pivot = counts.pivot_table(
+                            index='Framework_Theme',
+                            columns='year',
+                            values='Percentage',
+                            fill_value=0
+                        )
+                        
+                        # Create a heatmap
+                        fig = px.imshow(
+                            pivot.values,
+                            labels=dict(x="Year", y="Theme", color="Percentage (%)"),
+                            x=[str(year) for year in pivot.columns],
+                            y=pivot.index,
+                            title="Framework Theme Heatmap by Year",
+                            color_continuous_scale="Blues",
+                            text_auto=".1f"
+                        )
+                        
+                        add_figure_to_zip(fig, f"framework_theme_heatmap_{timestamp}.png")
         except Exception as e:
-            print(f"Error creating framework heatmap: {e}")
+            logging.error(f"Error creating framework heatmap: {str(e)}")
         
         # === TAB 2: THEME DISTRIBUTION ===
         try:
-            # Generate top themes chart
-            theme_counts = filtered_df["Theme"].value_counts().head(10)
+            # Theme counts bar chart
+            theme_counts = filtered_df["Theme"].value_counts().head(15)
+            
+            # Truncate long theme names
+            theme_names_short = [truncate_text(theme, 30) for theme in theme_counts.index]
             
             # Create a bar chart
             fig = px.bar(
-                x=theme_counts.index,
+                x=theme_names_short,
                 y=theme_counts.values,
                 labels={"x": "Theme", "y": "Count"},
-                title="Top 10 Themes by Occurrence",
+                title=f"Top {len(theme_counts)} Themes by Occurrence",
                 height=500,
+                color_discrete_sequence=['#4287f5']
             )
             
-            # Improve layout
             fig.update_layout(
-                xaxis_title="Theme",
-                yaxis_title="Number of Occurrences",
-                xaxis={'categoryorder':'total descending'},
-                xaxis_tickangle=-45,
+                xaxis_tickangle=-30,
+                xaxis={'categoryorder':'total descending'}
             )
             
             add_figure_to_zip(fig, f"theme_distribution_{timestamp}.png")
             
-            # Theme confidence breakdown
-            # Group by theme and confidence
+            # Theme by confidence
             theme_confidence = filtered_df.groupby(["Theme", "Confidence"]).size().reset_index(name="Count")
             
             # Filter for top themes only
             top_themes = theme_counts.index.tolist()
             theme_confidence = theme_confidence[theme_confidence["Theme"].isin(top_themes)]
             
+            # Truncate theme names
+            theme_confidence["Theme_Short"] = theme_confidence["Theme"].apply(lambda x: truncate_text(x, 30))
+            
             # Create a grouped bar chart
             fig = px.bar(
                 theme_confidence, 
-                x="Theme", 
+                x="Theme_Short", 
                 y="Count", 
                 color="Confidence",
                 barmode="group",
                 color_discrete_map={"High": "#4CAF50", "Medium": "#FFC107", "Low": "#F44336"},
-                category_orders={"Theme": top_themes, "Confidence": ["High", "Medium", "Low"]},
+                category_orders={"Confidence": ["High", "Medium", "Low"]},
                 title="Confidence Distribution by Theme"
             )
             
-            fig.update_layout(xaxis_tickangle=-45)
+            fig.update_layout(xaxis_tickangle=-30)
             add_figure_to_zip(fig, f"theme_confidence_{timestamp}.png")
             
         except Exception as e:
-            print(f"Error creating theme distribution charts: {e}")
+            logging.error(f"Error creating theme distribution charts: {str(e)}")
         
         # === TAB 3: TEMPORAL ANALYSIS ===
         try:
             if "year" in filtered_df.columns and not filtered_df["year"].isna().all():
-                # Get all theme counts by year
+                # Timeline chart - all themes by year
+                year_counts = filtered_df.groupby("year").size().reset_index(name="Count")
+                
+                fig = px.bar(
+                    year_counts,
+                    x="year",
+                    y="Count",
+                    title="Theme Identifications by Year",
+                    labels={"year": "Year", "Count": "Number of Theme Identifications"},
+                    color_discrete_sequence=['#36a2eb']
+                )
+                
+                add_figure_to_zip(fig, f"theme_yearly_timeline_{timestamp}.png")
+                
+                # Theme trends over time
                 year_theme_counts = filtered_df.groupby(["year", "Theme"]).size().reset_index(name="Count")
                 
                 # Get top themes
                 all_theme_counts = filtered_df["Theme"].value_counts()
-                top_themes = all_theme_counts.head(10).index.tolist()
+                top_themes = all_theme_counts.head(8).index.tolist()  # Limit to 8 for readability
                 
                 # Filter for top themes
                 year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
+                
+                # Truncate theme names
+                year_theme_counts["Theme_Short"] = year_theme_counts["Theme"].apply(lambda x: truncate_text(x, 30))
                 
                 # Convert year to string for categorical plotting
                 year_theme_counts['year_str'] = year_theme_counts['year'].astype(str)
@@ -7951,38 +8012,40 @@ def save_dashboard_images_as_zip(filtered_df):
                     year_theme_counts,
                     x="year_str",
                     y="Count",
-                    color="Theme",
+                    color="Theme_Short",
                     markers=True,
                     title="Theme Trends Over Time",
-                    height=500,
+                    labels={"year_str": "Year", "Count": "Number of Occurrences", "Theme_Short": "Theme"}
                 )
                 
                 add_figure_to_zip(fig, f"theme_temporal_trends_{timestamp}.png")
                 
-                # Create theme prevalence heatmap
-                pivot_df = year_theme_counts.pivot(index="Theme", columns="year_str", values="Count").fillna(0)
-                
-                # Calculate the total themes per year
-                year_theme_totals = pivot_df.sum(axis=0)
-                normalized_pivot = pivot_df.div(year_theme_totals, axis=1) * 100
-                
-                # Create a heatmap
-                year_order = sorted(year_theme_counts['year'].unique())
-                year_order_str = [str(y) for y in year_order]
-                
-                fig = px.imshow(
-                    normalized_pivot[year_order_str],
-                    labels=dict(x="Year", y="Theme", color="% of Themes"),
-                    x=year_order_str,
-                    y=normalized_pivot.index,
-                    color_continuous_scale="YlGnBu",
-                    title="Theme Prevalence by Year (%)",
-                    text_auto=".1f"
-                )
-                
-                add_figure_to_zip(fig, f"theme_prevalence_heatmap_{timestamp}.png")
+                # Create theme prevalence heatmap if multiple years
+                if filtered_df["year"].nunique() > 1:
+                    pivot_df = year_theme_counts.pivot(index="Theme_Short", columns="year_str", values="Count").fillna(0)
+                    
+                    # Calculate the total themes per year
+                    year_theme_totals = pivot_df.sum(axis=0)
+                    normalized_pivot = pivot_df.div(year_theme_totals, axis=1) * 100
+                    
+                    # Create a heatmap
+                    year_order = sorted(year_theme_counts['year'].unique())
+                    year_order_str = [str(y) for y in year_order]
+                    
+                    if len(normalized_pivot) > 0 and len(year_order_str) > 0:
+                        fig = px.imshow(
+                            normalized_pivot[year_order_str],
+                            labels=dict(x="Year", y="Theme", color="% of Themes"),
+                            x=year_order_str,
+                            y=normalized_pivot.index,
+                            color_continuous_scale="YlGnBu",
+                            title="Theme Prevalence by Year (%)",
+                            text_auto=".1f"
+                        )
+                        
+                        add_figure_to_zip(fig, f"theme_prevalence_heatmap_{timestamp}.png")
         except Exception as e:
-            print(f"Error creating temporal analysis charts: {e}")
+            logging.error(f"Error creating temporal analysis charts: {str(e)}")
         
         # === TAB 4: AREA COMPARISON ===
         try:
@@ -7990,21 +8053,24 @@ def save_dashboard_images_as_zip(filtered_df):
                 # Get the top areas by theme count
                 area_counts = filtered_df["coroner_area"].value_counts().head(10)
                 
+                # Truncate long area names
+                area_names_short = [truncate_text(area, 25) for area in area_counts.index]
+                
                 # Create a bar chart of top areas
                 fig = px.bar(
-                    x=area_counts.index,
+                    x=area_names_short,
                     y=area_counts.values,
                     labels={"x": "Coroner Area", "y": "Count"},
                     title="Theme Identifications by Coroner Area",
-                    height=500,
+                    color_discrete_sequence=['#ff9f40']
                 )
                 
-                fig.update_layout(xaxis_tickangle=-45)
+                fig.update_layout(xaxis_tickangle=-30)
                 add_figure_to_zip(fig, f"coroner_area_distribution_{timestamp}.png")
                 
                 # Create area-theme heatmap
                 top_areas = area_counts.index.tolist()
-                top_themes = filtered_df["Theme"].value_counts().head(10).index.tolist()
+                top_themes = filtered_df["Theme"].value_counts().head(8).index.tolist()  # Limit to 8 themes
                 
                 # Calculate area theme data
                 area_theme_data = []
@@ -8018,49 +8084,47 @@ def save_dashboard_images_as_zip(filtered_df):
                         percentage = (count / area_totals * 100) if area_totals > 0 else 0
                         
                         area_theme_data.append({
-                            "Coroner Area": area,
-                            "Theme": theme,
+                            "Coroner Area": truncate_text(area, 25),
+                            "Theme": truncate_text(theme, 25),
                             "Count": count,
                             "Percentage": round(percentage, 1)
                         })
                 
                 area_theme_df = pd.DataFrame(area_theme_data)
                 
-                # Create heatmap
-                pivot_df = area_theme_df.pivot(index="Coroner Area", columns="Theme", values="Percentage").fillna(0)
-                
-                # Limit to top areas and themes that exist in the pivot
-                available_areas = [area for area in top_areas if area in pivot_df.index]
-                available_themes = [theme for theme in top_themes if theme in pivot_df.columns]
-                
-                if available_areas and available_themes:
-                    pivot_subset = pivot_df.loc[available_areas, available_themes]
+                # Create heatmap if we have data
+                if len(area_theme_df) > 0:
+                    pivot_df = area_theme_df.pivot(index="Coroner Area", columns="Theme", values="Percentage").fillna(0)
                     
-                    fig = px.imshow(
-                        pivot_subset,
-                        labels=dict(x="Theme", y="Coroner Area", color="Percentage"),
-                        x=available_themes,
-                        y=available_areas,
-                        color_continuous_scale="YlGnBu",
-                        title="Theme Distribution by Coroner Area (%)",
-                        text_auto=".1f"
-                    )
-                    
-                    fig.update_layout(
-                        xaxis_title="Theme",
-                        yaxis_title="Coroner Area",
-                        xaxis_tickangle=-45,
-                    )
-                    
-                    add_figure_to_zip(fig, f"theme_area_heatmap_{timestamp}.png")
+                    # Check if we have valid data for heatmap
+                    if pivot_df.shape[0] > 0 and pivot_df.shape[1] > 0:
+                        fig = px.imshow(
+                            pivot_df,
+                            labels=dict(x="Theme", y="Coroner Area", color="Percentage"),
+                            x=pivot_df.columns,
+                            y=pivot_df.index,
+                            color_continuous_scale="YlGnBu",
+                            title="Theme Distribution by Coroner Area (%)",
+                            text_auto=".1f"
+                        )
+                        
+                        fig.update_layout(
+                            xaxis_title="Theme",
+                            yaxis_title="Coroner Area",
+                            xaxis_tickangle=-30
+                        )
+                        
+                        add_figure_to_zip(fig, f"theme_area_heatmap_{timestamp}.png")
         except Exception as e:
-            print(f"Error creating area comparison charts: {e}")
+            logging.error(f"Error creating area comparison charts: {str(e)}")
         
         # === TAB 5: CORRELATION ANALYSIS ===
         try:
             # Calculate correlation between themes
             id_column = 'Record ID' if 'Record ID' in filtered_df.columns else filtered_df.columns[0]
-            top_themes = filtered_df["Theme"].value_counts().head(10).index.tolist()
+            
+            # Get top themes (limited to improve readability)
+            top_themes = filtered_df["Theme"].value_counts().head(8).index.tolist()
             
             # Create a binary pivot table
             theme_pivot = pd.crosstab(
@@ -8070,113 +8134,155 @@ def save_dashboard_images_as_zip(filtered_df):
                 aggfunc='max'
             ).fillna(0)
             
-            # Convert to binary
+            # Convert to binary (1 if any value, 0 otherwise)
             theme_pivot = (theme_pivot > 0).astype(int)
             
-            # Calculate correlation between themes
-            theme_corr = theme_pivot.corr()
-            
-            # Get only the top themes
-            available_themes = [theme for theme in top_themes if theme in theme_corr.index]
-            if available_themes:
-                top_theme_corr = theme_corr.loc[available_themes, available_themes]
+            # Calculate correlation between themes if we have enough data
+            if theme_pivot.shape[1] > 1:
+                theme_corr = theme_pivot.corr()
                 
-                # Create a heatmap of correlations
-                fig = px.imshow(
-                    top_theme_corr,
-                    color_continuous_scale=px.colors.diverging.RdBu_r,
-                    color_continuous_midpoint=0,
-                    labels=dict(x="Theme", y="Theme", color="Correlation"),
-                    title="Theme Correlation Matrix",
-                    text_auto=".2f"
-                )
+                # Filter for top themes
+                available_themes = [theme for theme in top_themes if theme in theme_corr.index]
                 
-                fig.update_layout(xaxis_tickangle=-45)
-                add_figure_to_zip(fig, f"theme_correlation_matrix_{timestamp}.png")
+                # Create readable labels
+                available_themes_short = [truncate_text(theme, 20) for theme in available_themes]
                 
-                # Create network graph of correlations
-                import networkx as nx
-                
-                # Create network from correlation matrix with 0.3 threshold
-                G = nx.Graph()
-                
-                # Add nodes (themes)
-                for theme in top_theme_corr.columns:
-                    G.add_node(theme)
-                
-                # Add edges (correlations above threshold)
-                corr_threshold = 0.3
-                for i, theme1 in enumerate(top_theme_corr.columns):
-                    for j, theme2 in enumerate(top_theme_corr.columns):
-                        if i < j:  # Only process each pair once
-                            correlation = top_theme_corr.loc[theme1, theme2]
-                            if correlation >= corr_threshold:
-                                G.add_edge(theme1, theme2, weight=correlation)
-                
-                if len(G.edges()) > 0:
-                    # Calculate positions
-                    pos = nx.spring_layout(G, seed=42)
+                # Filter correlation matrix
+                if available_themes:
+                    top_theme_corr = theme_corr.loc[available_themes, available_themes]
                     
-                    # Create a network visualization
-                    edge_traces = []
+                    # Create a heatmap of correlations
+                    fig = px.imshow(
+                        top_theme_corr.values,
+                        color_continuous_scale=px.colors.diverging.RdBu_r,
+                        color_continuous_midpoint=0,
+                        labels=dict(x="Theme", y="Theme", color="Correlation"),
+                        x=available_themes_short,
+                        y=available_themes_short,
+                        title="Theme Correlation Matrix",
+                        text_auto=".2f"
+                    )
                     
-                    # Add edges with width proportional to correlation
-                    for edge in G.edges():
-                        x0, y0 = pos[edge[0]]
-                        x1, y1 = pos[edge[1]]
-                        weight = G[edge[0]][edge[1]]['weight']
+                    fig.update_layout(xaxis_tickangle=-45)
+                    add_figure_to_zip(fig, f"theme_correlation_matrix_{timestamp}.png")
+                    
+                    # Create co-occurrence table visualization
+                    co_occurrence_matrix = np.zeros((len(available_themes), len(available_themes)))
+                    
+                    # Calculate co-occurrences
+                    for doc_id in theme_pivot.index:
+                        doc_themes = theme_pivot.columns[theme_pivot.loc[doc_id] == 1].tolist()
+                        doc_themes = [t for t in doc_themes if t in available_themes]
                         
-                        edge_traces.append(
-                            go.Scatter(
-                                x=[x0, x1, None],
-                                y=[y0, y1, None],
-                                line=dict(width=weight*5, color=f'rgba(100,100,100,{weight})'),
-                                hoverinfo='none',
-                                mode='lines'
+                        for i, theme1 in enumerate(doc_themes):
+                            idx1 = available_themes.index(theme1)
+                            for theme2 in doc_themes:
+                                idx2 = available_themes.index(theme2)
+                                co_occurrence_matrix[idx1, idx2] += 1
+                    
+                    # Create a heatmap for co-occurrences
+                    fig = px.imshow(
+                        co_occurrence_matrix,
+                        labels=dict(x="Theme", y="Theme", color="Co-occurrences"),
+                        x=available_themes_short,
+                        y=available_themes_short,
+                        title="Theme Co-occurrence Matrix",
+                        color_continuous_scale="Viridis",
+                        text_auto=".0f"
+                    )
+                    
+                    fig.update_layout(xaxis_tickangle=-45)
+                    add_figure_to_zip(fig, f"theme_cooccurrence_matrix_{timestamp}.png")
+                    
+                    # Create network graph with a reasonable correlation threshold
+                    import networkx as nx
+                    
+                    # Find an appropriate threshold by starting high and lowering until we get a reasonable number of edges
+                    for threshold in [0.6, 0.5, 0.4, 0.3, 0.2]:
+                        G = nx.Graph()
+                        
+                        # Add nodes (themes)
+                        for i, theme in enumerate(available_themes):
+                            G.add_node(i, name=available_themes_short[i])
+                        
+                        # Add edges (correlations above threshold)
+                        edge_count = 0
+                        for i in range(len(available_themes)):
+                            for j in range(i+1, len(available_themes)):
+                                correlation = top_theme_corr.iloc[i, j]
+                                if correlation >= threshold:
+                                    G.add_edge(i, j, weight=correlation)
+                                    edge_count += 1
+                        
+                        # If we have a reasonable number of edges, create the visualization
+                        if edge_count > 0 and edge_count <= 20:  # Not too many edges
+                            # Calculate positions
+                            pos = nx.spring_layout(G, seed=42)
+                            
+                            # Create network visualization
+                            edge_traces = []
+                            
+                            # Add edges with width proportional to correlation
+                            for edge in G.edges():
+                                x0, y0 = pos[edge[0]]
+                                x1, y1 = pos[edge[1]]
+                                weight = G[edge[0]][edge[1]]['weight']
+                                
+                                edge_traces.append(
+                                    go.Scatter(
+                                        x=[x0, x1, None],
+                                        y=[y0, y1, None],
+                                        line=dict(width=weight*5, color=f'rgba(100,100,100,{weight})'),
+                                        hoverinfo='none',
+                                        mode='lines'
+                                    )
+                                )
+                            
+                            # Add nodes
+                            node_x = []
+                            node_y = []
+                            node_text = []
+                            node_size = []
+                            
+                            for node in G.nodes():
+                                x, y = pos[node]
+                                node_x.append(x)
+                                node_y.append(y)
+                                node_text.append(G.nodes[node]['name'])
+                                # Calculate node size based on connections
+                                size = len(list(G.neighbors(node))) * 10 + 20
+                                node_size.append(size)
+                            
+                            node_trace = go.Scatter(
+                                x=node_x, y=node_y,
+                                mode='markers+text',
+                                text=node_text,
+                                textposition="top center",
+                                marker=dict(
+                                    size=node_size,
+                                    color='skyblue',
+                                    line=dict(width=1, color='black')
+                                )
                             )
-                        )
-                    
-                    # Add nodes
-                    node_x = []
-                    node_y = []
-                    node_size = []
-                    
-                    for node in G.nodes():
-                        x, y = pos[node]
-                        node_x.append(x)
-                        node_y.append(y)
-                        # Calculate node size based on number of connections
-                        size = len(list(G.neighbors(node))) * 10 + 20
-                        node_size.append(size)
-                    
-                    node_trace = go.Scatter(
-                        x=node_x, y=node_y,
-                        mode='markers+text',
-                        text=list(G.nodes()),
-                        textposition="top center",
-                        marker=dict(
-                            size=node_size,
-                            color='skyblue',
-                            line=dict(width=1, color='black')
-                        )
-                    )
-                    
-                    # Create the figure
-                    fig = go.Figure(
-                        data=edge_traces + [node_trace],
-                        layout=go.Layout(
-                            title=f'Theme Connection Network (r ≥ {corr_threshold})',
-                            showlegend=False,
-                            hovermode='closest',
-                            margin=dict(b=20, l=5, r=5, t=40),
-                            xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                            yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                        )
-                    )
-                    
-                    add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
+                            
+                            # Create the figure
+                            fig = go.Figure(
+                                data=edge_traces + [node_trace],
+                                layout=go.Layout(
+                                    title=f'Theme Connection Network (r ≥ {threshold:.1f})',
+                                    showlegend=False,
+                                    hovermode='closest',
+                                    margin=dict(b=20, l=5, r=5, t=40),
+                                    xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                    yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
+                                )
+                            )
+                            
+                            add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
+                            break  # We found a good threshold, no need to try lower ones
+                            
         except Exception as e:
-            print(f"Error creating correlation analysis charts: {e}")
+            logging.error(f"Error creating correlation analysis charts: {str(e)}")
     
     # Reset buffer position
     zip_buffer.seek(0)
