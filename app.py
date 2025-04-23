@@ -10648,7 +10648,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     
                 theme_display_df = pd.DataFrame(theme_display_data)
                 # Truncate theme names using the existing truncate_text function
-                theme_display_df['clean_name'] = theme_display_df['clean_name'].apply(lambda x: truncate_text(x, max_length=10))
+                theme_display_df['clean_name'] = theme_display_df['clean_name'].apply(lambda x: truncate_text(x, max_length=30))
                 
                 # Add year count labels
                 year_labels = [f"{year}<br>n={reports_per_year[year]}" for year in pivot.columns]
@@ -10778,15 +10778,13 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     yaxis=dict(
                         tickmode='array',
                         tickvals=list(range(len(theme_display_df))),
-                        ticktext=theme_display_df['clean_name'],
+                        ticktext=[truncate_text(name, max_length=30) for name in theme_display_df['clean_name']],
                         tickfont=dict(
                             size=11,
-                            color='white'  # White text for y-axis labels
+                            color='black'
                         ),
-                        gridcolor="rgba(255,255,255,0.1)",  # Very subtle grid
                     )
                 )
-                
                 # Improve x-axis formatting for dark mode
                 fig.update_xaxes(
                     tickangle=-0,  # Horizontal labels
