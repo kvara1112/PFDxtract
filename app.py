@@ -10647,6 +10647,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     })
                     
                 theme_display_df = pd.DataFrame(theme_display_data)
+                # Truncate theme names using the existing truncate_text function
+                theme_display_df['clean_name'] = theme_display_df['clean_name'].apply(lambda x: truncate_text(x, max_length=30))
                 
                 # Add year count labels
                 year_labels = [f"{year}<br>n={reports_per_year[year]}" for year in pivot.columns]
