@@ -2364,7 +2364,6 @@ class ThemeAnalyzer:
                 "keywords": [
                     "national and/or local guidance",
                     "national",
-                    "and/or",
                     "local",
                     "guidance",
                     "national screening",
