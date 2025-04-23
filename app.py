@@ -11124,7 +11124,6 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 key=f"download_excel_{timestamp}",
             )
 
-
         with col3:
             # All Images Export
             try:
@@ -11142,7 +11141,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             except Exception as e:
                 st.error(f"Error creating visualization zip: {e}")
                 logging.error(f"Visualization zip error: {e}", exc_info=True)
-
+        
+       
 def render_analysis_tab(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
 
