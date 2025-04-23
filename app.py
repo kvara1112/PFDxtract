@@ -10732,15 +10732,15 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         
         # Create a bar chart
         fig = px.bar(
-           x=[truncate_text(theme) for theme in theme_counts.index],
+            x=[truncate_text(theme) for theme in theme_counts.index],
             y=theme_counts.values,
             labels={"x": "Theme", "y": "Count"},
-            title=f"Top {top_n_themes} Themes by Occurrence",
+            title="Top 10 Themes by Occurrence",
             height=500,
         )
         fig.update_layout(
-            xaxis_tickangle=-30, 
-            margin=dict(b=100)
+            xaxis_tickangle=-30,  # Reduce angle for better readability
+            margin=dict(b=100),  # Add more bottom margin for text
         )
 
         # Improve layout
