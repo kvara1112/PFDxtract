@@ -7729,9 +7729,110 @@ def handle_error(error):
     )
 
 
+################
+def truncate_axis_labels(fig, max_length=30, axis='both', truncate_func=None):
+    """
+    Truncate x and/or y axis labels in a Plotly figure
+    
+    Args:
+        fig (go.Figure): Plotly figure object
+        max_length (int): Maximum length of label before truncation
+        axis (str): Which axis to truncate ('x', 'y', or 'both')
+        truncate_func (callable, optional): Custom truncation function. 
+                      If None, will use a basic truncation method.
+    
+    Returns:
+        go.Figure: Figure with truncated axis labels
+    """
+    # Default truncation function if none provided
+    def default_truncate(text, max_len):
+        """Basic truncation method"""
+        if not isinstance(text, str):
+            return str(text)
+        
+        if len(text) > max_len:
+            return text[:max_len-3] + "..."
+        return text
+    
+    # Use the provided truncation function or default
+    truncate = truncate_func or default_truncate
+    
+    # Truncate x-axis labels if specified
+    if axis in ['x', 'both']:
+        # Check if the figure uses Express or Graph Objects
+        if hasattr(fig, 'layout') and 'xaxis' in fig.layout:
+            # For Graph Objects figures
+            if hasattr(fig.layout.xaxis, 'ticktext') and fig.layout.xaxis.ticktext:
+                fig.layout.xaxis.ticktext = [
+                    truncate(text, max_length) 
+                    for text in fig.layout.xaxis.ticktext
+                ]
+        
+        # For Express figures or figures with layout update
+        if hasattr(fig, 'update_xaxes'):
+            # Get current tick text, fallback to empty list if not available
+            current_ticktext = getattr(fig.layout.xaxis, 'get_ticktext', lambda: [])()
+            
+            # If no current tick text, we might need to rebuild from the existing data
+            if not current_ticktext and hasattr(fig, 'data') and fig.data and hasattr(fig.data[0], 'x'):
+                current_ticktext = fig.data[0].x
+            
+            fig.update_xaxes(
+                ticktext=[truncate(str(text), max_length) for text in current_ticktext],
+                tickmode='array'
+            )
+    
+    # Truncate y-axis labels if specified
+    if axis in ['y', 'both']:
+        # Check if the figure uses Express or Graph Objects
+        if hasattr(fig, 'layout') and 'yaxis' in fig.layout:
+            # For Graph Objects figures
+            if hasattr(fig.layout.yaxis, 'ticktext') and fig.layout.yaxis.ticktext:
+                fig.layout.yaxis.ticktext = [
+                    truncate(text, max_length) 
+                    for text in fig.layout.yaxis.ticktext
+                ]
+        
+        # For Express figures or figures with layout update
+        if hasattr(fig, 'update_yaxes'):
+            # Get current tick text, fallback to empty list if not available
+            current_ticktext = getattr(fig.layout.yaxis, 'get_ticktext', lambda: [])()
+            
+            # If no current tick text, we might need to rebuild from the existing data
+            if not current_ticktext and hasattr(fig, 'data') and fig.data and hasattr(fig.data[0], 'y'):
+                current_ticktext = fig.data[0].y
+            
+            fig.update_yaxes(
+                ticktext=[truncate(str(text), max_length) for text in current_ticktext],
+                tickmode='array'
+            )
+    
+    return fig
+
+# Optional: You can add a helper function to apply truncation to charts
+def apply_chart_truncation(fig, truncate_func=None, max_length=30, axis='both'):
+    """
+    Convenience wrapper to apply truncation with a custom truncation function
+    
+    Args:
+        fig (go.Figure): Plotly figure to modify
+        truncate_func (callable, optional): Custom truncation function
+        max_length (int): Maximum label length
+        axis (str): Which axis to truncate
+    
+    Returns:
+        go.Figure: Modified figure with truncated labels
+    """
+    return truncate_axis_labels(
+        fig, 
+        max_length=max_length, 
+        axis=axis, 
+        truncate_func=truncate_func
+    )
+
 ###############Add this helper function to your app.py file
 
-def truncate_text(text, max_length=30):
+def truncate_textold(text, max_length=30):
     """
     Truncate long text for better display in charts
     
