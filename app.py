@@ -8149,7 +8149,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
                 
                 # Truncate theme names
-                year_theme_counts["Theme_Short"] = year_theme_counts["Theme"].apply(lambda x: truncate_text(x, 25))
+                year_theme_counts["Theme_Short"] = year_theme_counts["Theme"].apply(lambda x: truncate_text(x, 30))
                 
                 # Convert year to string for categorical plotting
                 year_theme_counts['year_str'] = year_theme_counts['year'].astype(str)
@@ -8201,7 +8201,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 area_counts = filtered_df["coroner_area"].value_counts().head(10)
                 
                 # Truncate long area names
-                area_names_short = [truncate_text(area, 25) for area in area_counts.index]
+                area_names_short = [truncate_text(area, 30) for area in area_counts.index]
                 
                 # Create a bar chart of top areas
                 fig = px.bar(
@@ -8231,7 +8231,7 @@ def save_dashboard_images_as_zip(filtered_df):
                         percentage = (count / area_totals * 100) if area_totals > 0 else 0
                         
                         area_theme_data.append({
-                            "Coroner Area": truncate_text(area, 25),
+                            "Coroner Area": truncate_text(area, 30),
                             "Theme": truncate_text(theme, 15),
                             "Count": count,
                             "Percentage": round(percentage, 1)
@@ -8292,7 +8292,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 available_themes = [theme for theme in top_themes if theme in theme_corr.index]
                 
                 # Create readable labels
-                available_themes_short = [truncate_text(theme, max_length=25) for theme in available_themes]
+                available_themes_short = [truncate_text(theme, max_length=30) for theme in available_themes]
                 
                 # Filter correlation matrix
                 if available_themes:
