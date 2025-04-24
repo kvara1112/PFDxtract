@@ -1311,10 +1311,10 @@ class BERTResultsAnalyzer:
         return cleaned_df
     
         
-
-    def _clean_categories(self, df):
+    #  
+    def clean_categories(self, df):
         """
-        Clean categories column by removing "These reports are being sent to:" and any text that follows
+        Clean categories column by removing specific sentences and replacing with main category
         
         Args:
             df (pd.DataFrame): DataFrame containing a 'categories' column
@@ -1324,6 +1324,29 @@ class BERTResultsAnalyzer:
         """
         if df is None or len(df) == 0 or 'categories' not in df.columns:
             return df
+        
+        # Define category mappings
+        category_mappings = {
+            # Mapping specific patterns to their main category
+            "alcohol drug and medication related deaths": "Alcohol / Drug / Medication",
+            "drugs medication related deaths": "Alcohol / Drug / Medication", 
+            "drugs medication related death": "Alcohol / Drug / Medication",
+            "alcohol drug and medication related death": "Alcohol / Drug / Medication",
+            
+            "hospital death related deaths": "Hospital",
+            "hospital deaths related deaths": "Hospital",
+            "hospital death related death": "Hospital", 
+            "hospital related deaths": "Hospital",
+            "hospital death (clinical procedures and medical management) related deaths": "Hospital",
+            "hospital (clinical procedures and medical management) related deaths": "Hospital",
+            "hospital death (clinical procedures and medical management) related death": "Hospital",
+            
+            "community health care and emergency services related deaths": "Community Health / Emergency services",
+            "community healthcare related deaths": "Community Health / Emergency services",
+            "community health care related deaths": "Community Health / Emergency services", 
+            "community health care services related deaths": "Community Health / Emergency services",
+            "emergency services related deaths": "Community Health / Emergency services"
+        }
         
         # Create a copy to avoid modifying the original
         cleaned_df = df.copy()
@@ -1365,11 +1388,12 @@ class BERTResultsAnalyzer:
             # Replace variations of conjunctions
             categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
             
+            # Map to main category if exists
+            normalized_text = categories_text.lower().strip()
+            if normalized_text in category_mappings:
+                return category_mappings[normalized_text]
+            
             return categories_text.strip()
-        
-        # Apply the cleaning function to the DataFrame
-        # Handle both string values and list values
-        before_cleaning = cleaned_df["categories"].copy()
         
         # Process based on data type
         for idx, value in enumerate(cleaned_df["categories"]):
