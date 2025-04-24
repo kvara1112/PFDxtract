@@ -58,7 +58,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Patch
 from nltk.stem import PorterStemmer
 nltk.download('punkt')
-
+from datetime import datetime
 ######################################
 class BERTResultsAnalyzer:
     """Enhanced class for merging BERT theme analysis results files with specific column outputs and year extraction."""
