@@ -332,12 +332,6 @@ class BERTResultsAnalyzer:
 
     #################
 
-    import pandas as pd
-    import re
-    import nltk
-    from nltk.stem import PorterStemmer
-    
-    nltk.download('punkt')
     
     def _clean_categories(self, df):
         """
@@ -373,29 +367,10 @@ class BERTResultsAnalyzer:
     
         # Mapping of known messy variations to official category names
         category_mappings = {
-            # Alcohol/Drugs
             "alcohol drug and medication related deaths": "Alcohol drug and medication related deaths",
             "drugs medication related deaths": "Alcohol drug and medication related deaths",
-            "drugs medication related death": "Alcohol drug and medication related deaths",
-            "alcohol drug and medication related death": "Alcohol drug and medication related deaths",
-    
-            # Hospital
             "hospital death related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital death related death": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital deaths related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital death clinical procedures and medical management related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital clinical procedures and medical management related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital death clinical procedures and medical management related death": "Hospital Death Clinical Procedures and medical management related deaths",
-    
-            # Community / Emergency Services
             "community health care and emergency services related deaths": "Community health care and emergency services related deaths",
-            "community healthcare related deaths": "Community health care and emergency services related deaths",
-            "community health care related deaths": "Community health care and emergency services related deaths",
-            "community health care services related deaths": "Community health care and emergency services related deaths",
-            "emergency services related deaths": "Emergency services related deaths 2019 onwards",
-    
-            # Direct
             "care home health related deaths": "Care Home Health related deaths",
             "police related deaths": "Police related deaths",
             "state custody related deaths": "State Custody related deaths",
@@ -404,12 +379,13 @@ class BERTResultsAnalyzer:
             "product related deaths": "Product related deaths",
             "other related deaths": "Other related deaths",
             "wales prevention of future deaths reports": "Wales prevention of future deaths reports 2019 onwards",
-            "wales prevention of future deaths reports 2019 onwards": "Wales prevention of future deaths reports 2019 onwards",
-            "department for health and social care": "Other related deaths"  # fallback match
         }
     
-        # Initialize stemmer
-        stemmer = PorterStemmer()
+        # Simple stemming using Python's built-in functionality (removes plurals by slicing)
+        def stem_word(word):
+            if word.endswith('s'):
+                return word[:-1]
+            return word
     
         def clean_categories_value(categories_text):
             if pd.isna(categories_text) or not isinstance(categories_text, str):
@@ -425,9 +401,11 @@ class BERTResultsAnalyzer:
             categories_text = re.sub(r'\s+', ' ', categories_text)
             categories_text = categories_text.replace(' and ', ' ').strip()
     
-            # Tokenize and apply stemming to get singular form of words
-            words = nltk.word_tokenize(categories_text)
-            words = [stemmer.stem(word) for word in words]
+            # Tokenize using regular expressions (no need for NLTK)
+            words = re.findall(r'\b\w+\b', categories_text)
+    
+            # Apply stemming (simple plural removal in this case)
+            words = [stem_word(word) for word in words]
     
             cleaned_text = ' '.join(words)
     
@@ -458,6 +436,8 @@ class BERTResultsAnalyzer:
     
         return cleaned_df
 
+    
+    
 
 
     ##################
