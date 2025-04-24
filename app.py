@@ -11559,9 +11559,75 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
 
         st.plotly_chart(fig)
 
-        #
-        # Find this section in the Tab 5 code that creates the correlation matrix
-
+        fig = px.imshow(
+            top_theme_corr,
+            color_continuous_scale=px.colors.diverging.RdBu_r,  # Red-Blue diverging colorscale
+            color_continuous_midpoint=0,
+            labels=dict(x="Theme", y="Theme", color="Correlation"),
+            title="Theme Correlation Matrix",
+            height=700,
+            width=700,
+            text_auto=".2f",  # Show correlation values with 2 decimal places
+            x=formatted_themes,
+            y=formatted_themes
+        )
+        
+        fig.update_layout(
+            xaxis_tickangle=-45,
+        )
+        
+        # Replace with this improved version:
+        fig = px.imshow(
+            top_theme_corr,
+            color_continuous_scale=px.colors.diverging.RdBu_r,  # Red-Blue diverging colorscale
+            color_continuous_midpoint=0,
+            labels=dict(x="Theme", y="Theme", color="Correlation"),
+            title="Theme Correlation Matrix",
+            height=800,  # Increased height
+            width=850,   # Increased width
+            text_auto=".2f",  # Show correlation values with 2 decimal places
+            x=formatted_themes,
+            y=formatted_themes
+        )
+        
+        # Improved layout with better label positioning
+        fig.update_layout(
+            margin=dict(l=200, r=80, b=220, t=80),  # Dramatically increased bottom margin
+            font=dict(color="white"),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            xaxis=dict(
+                side="bottom",  # Place labels at the bottom
+                tickangle=90,   # Vertical text instead of angled
+                automargin=True # Auto-adjust margins
+            ),
+            yaxis=dict(
+                automargin=True # Auto-adjust margins
+            )
+        )
+        
+        # Update axes for dark mode and ensure labels fit
+        fig.update_xaxes(
+            title_font=dict(color="white"),
+            tickfont=dict(color="white", size=11),
+            gridcolor="rgba(255,255,255,0.1)",
+            automargin=True  # Ensure labels fit properly
+        )
+        
+        fig.update_yaxes(
+            title_font=dict(color="white"),
+            tickfont=dict(color="white", size=11),
+            gridcolor="rgba(255,255,255,0.1)",
+            automargin=True  # Ensure labels fit properly
+        )
+        
+        # Update colorbar for dark mode
+        fig.update_traces(
+            colorbar=dict(
+                title=dict(text="Correlation", font=dict(color="white")),
+                tickfont=dict(color="white")
+            )
+        )
 
 
         
