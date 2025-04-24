@@ -16,7 +16,6 @@ import os
 import zipfile
 import unicodedata
 import nltk
-from nltk.stem import PorterStemmer
 import random
 import string
 import traceback
@@ -328,8 +327,7 @@ class BERTResultsAnalyzer:
         
         return processed_df
     
-
-    ##################
+    
     def _extract_missing_concerns_from_pdf(self, df):
         """
         Extract concerns from PDF content for records with missing Extracted_Concerns.
@@ -858,8 +856,6 @@ class BERTResultsAnalyzer:
         """Filter out response documents, keeping only reports."""
         return df[~df.apply(self._is_response, axis=1)]
 
-
-    #####
     def _merge_files_stack(self, files, duplicate_cols=None):
         """Merge multiple files by stacking (appending) them."""
         dfs = []
@@ -960,176 +956,8 @@ class BERTResultsAnalyzer:
                 
                 if example_changes:
                     st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
-    
-        # Clean deceased names
-        if "deceased_name" in merged_df.columns:
-            before_cleaning = merged_df["deceased_name"].copy()
-            merged_df = self._clean_deceased_name(merged_df)
-            
-            # Count changes made to deceased names
-            changes_made = sum(before_cleaning != merged_df["deceased_name"])
-            if changes_made > 0:
-                st.success(f"Cleaned {changes_made} deceased name entries")
-                
-                # Show the first few changes as an example
-                example_changes = []
-                for i, (old, new) in enumerate(zip(before_cleaning, merged_df["deceased_name"])):
-                    if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
-                        example_changes.append(f"'{old}' → '{new}'")
-                
-                if example_changes:
-                    st.info("Examples of cleaned deceased names:\n" + "\n".join(example_changes))
-    
-        # Clean categories column
-        if "categories" in merged_df.columns:
-            # Save the original values for comparison
-            original_categories = merged_df["categories"].copy()
-            
-            # Apply cleaning with underscore method
-            merged_df = self._clean_categories(merged_df)
-            
-            # Count changes - this is more complex since categories can be lists
-            changes_made = 0
-            example_changes = []
-            
-            # Check each row for changes
-            for i, (old, new) in enumerate(zip(original_categories, merged_df["categories"])):
-                # Handle list case
-                if isinstance(old, list) and isinstance(new, list):
-                    # Consider it changed if any element changed
-                    if any(o != n for o, n in zip(old, new) if isinstance(o, str) and isinstance(n, str)):
-                        changes_made += 1
-                        # Add example if we don't have many yet
-                        if len(example_changes) < 3:
-                            old_str = ", ".join(old) if all(isinstance(x, str) for x in old) else str(old)
-                            new_str = ", ".join(new) if all(isinstance(x, str) for x in new) else str(new)
-                            example_changes.append(f"'{old_str}' → '{new_str}'")
-                # Handle string case
-                elif isinstance(old, str) and isinstance(new, str) and old != new:
-                    changes_made += 1
-                    if len(example_changes) < 3:
-                        example_changes.append(f"'{old}' → '{new}'")
-            
-            # Report changes
-            if changes_made > 0:
-                st.success(f"Cleaned {changes_made} categories entries")
-                if example_changes:
-                    st.info("Examples of cleaned categories:\n" + "\n".join(example_changes))
-    
-        # Store the result
-        self.data = merged_df
-    
-        # Show summary of the merged data
-        st.subheader("Merged Data Summary")
-        st.write(f"Total rows: {len(merged_df)}")
-        st.write(f"Columns: {', '.join(merged_df.columns)}")
-    
-        return merged_df
 
-
-
-    def _merge_files_stack2(self, files, duplicate_cols=None):
-        """Merge multiple files by stacking (appending) them."""
-        dfs = []
-    
-        for file_index, file in enumerate(files):
-            try:
-                # Read file
-                if file.name.endswith(".csv"):
-                    df = pd.read_csv(file)
-                else:
-                    df = pd.read_excel(file)
-    
-                # Display file information
-                st.info(
-                    f"Processing file {file_index+1}: {file.name} ({len(df)} rows, {len(df.columns)} columns)"
-                )
-    
-                # Add source filename
-                df["Source File"] = file.name
-    
-                # Add to the list of dataframes
-                dfs.append(df)
-    
-            except Exception as e:
-                st.warning(f"Error processing file {file.name}: {str(e)}")
-                continue
-    
-        if not dfs:
-            raise ValueError("No valid files to merge")
-    
-        # Combine all dataframes
-        merged_df = pd.concat(dfs, ignore_index=True)
-    
-        # Remove duplicates if specified
-        if duplicate_cols:
-            valid_dup_cols = [col for col in duplicate_cols if col in merged_df.columns]
-            if valid_dup_cols:
-                before_count = len(merged_df)
-                merged_df = merged_df.drop_duplicates(
-                    subset=valid_dup_cols, keep="first"
-                )
-                after_count = len(merged_df)
-    
-                if before_count > after_count:
-                    st.success(
-                        f"Removed {before_count - after_count} duplicate records based on {', '.join(valid_dup_cols)}"
-                    )
-            else:
-                st.warning(
-                    f"Specified duplicate columns {duplicate_cols} not found in the merged data"
-                )
-    
-        # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
-        if "Record ID" in merged_df.columns:
-            before_count = len(merged_df)
-            merged_df = merged_df.drop_duplicates(subset=["Record ID"], keep="first")
-            after_count = len(merged_df)
-    
-            if before_count > after_count:
-                st.success(
-                    f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)"
-                )
-    
-        # Clean coroner_name column
-        if "coroner_name" in merged_df.columns:
-            before_cleaning = merged_df["coroner_name"].copy()
-            merged_df = self._clean_coroner_names(merged_df)
-            
-            # Count changes made
-            changes_made = sum(before_cleaning != merged_df["coroner_name"])
-            if changes_made > 0:
-                st.success(f"Cleaned {changes_made} coroner name entries")
-                
-                # Show the first few changes as an example
-                example_changes = []
-                for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_name"])):
-                    if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
-                        example_changes.append(f"'{old}' → '{new}'")
-                
-                if example_changes:
-                    st.info("Examples of cleaned coroner names:\n" + "\n".join(example_changes))
-    
-        # Clean coroner_area column
-        if "coroner_area" in merged_df.columns:
-            before_cleaning = merged_df["coroner_area"].copy()
-            merged_df = self._clean_coroner_areas(merged_df)
-            
-            # Count changes made
-            changes_made = sum(before_cleaning != merged_df["coroner_area"])
-            if changes_made > 0:
-                st.success(f"Cleaned {changes_made} coroner area entries")
-                
-                # Show the first few changes as an example
-                example_changes = []
-                for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_area"])):
-                    if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
-                        example_changes.append(f"'{old}' → '{new}'")
-                
-                if example_changes:
-                    st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
-
-        ##
+        ##her
         # Remove duplicate Record IDs, keeping only the first occurrence
         if "Record ID" in merged_df.columns:
             before_count = len(merged_df)
@@ -1238,11 +1066,7 @@ class BERTResultsAnalyzer:
         ].copy()
 
         return missing_concerns
-   
-    
-    #
 
-    
     #
     def _clean_deceased_name(self, df):
         """
@@ -1379,89 +1203,7 @@ class BERTResultsAnalyzer:
         cleaned_df['coroner_name'] = cleaned_df['coroner_name'].apply(clean_name)
         return cleaned_df
 
-
-
-    ########################
-    def _clean_categories(self, df):
-            """
-            Clean categories column by removing "These reports are being sent to:" and any text that follows
-            
-            Args:
-                df (pd.DataFrame): DataFrame containing a 'categories' column
-                
-            Returns:
-                pd.DataFrame: DataFrame with cleaned 'categories' column
-            """
-            if df is None or len(df) == 0 or 'categories' not in df.columns:
-                return df
-            
-            # Create a copy to avoid modifying the original
-            cleaned_df = df.copy()
-            
-            # Define the cleaning function for a single value
-            def clean_categories_value(categories_text):
-                if pd.isna(categories_text) or not isinstance(categories_text, str):
-                    return categories_text
-                
-                # Convert to lowercase for case-insensitive matching
-                categories_text_lower = categories_text.lower()
-                
-                # Patterns to look for and remove
-                report_patterns = [
-                    "these reports are being sent to:",
-                    "this report is being sent to:",
-                    "the report is being sent to:",
-                    "this report",
-                    "these reports",
-                    "the report",
-                    "this is being"
-                ]
-                
-                # Find the earliest position of any report-related pattern
-                earliest_pos = len(categories_text)
-                for pattern in report_patterns:
-                    pos = categories_text_lower.find(pattern)
-                    if pos != -1 and pos < earliest_pos:
-                        earliest_pos = pos
-                
-                # If a report pattern was found, truncate
-                if earliest_pos != len(categories_text):
-                    categories_text = categories_text[:earliest_pos].strip()
-                
-                # Normalize text: remove brackets, convert '&' and 'and' to a standard form
-                # Remove brackets
-                categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
-                
-                # Replace variations of conjunctions
-                categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
-                
-                return categories_text.strip()
-            
-            # Apply the cleaning function to the DataFrame
-            # Handle both string values and list values
-            before_cleaning = cleaned_df["categories"].copy()
-            
-            # Process based on data type
-            for idx, value in enumerate(cleaned_df["categories"]):
-                if isinstance(value, list):
-                    # For list values, we need to check each element
-                    cleaned_list = []
-                    for item in value:
-                        if isinstance(item, str):
-                            cleaned_list.append(clean_categories_value(item))
-                        else:
-                            cleaned_list.append(item)
-                    cleaned_df.at[idx, "categories"] = cleaned_list
-                elif isinstance(value, str):
-                    # For string values, clean directly
-                    cleaned_df.at[idx, "categories"] = clean_categories_value(value)
-            
-            return cleaned_df
-
-
-
-
-    ############################
+    
     def _clean_coroner_areas(self, df):
         """
         Clean coroner_area column by:
@@ -1569,6 +1311,84 @@ class BERTResultsAnalyzer:
         return cleaned_df
     
         
+
+    def _clean_categories(self, df):
+        """
+        Clean categories column by removing "These reports are being sent to:" and any text that follows
+        
+        Args:
+            df (pd.DataFrame): DataFrame containing a 'categories' column
+            
+        Returns:
+            pd.DataFrame: DataFrame with cleaned 'categories' column
+        """
+        if df is None or len(df) == 0 or 'categories' not in df.columns:
+            return df
+        
+        # Create a copy to avoid modifying the original
+        cleaned_df = df.copy()
+        
+        # Define the cleaning function for a single value
+        def clean_categories_value(categories_text):
+            if pd.isna(categories_text) or not isinstance(categories_text, str):
+                return categories_text
+            
+            # Convert to lowercase for case-insensitive matching
+            categories_text_lower = categories_text.lower()
+            
+            # Patterns to look for and remove
+            report_patterns = [
+                "these reports are being sent to:",
+                "this report is being sent to:",
+                "the report is being sent to:",
+                "this report",
+                "these reports",
+                "the report",
+                "this is being"
+            ]
+            
+            # Find the earliest position of any report-related pattern
+            earliest_pos = len(categories_text)
+            for pattern in report_patterns:
+                pos = categories_text_lower.find(pattern)
+                if pos != -1 and pos < earliest_pos:
+                    earliest_pos = pos
+            
+            # If a report pattern was found, truncate
+            if earliest_pos != len(categories_text):
+                categories_text = categories_text[:earliest_pos].strip()
+            
+            # Normalize text: remove brackets, convert '&' and 'and' to a standard form
+            # Remove brackets
+            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
+            
+            # Replace variations of conjunctions
+            categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
+            
+            return categories_text.strip()
+        
+        # Apply the cleaning function to the DataFrame
+        # Handle both string values and list values
+        before_cleaning = cleaned_df["categories"].copy()
+        
+        # Process based on data type
+        for idx, value in enumerate(cleaned_df["categories"]):
+            if isinstance(value, list):
+                # For list values, we need to check each element
+                cleaned_list = []
+                for item in value:
+                    if isinstance(item, str):
+                        cleaned_list.append(clean_categories_value(item))
+                    else:
+                        cleaned_list.append(item)
+                cleaned_df.at[idx, "categories"] = cleaned_list
+            elif isinstance(value, str):
+                # For string values, clean directly
+                cleaned_df.at[idx, "categories"] = clean_categories_value(value)
+        
+        return cleaned_df
+
+
 
     # End of BERTResultsAnalyzer class
 
@@ -5471,391 +5291,6 @@ def construct_search_url(
 
     return url
 
-def render_bert_analysis_tab(data: pd.DataFrame = None):
-    """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
-    
-    # Ensure the bert_results dictionary exists in session state
-    if "bert_results" not in st.session_state:
-        st.session_state.bert_results = {}
-    
-    # Track if BERT model is initialized
-    if "bert_initialized" not in st.session_state:
-        st.session_state.bert_initialized = False
-    
-    # Initialize custom frameworks dictionary if not present
-    if "custom_frameworks" not in st.session_state:
-        st.session_state.custom_frameworks = {}
-        
-    # Safer initialization with validation
-    if "selected_frameworks" not in st.session_state:
-        # Only include frameworks that actually exist
-        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
-        st.session_state.selected_frameworks = default_frameworks
-    else:
-        # Validate existing selections against available options
-        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"] + list(st.session_state.get("custom_frameworks", {}).keys())
-        st.session_state.selected_frameworks = [f for f in st.session_state.selected_frameworks if f in available_frameworks]
-
-    # File upload section
-    st.subheader("Upload Data")
-    reset_counter = st.session_state.get("reset_counter", 0)
-    uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file for BERT Analysis",
-        type=["csv", "xlsx"],
-        help="Upload a file with reports for theme analysis",
-        key="bert_file_uploader",
-    )
-
-    # If a file is uploaded, process it
-    if uploaded_file is not None:
-        try:
-            if uploaded_file.name.endswith(".csv"):
-                uploaded_data = pd.read_csv(uploaded_file)
-            else:
-                uploaded_data = pd.read_excel(uploaded_file)
-
-            # Process the uploaded data
-            uploaded_data = process_scraped_data(uploaded_data)
-
-            # Update the data reference
-            data = uploaded_data
-
-            st.success("File uploaded and processed successfully!")
-                
-        except Exception as e:
-            st.error(f"Error uploading file: {str(e)}")
-            return
-
-    # Check if data is available
-    if data is None or len(data) == 0:
-        st.warning(
-            "No data available. Please upload a file or ensure existing data is loaded."
-        )
-        return
-
-    # Framework selection section
-    st.subheader("Select Frameworks")
-    
-    # Create columns for the framework selection and custom framework upload
-    frame_col1, frame_col2 = st.columns([2, 1])
-    
-    with frame_col1:
-        # Get all available framework options
-        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
-        if "custom_frameworks" in st.session_state:
-            available_frameworks.extend(list(st.session_state.custom_frameworks.keys()))
-        
-        # Predefined framework selection - use a unique key
-        st.session_state.selected_frameworks = st.multiselect(
-            "Choose Frameworks to Use",
-            options=available_frameworks,
-            default=st.session_state.selected_frameworks,
-            help="Select which conceptual frameworks to use for theme analysis",
-            key=f"framework_select_{reset_counter}"
-        )
-    
-    with frame_col2:
-        # Custom framework upload
-        custom_framework_file = st.file_uploader(
-            "Upload Custom Framework",
-            type=["json", "txt"],
-            help="Upload a JSON file containing custom framework definitions",
-            key=f"custom_framework_uploader_{reset_counter}"
-        )
-        
-        if custom_framework_file is not None:
-            try:
-                # Read framework definition
-                custom_framework_content = custom_framework_file.read().decode("utf-8")
-                custom_framework_data = json.loads(custom_framework_content)
-                
-                # Validate framework structure
-                if isinstance(custom_framework_data, list) and all(isinstance(item, dict) and "name" in item and "keywords" in item for item in custom_framework_data):
-                    # Framework name input
-                    custom_framework_name = st.text_input(
-                        "Custom Framework Name", 
-                        f"Custom Framework {len(st.session_state.custom_frameworks) + 1}",
-                        key=f"custom_framework_name_{reset_counter}"
-                    )
-                    
-                    # Add button for the custom framework
-                    if st.button("Add Custom Framework", key=f"add_custom_framework_{reset_counter}"):
-                        # Check if name already exists
-                        if custom_framework_name in st.session_state.custom_frameworks:
-                            st.warning(f"A framework with the name '{custom_framework_name}' already exists. Please choose a different name.")
-                        else:
-                            # Add to session state
-                            st.session_state.custom_frameworks[custom_framework_name] = custom_framework_data
-                            
-                            # Add to selected frameworks if not already there
-                            if custom_framework_name not in st.session_state.selected_frameworks:
-                                st.session_state.selected_frameworks.append(custom_framework_name)
-                            
-                            st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
-                            st.rerun()  # Refresh to update UI
-                else:
-                    st.error("Invalid framework format. Each item must have 'name' and 'keywords' fields.")
-            except json.JSONDecodeError:
-                st.error("Invalid JSON format. Please check your file.")
-            except Exception as e:
-                st.error(f"Error processing custom framework: {str(e)}")
-                logging.error(f"Custom framework error: {e}", exc_info=True)
-    
-    # Display currently loaded custom frameworks
-    if "custom_frameworks" in st.session_state and st.session_state.custom_frameworks:
-        st.subheader("Loaded Custom Frameworks")
-        for name, framework in st.session_state.custom_frameworks.items():
-            with st.expander(f"{name} ({len(framework)} themes)"):
-                # Display the first few themes as an example
-                for i, theme in enumerate(framework[:5]):
-                    st.markdown(f"**{theme['name']}**: {', '.join(theme['keywords'][:5])}...")
-                    if i >= 4 and len(framework) > 5:
-                        st.markdown(f"*... and {len(framework) - 5} more themes*")
-                        break
-                
-                # Add option to remove this framework
-                if st.button("Remove Framework", key=f"remove_{name}_{reset_counter}"):
-                    del st.session_state.custom_frameworks[name]
-                    if name in st.session_state.selected_frameworks:
-                        st.session_state.selected_frameworks.remove(name)
-                    st.success(f"Removed framework '{name}'")
-                    st.rerun()  # Refresh to update UI
-
-    # Column selection for analysis
-    st.subheader("Select Analysis Column")
-
-    # Find text columns (object/string type)
-    text_columns = data.select_dtypes(include=["object"]).columns.tolist()
-
-    # If no text columns found
-    if not text_columns:
-        st.error("No text columns found in the dataset.")
-        return
-
-    # Column selection with dropdown
-    content_column = st.selectbox(
-        "Choose the column to analyse:",
-        options=text_columns,
-        index=text_columns.index("Content") if "Content" in text_columns else 0,
-        help="Select the column containing the text you want to analyse",
-        key="bert_content_column",
-    )
-
-    # Filtering options
-    st.subheader("Select Documents to Analyse")
-
-    # Option to select all or specific records
-    analysis_type = st.radio(
-        "Analysis Type",
-        ["All Reports", "Selected Reports"],
-        horizontal=True,
-        key="bert_analysis_type",
-    )
-
-    if analysis_type == "Selected Reports":
-        # Multi-select for reports
-        selected_indices = st.multiselect(
-            "Choose specific reports to analyse",
-            options=list(range(len(data))),
-            format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
-            key="bert_selected_indices",
-        )
-        selected_data = data.iloc[selected_indices] if selected_indices else None
-    else:
-        selected_data = data
-
-    # Analysis parameters
-    st.subheader("Analysis Parameters")
-    similarity_threshold = st.slider(
-        "Similarity Threshold",
-        min_value=0.3,
-        max_value=0.9,
-        value=0.65,
-        step=0.05,
-        help="Minimum similarity score for theme detection (higher = more strict)",
-        key="bert_similarity_threshold",
-    )
-
-    # Analysis button
-    run_analysis = st.button(
-        "Run Analysis", type="primary", key="bert_run_analysis"
-    )
-
-    # Run analysis if button is clicked
-    if run_analysis:
-        with st.spinner("Performing Theme Analysis..."):
-            try:
-                # Validate data selection
-                if selected_data is None or len(selected_data) == 0:
-                    st.warning("No documents selected for analysis.")
-                    return
-
-                # Initialize the theme analyzer (with loading message in a spinner)
-                with st.spinner("Loading annotation model and tokenizer..."):
-                    # Initialize the analyzer
-                    theme_analyzer = ThemeAnalyzer(
-                        model_name="emilyalsentzer/Bio_ClinicalBERT"
-                    )
-                    
-                    # Mark as initialized
-                    st.session_state.bert_initialized = True
-                
-                # Set custom configuration
-                theme_analyzer.config[
-                    "base_similarity_threshold"
-                ] = similarity_threshold
-                
-                # Filter frameworks based on user selection
-                filtered_frameworks = {}
-                
-                # Add selected built-in frameworks
-                for framework in st.session_state.selected_frameworks:
-                    if framework == "I-SIRch":
-                        filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
-                    elif framework == "House of Commons":
-                        filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
-                    elif framework == "Extended Analysis":
-                        filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
-                    elif framework in st.session_state.custom_frameworks:
-                        # Add custom framework
-                        filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
-                
-                # Set the filtered frameworks
-                theme_analyzer.frameworks = filtered_frameworks
-                
-                # If no frameworks selected, show error
-                if not filtered_frameworks:
-                    st.error("Please select at least one framework for analysis.")
-                    return
-
-                # Use the enhanced create_detailed_results method
-                (
-                    results_df,
-                    highlighted_texts,
-                ) = theme_analyzer.create_detailed_results(
-                    selected_data, content_column=content_column
-                )
-
-                # Save results to session state to ensure persistence
-                st.session_state.bert_results["results_df"] = results_df
-                st.session_state.bert_results["highlighted_texts"] = highlighted_texts
-
-                st.success(f"Analysis complete using {len(filtered_frameworks)} frameworks!")
-
-            except Exception as e:
-                st.error(f"Error during annotation analysis: {str(e)}")
-                logging.error(f"Annotation analysis error: {e}", exc_info=True)
-
-    # Display results if they exist
-    if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
-        results_df = st.session_state.bert_results["results_df"]
-        
-        # Summary stats
-        st.subheader("Results")
-        
-        # Show framework distribution
-        if "Framework" in results_df.columns:
-            framework_counts = results_df["Framework"].value_counts()
-            
-            # Create columns for framework distribution metrics
-            framework_cols = st.columns(len(framework_counts))
-            
-            for i, (framework, count) in enumerate(framework_counts.items()):
-                with framework_cols[i]:
-                    st.metric(framework, count, help=f"Number of theme identifications from {framework} framework")
-        
-        st.write(f"Total Theme Identifications: {len(results_df)}")
-        
-        # Clean up the results DataFrame to display only the essential columns
-        display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
-        
-        # Add metadata columns if available
-        for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
-            if col in results_df.columns:
-                display_cols.append(col)
-        
-        # Add matched sentences at the end
-        if "Matched Sentences" in results_df.columns:
-            display_cols.append("Matched Sentences")
-        
-        # Create the display DataFrame with only existing columns
-        valid_cols = [col for col in display_cols if col in results_df.columns]
-        clean_df = results_df[valid_cols].copy()
-        
-        # Display the results table
-        st.dataframe(
-            clean_df,
-            use_container_width=True,
-            column_config={
-                "Title": st.column_config.TextColumn("Document Title"),
-                "Framework": st.column_config.TextColumn("Framework"),
-                "Theme": st.column_config.TextColumn("Theme"),
-                "Confidence": st.column_config.TextColumn("Confidence"),
-                "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
-                "Matched Keywords": st.column_config.TextColumn("Keywords"),
-                "Matched Sentences": st.column_config.TextColumn("Matched Sentences"),
-                "coroner_name": st.column_config.TextColumn("Coroner Name"),
-                "coroner_area": st.column_config.TextColumn("Coroner Area"),
-                "year": st.column_config.NumberColumn("Year"),
-                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY")
-            }
-        )
-        
-        # Add download options
-        st.subheader("Export Results")
-        
-        # Generate timestamp for filenames
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Create columns for download buttons
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Excel download button using the enhanced export_to_excel function
-            excel_data = export_to_excel(clean_df)
-            st.download_button(
-                "📥 Download Results Table",
-                data=excel_data,
-                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="bert_excel_download",
-            )
-        
-        with col2:
-            # Always regenerate HTML report when results are available
-            if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
-                # Generate fresh HTML report based on current results
-                theme_analyzer = ThemeAnalyzer()
-                
-                # Set custom frameworks if they exist
-                if st.session_state.custom_frameworks:
-                    for name, framework in st.session_state.custom_frameworks.items():
-                        if name in st.session_state.selected_frameworks:
-                            theme_analyzer.frameworks[name] = framework
-                
-                html_content = theme_analyzer._create_integrated_html_for_pdf(
-                    results_df, st.session_state.bert_results["highlighted_texts"]
-                )
-                html_filename = f"theme_analysis_report_{timestamp}.html"
-                
-                with open(html_filename, "w", encoding="utf-8") as f:
-                    f.write(html_content)
-                    
-                st.session_state.bert_results["html_filename"] = html_filename
-                
-                # Provide download button for fresh HTML
-                with open(html_filename, "rb") as f:
-                    html_data = f.read()
-                
-                st.download_button(
-                    "📄 Download Annotated Reports (HTML)",
-                    data=html_data,
-                    file_name=os.path.basename(html_filename),
-                    mime="text/html",
-                    key="bert_html_download",
-                )
-            else:
-                st.warning("HTML report not available")
 
 def render_topic_summary_tab(data: pd.DataFrame) -> None:
     """Topic analysis with weighting schemes and essential controls"""
@@ -6219,35 +5654,21 @@ def sort_reports(reports: List[Dict], order: str) -> List[Dict]:
 
 
 def plot_category_distribution(df: pd.DataFrame) -> None:
-    """Plot category distribution with improved handling of list and string categories"""
-    # Extract all categories, handling both list and string types
+    """Plot category distribution"""
     all_cats = []
     for cats in df["categories"].dropna():
         if isinstance(cats, list):
             all_cats.extend(cats)
-        elif isinstance(cats, str):
-            # Split if comma-separated
-            all_cats.extend([cat.strip() for cat in cats.split(',')])
 
-    # Count and sort categories
     cat_counts = pd.Series(all_cats).value_counts()
 
-    # Create a bar chart using Plotly
     fig = px.bar(
         x=cat_counts.index,
         y=cat_counts.values,
-        labels={"x": "Category", "y": "Count"},
         title="Category Distribution",
-        height=600
+        labels={"x": "Category", "y": "Count"},
     )
-
-    # Improve layout
-    fig.update_layout(
-        xaxis_title="Category", 
-        yaxis_title="Number of Reports",
-        xaxis_tickangle=-45,  # Rotate labels for better readability
-        margin=dict(b=100)  # Increase bottom margin to prevent label cutoff
-    )
+    fig.update_layout(xaxis_title="Category", yaxis_title="Number of Reports", xaxis={"tickangle": 45})
 
     st.plotly_chart(fig, use_container_width=True)
 
@@ -9592,6 +9013,1417 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
 
         st.markdown("---")
 
+def render_bert_analysis_tab(data: pd.DataFrame = None):
+    """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
+    
+    # Ensure the bert_results dictionary exists in session state
+    if "bert_results" not in st.session_state:
+        st.session_state.bert_results = {}
+    
+    # Track if BERT model is initialized
+    if "bert_initialized" not in st.session_state:
+        st.session_state.bert_initialized = False
+    
+    # Initialize custom frameworks dictionary if not present
+    if "custom_frameworks" not in st.session_state:
+        st.session_state.custom_frameworks = {}
+        
+    # Safer initialization with validation
+    if "selected_frameworks" not in st.session_state:
+        # Only include frameworks that actually exist
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        st.session_state.selected_frameworks = default_frameworks
+    else:
+        # Validate existing selections against available options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"] + list(st.session_state.get("custom_frameworks", {}).keys())
+        st.session_state.selected_frameworks = [f for f in st.session_state.selected_frameworks if f in available_frameworks]
+
+    # File upload section
+    st.subheader("Upload Data")
+    reset_counter = st.session_state.get("reset_counter", 0)
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for BERT Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a file with reports for theme analysis",
+        key="bert_file_uploader",
+    )
+
+    # If a file is uploaded, process it
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_data = pd.read_csv(uploaded_file)
+            else:
+                uploaded_data = pd.read_excel(uploaded_file)
+
+            # Process the uploaded data
+            uploaded_data = process_scraped_data(uploaded_data)
+
+            # Update the data reference
+            data = uploaded_data
+
+            st.success("File uploaded and processed successfully!")
+                
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            return
+
+    # Check if data is available
+    if data is None or len(data) == 0:
+        st.warning(
+            "No data available. Please upload a file or ensure existing data is loaded."
+        )
+        return
+
+    # Framework selection section
+    st.subheader("Select Frameworks")
+    
+    # Create columns for the framework selection and custom framework upload
+    frame_col1, frame_col2 = st.columns([2, 1])
+    
+    with frame_col1:
+        # Get all available framework options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        if "custom_frameworks" in st.session_state:
+            available_frameworks.extend(list(st.session_state.custom_frameworks.keys()))
+        
+        # Predefined framework selection - use a unique key
+        st.session_state.selected_frameworks = st.multiselect(
+            "Choose Frameworks to Use",
+            options=available_frameworks,
+            default=st.session_state.selected_frameworks,
+            help="Select which conceptual frameworks to use for theme analysis",
+            key=f"framework_select_{reset_counter}"
+        )
+    
+    with frame_col2:
+        # Custom framework upload
+        custom_framework_file = st.file_uploader(
+            "Upload Custom Framework",
+            type=["json", "txt"],
+            help="Upload a JSON file containing custom framework definitions",
+            key=f"custom_framework_uploader_{reset_counter}"
+        )
+        
+        if custom_framework_file is not None:
+            try:
+                # Read framework definition
+                custom_framework_content = custom_framework_file.read().decode("utf-8")
+                custom_framework_data = json.loads(custom_framework_content)
+                
+                # Validate framework structure
+                if isinstance(custom_framework_data, list) and all(isinstance(item, dict) and "name" in item and "keywords" in item for item in custom_framework_data):
+                    # Framework name input
+                    custom_framework_name = st.text_input(
+                        "Custom Framework Name", 
+                        f"Custom Framework {len(st.session_state.custom_frameworks) + 1}",
+                        key=f"custom_framework_name_{reset_counter}"
+                    )
+                    
+                    # Add button for the custom framework
+                    if st.button("Add Custom Framework", key=f"add_custom_framework_{reset_counter}"):
+                        # Check if name already exists
+                        if custom_framework_name in st.session_state.custom_frameworks:
+                            st.warning(f"A framework with the name '{custom_framework_name}' already exists. Please choose a different name.")
+                        else:
+                            # Add to session state
+                            st.session_state.custom_frameworks[custom_framework_name] = custom_framework_data
+                            
+                            # Add to selected frameworks if not already there
+                            if custom_framework_name not in st.session_state.selected_frameworks:
+                                st.session_state.selected_frameworks.append(custom_framework_name)
+                            
+                            st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
+                            st.rerun()  # Refresh to update UI
+                else:
+                    st.error("Invalid framework format. Each item must have 'name' and 'keywords' fields.")
+            except json.JSONDecodeError:
+                st.error("Invalid JSON format. Please check your file.")
+            except Exception as e:
+                st.error(f"Error processing custom framework: {str(e)}")
+                logging.error(f"Custom framework error: {e}", exc_info=True)
+    
+    # Display currently loaded custom frameworks
+    if "custom_frameworks" in st.session_state and st.session_state.custom_frameworks:
+        st.subheader("Loaded Custom Frameworks")
+        for name, framework in st.session_state.custom_frameworks.items():
+            with st.expander(f"{name} ({len(framework)} themes)"):
+                # Display the first few themes as an example
+                for i, theme in enumerate(framework[:5]):
+                    st.markdown(f"**{theme['name']}**: {', '.join(theme['keywords'][:5])}...")
+                    if i >= 4 and len(framework) > 5:
+                        st.markdown(f"*... and {len(framework) - 5} more themes*")
+                        break
+                
+                # Add option to remove this framework
+                if st.button("Remove Framework", key=f"remove_{name}_{reset_counter}"):
+                    del st.session_state.custom_frameworks[name]
+                    if name in st.session_state.selected_frameworks:
+                        st.session_state.selected_frameworks.remove(name)
+                    st.success(f"Removed framework '{name}'")
+                    st.rerun()  # Refresh to update UI
+
+    # Column selection for analysis
+    st.subheader("Select Analysis Column")
+
+    # Find text columns (object/string type)
+    text_columns = data.select_dtypes(include=["object"]).columns.tolist()
+
+    # If no text columns found
+    if not text_columns:
+        st.error("No text columns found in the dataset.")
+        return
+
+    # Column selection with dropdown
+    content_column = st.selectbox(
+        "Choose the column to analyse:",
+        options=text_columns,
+        index=text_columns.index("Content") if "Content" in text_columns else 0,
+        help="Select the column containing the text you want to analyse",
+        key="bert_content_column",
+    )
+
+    # Filtering options
+    st.subheader("Select Documents to Analyse")
+
+    # Option to select all or specific records
+    analysis_type = st.radio(
+        "Analysis Type",
+        ["All Reports", "Selected Reports"],
+        horizontal=True,
+        key="bert_analysis_type",
+    )
+
+    if analysis_type == "Selected Reports":
+        # Multi-select for reports
+        selected_indices = st.multiselect(
+            "Choose specific reports to analyse",
+            options=list(range(len(data))),
+            format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
+            key="bert_selected_indices",
+        )
+        selected_data = data.iloc[selected_indices] if selected_indices else None
+    else:
+        selected_data = data
+
+    # Analysis parameters
+    st.subheader("Analysis Parameters")
+    similarity_threshold = st.slider(
+        "Similarity Threshold",
+        min_value=0.3,
+        max_value=0.9,
+        value=0.65,
+        step=0.05,
+        help="Minimum similarity score for theme detection (higher = more strict)",
+        key="bert_similarity_threshold",
+    )
+
+    # Analysis button
+    run_analysis = st.button(
+        "Run Analysis", type="primary", key="bert_run_analysis"
+    )
+
+    # Run analysis if button is clicked
+    if run_analysis:
+        with st.spinner("Performing Theme Analysis..."):
+            try:
+                # Validate data selection
+                if selected_data is None or len(selected_data) == 0:
+                    st.warning("No documents selected for analysis.")
+                    return
+
+                # Initialize the theme analyzer (with loading message in a spinner)
+                with st.spinner("Loading annotation model and tokenizer..."):
+                    # Initialize the analyzer
+                    theme_analyzer = ThemeAnalyzer(
+                        model_name="emilyalsentzer/Bio_ClinicalBERT"
+                    )
+                    
+                    # Mark as initialized
+                    st.session_state.bert_initialized = True
+                
+                # Set custom configuration
+                theme_analyzer.config[
+                    "base_similarity_threshold"
+                ] = similarity_threshold
+                
+                # Filter frameworks based on user selection
+                filtered_frameworks = {}
+                
+                # Add selected built-in frameworks
+                for framework in st.session_state.selected_frameworks:
+                    if framework == "I-SIRch":
+                        filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
+                    elif framework == "House of Commons":
+                        filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
+                    elif framework == "Extended Analysis":
+                        filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
+                    elif framework in st.session_state.custom_frameworks:
+                        # Add custom framework
+                        filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
+                
+                # Set the filtered frameworks
+                theme_analyzer.frameworks = filtered_frameworks
+                
+                # If no frameworks selected, show error
+                if not filtered_frameworks:
+                    st.error("Please select at least one framework for analysis.")
+                    return
+
+                # Use the enhanced create_detailed_results method
+                (
+                    results_df,
+                    highlighted_texts,
+                ) = theme_analyzer.create_detailed_results(
+                    selected_data, content_column=content_column
+                )
+
+                # Save results to session state to ensure persistence
+                st.session_state.bert_results["results_df"] = results_df
+                st.session_state.bert_results["highlighted_texts"] = highlighted_texts
+
+                st.success(f"Analysis complete using {len(filtered_frameworks)} frameworks!")
+
+            except Exception as e:
+                st.error(f"Error during annotation analysis: {str(e)}")
+                logging.error(f"Annotation analysis error: {e}", exc_info=True)
+
+    # Display results if they exist
+    if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+        results_df = st.session_state.bert_results["results_df"]
+        
+        # Summary stats
+        st.subheader("Results")
+        
+        # Show framework distribution
+        if "Framework" in results_df.columns:
+            framework_counts = results_df["Framework"].value_counts()
+            
+            # Create columns for framework distribution metrics
+            framework_cols = st.columns(len(framework_counts))
+            
+            for i, (framework, count) in enumerate(framework_counts.items()):
+                with framework_cols[i]:
+                    st.metric(framework, count, help=f"Number of theme identifications from {framework} framework")
+        
+        st.write(f"Total Theme Identifications: {len(results_df)}")
+        
+        # Clean up the results DataFrame to display only the essential columns
+        display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
+        
+        # Add metadata columns if available
+        for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
+            if col in results_df.columns:
+                display_cols.append(col)
+        
+        # Add matched sentences at the end
+        if "Matched Sentences" in results_df.columns:
+            display_cols.append("Matched Sentences")
+        
+        # Create the display DataFrame with only existing columns
+        valid_cols = [col for col in display_cols if col in results_df.columns]
+        clean_df = results_df[valid_cols].copy()
+        
+        # Display the results table
+        st.dataframe(
+            clean_df,
+            use_container_width=True,
+            column_config={
+                "Title": st.column_config.TextColumn("Document Title"),
+                "Framework": st.column_config.TextColumn("Framework"),
+                "Theme": st.column_config.TextColumn("Theme"),
+                "Confidence": st.column_config.TextColumn("Confidence"),
+                "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                "Matched Sentences": st.column_config.TextColumn("Matched Sentences"),
+                "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                "year": st.column_config.NumberColumn("Year"),
+                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY")
+            }
+        )
+        
+        # Add download options
+        st.subheader("Export Results")
+        
+        # Generate timestamp for filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create columns for download buttons
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Excel download button using the enhanced export_to_excel function
+            excel_data = export_to_excel(clean_df)
+            st.download_button(
+                "📥 Download Results Table",
+                data=excel_data,
+                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="bert_excel_download",
+            )
+        
+        with col2:
+            # Always regenerate HTML report when results are available
+            if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
+                # Generate fresh HTML report based on current results
+                theme_analyzer = ThemeAnalyzer()
+                
+                # Set custom frameworks if they exist
+                if st.session_state.custom_frameworks:
+                    for name, framework in st.session_state.custom_frameworks.items():
+                        if name in st.session_state.selected_frameworks:
+                            theme_analyzer.frameworks[name] = framework
+                
+                html_content = theme_analyzer._create_integrated_html_for_pdf(
+                    results_df, st.session_state.bert_results["highlighted_texts"]
+                )
+                html_filename = f"theme_analysis_report_{timestamp}.html"
+                
+                with open(html_filename, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                    
+                st.session_state.bert_results["html_filename"] = html_filename
+                
+                # Provide download button for fresh HTML
+                with open(html_filename, "rb") as f:
+                    html_data = f.read()
+                
+                st.download_button(
+                    "📄 Download Annotated Reports (HTML)",
+                    data=html_data,
+                    file_name=os.path.basename(html_filename),
+                    mime="text/html",
+                    key="bert_html_download",
+                )
+            else:
+                st.warning("HTML report not available")
+
+def render_bert_analysis_tabworking(data: pd.DataFrame = None):
+    """Modified render_bert_analysis_tab function to include enhanced metadata in results"""
+    
+    # Ensure the bert_results dictionary exists in session state
+    if "bert_results" not in st.session_state:
+        st.session_state.bert_results = {}
+    
+    # Track if BERT model is initialized
+    if "bert_initialized" not in st.session_state:
+        st.session_state.bert_initialized = False
+
+    # File upload section
+    st.subheader("Upload Data")
+    reset_counter = st.session_state.get("reset_counter", 0)
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for BERT Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a file with reports for theme analysis",
+        key="bert_file_uploader",
+    )
+
+    # If a file is uploaded, process it
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_data = pd.read_csv(uploaded_file)
+            else:
+                uploaded_data = pd.read_excel(uploaded_file)
+
+            # Process the uploaded data
+            uploaded_data = process_scraped_data(uploaded_data)
+
+            # Update the data reference
+            data = uploaded_data
+
+            st.success("File uploaded and processed successfully!")
+                
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            return
+
+    # Check if data is available
+    if data is None or len(data) == 0:
+        st.warning(
+            "No data available. Please upload a file or ensure existing data is loaded."
+        )
+        return
+
+    # Column selection for analysis
+    st.subheader("Select Analysis Column")
+
+    # Find text columns (object/string type)
+    text_columns = data.select_dtypes(include=["object"]).columns.tolist()
+
+    # If no text columns found
+    if not text_columns:
+        st.error("No text columns found in the dataset.")
+        return
+
+    # Column selection with dropdown
+    content_column = st.selectbox(
+        "Choose the column to analyse:",
+        options=text_columns,
+        index=text_columns.index("Content") if "Content" in text_columns else 0,
+        help="Select the column containing the text you want to analyse",
+        key="bert_content_column",
+    )
+
+    # Filtering options
+    st.subheader("Select Documents to Analyse")
+
+    # Option to select all or specific records
+    analysis_type = st.radio(
+        "Analysis Type",
+        ["All Reports", "Selected Reports"],
+        horizontal=True,
+        key="bert_analysis_type",
+    )
+
+    if analysis_type == "Selected Reports":
+        # Multi-select for reports
+        selected_indices = st.multiselect(
+            "Choose specific reports to analyse",
+            options=list(range(len(data))),
+            format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
+            key="bert_selected_indices",
+        )
+        selected_data = data.iloc[selected_indices] if selected_indices else None
+    else:
+        selected_data = data
+
+    # Analysis parameters
+    st.subheader("Analysis Parameters")
+    similarity_threshold = st.slider(
+        "Similarity Threshold",
+        min_value=0.3,
+        max_value=0.9,
+        value=0.65,
+        step=0.05,
+        help="Minimum similarity score for theme detection (higher = more strict)",
+        key="bert_similarity_threshold",
+    )
+
+    # Analysis button
+    run_analysis = st.button(
+        "Run Analysis", type="primary", key="bert_run_analysis"
+    )
+
+    # Run analysis if button is clicked
+    if run_analysis:
+        with st.spinner("Performing Theme Analysis..."):
+            try:
+                # Validate data selection
+                if selected_data is None or len(selected_data) == 0:
+                    st.warning("No documents selected for analysis.")
+                    return
+
+                # Initialize the theme analyzer (with loading message in a spinner)
+                with st.spinner("Loading annotation model and tokenizer..."):
+                    # Initialize the analyzer
+                    theme_analyzer = ThemeAnalyzer(
+                        model_name="emilyalsentzer/Bio_ClinicalBERT"
+                    )
+                    
+                    # Mark as initialized
+                    st.session_state.bert_initialized = True
+                
+                # Set custom configuration
+                theme_analyzer.config[
+                    "base_similarity_threshold"
+                ] = similarity_threshold
+
+                # Use the enhanced create_detailed_results method
+                (
+                    results_df,
+                    highlighted_texts,
+                ) = theme_analyzer.create_detailed_results(
+                    selected_data, content_column=content_column
+                )
+
+                # Save results to session state to ensure persistence
+                st.session_state.bert_results["results_df"] = results_df
+                st.session_state.bert_results["highlighted_texts"] = highlighted_texts
+
+                st.success("Analysis complete!")
+
+            except Exception as e:
+                st.error(f"Error during annotation analysis: {str(e)}")
+                logging.error(f"Annotation analysis error: {e}", exc_info=True)
+
+    # Display results if they exist
+    if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+        results_df = st.session_state.bert_results["results_df"]
+        
+        # Summary stats
+        st.subheader("Results")
+        st.write(f"Total Theme Identifications: {len(results_df)}")
+        
+        # Clean up the results DataFrame to display only the essential columns
+        display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
+        
+        # Add metadata columns if available
+        for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
+            if col in results_df.columns:
+                display_cols.append(col)
+        
+        # Add matched sentences at the end
+        if "Matched Sentences" in results_df.columns:
+            display_cols.append("Matched Sentences")
+        
+        # Create the display DataFrame with only existing columns
+        valid_cols = [col for col in display_cols if col in results_df.columns]
+        clean_df = results_df[valid_cols].copy()
+        
+        # Display the results table
+        st.dataframe(
+            clean_df,
+            use_container_width=True,
+            column_config={
+                "Title": st.column_config.TextColumn("Document Title"),
+                "Framework": st.column_config.TextColumn("Framework"),
+                "Theme": st.column_config.TextColumn("Theme"),
+                "Confidence": st.column_config.TextColumn("Confidence"),
+                "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                "Matched Sentences": st.column_config.TextColumn("Matched Sentences"),
+                "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                "year": st.column_config.NumberColumn("Year"),
+                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY")
+            }
+        )
+        
+        # Add download options
+        st.subheader("Export Results")
+        
+        # Generate timestamp for filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create columns for download buttons
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Excel download button using the enhanced export_to_excel function
+            excel_data = export_to_excel(clean_df)
+            st.download_button(
+                "📥 Download Results Table",
+                data=excel_data,
+                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="bert_excel_download",
+            )
+        
+        with col2:
+            # Always regenerate HTML report when results are available
+            if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
+                # Generate fresh HTML report based on current results
+                theme_analyzer = ThemeAnalyzer()
+                html_content = theme_analyzer._create_integrated_html_for_pdf(
+                    results_df, st.session_state.bert_results["highlighted_texts"]
+                )
+                html_filename = f"theme_analysis_report_{timestamp}.html"
+                
+                with open(html_filename, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                    
+                st.session_state.bert_results["html_filename"] = html_filename
+                
+                # Provide download button for fresh HTML
+                with open(html_filename, "rb") as f:
+                    html_data = f.read()
+                
+                st.download_button(
+                    "📄 Download Annotated Reports (HTML)",
+                    data=html_data,
+                    file_name=os.path.basename(html_filename),
+                    mime="text/html",
+                    key="bert_html_download",
+                )
+            else:
+                st.warning("HTML report not available")
+
+def render_filter_data_tab():
+    """Render a filtering tab within the Scraped File Preparation section with layout similar to Scrape Reports tab"""
+    st.subheader("Filter Data")
+
+    # File upload section
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file",
+        type=["csv", "xlsx"],
+        help="Upload your PFD reports dataset",
+        key="filter_file_uploader",
+    )
+    
+    # If no file is uploaded, show instructions
+    if uploaded_file is None:
+        st.info("Please upload a PFD reports dataset (CSV or Excel file) to begin filtering.")
+        
+        with st.expander("📋 File Requirements", expanded=False):
+            st.markdown(
+                """
+            ## Recommended Columns
+            
+            For optimal filtering, your file should include these columns:
+            
+            - **Title**: Report title
+            - **URL**: Link to the original report
+            - **date_of_report**: Date in format DD/MM/YYYY
+            - **ref**: Reference number
+            - **deceased_name**: Name of deceased person (if applicable)
+            - **coroner_name**: Name of the coroner
+            - **coroner_area**: Coroner jurisdiction area
+            - **categories**: Report categories
+            - **Content**: Report text content
+            - **Extracted_Concerns**: Extracted coroner concerns text
+            
+            Files created from the File Merger tab should contain all these columns.
+            """
+            )
+        return
+    
+    # Process uploaded file
+    try:
+        # Read file
+        if uploaded_file.name.endswith(".csv"):
+            data = pd.read_csv(uploaded_file)
+        else:
+            data = pd.read_excel(uploaded_file)
+
+        # Basic data cleaning
+        data = data.dropna(how="all")  # Remove completely empty rows
+
+        # Convert date_of_report to datetime if it exists
+        if "date_of_report" in data.columns:
+            try:
+                # Try multiple date formats
+                data["date_of_report"] = pd.to_datetime(
+                    data["date_of_report"], format="%d/%m/%Y", errors="coerce"
+                )
+                # Fill in any parsing failures with other formats
+                mask = data["date_of_report"].isna()
+                if mask.any():
+                    data.loc[mask, "date_of_report"] = pd.to_datetime(
+                        data.loc[mask, "date_of_report"], format="%Y-%m-%d", errors="coerce"
+                    )
+                # Final attempt with pandas' smart parsing
+                mask = data["date_of_report"].isna()
+                if mask.any():
+                    data.loc[mask, "date_of_report"] = pd.to_datetime(
+                        data.loc[mask, "date_of_report"],
+                        infer_datetime_format=True,
+                        errors="coerce",
+                    )
+            except Exception as e:
+                st.warning(
+                    "Some date values could not be converted. Date filtering may not work completely."
+                )
+        
+        # Create a form for filter settings
+        with st.form("filter_settings_form"):
+            st.subheader("Filter Settings")
+            
+            # Create rows with two columns each
+            row1_col1, row1_col2 = st.columns(2)
+            row2_col1, row2_col2 = st.columns(2)
+            row3_col1, row3_col2 = st.columns(2)
+            
+            # First row
+            with row1_col1:
+                # Date Range Filter
+                if "date_of_report" in data.columns and pd.api.types.is_datetime64_any_dtype(data["date_of_report"]):
+                    min_date = data["date_of_report"].min().date()
+                    max_date = data["date_of_report"].max().date()
+                    
+                    st.markdown("**Date Range**")
+                    start_date = st.date_input(
+                        "From",
+                        value=min_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="filter_start_date",
+                        format="DD/MM/YYYY",
+                    )
+            
+            with row1_col2:
+                # Date Range (continued)
+                if "date_of_report" in data.columns and pd.api.types.is_datetime64_any_dtype(data["date_of_report"]):
+                    st.markdown("&nbsp;")  # Add some spacing to align with "From"
+                    end_date = st.date_input(
+                        "To",
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="filter_end_date",
+                        format="DD/MM/YYYY",
+                    )
+                # Year Filter if date_of_report not available
+                elif "year" in data.columns:
+                    years = sorted(data["year"].dropna().unique())
+                    if years:
+                        min_year, max_year = min(years), max(years)
+                        st.markdown("**Year Range**")
+                        selected_years = st.slider(
+                            "Select years",
+                            min_year,
+                            max_year,
+                            (min_year, max_year),
+                            key="filter_years",
+                        )
+            
+            # Second row
+            with row2_col1:
+                # Coroner Area Filter
+                if "coroner_area" in data.columns:
+                    st.markdown("**Coroner Areas**")
+                    coroner_areas = sorted(data["coroner_area"].dropna().unique())
+                    selected_areas = st.multiselect(
+                        "Select coroner areas",
+                        options=coroner_areas,
+                        key="filter_coroner_areas",
+                        help="Select coroner areas to include"
+                    )
+            
+            with row2_col2:
+                # Coroner Name Filter
+                if "coroner_name" in data.columns:
+                    st.markdown("**Coroner Names**")
+                    coroner_names = sorted(data["coroner_name"].dropna().unique())
+                    selected_coroners = st.multiselect(
+                        "Select coroner names",
+                        options=coroner_names,
+                        key="filter_coroner_names",
+                        help="Select coroner names to include"
+                    )
+            
+            # Third row
+            with row3_col1:
+                # Categories Filter
+                if "categories" in data.columns:
+                    st.markdown("**Categories**")
+                    # Extract unique categories by splitting and cleaning
+                    all_categories = set()
+                    for cats in data["categories"].dropna():
+                        # Split by comma and strip whitespace
+                        if isinstance(cats, str):
+                            split_cats = [cat.strip() for cat in cats.split(",")]
+                            all_categories.update(split_cats)
+                        elif isinstance(cats, list):
+                            all_categories.update(
+                                [cat.strip() for cat in cats if isinstance(cat, str)]
+                            )
+
+                    # Sort and remove any empty strings
+                    sorted_categories = sorted(cat for cat in all_categories if cat)
+
+                    # Create multiselect for categories
+                    selected_categories = st.multiselect(
+                        "Select categories",
+                        options=sorted_categories,
+                        key="filter_categories",
+                        help="Select categories to include"
+                    )
+            
+            with row3_col2:
+                # Advanced content search
+                if "content" in data.columns or "Content" in data.columns:
+                    content_col = "content" if "content" in data.columns else "Content"
+                    st.markdown("**Content Search**")
+                    keyword_search = st.text_input(
+                        "Search in content",
+                        key="filter_keyword_search",
+                        help="Use 'term1 and term2' for AND, 'term1 or term2' for OR",
+                        placeholder="Enter search terms"
+                    )
+            
+            # Option to exclude records without extracted concerns
+            if "extracted_concerns" in data.columns or "Extracted_Concerns" in data.columns:
+                concerns_col = (
+                    "extracted_concerns"
+                    if "extracted_concerns" in data.columns
+                    else "Extracted_Concerns"
+                )
+                exclude_no_concerns = st.checkbox(
+                    "Exclude records without extracted concerns",
+                    value=False,
+                    key="filter_exclude_no_concerns",
+                    help="Show only records with extracted coroner concerns",
+                )
+            
+            # Submission buttons
+            submitted = st.form_submit_button("Apply Filters & Search", type="primary")
+            
+        # Reset Filters Button (outside the form)
+        if st.button("Reset Filters"):
+            for key in list(st.session_state.keys()):
+                if key.startswith("filter_"):
+                    del st.session_state[key]
+            st.rerun()
+        
+        # Display results if form submitted or if this is a rerun with active filters
+        show_results = submitted or any(k.startswith("filter_") for k in st.session_state.keys())
+        
+        if show_results:
+            # Apply filters to data
+            filtered_df = data.copy()
+            active_filters = []
+            
+            # Date filter
+            if "date_of_report" in filtered_df.columns and "filter_start_date" in st.session_state and "filter_end_date" in st.session_state:
+                start_date = st.session_state.filter_start_date
+                end_date = st.session_state.filter_end_date
+                min_date = filtered_df["date_of_report"].min().date()
+                max_date = filtered_df["date_of_report"].max().date()
+                
+                if start_date != min_date or end_date != max_date:
+                    filtered_df = filtered_df[
+                        (filtered_df["date_of_report"].dt.date >= start_date)
+                        & (filtered_df["date_of_report"].dt.date <= end_date)
+                    ]
+                    active_filters.append(
+                        f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
+                    )
+
+            # Year filter (if date_of_report not available)
+            if "year" in filtered_df.columns and "filter_years" in st.session_state:
+                selected_years = st.session_state.filter_years
+                years = sorted(data["year"].dropna().unique())
+                min_year, max_year = min(years), max(years)
+                
+                if selected_years != (min_year, max_year):
+                    filtered_df = filtered_df[
+                        (filtered_df["year"] >= selected_years[0])
+                        & (filtered_df["year"] <= selected_years[1])
+                    ]
+                    active_filters.append(f"Year: {selected_years[0]} to {selected_years[1]}")
+
+            # Coroner name filter
+            if "coroner_name" in filtered_df.columns and "filter_coroner_names" in st.session_state and st.session_state.filter_coroner_names:
+                selected_coroners = st.session_state.filter_coroner_names
+                filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_coroners)]
+                
+                if len(selected_coroners) <= 3:
+                    active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+                else:
+                    active_filters.append(f"Coroners: {len(selected_coroners)} selected")
+
+            # Coroner area filter
+            if "coroner_area" in filtered_df.columns and "filter_coroner_areas" in st.session_state and st.session_state.filter_coroner_areas:
+                selected_areas = st.session_state.filter_coroner_areas
+                filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
+                
+                if len(selected_areas) <= 3:
+                    active_filters.append(f"Areas: {', '.join(selected_areas)}")
+                else:
+                    active_filters.append(f"Areas: {len(selected_areas)} selected")
+
+            # Categories filter
+            if "categories" in filtered_df.columns and "filter_categories" in st.session_state and st.session_state.filter_categories:
+                selected_categories = st.session_state.filter_categories
+                
+                # Handle both string and list categories
+                if isinstance(filtered_df["categories"].iloc[0] if len(filtered_df) > 0 else "", list):
+                    # List case
+                    filtered_df = filtered_df[
+                        filtered_df["categories"].apply(
+                            lambda x: isinstance(x, list)
+                            and any(cat in x for cat in selected_categories)
+                        )
+                    ]
+                else:
+                    # String case
+                    filtered_df = filtered_df[
+                        filtered_df["categories"]
+                        .fillna("")
+                        .astype(str)
+                        .apply(lambda x: any(cat in x for cat in selected_categories))
+                    ]
+                
+                if len(selected_categories) <= 3:
+                    active_filters.append(f"Categories: {', '.join(selected_categories)}")
+                else:
+                    active_filters.append(f"Categories: {len(selected_categories)} selected")
+
+            # Content keyword search with advanced AND/OR operators
+            if "filter_keyword_search" in st.session_state and st.session_state.filter_keyword_search:
+                keyword_search = st.session_state.filter_keyword_search
+                content_col = "content" if "content" in filtered_df.columns else "Content"
+                
+                if content_col in filtered_df.columns:
+                    before_count = len(filtered_df)
+                    
+                    #
+
+                    # Apply the advanced search with AND/OR operators
+                    filtered_df = filtered_df[
+                        filtered_df[content_col]
+                        .fillna("")
+                        .astype(str)
+                        .apply(lambda x: perform_advanced_keyword_search(x, keyword_search))
+                    ]
+                    
+                    after_count = len(filtered_df)
+                    
+                    # Add to active filters
+                    if " and " in keyword_search.lower():
+                        search_desc = f"Content contains all terms: '{keyword_search}'"
+                    elif " or " in keyword_search.lower():
+                        search_desc = f"Content contains any term: '{keyword_search}'"
+                    else:
+                        search_desc = f"Content contains: '{keyword_search}'"
+                    
+                    active_filters.append(f"{search_desc} ({after_count}/{before_count} records)")
+
+            # Apply filter for records with extracted concerns
+            if "filter_exclude_no_concerns" in st.session_state and st.session_state.filter_exclude_no_concerns:
+                concerns_col = (
+                    "extracted_concerns"
+                    if "extracted_concerns" in filtered_df.columns
+                    else "Extracted_Concerns"
+                )
+                
+                if concerns_col in filtered_df.columns:
+                    before_count = len(filtered_df)
+                    filtered_df = filtered_df[
+                        filtered_df[concerns_col].notna()
+                        & (filtered_df[concerns_col].astype(str).str.strip() != "")
+                        & (filtered_df[concerns_col].astype(str).str.len() > 20)  # Ensure meaningful content
+                    ]
+                    after_count = len(filtered_df)
+                    removed_count = before_count - after_count
+                    active_filters.append(f"Excluding records without concerns (-{removed_count} records)")
+
+            # Display active filters in a clean info box if there are any
+            if active_filters:
+                st.info(
+                    "Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters)
+                )
+            
+            # Update session state with filtered data
+            st.session_state.filtered_data = filtered_df
+            
+            # Display results
+            st.subheader("Results")
+            st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
+            
+            if len(filtered_df) > 0:
+                # Display the dataframe with formatted columns
+                column_config = {}
+                
+                # Configure special columns
+                if "date_of_report" in filtered_df.columns:
+                    column_config["date_of_report"] = st.column_config.DateColumn(
+                        "Date of Report", format="DD/MM/YYYY"
+                    )
+                
+                if "URL" in filtered_df.columns:
+                    column_config["URL"] = st.column_config.LinkColumn("Report Link")
+                
+                if "categories" in filtered_df.columns:
+                    column_config["categories"] = st.column_config.ListColumn("Categories")
+                
+                # Display results in a Streamlit dataframe
+                st.dataframe(
+                    filtered_df,
+                    column_config=column_config,
+                    hide_index=True,
+                    use_container_width=True
+                )
+                
+                # Show export options
+                show_export_options(filtered_df, "filtered")
+            else:
+                st.warning("No reports match your filter criteria. Try adjusting the filters.")
+        
+    except Exception as e:
+        st.error(f"Error processing file: {str(e)}")
+        logging.error(f"File processing error: {e}", exc_info=True)
+
+
+def render_bert_analysis_tab(data: pd.DataFrame = None):
+    """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
+    
+    # Ensure the bert_results dictionary exists in session state
+    if "bert_results" not in st.session_state:
+        st.session_state.bert_results = {}
+    
+    # Track if BERT model is initialized
+    if "bert_initialized" not in st.session_state:
+        st.session_state.bert_initialized = False
+    
+    # Initialize custom frameworks dictionary if not present
+    if "custom_frameworks" not in st.session_state:
+        st.session_state.custom_frameworks = {}
+        
+    # Safer initialization with validation
+    if "selected_frameworks" not in st.session_state:
+        # Only include frameworks that actually exist
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        st.session_state.selected_frameworks = default_frameworks
+    else:
+        # Validate existing selections against available options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"] + list(st.session_state.get("custom_frameworks", {}).keys())
+        st.session_state.selected_frameworks = [f for f in st.session_state.selected_frameworks if f in available_frameworks]
+
+    # File upload section
+    st.subheader("Upload Data")
+    reset_counter = st.session_state.get("reset_counter", 0)
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for BERT Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a file with reports for theme analysis",
+        key="bert_file_uploader",
+    )
+
+    # If a file is uploaded, process it
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_data = pd.read_csv(uploaded_file)
+            else:
+                uploaded_data = pd.read_excel(uploaded_file)
+
+            # Process the uploaded data
+            uploaded_data = process_scraped_data(uploaded_data)
+
+            # Update the data reference
+            data = uploaded_data
+
+            st.success("File uploaded and processed successfully!")
+                
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            return
+
+    # Check if data is available
+    if data is None or len(data) == 0:
+        st.warning(
+            "No data available. Please upload a file or ensure existing data is loaded."
+        )
+        return
+
+    # Framework selection section
+    st.subheader("Select Frameworks")
+    
+    # Create columns for the framework selection and custom framework upload
+    frame_col1, frame_col2 = st.columns([2, 1])
+    
+    with frame_col1:
+        # Get all available framework options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        if "custom_frameworks" in st.session_state:
+            available_frameworks.extend(list(st.session_state.custom_frameworks.keys()))
+        
+        # Predefined framework selection - use a unique key
+        st.session_state.selected_frameworks = st.multiselect(
+            "Choose Frameworks to Use",
+            options=available_frameworks,
+            default=st.session_state.selected_frameworks,
+            help="Select which conceptual frameworks to use for theme analysis",
+            key=f"framework_select_{reset_counter}"
+        )
+    
+    with frame_col2:
+        # Custom framework upload
+        custom_framework_file = st.file_uploader(
+            "Upload Custom Framework",
+            type=["json", "txt"],
+            help="Upload a JSON file containing custom framework definitions",
+            key=f"custom_framework_uploader_{reset_counter}"
+        )
+        
+        if custom_framework_file is not None:
+            try:
+                # Read framework definition
+                custom_framework_content = custom_framework_file.read().decode("utf-8")
+                custom_framework_data = json.loads(custom_framework_content)
+                
+                # Validate framework structure
+                if isinstance(custom_framework_data, list) and all(isinstance(item, dict) and "name" in item and "keywords" in item for item in custom_framework_data):
+                    # Framework name input
+                    custom_framework_name = st.text_input(
+                        "Custom Framework Name", 
+                        f"Custom Framework {len(st.session_state.custom_frameworks) + 1}",
+                        key=f"custom_framework_name_{reset_counter}"
+                    )
+                    
+                    # Add button for the custom framework
+                    if st.button("Add Custom Framework", key=f"add_custom_framework_{reset_counter}"):
+                        # Check if name already exists
+                        if custom_framework_name in st.session_state.custom_frameworks:
+                            st.warning(f"A framework with the name '{custom_framework_name}' already exists. Please choose a different name.")
+                        else:
+                            # Add to session state
+                            st.session_state.custom_frameworks[custom_framework_name] = custom_framework_data
+                            
+                            # Add to selected frameworks if not already there
+                            if custom_framework_name not in st.session_state.selected_frameworks:
+                                st.session_state.selected_frameworks.append(custom_framework_name)
+                            
+                            st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
+                            st.rerun()  # Refresh to update UI
+                else:
+                    st.error("Invalid framework format. Each item must have 'name' and 'keywords' fields.")
+            except json.JSONDecodeError:
+                st.error("Invalid JSON format. Please check your file.")
+            except Exception as e:
+                st.error(f"Error processing custom framework: {str(e)}")
+                logging.error(f"Custom framework error: {e}", exc_info=True)
+    
+    # Display currently loaded custom frameworks
+    if "custom_frameworks" in st.session_state and st.session_state.custom_frameworks:
+        st.subheader("Loaded Custom Frameworks")
+        for name, framework in st.session_state.custom_frameworks.items():
+            with st.expander(f"{name} ({len(framework)} themes)"):
+                # Display the first few themes as an example
+                for i, theme in enumerate(framework[:5]):
+                    st.markdown(f"**{theme['name']}**: {', '.join(theme['keywords'][:5])}...")
+                    if i >= 4 and len(framework) > 5:
+                        st.markdown(f"*... and {len(framework) - 5} more themes*")
+                        break
+                
+                # Add option to remove this framework
+                if st.button("Remove Framework", key=f"remove_{name}_{reset_counter}"):
+                    del st.session_state.custom_frameworks[name]
+                    if name in st.session_state.selected_frameworks:
+                        st.session_state.selected_frameworks.remove(name)
+                    st.success(f"Removed framework '{name}'")
+                    st.rerun()  # Refresh to update UI
+
+    # Column selection for analysis
+    st.subheader("Select Analysis Column")
+
+    # Find text columns (object/string type)
+    text_columns = data.select_dtypes(include=["object"]).columns.tolist()
+
+    # If no text columns found
+    if not text_columns:
+        st.error("No text columns found in the dataset.")
+        return
+
+    # Column selection with dropdown
+    content_column = st.selectbox(
+        "Choose the column to analyse:",
+        options=text_columns,
+        index=text_columns.index("Content") if "Content" in text_columns else 0,
+        help="Select the column containing the text you want to analyse",
+        key="bert_content_column",
+    )
+
+    # Filtering options
+    st.subheader("Select Documents to Analyse")
+
+    # Option to select all or specific records
+    analysis_type = st.radio(
+        "Analysis Type",
+        ["All Reports", "Selected Reports"],
+        horizontal=True,
+        key="bert_analysis_type",
+    )
+
+    if analysis_type == "Selected Reports":
+        # Multi-select for reports
+        selected_indices = st.multiselect(
+            "Choose specific reports to analyse",
+            options=list(range(len(data))),
+            format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
+            key="bert_selected_indices",
+        )
+        selected_data = data.iloc[selected_indices] if selected_indices else None
+    else:
+        selected_data = data
+
+    # Analysis parameters
+    st.subheader("Analysis Parameters")
+    similarity_threshold = st.slider(
+        "Similarity Threshold",
+        min_value=0.3,
+        max_value=0.9,
+        value=0.65,
+        step=0.05,
+        help="Minimum similarity score for theme detection (higher = more strict)",
+        key="bert_similarity_threshold",
+    )
+
+    # Analysis button
+    run_analysis = st.button(
+        "Run Analysis", type="primary", key="bert_run_analysis"
+    )
+
+    # Run analysis if button is clicked
+    if run_analysis:
+        with st.spinner("Performing Theme Analysis..."):
+            try:
+                # Validate data selection
+                if selected_data is None or len(selected_data) == 0:
+                    st.warning("No documents selected for analysis.")
+                    return
+
+                # Initialize the theme analyzer (with loading message in a spinner)
+                with st.spinner("Loading annotation model and tokenizer..."):
+                    # Initialize the analyzer
+                    theme_analyzer = ThemeAnalyzer(
+                        model_name="emilyalsentzer/Bio_ClinicalBERT"
+                    )
+                    
+                    # Mark as initialized
+                    st.session_state.bert_initialized = True
+                
+                # Set custom configuration
+                theme_analyzer.config[
+                    "base_similarity_threshold"
+                ] = similarity_threshold
+                
+                # Filter frameworks based on user selection
+                filtered_frameworks = {}
+                
+                # Add selected built-in frameworks
+                for framework in st.session_state.selected_frameworks:
+                    if framework == "I-SIRch":
+                        filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
+                    elif framework == "House of Commons":
+                        filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
+                    elif framework == "Extended Analysis":
+                        filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
+                    elif framework in st.session_state.custom_frameworks:
+                        # Add custom framework
+                        filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
+                
+                # Set the filtered frameworks
+                theme_analyzer.frameworks = filtered_frameworks
+                
+                # If no frameworks selected, show error
+                if not filtered_frameworks:
+                    st.error("Please select at least one framework for analysis.")
+                    return
+
+                # Use the enhanced create_detailed_results method
+                (
+                    results_df,
+                    highlighted_texts,
+                ) = theme_analyzer.create_detailed_results(
+                    selected_data, content_column=content_column
+                )
+
+                # Save results to session state to ensure persistence
+                st.session_state.bert_results["results_df"] = results_df
+                st.session_state.bert_results["highlighted_texts"] = highlighted_texts
+
+                st.success(f"Analysis complete using {len(filtered_frameworks)} frameworks!")
+
+            except Exception as e:
+                st.error(f"Error during annotation analysis: {str(e)}")
+                logging.error(f"Annotation analysis error: {e}", exc_info=True)
+
+    # Display results if they exist
+    if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+        results_df = st.session_state.bert_results["results_df"]
+        
+        # Summary stats
+        st.subheader("Results")
+        
+        # Show framework distribution
+        if "Framework" in results_df.columns:
+            framework_counts = results_df["Framework"].value_counts()
+            
+            # Create columns for framework distribution metrics
+            framework_cols = st.columns(len(framework_counts))
+            
+            for i, (framework, count) in enumerate(framework_counts.items()):
+                with framework_cols[i]:
+                    st.metric(framework, count, help=f"Number of theme identifications from {framework} framework")
+        
+        st.write(f"Total Theme Identifications: {len(results_df)}")
+        
+        # Clean up the results DataFrame to display only the essential columns
+        display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
+        
+        # Add metadata columns if available
+        for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
+            if col in results_df.columns:
+                display_cols.append(col)
+        
+        # Add matched sentences at the end
+        if "Matched Sentences" in results_df.columns:
+            display_cols.append("Matched Sentences")
+        
+        # Create the display DataFrame with only existing columns
+        valid_cols = [col for col in display_cols if col in results_df.columns]
+        clean_df = results_df[valid_cols].copy()
+        
+        # Display the results table
+        st.dataframe(
+            clean_df,
+            use_container_width=True,
+            column_config={
+                "Title": st.column_config.TextColumn("Document Title"),
+                "Framework": st.column_config.TextColumn("Framework"),
+                "Theme": st.column_config.TextColumn("Theme"),
+                "Confidence": st.column_config.TextColumn("Confidence"),
+                "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                "Matched Sentences": st.column_config.TextColumn("Matched Sentences"),
+                "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                "year": st.column_config.NumberColumn("Year"),
+                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY")
+            }
+        )
+        
+        # Add download options
+        st.subheader("Export Results")
+        
+        # Generate timestamp for filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create columns for download buttons
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Excel download button using the enhanced export_to_excel function
+            excel_data = export_to_excel(clean_df)
+            st.download_button(
+                "📥 Download Results Table",
+                data=excel_data,
+                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="bert_excel_download",
+            )
+        
+        with col2:
+            # Always regenerate HTML report when results are available
+            if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
+                # Generate fresh HTML report based on current results
+                theme_analyzer = ThemeAnalyzer()
+                
+                # Set custom frameworks if they exist
+                if st.session_state.custom_frameworks:
+                    for name, framework in st.session_state.custom_frameworks.items():
+                        if name in st.session_state.selected_frameworks:
+                            theme_analyzer.frameworks[name] = framework
+                
+                html_content = theme_analyzer._create_integrated_html_for_pdf(
+                    results_df, st.session_state.bert_results["highlighted_texts"]
+                )
+                html_filename = f"theme_analysis_report_{timestamp}.html"
+                
+                with open(html_filename, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                    
+                st.session_state.bert_results["html_filename"] = html_filename
+                
+                # Provide download button for fresh HTML
+                with open(html_filename, "rb") as f:
+                    html_data = f.read()
+                
+                st.download_button(
+                    "📄 Download Annotated Reports (HTML)",
+                    data=html_data,
+                    file_name=os.path.basename(html_filename),
+                    mime="text/html",
+                    key="bert_html_download",
+                )
+            else:
+                st.warning("HTML report not available")
+
 
 def check_app_password():
     """Check if user has entered the correct password to access the app"""
@@ -9626,605 +10458,6 @@ def check_app_password():
             return False
     
     return False
-
-
-def render_filter_data_tab(data: pd.DataFrame = None):
-    """
-    Render a filtering tab within the Scraped File Preparation section with completely isolated data handling.
-    Note: This function ignores any passed data parameter and works only with uploaded files.
-    
-    Args:
-        data: Ignored parameter - function uses only directly uploaded data
-    """
-    st.subheader("Filter & Explore Data")
-    
-    # IMPORTANT: Explicitly ignore any passed data parameter to ensure full isolation
-    # This function only works with files directly uploaded within it
-    
-    # Use a namespace specific to this tab to avoid collision with other tabs
-    if "filter_tab" not in st.session_state:
-        st.session_state.filter_tab = {}
-
-    # File upload section - use a unique key to avoid conflicts
-    uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file",
-        type=["csv", "xlsx"],
-        help="Upload your PFD reports dataset",
-        key="filter_data_tab_uploader",  # Unique key for this tab
-    )
-    
-    # If no file is uploaded, show instructions
-    if uploaded_file is None:
-        st.info("Please upload a PFD reports dataset (CSV or Excel file) to begin filtering.")
-        
-        with st.expander("📋 File Requirements", expanded=False):
-            st.markdown(
-                """
-            ## Recommended Columns
-            
-            For optimal filtering, your file should include these columns:
-            
-            - **Title**: Report title
-            - **URL**: Link to the original report
-            - **date_of_report**: Date in format DD/MM/YYYY
-            - **ref**: Reference number
-            - **deceased_name**: Name of deceased person (if applicable)
-            - **coroner_name**: Name of the coroner
-            - **coroner_area**: Coroner jurisdiction area
-            - **categories**: Report categories
-            - **Content**: Report text content
-            - **Extracted_Concerns**: Extracted coroner concerns text
-            
-            Files created from the File Merger tab should contain all these columns.
-            """
-            )
-        return
-    
-    # Create a unique ID for this file to ensure caching is file-specific
-    file_id = str(hash(uploaded_file.name + str(uploaded_file.size)))
-
-
-
-    # Check if we need to reprocess the file or can use cached data
-    if file_id not in st.session_state.filter_tab:
-        # Process uploaded file - completely isolated from other tabs
-        try:
-            # Read file
-            if uploaded_file.name.endswith(".csv"):
-                file_data = pd.read_csv(uploaded_file)
-            else:
-                file_data = pd.read_excel(uploaded_file)
-
-            # Basic data cleaning
-            file_data = file_data.dropna(how="all")  # Remove completely empty rows
-
-            # Convert date_of_report to datetime if it exists
-            if "date_of_report" in file_data.columns:
-                try:
-                    # Try multiple date formats
-                    file_data["date_of_report"] = pd.to_datetime(
-                        file_data["date_of_report"], format="%d/%m/%Y", errors="coerce"
-                    )
-                    # Fill in any parsing failures with other formats
-                    mask = file_data["date_of_report"].isna()
-                    if mask.any():
-                        file_data.loc[mask, "date_of_report"] = pd.to_datetime(
-                            file_data.loc[mask, "date_of_report"], format="%Y-%m-%d", errors="coerce"
-                        )
-                    # Final attempt with pandas' smart parsing
-                    mask = file_data["date_of_report"].isna()
-                    if mask.any():
-                        file_data.loc[mask, "date_of_report"] = pd.to_datetime(
-                            file_data.loc[mask, "date_of_report"],
-                            infer_datetime_format=True,
-                            errors="coerce",
-                        )
-                except Exception as e:
-                    st.warning(
-                        "Some date values could not be converted. Date filtering may not work completely."
-                    )
-            
-            # Clean category data for better display
-            if "categories" in file_data.columns:
-                # Process categories based on their format
-                clean_categories = []
-                for cats in file_data["categories"]:
-                    if isinstance(cats, list):
-                        # Already a list, just clean each item
-                        cleaned = [str(cat).strip() for cat in cats if cat]
-                        clean_categories.append(cleaned if cleaned else None)
-                    elif isinstance(cats, str):
-                        # Split by comma and clean each category
-                        cleaned = [c.strip() for c in cats.split(",") if c.strip()]
-                        clean_categories.append(cleaned if cleaned else None)
-                    else:
-                        clean_categories.append(None)
-                
-                # Replace with cleaned categories
-                file_data["categories"] = clean_categories
-            
-            # Cache in our tab-specific namespace
-            st.session_state.filter_tab[file_id] = file_data
-            
-            # Success message
-            st.success(f"File loaded successfully! Found {len(file_data)} records.")
-            
-        except Exception as e:
-            st.error(f"Error processing file: {str(e)}")
-            return
-    
-    # Use the cached data from our namespace
-    filtered_data = st.session_state.filter_tab[file_id].copy()
-        
-    # Create a form for filter settings
-    filter_key_prefix = f"filter_tab_{file_id}_"  # Use a prefix for all filter keys
-    
-    with st.form(f"filter_settings_form_{file_id}"):
-        st.subheader("Filter Settings")
-        
-        # Create rows with two columns each
-        row1_col1, row1_col2 = st.columns(2)
-        row2_col1, row2_col2 = st.columns(2)
-        row3_col1, row3_col2 = st.columns(2)
-        
-        # First row
-        with row1_col1:
-            # Date Range Filter
-            if "date_of_report" in filtered_data.columns and pd.api.types.is_datetime64_any_dtype(filtered_data["date_of_report"]):
-                min_date = filtered_data["date_of_report"].min().date()
-                max_date = filtered_data["date_of_report"].max().date()
-                
-                st.markdown("**Date Range**")
-                start_date = st.date_input(
-                    "From",
-                    value=min_date,
-                    min_value=min_date,
-                    max_value=max_date,
-                    key=f"{filter_key_prefix}start_date",
-                    format="DD/MM/YYYY",
-                )
-        
-        with row1_col2:
-            # Date Range (continued)
-            if "date_of_report" in filtered_data.columns and pd.api.types.is_datetime64_any_dtype(filtered_data["date_of_report"]):
-                st.markdown("&nbsp;")  # Add some spacing to align with "From"
-                end_date = st.date_input(
-                    "To",
-                    value=max_date,
-                    min_value=min_date,
-                    max_value=max_date,
-                    key=f"{filter_key_prefix}end_date",
-                    format="DD/MM/YYYY",
-                )
-            # Year Filter if date_of_report not available
-            elif "year" in filtered_data.columns:
-                years = sorted(filtered_data["year"].dropna().unique())
-                if years:
-                    min_year, max_year = min(years), max(years)
-                    st.markdown("**Year Range**")
-                    selected_years = st.slider(
-                        "Select years",
-                        min_year,
-                        max_year,
-                        (min_year, max_year),
-                        key=f"{filter_key_prefix}years",
-                    )
-        
-        # Second row
-        with row2_col1:
-            # Coroner Area Filter
-            if "coroner_area" in filtered_data.columns:
-                st.markdown("**Coroner Areas**")
-                coroner_areas = sorted(filtered_data["coroner_area"].dropna().unique())
-                selected_areas = st.multiselect(
-                    "Select coroner areas",
-                    options=coroner_areas,
-                    key=f"{filter_key_prefix}coroner_areas",
-                    help="Select coroner areas to include"
-                )
-        
-        with row2_col2:
-            # Coroner Name Filter
-            if "coroner_name" in filtered_data.columns:
-                st.markdown("**Coroner Names**")
-                coroner_names = sorted(filtered_data["coroner_name"].dropna().unique())
-                selected_coroners = st.multiselect(
-                    "Select coroner names",
-                    options=coroner_names,
-                    key=f"{filter_key_prefix}coroner_names",
-                    help="Select coroner names to include"
-                )
-        
-        # Third row
-
-        with row3_col1:
-            # Categories Filter - IMPROVED CATEGORY HANDLING
-            if "categories" in filtered_data.columns:
-                st.markdown("**Categories**")
-                
-                # Extract unique categories with proper cleaning
-                all_categories = set()
-                for cats in filtered_data["categories"].dropna():
-                    # Handle list type categories
-                    if isinstance(cats, list):
-                        for cat in cats:
-                            if cat and isinstance(cat, str):
-                                cleaned_cat = cat.strip()
-                                if cleaned_cat:
-                                    all_categories.add(cleaned_cat)
-                    # Handle string type categories (comma-separated)
-                    elif isinstance(cats, str):
-                        # Split by comma and clean each category
-                        for cat in cats.split(","):
-                            cleaned_cat = cat.strip()
-                            if cleaned_cat:
-                                all_categories.add(cleaned_cat)
-                
-                # Sort and create a clean list of categories
-                sorted_categories = sorted(all_categories)
-                
-                # Create a unique key that includes the file_id to ensure proper reset
-                categories_key = f"{filter_key_prefix}categories_{file_id}"
-                
-                # Create multiselect with cleaned categories   
-                selected_categories = st.multiselect(
-                    "Select categories",
-                    options=sorted_categories,
-                    key=f"{filter_key_prefix}categories",
-                    help="Select categories to include",
-                    format_func=lambda x: ", ".join(x) if isinstance(x, list) else str(x) if x is not None else ""
-                )
-
-        with row3_col2:
-            # Advanced content search
-            if "Content" in filtered_data.columns or "content" in filtered_data.columns:
-                content_col = "Content" if "Content" in filtered_data.columns else "content"
-                st.markdown("**Content Search**")
-                keyword_search = st.text_input(
-                    "Search in content",
-                    key=f"{filter_key_prefix}keyword_search",
-                    help="Use 'term1 and term2' for AND, 'term1 or term2' for OR",
-                    placeholder="Enter search terms"
-                )
-        
-        # Option to exclude records without extracted concerns
-        concerns_col = None
-        if "Extracted_Concerns" in filtered_data.columns:
-            concerns_col = "Extracted_Concerns"
-        elif "extracted_concerns" in filtered_data.columns:
-            concerns_col = "extracted_concerns"
-            
-        if concerns_col:
-            exclude_no_concerns = st.checkbox(
-                "Exclude records without extracted concerns",
-                value=False,
-                key=f"{filter_key_prefix}exclude_no_concerns",
-                help="Show only records with extracted coroner concerns",
-            )
-        
-        # Submission buttons
-        submitted = st.form_submit_button("Apply Filters & Search", type="primary")
-        
-    # Reset Filters Button (outside the form)
-    if st.button(f"Reset Filters", key=f"{filter_key_prefix}reset_filters"):
-        # Only clear filter keys for this specific file
-        for key in list(st.session_state.keys()):
-            if key.startswith(filter_key_prefix):
-                del st.session_state[key]
-        st.rerun()
-    
-    # Display results if form submitted or if this is a rerun with active filters
-    show_results = submitted or any(k.startswith(filter_key_prefix) for k in st.session_state.keys())
-    
-    if show_results:
-        # Apply filters to data - start with a copy of the original data
-        filtered_df = filtered_data.copy()
-        active_filters = []
-        
-        # Date filter
-        if "date_of_report" in filtered_df.columns and f"{filter_key_prefix}start_date" in st.session_state and f"{filter_key_prefix}end_date" in st.session_state:
-            start_date = st.session_state[f"{filter_key_prefix}start_date"]
-            end_date = st.session_state[f"{filter_key_prefix}end_date"]
-            min_date = filtered_df["date_of_report"].min().date()
-            max_date = filtered_df["date_of_report"].max().date()
-            
-            if start_date != min_date or end_date != max_date:
-                filtered_df = filtered_df[
-                    (filtered_df["date_of_report"].dt.date >= start_date)
-                    & (filtered_df["date_of_report"].dt.date <= end_date)
-                ]
-                active_filters.append(
-                    f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}"
-                )
-
-        # Year filter (if date_of_report not available)
-        if "year" in filtered_df.columns and f"{filter_key_prefix}years" in st.session_state:
-            selected_years = st.session_state[f"{filter_key_prefix}years"]
-            years = sorted(filtered_data["year"].dropna().unique())
-            min_year, max_year = min(years), max(years)
-            
-            if selected_years != (min_year, max_year):
-                filtered_df = filtered_df[
-                    (filtered_df["year"] >= selected_years[0])
-                    & (filtered_df["year"] <= selected_years[1])
-                ]
-                active_filters.append(f"Year: {selected_years[0]} to {selected_years[1]}")
-
-        # Coroner name filter
-        if "coroner_name" in filtered_df.columns and f"{filter_key_prefix}coroner_names" in st.session_state and st.session_state[f"{filter_key_prefix}coroner_names"]:
-            selected_coroners = st.session_state[f"{filter_key_prefix}coroner_names"]
-            filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_coroners)]
-            
-            if len(selected_coroners) <= 3:
-                active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
-            else:
-                active_filters.append(f"Coroners: {len(selected_coroners)} selected")
-
-        # Coroner area filter
-        if "coroner_area" in filtered_df.columns and f"{filter_key_prefix}coroner_areas" in st.session_state and st.session_state[f"{filter_key_prefix}coroner_areas"]:
-            selected_areas = st.session_state[f"{filter_key_prefix}coroner_areas"]
-            filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
-            
-            if len(selected_areas) <= 3:
-                active_filters.append(f"Areas: {', '.join(selected_areas)}")
-            else:
-                active_filters.append(f"Areas: {len(selected_areas)} selected")
-
-        # Categories filter - IMPROVED IMPLEMENTATION
-        if "categories" in filtered_df.columns and f"{filter_key_prefix}categories" in st.session_state and st.session_state[f"{filter_key_prefix}categories"]:
-            selected_categories = st.session_state[f"{filter_key_prefix}categories"]
-            
-            before_count = len(filtered_df)
-            
-            # Create an improved category matching function
-            def has_matching_category(row_categories):
-                # Handle empty categories
-                if pd.isna(row_categories) or (isinstance(row_categories, list) and len(row_categories) == 0):
-                    return False
-                    
-                # Convert to list of clean categories
-                if isinstance(row_categories, str):
-                    # Split by comma and normalize each category
-                    cats_list = [cat.strip() for cat in row_categories.split(",")]
-                elif isinstance(row_categories, list):
-                    # Already a list, just normalize each item
-                    cats_list = [cat.strip() if isinstance(cat, str) else "" for cat in row_categories]
-                else:
-                    return False
-                
-                # Check for any exact matches with selected categories
-                for row_cat in cats_list:
-                    if row_cat in selected_categories:
-                        return True
-                    # Also check for substring matches
-                    for selected_cat in selected_categories:
-                        if selected_cat in row_cat or row_cat in selected_cat:
-                            return True
-                return False
-            
-            # Apply the matching function
-            filtered_df = filtered_df[filtered_df["categories"].apply(has_matching_category)]
-            
-            # Add to active filters
-            after_count = len(filtered_df)
-            
-            if len(selected_categories) <= 3:
-                active_filters.append(f"Categories: {', '.join(selected_categories)} ({after_count}/{before_count} records)")
-            else:
-                active_filters.append(f"Categories: {len(selected_categories)} selected ({after_count}/{before_count} records)")
-        
-        # Apply content search
-        if (("Content" in filtered_df.columns) or ("content" in filtered_df.columns)) and f"{filter_key_prefix}keyword_search" in st.session_state and st.session_state[f"{filter_key_prefix}keyword_search"]:
-            content_col = "Content" if "Content" in filtered_df.columns else "content"
-            keyword_search = st.session_state[f"{filter_key_prefix}keyword_search"]
-            
-            before_count = len(filtered_df)
-            
-            # Perform the search using the provided utility function
-            def perform_keyword_search(text, query):
-                if pd.isna(text) or not isinstance(text, str) or not query:
-                    return False
-                
-                # Convert text to lowercase for case-insensitive search
-                text = text.lower()
-                query = query.lower()
-                
-                # Check for AND search
-                if " and " in query:
-                    keywords = [k.strip() for k in query.split(" and ")]
-                    return all(keyword in text for keyword in keywords if keyword)
-                # Check for OR search
-                elif " or " in query:
-                    keywords = [k.strip() for k in query.split(" or ")]
-                    return any(keyword in text for keyword in keywords if keyword)
-                # Default to exact match
-                else:
-                    return query in text
-            
-            # Apply the search function
-            filtered_df = filtered_df[
-                filtered_df[content_col].apply(
-                    lambda x: perform_keyword_search(x, keyword_search)
-                )
-            ]
-            
-            # Add to active filters
-            after_count = len(filtered_df)
-            active_filters.append(f"Content search: '{keyword_search}' ({after_count}/{before_count} records)")
-        
-        # Apply filter for records with extracted concerns
-        if concerns_col and f"{filter_key_prefix}exclude_no_concerns" in st.session_state and st.session_state[f"{filter_key_prefix}exclude_no_concerns"]:
-            before_count = len(filtered_df)
-            filtered_df = filtered_df[
-                filtered_df[concerns_col].notna()
-                & (filtered_df[concerns_col].astype(str).str.strip() != "")
-                & (filtered_df[concerns_col].astype(str).str.len() > 20)  # Ensure meaningful content
-            ]
-            after_count = len(filtered_df)
-            removed_count = before_count - after_count
-            active_filters.append(f"Excluding records without concerns (-{removed_count} records)")
-
-        # Display active filters in a clean info box if there are any
-        if active_filters:
-            st.info(
-                "Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters)
-            )
-        
-        # Display results
-        st.subheader("Results")
-        st.write(f"Showing {len(filtered_df)} of {len(filtered_data)} reports")
-        
-        if len(filtered_df) > 0:
-            # Display the dataframe with formatted columns
-            column_config = {}
-            
-            # Configure special columns
-            if "date_of_report" in filtered_df.columns:
-                column_config["date_of_report"] = st.column_config.DateColumn(
-                    "Date of Report", format="DD/MM/YYYY"
-                )
-            
-            if "URL" in filtered_df.columns:
-                column_config["URL"] = st.column_config.LinkColumn("Report Link")
-            
-            if "categories" in filtered_df.columns:
-                column_config["categories"] = st.column_config.ListColumn("Categories")
-            
-            # Display results in a Streamlit dataframe
-            st.dataframe(
-                filtered_df,
-                column_config=column_config,
-                hide_index=True,
-                use_container_width=True
-            )
-            
-            # Show export options
-            st.subheader("Export Options")
-            
-            # Generate timestamp for filenames
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"filtered_data_{timestamp}"
-            
-            col1, col2 = st.columns(2)
-            
-            # CSV Export
-            with col1:
-                try:
-                    # Create export copy with formatted dates
-                    df_csv = filtered_df.copy()
-                    if "date_of_report" in df_csv.columns:
-                        df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
-                    
-                    csv = df_csv.to_csv(index=False).encode('utf-8')
-                    st.download_button(
-                        "📥 Download Filtered Data (CSV)",
-                        csv,
-                        f"{filename}.csv",
-                        "text/csv",
-                        key=f"{filter_key_prefix}download_csv"
-                    )
-                except Exception as e:
-                    st.error(f"Error preparing CSV export: {str(e)}")
-            
-            # Excel Export
-            with col2:
-                try:
-                    # Use the export_to_excel function
-                    excel_data = export_to_excel(filtered_df)
-                    st.download_button(
-                        "📥 Download Filtered Data (Excel)",
-                        excel_data,
-                        f"{filename}.xlsx",
-                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        key=f"{filter_key_prefix}download_excel"
-                    )
-                except Exception as e:
-                    st.error(f"Error preparing Excel export: {str(e)}")
-            
-            # PDF Export section if PDFs are available
-            if any(col.startswith("PDF_") and col.endswith("_Path") for col in filtered_df.columns):
-                st.subheader("Download PDFs")
-                try:
-                    # Create the ZIP file in memory
-                    zip_buffer = io.BytesIO()
-                    
-                    with zipfile.ZipFile(zip_buffer, "w") as zipf:
-                        pdf_columns = [col for col in filtered_df.columns if col.startswith("PDF_") and col.endswith("_Path")]
-                        added_files = set()
-                        pdf_count = 0
-                        folders_created = set()
-                        
-                        # Process each PDF file
-                        for idx, row in filtered_df.iterrows():
-                            # Build folder name using ref and deceased_name
-                            folder_parts = []
-                            
-                            # Add reference number if available
-                            if "ref" in row and pd.notna(row["ref"]):
-                                folder_parts.append(str(row["ref"]))
-                            
-                            # Add deceased name if available
-                            if "deceased_name" in row and pd.notna(row["deceased_name"]):
-                                # Clean up deceased name for folder name
-                                deceased_name = str(row["deceased_name"])
-                                # Remove invalid characters for folder names
-                                clean_name = re.sub(r'[<>:"/\\|?*]', '_', deceased_name)
-                                # Limit folder name length
-                                clean_name = clean_name[:50].strip()
-                                folder_parts.append(clean_name)
-                            
-                            # Create folder name from parts
-                            if folder_parts:
-                                folder_name = "_".join(folder_parts)
-                            else:
-                                # Fallback if no ref or deceased name
-                                record_id = str(row.get("Record ID", idx))
-                                folder_name = f"report_{record_id}"
-                            
-                            # Add year to folder if available
-                            if "year" in row and pd.notna(row["year"]):
-                                folder_name = f"{folder_name}_{row['year']}"
-                            
-                            # Keep track of created folders
-                            folders_created.add(folder_name)
-                            
-                            # Process each PDF for this row
-                            for col in pdf_columns:
-                                pdf_path = row.get(col)
-                                if pd.isna(pdf_path) or not pdf_path or not os.path.exists(pdf_path) or pdf_path in added_files:
-                                    continue
-                                
-                                # Get the original filename without any modifications
-                                original_filename = os.path.basename(pdf_path)
-                                
-                                # Create archive path with folder structure
-                                zip_path = f"{folder_name}/{original_filename}"
-                                
-                                # Read the file content and write it to the ZIP
-                                with open(pdf_path, 'rb') as file:
-                                    zipf.writestr(zip_path, file.read())
-                                
-                                added_files.add(pdf_path)
-                                pdf_count += 1
-                    
-                    # Reset buffer position
-                    zip_buffer.seek(0)
-                    
-                    # PDF Download Button
-                    st.download_button(
-                        f"📦 Download All PDFs ({pdf_count} files in {len(folders_created)} case folders)",
-                        zip_buffer,
-                        f"{filename}_pdfs.zip",
-                        "application/zip",
-                        key=f"{filter_key_prefix}download_pdfs"
-                    )
-                        
-                except Exception as e:
-                    st.error(f"Error preparing PDF download: {str(e)}")
-                    logging.error(f"PDF download error: {e}", exc_info=True)
-                
-        else:
-            st.warning("No reports match your filter criteria. Try adjusting the filters.")
 
 def render_bert_file_merger():
     """Render the BERT file merger tab in the Streamlit app with custom initialization."""
@@ -11492,7 +11725,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         st.plotly_chart(fig_corr_matrix, use_container_width=True, key="theme_correlation_matrix")
         
         # Network graph of correlations
-        st.subheader("Theme Connection Network (This will be improved)")
+        st.subheader("Theme Connection Network (THIS WILL BE IMPROVED)")
         
         # Correlation threshold slider
         corr_threshold = st.slider(
@@ -11778,8 +12011,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 st.error(f"Error creating visualization zip: {e}")
                 logging.error(f"Visualization zip error: {e}", exc_info=True)
         
-
-
+       
 def render_analysis_tab(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
 
@@ -11797,17 +12029,8 @@ def render_analysis_tab(data: pd.DataFrame = None):
             else:
                 data = pd.read_excel(uploaded_file)
             
-            # Only convert dates, don't apply any other processing
-            if "date_of_report" in data.columns:
-                try:
-                    data["date_of_report"] = pd.to_datetime(
-                        data["date_of_report"], errors="coerce"
-                    )
-                except Exception as e:
-                    st.warning(
-                        "Some date values could not be converted. Date filtering may not work completely."
-                    )
-            
+            # Process uploaded data
+            data = process_scraped_data(data)
             st.success("File uploaded and processed successfully!")
             
             # Update session state
@@ -11820,7 +12043,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
             logging.error(f"File upload error: {e}", exc_info=True)
             return
     
-    # Use either uploaded data or passed data, but DON'T clear data to None
+    # Use either uploaded data or passed data
     if data is None:
         data = st.session_state.get('current_data')
     
@@ -11828,41 +12051,14 @@ def render_analysis_tab(data: pd.DataFrame = None):
         st.warning("No data available. Please upload a file or scrape reports first.")
         return
         
-    # Only proceed if a file is uploaded directly in this tab
     try:
-        # Load file directly without additional processing
-        if uploaded_file.name.endswith('.csv'):
-            data = pd.read_csv(uploaded_file)
-        else:
-            data = pd.read_excel(uploaded_file)
-        
-        # Convert date_of_report to datetime if it exists
-        if "date_of_report" in data.columns:
-            try:
-                data["date_of_report"] = pd.to_datetime(
-                    data["date_of_report"], errors="coerce"
-                )
-            except Exception as e:
-                st.warning(
-                    "Some date values could not be converted. Date filtering may not work completely."
-                )
-        
-        st.success(f"File '{uploaded_file.name}' loaded successfully with {len(data)} records.")
-            
         # Get date range for the data
-        if 'date_of_report' in data.columns and not data['date_of_report'].isna().all():
-            min_date = data['date_of_report'].min().date()
-            max_date = data['date_of_report'].max().date()
-        else:
-            min_date = datetime.now().date()
-            max_date = datetime.now().date()
-            
+        min_date = data['date_of_report'].min().date()
+        max_date = data['date_of_report'].max().date()
+        
         # Filters sidebar
         with st.sidebar:
             st.header("Filters")
-            
-            # Add file info
-            st.info(f"Analyzing: {uploaded_file.name}")
             
             # Date Range
             with st.expander("📅 Date Range", expanded=True):
@@ -11895,84 +12091,61 @@ def render_analysis_tab(data: pd.DataFrame = None):
                 help="Filter by document type"
             )
             
-            # Reference Number - Use exact values from the dataframe
-            if 'ref' in data.columns:
-                ref_numbers = sorted(data['ref'].dropna().unique())
-                selected_refs = st.multiselect(
-                    "Reference Numbers",
-                    options=ref_numbers,
-                    key="ref_filter"
-                )
-            else:
-                selected_refs = []
+            # Reference Number
+            ref_numbers = sorted(data['ref'].dropna().unique())
+            selected_refs = st.multiselect(
+                "Reference Numbers",
+                options=ref_numbers,
+                key="ref_filter"
+            )
             
-            # Deceased Name - Create a searchable selector with unique values
-            if 'deceased_name' in data.columns:
-                deceased_names = sorted(data['deceased_name'].dropna().unique())
-                if deceased_names:
-                    selected_deceased = st.multiselect(
-                        "Deceased Name",
-                        options=deceased_names,
-                        key="deceased_filter",
-                        help="Select deceased names to include"
-                    )
-                else:
-                    # Fallback to text input if no names available
-                    deceased_search = st.text_input(
-                        "Deceased Name (Search)",
-                        key="deceased_filter_text",
-                        help="Enter partial or full name (case-insensitive)"
-                    )
-            else:
-                deceased_search = ""
+            # Deceased Name
+            deceased_search = st.text_input(
+                "Deceased Name",
+                key="deceased_filter",
+                help="Enter partial or full name (case-insensitive)"
+            )
             
-            # Coroner Name - Use exact values from the dataframe without additional manipulation
-            if 'coroner_name' in data.columns:
-                coroner_names = sorted(data['coroner_name'].dropna().unique())
-                selected_coroners = st.multiselect(
-                    "Coroner Names",
-                    options=coroner_names,
-                    key="coroner_filter",
-                    help="Select coroner names to include"
-                )
-            else:
-                selected_coroners = []
+            # Coroner Name
+            # Normalize coroner names for selection and ensure uniqueness
+            coroner_names = sorted(set(
+                str(name).strip() for name in data['coroner_name'].dropna().unique()
+            ))
+            selected_coroners = st.multiselect(
+                "Coroner Names",
+                options=coroner_names,
+                key="coroner_filter"
+            )
             
-            # Coroner Area - Use exact values from the dataframe without additional manipulation
-            if 'coroner_area' in data.columns:
-                coroner_areas = sorted(data['coroner_area'].dropna().unique())
-                selected_areas = st.multiselect(
-                    "Coroner Areas",
-                    options=coroner_areas,
-                    key="areas_filter",
-                    help="Select coroner areas to include"
-                )
-            else:
-                selected_areas = []
+            # Coroner Area
+            # Normalize coroner areas for selection and ensure uniqueness
+            coroner_areas = sorted(set(
+                str(area).strip() for area in data['coroner_area'].dropna().unique()
+            ))
+            selected_areas = st.multiselect(
+                "Coroner Areas",
+                options=coroner_areas,
+                key="areas_filter"
+            )
             
-            # Categories - Extract unique categories properly handling both list and string types
+            # Categories
             all_categories = set()
-            if 'categories' in data.columns:
-                for cats in data['categories'].dropna():
-                    if isinstance(cats, list):
-                        all_categories.update(cat for cat in cats if cat)
-                    elif isinstance(cats, str):
-                        cat_list = [cat.strip() for cat in cats.split(',')]
-                        all_categories.update(cat for cat in cat_list if cat)
-                
-                selected_categories = st.multiselect(
-                    "Categories",
-                    options=sorted(all_categories),
-                    key="categories_filter",
-                    help="Select categories to include"
-                )
-            else:
-                selected_categories = []
+            for cats in data['categories'].dropna():
+                if isinstance(cats, list):
+                    all_categories.update(str(cat).strip() for cat in cats)
+                elif isinstance(cats, str):
+                    all_categories.update(str(cat).strip() for cat in cats.split(','))
+            
+            selected_categories = st.multiselect(
+                "Categories",
+                options=sorted(all_categories),
+                key="categories_filter"
+            )
             
             # Reset Filters Button
             if st.button("🔄 Reset Filters"):
-                for key in list(st.session_state.keys()):
-                    if key.endswith('_filter') or key.endswith('_filter_text'):
+                for key in st.session_state:
+                    if key.endswith('_filter'):
                         del st.session_state[key]
                 st.rerun()
 
@@ -11980,57 +12153,81 @@ def render_analysis_tab(data: pd.DataFrame = None):
         filtered_df = data.copy()
 
         # Date filter
-        if 'date_of_report' in filtered_df.columns and pd.api.types.is_datetime64_any_dtype(filtered_df['date_of_report']):
-            if start_date and end_date:
-                filtered_df = filtered_df[
-                    (filtered_df['date_of_report'].dt.date >= start_date) &
-                    (filtered_df['date_of_report'].dt.date <= end_date)
-                ]
+        if start_date and end_date:
+            filtered_df = filtered_df[
+                (filtered_df['date_of_report'].dt.date >= start_date) &
+                (filtered_df['date_of_report'].dt.date <= end_date)
+            ]
 
         # Document type filter
         if doc_type:
-            filtered_df = filter_by_document_type(filtered_df, doc_type)
+            if "Response" in doc_type and "Report" not in doc_type:
+                # Only responses
+                filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
+            elif "Report" in doc_type and "Response" not in doc_type:
+                # Only reports
+                filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
 
         # Reference number filter
         if selected_refs:
             filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
 
-        # Deceased name filter - either use the multiselect or the text search
-        if 'deceased_name' in filtered_df.columns:
-            if 'selected_deceased' in locals() and selected_deceased:
-                # Filter by selected deceased names
-                filtered_df = filtered_df[filtered_df['deceased_name'].isin(selected_deceased)]
-            elif 'deceased_search' in locals() and deceased_search:
-                # Search by text input
-                search_lower = deceased_search.lower().strip()
-                filtered_df = filtered_df[
-                    filtered_df['deceased_name'].fillna('').str.lower().str.contains(
-                        search_lower, 
-                        case=False, 
-                        na=False
-                    )
-                ]
-
-        # Coroner name filter - using direct equality comparison
-        if selected_coroners:
-            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
-
-        # Coroner area filter - using direct equality comparison
-        if selected_areas:
-            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
-
-        # Categories filter - handle both list and string types
-        if selected_categories:
-            if 'categories' in filtered_df.columns:
-                # Create a boolean mask for matching
-                mask = filtered_df['categories'].apply(
-                    lambda cats: any(
-                        cat in selected_categories for cat in 
-                        (cats if isinstance(cats, list) else 
-                         cats.split(',') if isinstance(cats, str) else [])
-                    )
+        # Deceased name filter - case-insensitive partial match
+        if deceased_search:
+            search_lower = deceased_search.lower().strip()
+            filtered_df = filtered_df[
+                filtered_df['deceased_name'].fillna('').str.lower().str.contains(
+                    search_lower, 
+                    case=False, 
+                    na=False
                 )
-                filtered_df = filtered_df[mask]
+            ]
+
+        # Coroner name filter - case-insensitive partial match
+        if selected_coroners:
+            # Normalize selected coroners and create a case-insensitive filter
+            selected_coroners_norm = [str(name).lower().strip() for name in selected_coroners]
+            filtered_df = filtered_df[
+                filtered_df['coroner_name'].fillna('').str.lower().apply(
+                    lambda x: any(selected_name in x or x in selected_name for selected_name in selected_coroners_norm)
+                )
+            ]
+
+        # Coroner area filter - case-insensitive partial match
+        if selected_areas:
+            # Normalize selected areas and create a case-insensitive filter
+            selected_areas_norm = [str(area).lower().strip() for area in selected_areas]
+            filtered_df = filtered_df[
+                filtered_df['coroner_area'].fillna('').str.lower().apply(
+                    lambda x: any(selected_area in x or x in selected_area for selected_area in selected_areas_norm)
+                )
+            ]
+
+        # Categories filter - handle both list and string types with case-insensitive partial match
+        if selected_categories:
+            # Normalize selected categories
+            selected_cats_norm = [str(cat).lower().strip() for cat in selected_categories]
+            
+            def category_matches(row_cats):
+                # Handle both list and string types
+                if pd.isna(row_cats):
+                    return False
+                
+                # Convert to list if it's a string
+                if isinstance(row_cats, str):
+                    row_cats = [cat.strip() for cat in row_cats.split(',')]
+                
+                # Normalize row categories
+                row_cats_norm = [str(cat).lower().strip() for cat in row_cats]
+                
+                # Check for partial matches
+                return any(
+                    any(selected_cat in row_cat or row_cat in selected_cat 
+                        for row_cat in row_cats_norm)
+                    for selected_cat in selected_cats_norm
+                )
+            
+            filtered_df = filtered_df[filtered_df['categories'].apply(category_matches)]
 
         # Show active filters
         active_filters = []
@@ -12040,28 +12237,14 @@ def render_analysis_tab(data: pd.DataFrame = None):
             active_filters.append(f"Document Types: {', '.join(doc_type)}")
         if selected_refs:
             active_filters.append(f"References: {', '.join(selected_refs)}")
-        if 'selected_deceased' in locals() and selected_deceased:
-            if len(selected_deceased) <= 3:
-                active_filters.append(f"Deceased: {', '.join(selected_deceased)}")
-            else:
-                active_filters.append(f"Deceased: {len(selected_deceased)} selected")
-        elif 'deceased_search' in locals() and deceased_search:
+        if deceased_search:
             active_filters.append(f"Deceased name contains: {deceased_search}")
         if selected_coroners:
-            if len(selected_coroners) <= 3:
-                active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
-            else:
-                active_filters.append(f"Coroners: {len(selected_coroners)} selected")
+            active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
         if selected_areas:
-            if len(selected_areas) <= 3:
-                active_filters.append(f"Areas: {', '.join(selected_areas)}")
-            else:
-                active_filters.append(f"Areas: {len(selected_areas)} selected")
+            active_filters.append(f"Areas: {', '.join(selected_areas)}")
         if selected_categories:
-            if len(selected_categories) <= 3:
-                active_filters.append(f"Categories: {', '.join(selected_categories)}")
-            else:
-                active_filters.append(f"Categories: {len(selected_categories)} selected")
+            active_filters.append(f"Categories: {', '.join(selected_categories)}")
 
         if active_filters:
             st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
@@ -12117,28 +12300,27 @@ def render_analysis_tab(data: pd.DataFrame = None):
                 
                 # Seasonal patterns
                 st.subheader("Seasonal Patterns")
-                if 'date_of_report' in filtered_df.columns and not filtered_df['date_of_report'].isna().all():
-                    seasonal_counts = filtered_df['date_of_report'].dt.month.value_counts().sort_index()
-                    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                    fig = px.line(
-                        x=month_names,
-                        y=[seasonal_counts.get(i, 0) for i in range(1, 13)],
-                        markers=True,
-                        labels={'x': 'Month', 'y': 'Number of Reports'},
-                        title='Seasonal Distribution of Reports'
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("Date information is not available for seasonal analysis.")
+                seasonal_counts = filtered_df['date_of_report'].dt.month.value_counts().sort_index()
+                month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                fig = px.line(
+                    x=month_names,
+                    y=[seasonal_counts.get(i, 0) for i in range(1, 13)],
+                    markers=True,
+                    labels={'x': 'Month', 'y': 'Number of Reports'},
+                    title='Seasonal Distribution of Reports'
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
             # Distribution Analysis Tab
             with distribution_tab:
-                st.subheader("Reports by Category")
-                plot_category_distribution(filtered_df)
+        
+       
+                    st.subheader("Reports by Category")
+                    plot_category_distribution(filtered_df)
   
-                st.subheader("Reports by Coroner Area")
-                plot_coroner_areas(filtered_df)
+                    st.subheader("Reports by Coroner Area")
+                    plot_coroner_areas(filtered_df)
 
             # Export options
             st.markdown("---")
@@ -12150,7 +12332,8 @@ def render_analysis_tab(data: pd.DataFrame = None):
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
-        
+
+                
 def render_framework_heatmap(filtered_df, top_n_themes=5):
     """
     Create a framework-based heatmap of theme distribution by year with framework coloring
