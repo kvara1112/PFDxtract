@@ -8501,7 +8501,7 @@ def save_dashboard_images_as_zip(filtered_df):
                             font=dict(
                                 color="black"  # All general text: title, legend, etc.
                             ),
-                            paper_bgcolor="white",  # Outer chart background
+                            paper_bgcolor="grey",  # Outer chart background
                             plot_bgcolor="white",   # Background inside the plotting area
                             showlegend=True,
                             title="Theme Distribution Radar Chart"
