@@ -9014,52 +9014,64 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
         st.markdown("---")
 
 def render_analysis_tab(data: pd.DataFrame = None):
-    """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
+    """Render the analysis tab with completely fresh data loading and no cache usage"""
 
-    # Add file upload section at the top
+    # Clear specific session state variables related to this tab
+    for key in list(st.session_state.keys()):
+        if key.startswith("analysis_") or key.endswith("_filter") or key.endswith("_filter_text"):
+            del st.session_state[key]
+    
+    # Start completely fresh - ignore any passed data
+    data = None
+    
+    # Add file upload section at the top - this is the ONLY source of data for this tab
+    st.info("Please upload a file to begin analysis. Each tab functions independently.")
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file", 
         type=['csv', 'xlsx'],
-        help="Upload previously exported data"
+        help="Upload a file to analyze (merged_* files recommended)",
+        key="analysis_file_uploader"
     )
     
-    if uploaded_file is not None:
-        try:
-            if uploaded_file.name.endswith('.csv'):
-                data = pd.read_csv(uploaded_file)
-            else:
-                data = pd.read_excel(uploaded_file)
-            
-            # Process uploaded data
-            data = process_scraped_data(data)
-            st.success("File uploaded and processed successfully!")
-            
-            # Update session state
-            st.session_state.uploaded_data = data.copy()
-            st.session_state.data_source = 'uploaded'
-            st.session_state.current_data = data.copy()
-        
-        except Exception as e:
-            st.error(f"Error uploading file: {str(e)}")
-            logging.error(f"File upload error: {e}", exc_info=True)
-            return
-    
-    # Use either uploaded data or passed data
-    if data is None:
-        data = st.session_state.get('current_data')
-    
-    if data is None or len(data) == 0:
-        st.warning("No data available. Please upload a file or scrape reports first.")
+    if uploaded_file is None:
+        st.warning("No data available. Please upload a file to analyze.")
         return
         
+    # Only proceed if a file is uploaded directly in this tab
     try:
-        # Get date range for the data
-        min_date = data['date_of_report'].min().date()
-        max_date = data['date_of_report'].max().date()
+        # Load file directly without additional processing
+        if uploaded_file.name.endswith('.csv'):
+            data = pd.read_csv(uploaded_file)
+        else:
+            data = pd.read_excel(uploaded_file)
         
+        # Convert date_of_report to datetime if it exists
+        if "date_of_report" in data.columns:
+            try:
+                data["date_of_report"] = pd.to_datetime(
+                    data["date_of_report"], errors="coerce"
+                )
+            except Exception as e:
+                st.warning(
+                    "Some date values could not be converted. Date filtering may not work completely."
+                )
+        
+        st.success(f"File '{uploaded_file.name}' loaded successfully with {len(data)} records.")
+            
+        # Get date range for the data
+        if 'date_of_report' in data.columns and not data['date_of_report'].isna().all():
+            min_date = data['date_of_report'].min().date()
+            max_date = data['date_of_report'].max().date()
+        else:
+            min_date = datetime.now().date()
+            max_date = datetime.now().date()
+            
         # Filters sidebar
         with st.sidebar:
             st.header("Filters")
+            
+            # Add file info
+            st.info(f"Analyzing: {uploaded_file.name}")
             
             # Date Range
             with st.expander("📅 Date Range", expanded=True):
@@ -9093,12 +9105,15 @@ def render_analysis_tab(data: pd.DataFrame = None):
             )
             
             # Reference Number - Use exact values from the dataframe
-            ref_numbers = sorted(data['ref'].dropna().unique())
-            selected_refs = st.multiselect(
-                "Reference Numbers",
-                options=ref_numbers,
-                key="ref_filter"
-            )
+            if 'ref' in data.columns:
+                ref_numbers = sorted(data['ref'].dropna().unique())
+                selected_refs = st.multiselect(
+                    "Reference Numbers",
+                    options=ref_numbers,
+                    key="ref_filter"
+                )
+            else:
+                selected_refs = []
             
             # Deceased Name - Create a searchable selector with unique values
             if 'deceased_name' in data.columns:
@@ -9118,11 +9133,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
                         help="Enter partial or full name (case-insensitive)"
                     )
             else:
-                deceased_search = st.text_input(
-                    "Deceased Name (Search)",
-                    key="deceased_filter_text",
-                    help="Enter partial or full name (case-insensitive)"
-                )
+                deceased_search = ""
             
             # Coroner Name - Use exact values from the dataframe without additional manipulation
             if 'coroner_name' in data.columns:
@@ -9133,6 +9144,8 @@ def render_analysis_tab(data: pd.DataFrame = None):
                     key="coroner_filter",
                     help="Select coroner names to include"
                 )
+            else:
+                selected_coroners = []
             
             # Coroner Area - Use exact values from the dataframe without additional manipulation
             if 'coroner_area' in data.columns:
@@ -9143,6 +9156,8 @@ def render_analysis_tab(data: pd.DataFrame = None):
                     key="areas_filter",
                     help="Select coroner areas to include"
                 )
+            else:
+                selected_areas = []
             
             # Categories - Extract unique categories properly handling both list and string types
             all_categories = set()
@@ -9160,10 +9175,12 @@ def render_analysis_tab(data: pd.DataFrame = None):
                     key="categories_filter",
                     help="Select categories to include"
                 )
+            else:
+                selected_categories = []
             
             # Reset Filters Button
             if st.button("🔄 Reset Filters"):
-                for key in st.session_state:
+                for key in list(st.session_state.keys()):
                     if key.endswith('_filter') or key.endswith('_filter_text'):
                         del st.session_state[key]
                 st.rerun()
@@ -9203,17 +9220,26 @@ def render_analysis_tab(data: pd.DataFrame = None):
                     )
                 ]
 
-        # Coroner name filter - use the filter_by_coroner_names function
-        if 'selected_coroners' in locals() and selected_coroners:
-            filtered_df = filter_by_coroner_names(filtered_df, selected_coroners)
+        # Coroner name filter - using direct equality comparison
+        if selected_coroners:
+            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
 
-        # Coroner area filter - use the filter_by_areas function
-        if 'selected_areas' in locals() and selected_areas:
-            filtered_df = filter_by_areas(filtered_df, selected_areas)
+        # Coroner area filter - using direct equality comparison
+        if selected_areas:
+            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
 
-        # Categories filter - use the filter_by_categories function
-        if 'selected_categories' in locals() and selected_categories:
-            filtered_df = filter_by_categories(filtered_df, selected_categories)
+        # Categories filter - handle both list and string types
+        if selected_categories:
+            if 'categories' in filtered_df.columns:
+                # Create a boolean mask for matching
+                mask = filtered_df['categories'].apply(
+                    lambda cats: any(
+                        cat in selected_categories for cat in 
+                        (cats if isinstance(cats, list) else 
+                         cats.split(',') if isinstance(cats, str) else [])
+                    )
+                )
+                filtered_df = filtered_df[mask]
 
         # Show active filters
         active_filters = []
@@ -9230,17 +9256,17 @@ def render_analysis_tab(data: pd.DataFrame = None):
                 active_filters.append(f"Deceased: {len(selected_deceased)} selected")
         elif 'deceased_search' in locals() and deceased_search:
             active_filters.append(f"Deceased name contains: {deceased_search}")
-        if 'selected_coroners' in locals() and selected_coroners:
+        if selected_coroners:
             if len(selected_coroners) <= 3:
                 active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
             else:
                 active_filters.append(f"Coroners: {len(selected_coroners)} selected")
-        if 'selected_areas' in locals() and selected_areas:
+        if selected_areas:
             if len(selected_areas) <= 3:
                 active_filters.append(f"Areas: {', '.join(selected_areas)}")
             else:
                 active_filters.append(f"Areas: {len(selected_areas)} selected")
-        if 'selected_categories' in locals() and selected_categories:
+        if selected_categories:
             if len(selected_categories) <= 3:
                 active_filters.append(f"Categories: {', '.join(selected_categories)}")
             else:
@@ -9300,17 +9326,20 @@ def render_analysis_tab(data: pd.DataFrame = None):
                 
                 # Seasonal patterns
                 st.subheader("Seasonal Patterns")
-                seasonal_counts = filtered_df['date_of_report'].dt.month.value_counts().sort_index()
-                month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
-                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-                fig = px.line(
-                    x=month_names,
-                    y=[seasonal_counts.get(i, 0) for i in range(1, 13)],
-                    markers=True,
-                    labels={'x': 'Month', 'y': 'Number of Reports'},
-                    title='Seasonal Distribution of Reports'
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                if 'date_of_report' in filtered_df.columns and not filtered_df['date_of_report'].isna().all():
+                    seasonal_counts = filtered_df['date_of_report'].dt.month.value_counts().sort_index()
+                    month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                                 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                    fig = px.line(
+                        x=month_names,
+                        y=[seasonal_counts.get(i, 0) for i in range(1, 13)],
+                        markers=True,
+                        labels={'x': 'Month', 'y': 'Number of Reports'},
+                        title='Seasonal Distribution of Reports'
+                    )
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Date information is not available for seasonal analysis.")
 
             # Distribution Analysis Tab
             with distribution_tab:
@@ -9330,6 +9359,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
+
 
 
 def check_app_password():
