@@ -9963,13 +9963,15 @@ def render_filter_data_tab(data: pd.DataFrame = None):
                 # Create a unique key that includes the file_id to ensure proper reset
                 categories_key = f"{filter_key_prefix}categories_{file_id}"
                 
-                # Create multiselect with cleaned categories
+                # Create multiselect with cleaned categories   
                 selected_categories = st.multiselect(
                     "Select categories",
                     options=sorted_categories,
-                    key=categories_key,  # Use the unique key
-                    help="Select categories to include"
-                )        
+                    key=f"{filter_key_prefix}categories",
+                    help="Select categories to include",
+                    format_func=lambda x: x if not isinstance(x, list) else ", ".join(x)
+                )
+
         with row3_col2:
             # Advanced content search
             if "Content" in filtered_data.columns or "content" in filtered_data.columns:
