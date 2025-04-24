@@ -331,9 +331,17 @@ class BERTResultsAnalyzer:
 
     #################
 
+    import pandas as pd
+    import re
+    import nltk
+    from nltk.stem import PorterStemmer
+    
+    nltk.download('punkt')
+    
     def _clean_categories(self, df):
         """
-        Clean categories column by removing specific sentences and replacing with official category names.
+        Clean categories column by removing specific sentences, applying stemming, 
+        removing unnecessary words like 'and', and replacing with official category names.
     
         Args:
             df (pd.DataFrame): DataFrame containing a 'categories' column
@@ -399,39 +407,33 @@ class BERTResultsAnalyzer:
             "department for health and social care": "Other related deaths"  # fallback match
         }
     
+        # Initialize stemmer
+        stemmer = PorterStemmer()
+    
         def clean_categories_value(categories_text):
             if pd.isna(categories_text) or not isinstance(categories_text, str):
                 return categories_text
     
             categories_text_lower = categories_text.lower()
     
-            report_patterns = [
-                "these reports are being sent to:",
-                "this report is being sent to:",
-                "the report is being sent to:",
-                "this report",
-                "these reports",
-                "the report",
-                "this is being"
-            ]
+            # Remove text in brackets
+            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
     
-            earliest_pos = len(categories_text)
-            for pattern in report_patterns:
-                pos = categories_text_lower.find(pattern)
-                if pos != -1 and pos < earliest_pos:
-                    earliest_pos = pos
-    
-            if earliest_pos != len(categories_text):
-                categories_text = categories_text[:earliest_pos].strip()
-    
-            # Normalize formatting
-            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()  # remove brackets
+            # Normalize spacing, remove 'and', and keep commas
             categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
-            categories_text = re.sub(r'\s+', ' ', categories_text)  # normalize multiple spaces
+            categories_text = re.sub(r'\s+', ' ', categories_text)
+            categories_text = categories_text.replace(' and ', ' ').strip()
     
-            normalized_text = categories_text.lower().strip()
-            return category_mappings.get(normalized_text, categories_text.strip())
+            # Tokenize and apply stemming to get singular form of words
+            words = nltk.word_tokenize(categories_text)
+            words = [stemmer.stem(word) for word in words]
     
+            cleaned_text = ' '.join(words)
+    
+            # Return mapped category if available, else the cleaned text
+            return category_mappings.get(cleaned_text, cleaned_text.strip())
+    
+        # Apply the cleaning function to each category value
         for idx, value in enumerate(cleaned_df["categories"]):
             try:
                 if isinstance(value, list):
@@ -450,7 +452,7 @@ class BERTResultsAnalyzer:
                 elif pd.isna(value):
                     cleaned_df.at[idx, "categories"] = None
             except Exception as e:
-                st.warning(f"Error cleaning category at index {idx}: {str(e)}")
+                print(f"Error cleaning category at index {idx}: {str(e)}")
                 continue
     
         return cleaned_df
