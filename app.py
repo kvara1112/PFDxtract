@@ -1141,7 +1141,8 @@ class BERTResultsAnalyzer:
         return cleaned_df
 
     #
-    def _clean_coroner_names(self, df):
+
+    def _clean_coroner_names(self, df): 
         """
         Clean coroner_name column by removing titles/prefixes and standardizing format
         
@@ -1169,42 +1170,38 @@ class BERTResultsAnalyzer:
             'QC\\s+', 'KC\\s+'
         ]
         
-        # Define the cleaning function
+        import re
+    
         def clean_name(name_text):
             if pd.isna(name_text) or not isinstance(name_text, str):
                 return name_text
             
-            # Convert to string and strip whitespace
-            name = str(name_text).strip()
-            
-            # Remove titles from the beginning of the name
-            import re
-            pattern = '^(' + '|'.join(titles) + ')+'
+            name = name_text.strip()
+    
+            # Remove any titles/prefixes from the beginning
+            pattern = r'^(' + '|'.join(titles) + r')+'
             name = re.sub(pattern, '', name, flags=re.IGNORECASE)
-            
-            # Remove any common suffixes
-            name = re.sub(r'\s+QC$|\s+KC$|\s+Esq\.?$|\s+Jr\.?$|\s+Sr\.?$', '', name, flags=re.IGNORECASE)
-            
-            # Remove any trailing punctuation and normalize whitespace
-            name = re.sub(r'[,;:\.]$', '', name)
+    
+            # Remove known suffixes
+            name = re.sub(r'\s+(QC|KC|Esq\.?|Jr\.?|Sr\.?)$', '', name, flags=re.IGNORECASE)
+    
+            # Remove content in parentheses
+            name = re.sub(r'\(.*?\)', '', name)
+    
+            # Remove punctuation at the end and normalize whitespace
+            name = re.sub(r'[;:,\.]$', '', name)
             name = re.sub(r'\s+', ' ', name).strip()
-            
-            # Remove multiple instances of title (e.g., "Dr Dr" -> "")
+    
+            # Remove repeated titles like "Dr Dr"
             name = re.sub(r'^(Dr\s+){2,}', '', name, flags=re.IGNORECASE)
-            
-            # Common format issues
-            name = re.sub(r'\(.*?\)', '', name)  # Remove content in parentheses
-            
-            # Remove all text starting with "Coroner"
+    
+            # Final cleanup: remove all text starting from "Coroner"
             name = re.sub(r'\s*Coroner.*$', '', name, flags=re.IGNORECASE)
-            
+    
             return name.strip()
         
-        # Apply the cleaning function
         cleaned_df['coroner_name'] = cleaned_df['coroner_name'].apply(clean_name)
-        
         return cleaned_df
-
 
     
     def _clean_coroner_areas(self, df):
