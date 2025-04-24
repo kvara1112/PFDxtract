@@ -327,7 +327,133 @@ class BERTResultsAnalyzer:
         
         return processed_df
     
-    
+
+
+    #################
+    def _clean_categories(self, df):
+        """
+        Clean categories column by removing specific sentences and replacing with main category
+        
+        Args:
+            df (pd.DataFrame): DataFrame containing a 'categories' column
+            
+        Returns:
+            pd.DataFrame: DataFrame with cleaned 'categories' column
+        """
+        if df is None or len(df) == 0 or 'categories' not in df.columns:
+            return df
+        
+        # Create a copy to avoid modifying the original
+        cleaned_df = df.copy()
+        
+        # Define category mappings
+        category_mappings = {
+            # Mapping specific patterns to their main category
+            "alcohol drug and medication related deaths": "Alcohol / Drug / Medication", 
+            "drugs medication related deaths": "Alcohol / Drug / Medication", 
+            "drugs medication related death": "Alcohol / Drug / Medication",
+            "alcohol drug and medication related death": "Alcohol / Drug / Medication",
+            
+            "hospital death related deaths": "Hospital", 
+            "hospital deaths related deaths": "Hospital",
+            "hospital death related death": "Hospital", 
+            "hospital related deaths": "Hospital",
+            "hospital death (clinical procedures and medical management) related deaths": "Hospital",
+            "hospital (clinical procedures and medical management) related deaths": "Hospital",
+            "hospital death (clinical procedures and medical management) related death": "Hospital",
+            
+            "community health care and emergency services related deaths": "Community Health / Emergency services",
+            "community healthcare related deaths": "Community Health / Emergency services",
+            "community health care related deaths": "Community Health / Emergency services", 
+            "community health care services related deaths": "Community Health / Emergency services",
+            "emergency services related deaths": "Community Health / Emergency services"
+        }
+        
+        # Define the cleaning function for a single value
+        def clean_categories_value(categories_text):
+            if pd.isna(categories_text) or not isinstance(categories_text, str):
+                return categories_text
+            
+            # Convert to lowercase for case-insensitive matching
+            categories_text_lower = categories_text.lower()
+            
+            # Patterns to look for and remove
+            report_patterns = [
+                "these reports are being sent to:",
+                "this report is being sent to:",
+                "the report is being sent to:",
+                "this report",
+                "these reports",
+                "the report",
+                "this is being"
+            ]
+            
+            # Find the earliest position of any report-related pattern
+            earliest_pos = len(categories_text)
+            for pattern in report_patterns:
+                pos = categories_text_lower.find(pattern)
+                if pos != -1 and pos < earliest_pos:
+                    earliest_pos = pos
+            
+            # If a report pattern was found, truncate
+            if earliest_pos != len(categories_text):
+                categories_text = categories_text[:earliest_pos].strip()
+            
+            # Normalize text: remove brackets, convert '&' and 'and' to a standard form
+            # Remove brackets
+            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
+            
+            # Replace variations of conjunctions
+            categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
+            
+            # Map to main category if exists
+            normalized_text = categories_text.lower().strip()
+            if normalized_text in category_mappings:
+                return category_mappings[normalized_text]
+            
+            return categories_text.strip()
+        
+        # Process based on data type
+        for idx, value in enumerate(cleaned_df["categories"]):
+            try:
+                # Handle list of categories
+                if isinstance(value, list):
+                    cleaned_list = []
+                    for item in value:
+                        if isinstance(item, str):
+                            cleaned_item = clean_categories_value(item)
+                            if cleaned_item:  # Only add non-empty cleaned items
+                                cleaned_list.append(cleaned_item)
+                        elif not pd.isna(item):  # Preserve non-string, non-NaN values
+                            cleaned_list.append(item)
+                    
+                    # Only update if the list is not empty
+                    if cleaned_list:
+                        cleaned_df.at[idx, "categories"] = cleaned_list
+                    else:
+                        cleaned_df.at[idx, "categories"] = None
+                
+                # Handle string categories
+                elif isinstance(value, str):
+                    cleaned_value = clean_categories_value(value)
+                    if cleaned_value:
+                        cleaned_df.at[idx, "categories"] = cleaned_value
+                    else:
+                        cleaned_df.at[idx, "categories"] = None
+                
+                # Handle other cases (NaN, None, etc.)
+                elif pd.isna(value):
+                    cleaned_df.at[idx, "categories"] = None
+            
+            except Exception as e:
+                st.warning(f"Error cleaning category at index {idx}: {str(e)}")
+                # Preserve original value if cleaning fails
+                continue
+        
+        return cleaned_df
+
+
+    ##################
     def _extract_missing_concerns_from_pdf(self, df):
         """
         Extract concerns from PDF content for records with missing Extracted_Concerns.
@@ -856,7 +982,177 @@ class BERTResultsAnalyzer:
         """Filter out response documents, keeping only reports."""
         return df[~df.apply(self._is_response, axis=1)]
 
+
+    #####
     def _merge_files_stack(self, files, duplicate_cols=None):
+        """Merge multiple files by stacking (appending) them."""
+        dfs = []
+    
+        for file_index, file in enumerate(files):
+            try:
+                # Read file
+                if file.name.endswith(".csv"):
+                    df = pd.read_csv(file)
+                else:
+                    df = pd.read_excel(file)
+    
+                # Display file information
+                st.info(
+                    f"Processing file {file_index+1}: {file.name} ({len(df)} rows, {len(df.columns)} columns)"
+                )
+    
+                # Add source filename
+                df["Source File"] = file.name
+    
+                # Add to the list of dataframes
+                dfs.append(df)
+    
+            except Exception as e:
+                st.warning(f"Error processing file {file.name}: {str(e)}")
+                continue
+    
+        if not dfs:
+            raise ValueError("No valid files to merge")
+    
+        # Combine all dataframes
+        merged_df = pd.concat(dfs, ignore_index=True)
+    
+        # Remove duplicates if specified
+        if duplicate_cols:
+            valid_dup_cols = [col for col in duplicate_cols if col in merged_df.columns]
+            if valid_dup_cols:
+                before_count = len(merged_df)
+                merged_df = merged_df.drop_duplicates(
+                    subset=valid_dup_cols, keep="first"
+                )
+                after_count = len(merged_df)
+    
+                if before_count > after_count:
+                    st.success(
+                        f"Removed {before_count - after_count} duplicate records based on {', '.join(valid_dup_cols)}"
+                    )
+            else:
+                st.warning(
+                    f"Specified duplicate columns {duplicate_cols} not found in the merged data"
+                )
+    
+        # ALWAYS remove duplicate Record IDs, keeping only the first occurrence
+        if "Record ID" in merged_df.columns:
+            before_count = len(merged_df)
+            merged_df = merged_df.drop_duplicates(subset=["Record ID"], keep="first")
+            after_count = len(merged_df)
+    
+            if before_count > after_count:
+                st.success(
+                    f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)"
+                )
+    
+        # Clean coroner_name column
+        if "coroner_name" in merged_df.columns:
+            before_cleaning = merged_df["coroner_name"].copy()
+            merged_df = self._clean_coroner_names(merged_df)
+            
+            # Count changes made
+            changes_made = sum(before_cleaning != merged_df["coroner_name"])
+            if changes_made > 0:
+                st.success(f"Cleaned {changes_made} coroner name entries")
+                
+                # Show the first few changes as an example
+                example_changes = []
+                for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_name"])):
+                    if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
+                        example_changes.append(f"'{old}' → '{new}'")
+                
+                if example_changes:
+                    st.info("Examples of cleaned coroner names:\n" + "\n".join(example_changes))
+    
+        # Clean coroner_area column
+        if "coroner_area" in merged_df.columns:
+            before_cleaning = merged_df["coroner_area"].copy()
+            merged_df = self._clean_coroner_areas(merged_df)
+            
+            # Count changes made
+            changes_made = sum(before_cleaning != merged_df["coroner_area"])
+            if changes_made > 0:
+                st.success(f"Cleaned {changes_made} coroner area entries")
+                
+                # Show the first few changes as an example
+                example_changes = []
+                for i, (old, new) in enumerate(zip(before_cleaning, merged_df["coroner_area"])):
+                    if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
+                        example_changes.append(f"'{old}' → '{new}'")
+                
+                if example_changes:
+                    st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
+    
+        # Clean deceased names
+        if "deceased_name" in merged_df.columns:
+            before_cleaning = merged_df["deceased_name"].copy()
+            merged_df = self._clean_deceased_name(merged_df)
+            
+            # Count changes made to deceased names
+            changes_made = sum(before_cleaning != merged_df["deceased_name"])
+            if changes_made > 0:
+                st.success(f"Cleaned {changes_made} deceased name entries")
+                
+                # Show the first few changes as an example
+                example_changes = []
+                for i, (old, new) in enumerate(zip(before_cleaning, merged_df["deceased_name"])):
+                    if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
+                        example_changes.append(f"'{old}' → '{new}'")
+                
+                if example_changes:
+                    st.info("Examples of cleaned deceased names:\n" + "\n".join(example_changes))
+    
+        # Clean categories column
+        if "categories" in merged_df.columns:
+            # Save the original values for comparison
+            original_categories = merged_df["categories"].copy()
+            
+            # Apply cleaning with underscore method
+            merged_df = self._clean_categories(merged_df)
+            
+            # Count changes - this is more complex since categories can be lists
+            changes_made = 0
+            example_changes = []
+            
+            # Check each row for changes
+            for i, (old, new) in enumerate(zip(original_categories, merged_df["categories"])):
+                # Handle list case
+                if isinstance(old, list) and isinstance(new, list):
+                    # Consider it changed if any element changed
+                    if any(o != n for o, n in zip(old, new) if isinstance(o, str) and isinstance(n, str)):
+                        changes_made += 1
+                        # Add example if we don't have many yet
+                        if len(example_changes) < 3:
+                            old_str = ", ".join(old) if all(isinstance(x, str) for x in old) else str(old)
+                            new_str = ", ".join(new) if all(isinstance(x, str) for x in new) else str(new)
+                            example_changes.append(f"'{old_str}' → '{new_str}'")
+                # Handle string case
+                elif isinstance(old, str) and isinstance(new, str) and old != new:
+                    changes_made += 1
+                    if len(example_changes) < 3:
+                        example_changes.append(f"'{old}' → '{new}'")
+            
+            # Report changes
+            if changes_made > 0:
+                st.success(f"Cleaned {changes_made} categories entries")
+                if example_changes:
+                    st.info("Examples of cleaned categories:\n" + "\n".join(example_changes))
+    
+        # Store the result
+        self.data = merged_df
+    
+        # Show summary of the merged data
+        st.subheader("Merged Data Summary")
+        st.write(f"Total rows: {len(merged_df)}")
+        st.write(f"Columns: {', '.join(merged_df.columns)}")
+    
+        return merged_df
+
+
+
+    def _merge_files_stack2(self, files, duplicate_cols=None):
         """Merge multiple files by stacking (appending) them."""
         dfs = []
     
@@ -1066,7 +1362,11 @@ class BERTResultsAnalyzer:
         ].copy()
 
         return missing_concerns
+    #
+    
 
+
+    
     #
     def _clean_deceased_name(self, df):
         """
@@ -1312,166 +1612,8 @@ class BERTResultsAnalyzer:
     
         
         #  
-        def _clean_categories(self, df):
-            """
-            Clean categories column by removing specific sentences and replacing with main category
-            
-            Args:
-                df (pd.DataFrame): DataFrame containing a 'categories' column
-                
-            Returns:
-                pd.DataFrame: DataFrame with cleaned 'categories' column
-            """
-            if df is None or len(df) == 0 or 'categories' not in df.columns:
-                return df
-            
-            # Create a copy to avoid modifying the original
-            cleaned_df = df.copy()
-            
-            # Define category mappings
-            category_mappings = {
-                # Mapping specific patterns to their main category
-                "alcohol drug and medication related deaths": "Alcohol / Drug / Medication", 
-                "drugs medication related deaths": "Alcohol / Drug / Medication", 
-                "drugs medication related death": "Alcohol / Drug / Medication",
-                "alcohol drug and medication related death": "Alcohol / Drug / Medication",
-                
-                "hospital death related deaths": "Hospital", 
-                "hospital deaths related deaths": "Hospital",
-                "hospital death related death": "Hospital", 
-                "hospital related deaths": "Hospital",
-                "hospital death (clinical procedures and medical management) related deaths": "Hospital",
-                "hospital (clinical procedures and medical management) related deaths": "Hospital",
-                "hospital death (clinical procedures and medical management) related death": "Hospital",
-                
-                "community health care and emergency services related deaths": "Community Health / Emergency services",
-                "community healthcare related deaths": "Community Health / Emergency services",
-                "community health care related deaths": "Community Health / Emergency services", 
-                "community health care services related deaths": "Community Health / Emergency services",
-                "emergency services related deaths": "Community Health / Emergency services"
-            }
-            
-            # Define the cleaning function for a single value
-            def clean_categories_value(categories_text):
-                if pd.isna(categories_text) or not isinstance(categories_text, str):
-                    return categories_text
-                
-                # Convert to lowercase for case-insensitive matching
-                categories_text_lower = categories_text.lower()
-                
-                # Patterns to look for and remove
-                report_patterns = [
-                    "these reports are being sent to:",
-                    "this report is being sent to:",
-                    "the report is being sent to:",
-                    "this report",
-                    "these reports",
-                    "the report",
-                    "this is being"
-                ]
-                
-                # Find the earliest position of any report-related pattern
-                earliest_pos = len(categories_text)
-                for pattern in report_patterns:
-                    pos = categories_text_lower.find(pattern)
-                    if pos != -1 and pos < earliest_pos:
-                        earliest_pos = pos
-                
-                # If a report pattern was found, truncate
-                if earliest_pos != len(categories_text):
-                    categories_text = categories_text[:earliest_pos].strip()
-                
-                # Normalize text: remove brackets, convert '&' and 'and' to a standard form
-                # Remove brackets
-                categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
-                
-                # Replace variations of conjunctions
-                categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
-                
-                # Map to main category if exists
-                normalized_text = categories_text.lower().strip()
-                if normalized_text in category_mappings:
-                    return category_mappings[normalized_text]
-                
-                return categories_text.strip()
-            
-            # Process based on data type
-            for idx, value in enumerate(cleaned_df["categories"]):
-                if isinstance(value, list):
-                    # For list values, we need to check each element
-                    cleaned_list = []
-                    for item in value:
-                        if isinstance(item, str):
-                            cleaned_list.append(clean_categories_value(item))
-                        else:
-                            cleaned_list.append(item)
-                    cleaned_df.at[idx, "categories"] = cleaned_list
-                elif isinstance(value, str):
-                    # For string values, clean directly
-                    cleaned_df.at[idx, "categories"] = clean_categories_value(value)
-            
-            return cleaned_df
-        
-        # Define the cleaning function for a single value
-        def clean_categories_value(categories_text):
-            if pd.isna(categories_text) or not isinstance(categories_text, str):
-                return categories_text
-            
-            # Convert to lowercase for case-insensitive matching
-            categories_text_lower = categories_text.lower()
-            
-            # Patterns to look for and remove
-            report_patterns = [
-                "these reports are being sent to:",
-                "this report is being sent to:",
-                "the report is being sent to:",
-                "this report",
-                "these reports",
-                "the report",
-                "this is being"
-            ]
-            
-            # Find the earliest position of any report-related pattern
-            earliest_pos = len(categories_text)
-            for pattern in report_patterns:
-                pos = categories_text_lower.find(pattern)
-                if pos != -1 and pos < earliest_pos:
-                    earliest_pos = pos
-            
-            # If a report pattern was found, truncate
-            if earliest_pos != len(categories_text):
-                categories_text = categories_text[:earliest_pos].strip()
-            
-            # Normalize text: remove brackets, convert '&' and 'and' to a standard form
-            # Remove brackets
-            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
-            
-            # Replace variations of conjunctions
-            categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
-            
-            # Map to main category if exists
-            normalized_text = categories_text.lower().strip()
-            if normalized_text in category_mappings:
-                return category_mappings[normalized_text]
-            
-            return categories_text.strip()
-        
-        # Process based on data type
-        for idx, value in enumerate(cleaned_df["categories"]):
-            if isinstance(value, list):
-                # For list values, we need to check each element
-                cleaned_list = []
-                for item in value:
-                    if isinstance(item, str):
-                        cleaned_list.append(clean_categories_value(item))
-                    else:
-                        cleaned_list.append(item)
-                cleaned_df.at[idx, "categories"] = cleaned_list
-            elif isinstance(value, str):
-                # For string values, clean directly
-                cleaned_df.at[idx, "categories"] = clean_categories_value(value)
-        
-        return cleaned_df
+
+    
 
 
 
