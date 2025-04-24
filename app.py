@@ -1241,83 +1241,147 @@ class BERTResultsAnalyzer:
    
     
     #
-    def _clean_categories(self, df):
-            """
-            Clean categories column by removing "These reports are being sent to:" and any text that follows
-            
-            Args:
-                df (pd.DataFrame): DataFrame containing a 'categories' column
-                
-            Returns:
-                pd.DataFrame: DataFrame with cleaned 'categories' column
-            """
-            if df is None or len(df) == 0 or 'categories' not in df.columns:
-                return df
-            
-            # Create a copy to avoid modifying the original
-            cleaned_df = df.copy()
-            
-            # Define the cleaning function for a single value
-            def clean_categories_value(categories_text):
-                if pd.isna(categories_text) or not isinstance(categories_text, str):
-                    return categories_text
-                
-                # Convert to lowercase for case-insensitive matching
-                categories_text_lower = categories_text.lower()
-                
-                # Patterns to look for and remove
-                report_patterns = [
-                    "these reports are being sent to:",
-                    "this report is being sent to:",
-                    "the report is being sent to:",
-                    "this report",
-                    "these reports",
-                    "the report",
-                    "this is being"
-                ]
-                
-                # Find the earliest position of any report-related pattern
-                earliest_pos = len(categories_text)
-                for pattern in report_patterns:
-                    pos = categories_text_lower.find(pattern)
-                    if pos != -1 and pos < earliest_pos:
-                        earliest_pos = pos
-                
-                # If a report pattern was found, truncate
-                if earliest_pos != len(categories_text):
-                    categories_text = categories_text[:earliest_pos].strip()
-                
-                # Normalize text: remove brackets, convert '&' and 'and' to a standard form
-                # Remove brackets
-                categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
-                
-                # Replace variations of conjunctions
-                categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
-                
-                return categories_text.strip()
-            
-            # Apply the cleaning function to the DataFrame
-            # Handle both string values and list values
-            before_cleaning = cleaned_df["categories"].copy()
-            
-            # Process based on data type
-            for idx, value in enumerate(cleaned_df["categories"]):
-                if isinstance(value, list):
-                    # For list values, we need to check each element
-                    cleaned_list = []
-                    for item in value:
-                        if isinstance(item, str):
-                            cleaned_list.append(clean_categories_value(item))
-                        else:
-                            cleaned_list.append(item)
-                    cleaned_df.at[idx, "categories"] = cleaned_list
-                elif isinstance(value, str):
-                    # For string values, clean directly
-                    cleaned_df.at[idx, "categories"] = clean_categories_value(value)
-            
-            return cleaned_df
 
-
+    def clean_categories(self, df):
+        """
+        Clean and map categories to standardized categories (case-insensitive and whitespace-insensitive)
+        
+        Args:
+            df (pd.DataFrame): DataFrame containing a 'categories' column
+            
+        Returns:
+            pd.DataFrame: DataFrame with cleaned and mapped 'categories' column
+        """
+        if df is None or len(df) == 0 or 'categories' not in df.columns:
+            return df
+        
+        # Create a copy to avoid modifying the original
+        cleaned_df = df.copy()
+        
+        # Comprehensive category mapping (whitespace and case-insensitive)
+        CATEGORY_MAPPING = {
+            "Accident at Work and Health and Safety related deaths": [
+                "emergency services related deaths"
+            ],
+            "Alcohol drug and medication related deaths": [
+                "alcohol drug and medication related deaths",
+                "drugs medication related deaths",
+                "drugs medication related death",
+                "alcohol drug and medication related death"
+            ],
+            "Care Home Health related deaths": [
+                "care home health related deaths",
+                "community healthcare related deaths",
+                "community healthcare"
+            ],
+            "Child Death from 2015": [
+                "child death",
+                "child death from 2015",
+                "child death from 2015",
+                "child death",
+                "child deaths"
+            ],
+            "Community health care and emergency services related deaths": [
+                "community health care and emergency services related deaths",
+                "community health care related deaths",
+                "community health care services related deaths",
+                "community healthcare related deaths",
+                "community health care and emergency services related death"
+            ],
+            "Emergency services related deaths 2019 onwards": [
+                "emergency services related deaths",
+                "emergency services related death"
+            ],
+            "Hospital Death Clinical Procedures and medical management related deaths": [
+                "hospital death (clinical procedures and medical management) related deaths",
+                "hospital death (clinical procedures and medical) related deaths",
+                "hospital clinical procedures and medical management related deaths",
+                "hospital death (clinical procedures and medical management) related death",
+                "hospital (clinical procedures and medical management) related deaths",
+                "hospital death (clinical procedures and medical management)",
+                "hospital death clinical procedures and medical management related deaths"
+            ],
+            "Mental Health related deaths": [
+                "mental health related deaths",
+                "mental health related death"
+            ],
+            "Other related deaths": [
+                "other related deaths",
+                "other related death"
+            ],
+            "Police related deaths": [
+                "police related deaths",
+                "police related death"
+            ],
+            "Product related deaths": [
+                "product related deaths",
+                "product related death"
+            ],
+            "Railway related deaths": [
+                "railway related deaths",
+                "railway related death"
+            ],
+            "Road Highways Safety related deaths": [
+                "road related deaths",
+                "road related death"
+            ],
+            "State Custody related deaths": [
+                "state custody related deaths",
+                "state custody related death"
+            ],
+            "Suicide from 2015": [
+                "suicide",
+                "suicide from 2015"
+            ],
+            "Wales prevention of future deaths reports 2019 onwards": [
+                "wales prevention of future deaths reports",
+                "wales prevention of future deaths report",
+                "prevention of future deaths reports"
+            ]
+        }
+        
+        def normalize_text(text):
+            """
+            Normalize text by:
+            1. Converting to lowercase
+            2. Removing multiple whitespaces
+            3. Stripping leading/trailing whitespaces
+            """
+            return re.sub(r'\s+', ' ', str(text).lower().strip())
+        
+        def clean_categories_value(categories_text):
+            if pd.isna(categories_text):
+                return []
+            
+            # Initial cleaning
+            categories_text = re.sub(r'\(.*?\)', '', str(categories_text)).strip()
+            categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
+            
+            # Split categories and normalize
+            category_list = [normalize_text(cat) for cat in categories_text.split(',')]
+            
+            # Map to standardized categories
+            mapped_categories = []
+            for cat in category_list:
+                mapped = False
+                for std_cat, variations in CATEGORY_MAPPING.items():
+                    # Normalize variations for comparison
+                    normalized_variations = [normalize_text(v) for v in variations]
+                    if cat in normalized_variations:
+                        mapped_categories.append(std_cat)
+                        mapped = True
+                        break
+                
+                # If no mapping found, keep original category (with first letter capitalized)
+                if not mapped and cat:
+                    mapped_categories.append(cat.capitalize())
+            
+            return list(set(mapped_categories))  # Remove duplicates
+        
+        # Apply cleaning and mapping
+        cleaned_df['categories'] = cleaned_df['categories'].apply(clean_categories_value)
+        
+        return cleaned_df
 
 
 
