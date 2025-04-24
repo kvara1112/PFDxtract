@@ -6063,21 +6063,35 @@ def sort_reports(reports: List[Dict], order: str) -> List[Dict]:
 
 
 def plot_category_distribution(df: pd.DataFrame) -> None:
-    """Plot category distribution"""
+    """Plot category distribution with improved handling of list and string categories"""
+    # Extract all categories, handling both list and string types
     all_cats = []
     for cats in df["categories"].dropna():
         if isinstance(cats, list):
             all_cats.extend(cats)
+        elif isinstance(cats, str):
+            # Split if comma-separated
+            all_cats.extend([cat.strip() for cat in cats.split(',')])
 
+    # Count and sort categories
     cat_counts = pd.Series(all_cats).value_counts()
 
+    # Create a bar chart using Plotly
     fig = px.bar(
         x=cat_counts.index,
         y=cat_counts.values,
-        title="Category Distribution",
         labels={"x": "Category", "y": "Count"},
+        title="Category Distribution",
+        height=600
     )
-    fig.update_layout(xaxis_title="Category", yaxis_title="Number of Reports", xaxis={"tickangle": 45})
+
+    # Improve layout
+    fig.update_layout(
+        xaxis_title="Category", 
+        yaxis_title="Number of Reports",
+        xaxis_tickangle=-45,  # Rotate labels for better readability
+        margin=dict(b=100)  # Increase bottom margin to prevent label cutoff
+    )
 
     st.plotly_chart(fig, use_container_width=True)
 
