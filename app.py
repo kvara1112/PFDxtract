@@ -8220,21 +8220,6 @@ def save_dashboard_images_as_zip(filtered_df):
             
         # === TAB 3: TEMPORAL ANALYSIS ===
         try:
-            if "year" in filtered_df.columns and not filtered_df["year"].isna().all():
-                # Timeline chart - all themes by year
-                year_counts = filtered_df.groupby("year").size().reset_index(name="Count")
-                
-                fig = px.bar(
-                    year_counts,
-                    x="year",
-                    y="Count",
-                    title="Theme Identifications by Year",
-                    labels={"year": "Year", "Count": "Number of Theme Identifications"},
-                    color_discrete_sequence=['#36a2eb']
-                )
-                
-                add_figure_to_zip(fig, f"theme_yearly_timeline_{timestamp}.png")
-                
                 # Theme trends over time
                 year_theme_counts = filtered_df.groupby(["year", "Theme"]).size().reset_index(name="Count")
                 
