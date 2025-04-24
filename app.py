@@ -956,6 +956,37 @@ class BERTResultsAnalyzer:
                 
                 if example_changes:
                     st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
+
+        ##her
+        # Remove duplicate Record IDs, keeping only the first occurrence
+        if "Record ID" in merged_df.columns:
+            before_count = len(merged_df)
+            merged_df = merged_df.drop_duplicates(subset=["Record ID"], keep="first")
+            after_count = len(merged_df)
+
+            if before_count > after_count:
+                st.success(
+                    f"Removed {before_count - after_count} records with duplicate Record IDs (keeping first occurrence)"
+                )
+        
+        # Clean deceased names
+        before_cleaning = merged_df["deceased_name"].copy()
+        merged_df = self._clean_deceased_name(merged_df)
+        
+        # Count changes made to deceased names
+        changes_made = sum(before_cleaning != merged_df["deceased_name"])
+        if changes_made > 0:
+            st.success(f"Cleaned {changes_made} deceased name entries")
+            
+            # Show the first few changes as an example
+            example_changes = []
+            for i, (old, new) in enumerate(zip(before_cleaning, merged_df["deceased_name"])):
+                if old != new and len(example_changes) < 3 and isinstance(old, str) and isinstance(new, str):
+                    example_changes.append(f"'{old}' → '{new}'")
+            
+            if example_changes:
+                st.info("Examples of cleaned deceased names:\n" + "\n".join(example_changes))
+
         
         # Clean categories column
         if "categories" in merged_df.columns:
@@ -1035,7 +1066,81 @@ class BERTResultsAnalyzer:
         ].copy()
 
         return missing_concerns
+
+    #
+    def _clean_deceased_names(self, df):
+        """
+        Clean deceased name column by removing coroner-related text and normalizing
         
+        Args:
+            df (pd.DataFrame): DataFrame containing 'deceased_name' column
+        
+        Returns:
+            pd.DataFrame: DataFrame with cleaned deceased names
+        """
+        if df is None or len(df) == 0 or 'deceased_name' not in df.columns:
+            return df
+        
+        # Create a copy to avoid modifying the original
+        cleaned_df = df.copy()
+        
+        def clean_name(name_text):
+            # Return if input is not a string or is NaN
+            if pd.isna(name_text) or not isinstance(name_text, str):
+                return name_text
+            
+            # Convert to string and strip whitespace
+            name = str(name_text).strip()
+            
+            # Remove common coroner-related prefixes and labels
+            coroner_patterns = [
+                r'^deceased name:?\s*',  # Remove "Deceased Name:" at start
+                r'^coroner\'?s?\s*(name)?:?\s*',  # Remove "Coroner" or "Coroner's Name:" at start
+                r'^deceased person:?\s*',  # Remove "Deceased Person:" at start
+                r'^name of deceased:?\s*',  # Remove "Name of Deceased:" at start
+            ]
+            
+            for pattern in coroner_patterns:
+                name = re.sub(pattern, '', name, flags=re.IGNORECASE)
+            
+            # Remove any text after known trigger words
+            name = re.sub(r'\s*(?:coroner|ref|reference).*$', '', name, flags=re.IGNORECASE)
+            
+            # Remove common unwanted suffixes or additional text
+            name = re.sub(r'\s*\(.*\)$', '', name)  # Remove text in parentheses at end
+            
+            # Remove multiple spaces and extra whitespace
+            name = re.sub(r'\s+', ' ', name).strip()
+            
+            return name
+        
+        # Save original values for comparison
+        original_names = cleaned_df["deceased_name"].copy()
+        
+        # Apply cleaning to deceased name column
+        cleaned_df['deceased_name'] = cleaned_df['deceased_name'].apply(clean_name)
+        
+        # Count and report changes
+        changes_made = sum(original_names != cleaned_df['deceased_name'])
+        
+        # Optionally log or display changes (you can customize this part)
+        if changes_made > 0:
+            # Collect a few example changes
+            example_changes = []
+            for old, new in zip(original_names, cleaned_df['deceased_name']):
+                if old != new and isinstance(old, str) and isinstance(new, str):
+                    example_changes.append(f"'{old}' → '{new}'")
+                    if len(example_changes) >= 5:  # Limit to 5 examples
+                        break
+            
+            # Log or display changes
+            print(f"Cleaned {changes_made} deceased name entries")
+            for change in example_changes:
+                print(change)
+        
+        return cleaned_df
+
+    #
     def _clean_coroner_names(self, df):
         """
         Clean coroner_name column by removing titles/prefixes and standardizing format
@@ -8396,6 +8501,7 @@ def save_dashboard_images_as_zip(filtered_df):
                         )                
                         
                         add_figure_to_zip(fig, f"area_radar_chart_{timestamp}.png")
+                        
         except Exception as e:
             logging.error(f"Error creating area comparison charts: {str(e)}")
             
