@@ -9713,7 +9713,20 @@ def render_filter_data_tab(data: pd.DataFrame = None):
     
     # Create a unique ID for this file to ensure caching is file-specific
     file_id = str(hash(uploaded_file.name + str(uploaded_file.size)))
+
+    #####fix
+    file_id = str(hash(uploaded_file.name + str(uploaded_file.size)))
     
+    # Clear any existing filter selections when a new file is uploaded
+    if "prev_file_id" in st.session_state.filter_tab and st.session_state.filter_tab["prev_file_id"] != file_id:
+        for key in list(st.session_state.keys()):
+            if key.startswith(filter_key_prefix):
+                del st.session_state[key]
+    st.session_state.filter_tab["prev_file_id"] = file_id
+
+    ##############
+
+
     # Check if we need to reprocess the file or can use cached data
     if file_id not in st.session_state.filter_tab:
         # Process uploaded file - completely isolated from other tabs
@@ -9865,6 +9878,7 @@ def render_filter_data_tab(data: pd.DataFrame = None):
                 )
         
         # Third row
+
         with row3_col1:
             # Categories Filter - IMPROVED CATEGORY HANDLING
             if "categories" in filtered_data.columns:
@@ -9891,14 +9905,16 @@ def render_filter_data_tab(data: pd.DataFrame = None):
                 # Sort and create a clean list of categories
                 sorted_categories = sorted(all_categories)
                 
+                # Create a unique key that includes the file_id to ensure proper reset
+                categories_key = f"{filter_key_prefix}categories_{file_id}"
+                
                 # Create multiselect with cleaned categories
                 selected_categories = st.multiselect(
                     "Select categories",
                     options=sorted_categories,
-                    key=f"{filter_key_prefix}categories",
+                    key=categories_key,  # Use the unique key
                     help="Select categories to include"
-                )
-        
+                )        
         with row3_col2:
             # Advanced content search
             if "Content" in filtered_data.columns or "content" in filtered_data.columns:
