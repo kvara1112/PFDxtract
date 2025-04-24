@@ -331,8 +331,6 @@ class BERTResultsAnalyzer:
 
 
     #################
-
-    
     def _clean_categories(self, df):
         """
         Clean categories column by removing specific sentences, applying stemming, 
@@ -347,97 +345,90 @@ class BERTResultsAnalyzer:
         if df is None or len(df) == 0 or 'categories' not in df.columns:
             return df
     
-        cleaned_df = df.copy()
-    
-        # Define standard categories
+        # Define standard categories with more comprehensive mapping
         standard_categories = [
             "Alcohol drug and medication related deaths",
             "Care Home Health related deaths",
-            "Community health care and emergency services related deaths",
-            "Emergency services related deaths 2019 onwards",
+            "Child Death",
+            "Community health care and emergency services related deaths", 
+            "Emergency services related deaths",
             "Hospital Death Clinical Procedures and medical management related deaths",
+            "Hospital Death related deaths",
+            "Mental Health related deaths",
+            "Other related deaths",
             "Police related deaths",
             "Product related deaths",
-            "Railway related deaths",
+            "Railway related deaths", 
             "Road Highways Safety related deaths",
             "State Custody related deaths",
-            "Other related deaths",
-            "Wales prevention of future deaths reports 2019 onwards",
+            "Suicide",
+            "Wales prevention of future deaths reports",
         ]
     
-        # Mapping of known messy variations to official category names
+        # More comprehensive mappings
         category_mappings = {
-            "alcohol drug and medication related deaths": "Alcohol drug and medication related deaths",
+            "hospital death related deaths": "Hospital Death related deaths",
+            "hospital death (clinical procedures and medical management) related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
+            "hospital (clinical procedures and medical management) related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
+            "child death from 2015": "Child Death",
             "drugs medication related deaths": "Alcohol drug and medication related deaths",
-            "hospital death related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "community health care and emergency services related deaths": "Community health care and emergency services related deaths",
-            "care home health related deaths": "Care Home Health related deaths",
-            "police related deaths": "Police related deaths",
-            "state custody related deaths": "State Custody related deaths",
-            "road related deaths": "Road Highways Safety related deaths",
-            "railway related deaths": "Railway related deaths",
-            "product related deaths": "Product related deaths",
-            "other related deaths": "Other related deaths",
-            "wales prevention of future deaths reports": "Wales prevention of future deaths reports 2019 onwards",
+            "community healthcare related deaths": "Community health care and emergency services related deaths",
+            "community health care services related deaths": "Community health care and emergency services related deaths",
+            "community healthcare": "Community health care and emergency services related deaths",
         }
-    
-        # Simple stemming using Python's built-in functionality (removes plurals by slicing)
-        def stem_word(word):
-            if word.endswith('s'):
-                return word[:-1]
-            return word
     
         def clean_categories_value(categories_text):
             if pd.isna(categories_text) or not isinstance(categories_text, str):
                 return categories_text
     
-            categories_text_lower = categories_text.lower()
+            # Lowercase and remove extra whitespaces
+            cleaned_text = re.sub(r'\s+', ' ', categories_text.lower().strip())
     
             # Remove text in brackets
-            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
+            cleaned_text = re.sub(r'\(.*?\)', '', cleaned_text).strip()
     
-            # Normalize spacing, remove 'and', and keep commas
-            categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
-            categories_text = re.sub(r'\s+', ' ', categories_text)
-            categories_text = categories_text.replace(' and ', ' ').strip()
+            # Remove any trailing commas, dots, or other punctuation
+            cleaned_text = re.sub(r'[,\.]+$', '', cleaned_text).strip()
     
-            # Tokenize using regular expressions (no need for NLTK)
-            words = re.findall(r'\b\w+\b', categories_text)
+            # Try direct mapping first
+            if cleaned_text in category_mappings:
+                return category_mappings[cleaned_text]
     
-            # Apply stemming (simple plural removal in this case)
-            words = [stem_word(word) for word in words]
+            # Try partial matching for more complex scenarios
+            for pattern, standard_category in category_mappings.items():
+                if all(word in cleaned_text for word in pattern.split()):
+                    return standard_category
     
-            cleaned_text = ' '.join(words)
+            # For multiple categories, handle list-like inputs
+            if ',' in cleaned_text:
+                categories = [cat.strip() for cat in cleaned_text.split(',')]
+                cleaned_categories = []
+                for cat in categories:
+                    # First try direct mapping
+                    mapped_cat = category_mappings.get(cat, cat)
+                    
+                    # If no direct mapping, try partial matching
+                    if mapped_cat == cat:
+                        for pattern, standard_category in category_mappings.items():
+                            if all(word in cat for word in pattern.split()):
+                                mapped_cat = standard_category
+                                break
+                    
+                    cleaned_categories.append(mapped_cat)
+                
+                # Remove duplicates while preserving order
+                seen = set()
+                unique_categories = [x for x in cleaned_categories if not (x in seen or seen.add(x))]
+                
+                return unique_categories
     
-            # Return mapped category if available, else the cleaned text
-            return category_mappings.get(cleaned_text, cleaned_text.strip())
+            return cleaned_text
     
-        # Apply the cleaning function to each category value
-        for idx, value in enumerate(cleaned_df["categories"]):
-            try:
-                if isinstance(value, list):
-                    cleaned_list = []
-                    for item in value:
-                        if isinstance(item, str):
-                            cleaned_item = clean_categories_value(item)
-                            if cleaned_item:
-                                cleaned_list.append(cleaned_item)
-                        elif not pd.isna(item):
-                            cleaned_list.append(item)
-                    cleaned_df.at[idx, "categories"] = cleaned_list if cleaned_list else None
-                elif isinstance(value, str):
-                    cleaned_value = clean_categories_value(value)
-                    cleaned_df.at[idx, "categories"] = cleaned_value if cleaned_value else None
-                elif pd.isna(value):
-                    cleaned_df.at[idx, "categories"] = None
-            except Exception as e:
-                print(f"Error cleaning category at index {idx}: {str(e)}")
-                continue
+        # Apply the cleaning function to the dataframe
+        cleaned_df = df.copy()
+        cleaned_df['categories'] = cleaned_df['categories'].apply(clean_categories_value)
     
         return cleaned_df
-
-    
-    
 
 
     ##################
