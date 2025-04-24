@@ -10918,7 +10918,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 st.error(f"Error creating visualization zip: {e}")
                 logging.error(f"Visualization zip error: {e}", exc_info=True)
         
-       
+
 def render_analysis_tab(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
 
@@ -10931,13 +10931,25 @@ def render_analysis_tab(data: pd.DataFrame = None):
     
     if uploaded_file is not None:
         try:
+            # Load file directly without additional processing
             if uploaded_file.name.endswith('.csv'):
                 data = pd.read_csv(uploaded_file)
             else:
                 data = pd.read_excel(uploaded_file)
             
-            # Process uploaded data
-            data = process_scraped_data(data)
+            # Convert date_of_report to datetime if it exists
+            if "date_of_report" in data.columns:
+                try:
+                    # Try multiple date formats
+                    data["date_of_report"] = pd.to_datetime(
+                        data["date_of_report"], errors="coerce"
+                    )
+                except Exception as e:
+                    st.warning(
+                        "Some date values could not be converted. Date filtering may not work completely."
+                    )
+            
+            # IMPORTANT: Do NOT call process_scraped_data here to avoid re-cleaning
             st.success("File uploaded and processed successfully!")
             
             # Update session state
@@ -10957,6 +10969,13 @@ def render_analysis_tab(data: pd.DataFrame = None):
     if data is None or len(data) == 0:
         st.warning("No data available. Please upload a file or scrape reports first.")
         return
+    
+    # Debug output - add this to help troubleshoot the issue
+    st.sidebar.expander("Debug Data Info", expanded=False).write(
+        f"Data source: {st.session_state.get('data_source')}\n"
+        f"Columns: {', '.join(data.columns)}\n"
+        f"Coroner name sample: {data['coroner_name'].head(3).tolist() if 'coroner_name' in data.columns else 'N/A'}"
+    )
         
     try:
         # Get date range for the data
@@ -10998,7 +11017,7 @@ def render_analysis_tab(data: pd.DataFrame = None):
                 help="Filter by document type"
             )
             
-            # Reference Number
+            # Reference Number - Use exact values from the dataframe
             ref_numbers = sorted(data['ref'].dropna().unique())
             selected_refs = st.multiselect(
                 "Reference Numbers",
@@ -11006,53 +11025,71 @@ def render_analysis_tab(data: pd.DataFrame = None):
                 key="ref_filter"
             )
             
-            # Deceased Name
-            deceased_search = st.text_input(
-                "Deceased Name",
-                key="deceased_filter",
-                help="Enter partial or full name (case-insensitive)"
-            )
+            # Deceased Name - Create a searchable selector with unique values
+            if 'deceased_name' in data.columns:
+                deceased_names = sorted(data['deceased_name'].dropna().unique())
+                if deceased_names:
+                    selected_deceased = st.multiselect(
+                        "Deceased Name",
+                        options=deceased_names,
+                        key="deceased_filter",
+                        help="Select deceased names to include"
+                    )
+                else:
+                    # Fallback to text input if no names available
+                    deceased_search = st.text_input(
+                        "Deceased Name (Search)",
+                        key="deceased_filter_text",
+                        help="Enter partial or full name (case-insensitive)"
+                    )
+            else:
+                deceased_search = st.text_input(
+                    "Deceased Name (Search)",
+                    key="deceased_filter_text",
+                    help="Enter partial or full name (case-insensitive)"
+                )
             
-            # Coroner Name
-            # Normalize coroner names for selection and ensure uniqueness
-            coroner_names = sorted(set(
-                str(name).strip() for name in data['coroner_name'].dropna().unique()
-            ))
-            selected_coroners = st.multiselect(
-                "Coroner Names",
-                options=coroner_names,
-                key="coroner_filter"
-            )
+            # Coroner Name - Use exact values from the dataframe without additional manipulation
+            if 'coroner_name' in data.columns:
+                coroner_names = sorted(data['coroner_name'].dropna().unique())
+                selected_coroners = st.multiselect(
+                    "Coroner Names",
+                    options=coroner_names,
+                    key="coroner_filter",
+                    help="Select coroner names to include"
+                )
             
-            # Coroner Area
-            # Normalize coroner areas for selection and ensure uniqueness
-            coroner_areas = sorted(set(
-                str(area).strip() for area in data['coroner_area'].dropna().unique()
-            ))
-            selected_areas = st.multiselect(
-                "Coroner Areas",
-                options=coroner_areas,
-                key="areas_filter"
-            )
+            # Coroner Area - Use exact values from the dataframe without additional manipulation
+            if 'coroner_area' in data.columns:
+                coroner_areas = sorted(data['coroner_area'].dropna().unique())
+                selected_areas = st.multiselect(
+                    "Coroner Areas",
+                    options=coroner_areas,
+                    key="areas_filter",
+                    help="Select coroner areas to include"
+                )
             
-            # Categories
+            # Categories - Extract unique categories properly handling both list and string types
             all_categories = set()
-            for cats in data['categories'].dropna():
-                if isinstance(cats, list):
-                    all_categories.update(str(cat).strip() for cat in cats)
-                elif isinstance(cats, str):
-                    all_categories.update(str(cat).strip() for cat in cats.split(','))
-            
-            selected_categories = st.multiselect(
-                "Categories",
-                options=sorted(all_categories),
-                key="categories_filter"
-            )
+            if 'categories' in data.columns:
+                for cats in data['categories'].dropna():
+                    if isinstance(cats, list):
+                        all_categories.update(cat for cat in cats if cat)
+                    elif isinstance(cats, str):
+                        cat_list = [cat.strip() for cat in cats.split(',')]
+                        all_categories.update(cat for cat in cat_list if cat)
+                
+                selected_categories = st.multiselect(
+                    "Categories",
+                    options=sorted(all_categories),
+                    key="categories_filter",
+                    help="Select categories to include"
+                )
             
             # Reset Filters Button
             if st.button("🔄 Reset Filters"):
                 for key in st.session_state:
-                    if key.endswith('_filter'):
+                    if key.endswith('_filter') or key.endswith('_filter_text'):
                         del st.session_state[key]
                 st.rerun()
 
@@ -11060,81 +11097,57 @@ def render_analysis_tab(data: pd.DataFrame = None):
         filtered_df = data.copy()
 
         # Date filter
-        if start_date and end_date:
-            filtered_df = filtered_df[
-                (filtered_df['date_of_report'].dt.date >= start_date) &
-                (filtered_df['date_of_report'].dt.date <= end_date)
-            ]
+        if 'date_of_report' in filtered_df.columns and pd.api.types.is_datetime64_any_dtype(filtered_df['date_of_report']):
+            if start_date and end_date:
+                filtered_df = filtered_df[
+                    (filtered_df['date_of_report'].dt.date >= start_date) &
+                    (filtered_df['date_of_report'].dt.date <= end_date)
+                ]
 
         # Document type filter
         if doc_type:
-            if "Response" in doc_type and "Report" not in doc_type:
-                # Only responses
-                filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
-            elif "Report" in doc_type and "Response" not in doc_type:
-                # Only reports
-                filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
+            filtered_df = filter_by_document_type(filtered_df, doc_type)
 
         # Reference number filter
         if selected_refs:
             filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
 
-        # Deceased name filter - case-insensitive partial match
-        if deceased_search:
-            search_lower = deceased_search.lower().strip()
-            filtered_df = filtered_df[
-                filtered_df['deceased_name'].fillna('').str.lower().str.contains(
-                    search_lower, 
-                    case=False, 
-                    na=False
-                )
-            ]
+        # Deceased name filter - either use the multiselect or the text search
+        if 'deceased_name' in filtered_df.columns:
+            if 'selected_deceased' in locals() and selected_deceased:
+                # Filter by selected deceased names
+                filtered_df = filtered_df[filtered_df['deceased_name'].isin(selected_deceased)]
+            elif 'deceased_search' in locals() and deceased_search:
+                # Search by text input
+                search_lower = deceased_search.lower().strip()
+                filtered_df = filtered_df[
+                    filtered_df['deceased_name'].fillna('').str.lower().str.contains(
+                        search_lower, 
+                        case=False, 
+                        na=False
+                    )
+                ]
 
-        # Coroner name filter - case-insensitive partial match
-        if selected_coroners:
-            # Normalize selected coroners and create a case-insensitive filter
-            selected_coroners_norm = [str(name).lower().strip() for name in selected_coroners]
-            filtered_df = filtered_df[
-                filtered_df['coroner_name'].fillna('').str.lower().apply(
-                    lambda x: any(selected_name in x or x in selected_name for selected_name in selected_coroners_norm)
-                )
-            ]
+        # Coroner name filter - using direct equality comparison
+        if 'selected_coroners' in locals() and selected_coroners:
+            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
 
-        # Coroner area filter - case-insensitive partial match
-        if selected_areas:
-            # Normalize selected areas and create a case-insensitive filter
-            selected_areas_norm = [str(area).lower().strip() for area in selected_areas]
-            filtered_df = filtered_df[
-                filtered_df['coroner_area'].fillna('').str.lower().apply(
-                    lambda x: any(selected_area in x or x in selected_area for selected_area in selected_areas_norm)
-                )
-            ]
+        # Coroner area filter - using direct equality comparison
+        if 'selected_areas' in locals() and selected_areas:
+            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
 
-        # Categories filter - handle both list and string types with case-insensitive partial match
-        if selected_categories:
-            # Normalize selected categories
-            selected_cats_norm = [str(cat).lower().strip() for cat in selected_categories]
-            
-            def category_matches(row_cats):
-                # Handle both list and string types
-                if pd.isna(row_cats):
-                    return False
-                
-                # Convert to list if it's a string
-                if isinstance(row_cats, str):
-                    row_cats = [cat.strip() for cat in row_cats.split(',')]
-                
-                # Normalize row categories
-                row_cats_norm = [str(cat).lower().strip() for cat in row_cats]
-                
-                # Check for partial matches
-                return any(
-                    any(selected_cat in row_cat or row_cat in selected_cat 
-                        for row_cat in row_cats_norm)
-                    for selected_cat in selected_cats_norm
+        # Categories filter - handle both list and string types
+        if 'selected_categories' in locals() and selected_categories:
+            if 'categories' in filtered_df.columns:
+                # Create a boolean mask for matching
+                mask = filtered_df['categories'].apply(
+                    lambda cats: any(
+                        cat in selected_categories for cat in 
+                        (cats if isinstance(cats, list) else 
+                         cats.split(',') if isinstance(cats, str) else [])
+                    )
                 )
-            
-            filtered_df = filtered_df[filtered_df['categories'].apply(category_matches)]
+                filtered_df = filtered_df[mask]
 
         # Show active filters
         active_filters = []
@@ -11144,14 +11157,28 @@ def render_analysis_tab(data: pd.DataFrame = None):
             active_filters.append(f"Document Types: {', '.join(doc_type)}")
         if selected_refs:
             active_filters.append(f"References: {', '.join(selected_refs)}")
-        if deceased_search:
+        if 'selected_deceased' in locals() and selected_deceased:
+            if len(selected_deceased) <= 3:
+                active_filters.append(f"Deceased: {', '.join(selected_deceased)}")
+            else:
+                active_filters.append(f"Deceased: {len(selected_deceased)} selected")
+        elif 'deceased_search' in locals() and deceased_search:
             active_filters.append(f"Deceased name contains: {deceased_search}")
-        if selected_coroners:
-            active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
-        if selected_areas:
-            active_filters.append(f"Areas: {', '.join(selected_areas)}")
-        if selected_categories:
-            active_filters.append(f"Categories: {', '.join(selected_categories)}")
+        if 'selected_coroners' in locals() and selected_coroners:
+            if len(selected_coroners) <= 3:
+                active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+            else:
+                active_filters.append(f"Coroners: {len(selected_coroners)} selected")
+        if 'selected_areas' in locals() and selected_areas:
+            if len(selected_areas) <= 3:
+                active_filters.append(f"Areas: {', '.join(selected_areas)}")
+            else:
+                active_filters.append(f"Areas: {len(selected_areas)} selected")
+        if 'selected_categories' in locals() and selected_categories:
+            if len(selected_categories) <= 3:
+                active_filters.append(f"Categories: {', '.join(selected_categories)}")
+            else:
+                active_filters.append(f"Categories: {len(selected_categories)} selected")
 
         if active_filters:
             st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
@@ -11221,13 +11248,11 @@ def render_analysis_tab(data: pd.DataFrame = None):
 
             # Distribution Analysis Tab
             with distribution_tab:
-        
-       
-                    st.subheader("Reports by Category")
-                    plot_category_distribution(filtered_df)
+                st.subheader("Reports by Category")
+                plot_category_distribution(filtered_df)
   
-                    st.subheader("Reports by Coroner Area")
-                    plot_coroner_areas(filtered_df)
+                st.subheader("Reports by Coroner Area")
+                plot_coroner_areas(filtered_df)
 
             # Export options
             st.markdown("---")
@@ -11239,7 +11264,6 @@ def render_analysis_tab(data: pd.DataFrame = None):
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
-
                 
 def render_framework_heatmap(filtered_df, top_n_themes=5):
     """
