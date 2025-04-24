@@ -1488,6 +1488,7 @@ class BERTResultsAnalyzer:
     
         
         #  
+
         def _clean_categories(self, df):
             """
             Clean and map categories to standardized categories (case-insensitive and whitespace-insensitive)
