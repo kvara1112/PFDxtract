@@ -56,7 +56,9 @@ import matplotlib.gridspec as gridspec
 import tempfile
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Patch
-  
+from nltk.stem import PorterStemmer
+nltk.download('punkt')
+
 ######################################
 class BERTResultsAnalyzer:
     """Enhanced class for merging BERT theme analysis results files with specific column outputs and year extraction."""
@@ -331,131 +333,7 @@ class BERTResultsAnalyzer:
 
     #################
 
-    def _clean_categories(self, df):
-        """
-        Clean categories column by removing specific sentences and replacing with official category names.
-    
-        Args:
-            df (pd.DataFrame): DataFrame containing a 'categories' column
-    
-        Returns:
-            pd.DataFrame: DataFrame with cleaned 'categories' column
-        """
-        if df is None or len(df) == 0 or 'categories' not in df.columns:
-            return df
-    
-        cleaned_df = df.copy()
-    
-        # Define standard categories
-        standard_categories = [
-            "Alcohol drug and medication related deaths",
-            "Care Home Health related deaths",
-            "Community health care and emergency services related deaths",
-            "Emergency services related deaths 2019 onwards",
-            "Hospital Death Clinical Procedures and medical management related deaths",
-            "Police related deaths",
-            "Product related deaths",
-            "Railway related deaths",
-            "Road Highways Safety related deaths",
-            "State Custody related deaths",
-            "Other related deaths",
-            "Wales prevention of future deaths reports 2019 onwards",
-        ]
-    
-        # Mapping of known messy variations to official category names
-        category_mappings = {
-            # Alcohol/Drugs
-            "alcohol drug and medication related deaths": "Alcohol drug and medication related deaths",
-            "drugs medication related deaths": "Alcohol drug and medication related deaths",
-            "drugs medication related death": "Alcohol drug and medication related deaths",
-            "alcohol drug and medication related death": "Alcohol drug and medication related deaths",
-    
-            # Hospital
-            "hospital death related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital death related death": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital deaths related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital death clinical procedures and medical management related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital clinical procedures and medical management related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital death clinical procedures and medical management related death": "Hospital Death Clinical Procedures and medical management related deaths",
-    
-            # Community / Emergency Services
-            "community health care and emergency services related deaths": "Community health care and emergency services related deaths",
-            "community healthcare related deaths": "Community health care and emergency services related deaths",
-            "community health care related deaths": "Community health care and emergency services related deaths",
-            "community health care services related deaths": "Community health care and emergency services related deaths",
-            "emergency services related deaths": "Emergency services related deaths 2019 onwards",
-    
-            # Direct
-            "care home health related deaths": "Care Home Health related deaths",
-            "police related deaths": "Police related deaths",
-            "state custody related deaths": "State Custody related deaths",
-            "road related deaths": "Road Highways Safety related deaths",
-            "railway related deaths": "Railway related deaths",
-            "product related deaths": "Product related deaths",
-            "other related deaths": "Other related deaths",
-            "wales prevention of future deaths reports": "Wales prevention of future deaths reports 2019 onwards",
-            "wales prevention of future deaths reports 2019 onwards": "Wales prevention of future deaths reports 2019 onwards",
-            "department for health and social care": "Other related deaths"  # fallback match
-        }
-    
-        def clean_categories_value(categories_text):
-            if pd.isna(categories_text) or not isinstance(categories_text, str):
-                return categories_text
-    
-            categories_text_lower = categories_text.lower()
-    
-            report_patterns = [
-                "these reports are being sent to:",
-                "this report is being sent to:",
-                "the report is being sent to:",
-                "this report",
-                "these reports",
-                "the report",
-                "this is being"
-            ]
-    
-            earliest_pos = len(categories_text)
-            for pattern in report_patterns:
-                pos = categories_text_lower.find(pattern)
-                if pos != -1 and pos < earliest_pos:
-                    earliest_pos = pos
-    
-            if earliest_pos != len(categories_text):
-                categories_text = categories_text[:earliest_pos].strip()
-    
-            # Normalize formatting
-            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()  # remove brackets
-            categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
-            categories_text = re.sub(r'\s+', ' ', categories_text)  # normalize multiple spaces
-    
-            normalized_text = categories_text.lower().strip()
-            return category_mappings.get(normalized_text, categories_text.strip())
-    
-        for idx, value in enumerate(cleaned_df["categories"]):
-            try:
-                if isinstance(value, list):
-                    cleaned_list = []
-                    for item in value:
-                        if isinstance(item, str):
-                            cleaned_item = clean_categories_value(item)
-                            if cleaned_item:
-                                cleaned_list.append(cleaned_item)
-                        elif not pd.isna(item):
-                            cleaned_list.append(item)
-                    cleaned_df.at[idx, "categories"] = cleaned_list if cleaned_list else None
-                elif isinstance(value, str):
-                    cleaned_value = clean_categories_value(value)
-                    cleaned_df.at[idx, "categories"] = cleaned_value if cleaned_value else None
-                elif pd.isna(value):
-                    cleaned_df.at[idx, "categories"] = None
-            except Exception as e:
-                st.warning(f"Error cleaning category at index {idx}: {str(e)}")
-                continue
-    
-        return cleaned_df
-
-
+   
 
     ##################
     def _extract_missing_concerns_from_pdf(self, df):
@@ -533,9 +411,6 @@ class BERTResultsAnalyzer:
         Optimized function to extract year from dd/mm/yyyy date format.
         Works with both string representations and datetime objects.
         """
-        import re
-        import datetime
-        import pandas as pd
 
         # Return None for empty inputs
         if pd.isna(date_val):
@@ -566,9 +441,6 @@ class BERTResultsAnalyzer:
     # block3
     def _add_missing_years_from_content(self, concern_sections, df=None):
         """Try to extract years from content when date_of_report is missing."""
-        import re
-        import datetime
-        from collections import Counter
 
         missing_year_count = 0
 
@@ -1366,7 +1238,127 @@ class BERTResultsAnalyzer:
         ].copy()
 
         return missing_concerns
-    #
+        
+    #    
+    
+    def _clean_categories(self, df):
+        """
+        Clean categories column by removing specific sentences, applying stemming, 
+        removing unnecessary words like 'and', and replacing with official category names.
+    
+        Args:
+            df (pd.DataFrame): DataFrame containing a 'categories' column
+    
+        Returns:
+            pd.DataFrame: DataFrame with cleaned 'categories' column
+        """
+        if df is None or len(df) == 0 or 'categories' not in df.columns:
+            return df
+    
+        cleaned_df = df.copy()
+    
+        # Define standard categories
+        standard_categories = [
+            "Alcohol drug and medication related deaths",
+            "Care Home Health related deaths",
+            "Community health care and emergency services related deaths",
+            "Emergency services related deaths 2019 onwards",
+            "Hospital Death Clinical Procedures and medical management related deaths",
+            "Police related deaths",
+            "Product related deaths",
+            "Railway related deaths",
+            "Road Highways Safety related deaths",
+            "State Custody related deaths",
+            "Other related deaths",
+            "Wales prevention of future deaths reports 2019 onwards",
+        ]
+    
+        # Mapping of known messy variations to official category names
+        category_mappings = {
+            # Alcohol/Drugs
+            "alcohol drug and medication related deaths": "Alcohol drug and medication related deaths",
+            "drugs medication related deaths": "Alcohol drug and medication related deaths",
+            "drugs medication related death": "Alcohol drug and medication related deaths",
+            "alcohol drug and medication related death": "Alcohol drug and medication related deaths",
+    
+            # Hospital
+            "hospital death related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
+            "hospital death related death": "Hospital Death Clinical Procedures and medical management related deaths",
+            "hospital deaths related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
+            "hospital related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
+            "hospital death clinical procedures and medical management related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
+            "hospital clinical procedures and medical management related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
+            "hospital death clinical procedures and medical management related death": "Hospital Death Clinical Procedures and medical management related deaths",
+    
+            # Community / Emergency Services
+            "community health care and emergency services related deaths": "Community health care and emergency services related deaths",
+            "community healthcare related deaths": "Community health care and emergency services related deaths",
+            "community health care related deaths": "Community health care and emergency services related deaths",
+            "community health care services related deaths": "Community health care and emergency services related deaths",
+            "emergency services related deaths": "Emergency services related deaths 2019 onwards",
+    
+            # Direct
+            "care home health related deaths": "Care Home Health related deaths",
+            "police related deaths": "Police related deaths",
+            "state custody related deaths": "State Custody related deaths",
+            "road related deaths": "Road Highways Safety related deaths",
+            "railway related deaths": "Railway related deaths",
+            "product related deaths": "Product related deaths",
+            "other related deaths": "Other related deaths",
+            "wales prevention of future deaths reports": "Wales prevention of future deaths reports 2019 onwards",
+            "wales prevention of future deaths reports 2019 onwards": "Wales prevention of future deaths reports 2019 onwards",
+            "department for health and social care": "Other related deaths"  # fallback match
+        }
+    
+        # Initialize stemmer
+        stemmer = PorterStemmer()
+    
+        def clean_categories_value(categories_text):
+            if pd.isna(categories_text) or not isinstance(categories_text, str):
+                return categories_text
+    
+            categories_text_lower = categories_text.lower()
+    
+            # Remove text in brackets
+            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
+    
+            # Normalize spacing, remove 'and', and keep commas
+            categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
+            categories_text = re.sub(r'\s+', ' ', categories_text)
+            categories_text = categories_text.replace(' and ', ' ').strip()
+    
+            # Tokenize and apply stemming to get singular form of words
+            words = nltk.word_tokenize(categories_text)
+            words = [stemmer.stem(word) for word in words]
+    
+            cleaned_text = ' '.join(words)
+    
+            # Return mapped category if available, else the cleaned text
+            return category_mappings.get(cleaned_text, cleaned_text.strip())
+    
+        # Apply the cleaning function to each category value
+        for idx, value in enumerate(cleaned_df["categories"]):
+            try:
+                if isinstance(value, list):
+                    cleaned_list = []
+                    for item in value:
+                        if isinstance(item, str):
+                            cleaned_item = clean_categories_value(item)
+                            if cleaned_item:
+                                cleaned_list.append(cleaned_item)
+                        elif not pd.isna(item):
+                            cleaned_list.append(item)
+                    cleaned_df.at[idx, "categories"] = cleaned_list if cleaned_list else None
+                elif isinstance(value, str):
+                    cleaned_value = clean_categories_value(value)
+                    cleaned_df.at[idx, "categories"] = cleaned_value if cleaned_value else None
+                elif pd.isna(value):
+                    cleaned_df.at[idx, "categories"] = None
+            except Exception as e:
+                print(f"Error cleaning category at index {idx}: {str(e)}")
+                continue
+    
+        return cleaned_df
     
 
 
@@ -1474,7 +1466,6 @@ class BERTResultsAnalyzer:
             'QC\\s+', 'KC\\s+'
         ]
         
-        import re
     
         def clean_name(name_text):
             if pd.isna(name_text) or not isinstance(name_text, str):
@@ -1535,7 +1526,6 @@ class BERTResultsAnalyzer:
             if pd.isna(area_text) or not isinstance(area_text, str):
                 return area_text
             
-            import re
             
             # Convert to lowercase
             area = area_text.lower()
