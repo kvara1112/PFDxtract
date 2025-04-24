@@ -10600,10 +10600,6 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     ])
     
     # === TAB 1: FRAMEWORK HEATMAP ===
-    # First, define the improved truncate_text function that should be placed at the module level
-
-
-    # === TAB 1: FRAMEWORK HEATMAP ===
     with tab1:
         st.subheader("Framework Theme Heatmap by Year")
         
@@ -10937,6 +10933,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         }
                     }
                 )
+                
     # === TAB 2: THEME DISTRIBUTION ===
     with tab2:
         st.subheader("Theme Distribution Analysis")
@@ -10944,29 +10941,48 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         # Get top themes by count
         theme_counts = filtered_df["Theme"].value_counts().head(top_n_themes)
         
-        # Create a bar chart
+        # Use improved_truncate_text for better label formatting
+        formatted_themes = [improved_truncate_text(theme, max_length=40) for theme in theme_counts.index]
+        
+        # Create a bar chart with formatted theme names
         fig = px.bar(
-            x=[truncate_text(theme) for theme in theme_counts.index],
+            x=formatted_themes,
             y=theme_counts.values,
             labels={"x": "Theme", "y": "Count"},
             title="Top 10 Themes by Occurrence",
-            height=500,
+            height=600,  # Increased height to accommodate multi-line labels
+            color_discrete_sequence=['#4287f5']  # Consistent blue color
         )
-        fig.update_layout(
-            xaxis_tickangle=-30,  # Reduce angle for better readability
-            margin=dict(b=100),  # Add more bottom margin for text
-        )
-
-        # Improve layout
+        
+        # Improve layout with better spacing for multi-line text
         fig.update_layout(
             xaxis_title="Theme",
             yaxis_title="Number of Occurrences",
             xaxis={'categoryorder':'total descending'},
-            xaxis_tickangle=-45,
+            xaxis_tickangle=-30,  # Less extreme angle for better readability with multi-line text
+            margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin for labels
+            bargap=0.2,  # Add some gap between bars
+            font=dict(family="Arial, sans-serif", color="white"),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
+        
+        # Update axes for dark mode
+        fig.update_xaxes(
+            title_font=dict(color="white"),
+            tickfont=dict(color="white"),
+            gridcolor="rgba(255,255,255,0.1)",
+            automargin=True  # Ensure labels fit properly without overlap
+        )
+        
+        fig.update_yaxes(
+            title_font=dict(color="white"),
+            tickfont=dict(color="white"),
+            gridcolor="rgba(255,255,255,0.1)"
         )
         
         st.plotly_chart(fig, use_container_width=True)
-
+    
         # Theme by confidence
         st.subheader("Theme Confidence Breakdown")
         
@@ -10977,22 +10993,63 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         top_themes = theme_counts.index.tolist()
         theme_confidence = theme_confidence[theme_confidence["Theme"].isin(top_themes)]
         
-        # Create a grouped bar chart
+        # Create a mapping dictionary for theme display names
+        theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
+        
+        # Apply the formatting to the DataFrame
+        theme_confidence["Display_Theme"] = theme_confidence["Theme"].map(theme_display_map)
+        
+        # Create a grouped bar chart with formatted theme names
         fig = px.bar(
             theme_confidence, 
-            x="Theme", 
+            x="Display_Theme",  # Use the formatted theme names
             y="Count", 
             color="Confidence",
             barmode="group",
             color_discrete_map={"High": "#4CAF50", "Medium": "#FFC107", "Low": "#F44336"},
-            category_orders={"Theme": top_themes, "Confidence": ["High", "Medium", "Low"]},
-            title="Confidence Distribution by Theme"
+            category_orders={
+                "Confidence": ["High", "Medium", "Low"],
+                "Display_Theme": [theme_display_map[theme] for theme in top_themes]
+            },
+            title="Confidence Distribution by Theme",
+            height=600  # Increased height for better readability
         )
         
-        fig.update_layout(xaxis_tickangle=-45)
+        # Improve layout for multi-line labels
+        fig.update_layout(
+            xaxis_title="Theme",
+            yaxis_title="Number of Reports",
+            xaxis_tickangle=-30,  # Less extreme angle for better readability
+            margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin
+            legend=dict(
+                orientation="h", 
+                yanchor="bottom", 
+                y=1.02, 
+                xanchor="center", 
+                x=0.5,
+                title=None,
+                font=dict(color="white")
+            ),
+            font=dict(family="Arial, sans-serif", color="white"),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)"
+        )
+        
+        # Update axes for dark mode and ensure labels fit
+        fig.update_xaxes(
+            title_font=dict(color="white"),
+            tickfont=dict(color="white"),
+            gridcolor="rgba(255,255,255,0.1)",
+            automargin=True  # Ensure labels fit properly without overlap
+        )
+        
+        fig.update_yaxes(
+            title_font=dict(color="white"),
+            tickfont=dict(color="white"),
+            gridcolor="rgba(255,255,255,0.1)"
+        )
+        
         st.plotly_chart(fig, use_container_width=True)
-    
-    # === TAB 3: TEMPORAL ANALYSIS ===
     # === TAB 3: TEMPORAL ANALYSIS ===
     with tab3:
         st.subheader("Temporal Analysis")
