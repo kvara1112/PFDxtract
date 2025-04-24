@@ -8482,20 +8482,31 @@ def save_dashboard_images_as_zip(filtered_df):
                                 fill="toself",
                                 name=area_display_map.get(area, area)
                             ))
-                    
+
+                        #
                         fig.update_layout(
                             polar=dict(
+                                bgcolor="white",  # Background inside the polar chart
                                 radialaxis=dict(
                                     visible=True,
-                                    range=[0, max(radar_data["Percentage"]) * 1.1]
-                                )
+                                    range=[0, max(radar_data["Percentage"]) * 1.1],
+                                    color="black",  # Axis line and tick labels
+                                    tickfont=dict(color="black"),  # Tick label font color
+                                ),
+                                angularaxis=dict(
+                                    color="black",  # Angular axis line and labels
+                                    tickfont=dict(color="black"),
+                                ),
                             ),
                             font=dict(
-                                color="black"
+                                color="black"  # All general text: title, legend, etc.
                             ),
+                            paper_bgcolor="white",  # Outer chart background
+                            plot_bgcolor="white",   # Background inside the plotting area
                             showlegend=True,
                             title="Theme Distribution Radar Chart"
-                        )                
+                        )
+
                         
                         add_figure_to_zip(fig, f"area_radar_chart_{timestamp}.png")
                         
