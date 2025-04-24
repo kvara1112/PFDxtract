@@ -330,6 +330,7 @@ class BERTResultsAnalyzer:
 
 
     #################
+
     def _clean_categories(self, df):
         """
         Clean categories column by removing specific sentences and replacing with main category
@@ -451,7 +452,6 @@ class BERTResultsAnalyzer:
                 continue
         
         return cleaned_df
-
 
     ##################
     def _extract_missing_concerns_from_pdf(self, df):
