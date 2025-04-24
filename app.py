@@ -1311,45 +1311,106 @@ class BERTResultsAnalyzer:
         return cleaned_df
     
         
-    #  
-    def clean_categories(self, df):
-        """
-        Clean categories column by removing specific sentences and replacing with main category
-        
-        Args:
-            df (pd.DataFrame): DataFrame containing a 'categories' column
+        #  
+        def _clean_categories(self, df):
+            """
+            Clean categories column by removing specific sentences and replacing with main category
             
-        Returns:
-            pd.DataFrame: DataFrame with cleaned 'categories' column
-        """
-        if df is None or len(df) == 0 or 'categories' not in df.columns:
-            return df
-        
-        # Define category mappings
-        category_mappings = {
-            # Mapping specific patterns to their main category
-            "alcohol drug and medication related deaths": "Alcohol / Drug / Medication",
-            "drugs medication related deaths": "Alcohol / Drug / Medication", 
-            "drugs medication related death": "Alcohol / Drug / Medication",
-            "alcohol drug and medication related death": "Alcohol / Drug / Medication",
+            Args:
+                df (pd.DataFrame): DataFrame containing a 'categories' column
+                
+            Returns:
+                pd.DataFrame: DataFrame with cleaned 'categories' column
+            """
+            if df is None or len(df) == 0 or 'categories' not in df.columns:
+                return df
             
-            "hospital death related deaths": "Hospital",
-            "hospital deaths related deaths": "Hospital",
-            "hospital death related death": "Hospital", 
-            "hospital related deaths": "Hospital",
-            "hospital death (clinical procedures and medical management) related deaths": "Hospital",
-            "hospital (clinical procedures and medical management) related deaths": "Hospital",
-            "hospital death (clinical procedures and medical management) related death": "Hospital",
+            # Create a copy to avoid modifying the original
+            cleaned_df = df.copy()
             
-            "community health care and emergency services related deaths": "Community Health / Emergency services",
-            "community healthcare related deaths": "Community Health / Emergency services",
-            "community health care related deaths": "Community Health / Emergency services", 
-            "community health care services related deaths": "Community Health / Emergency services",
-            "emergency services related deaths": "Community Health / Emergency services"
-        }
-        
-        # Create a copy to avoid modifying the original
-        cleaned_df = df.copy()
+            # Define category mappings
+            category_mappings = {
+                # Mapping specific patterns to their main category
+                "alcohol drug and medication related deaths": "Alcohol / Drug / Medication", 
+                "drugs medication related deaths": "Alcohol / Drug / Medication", 
+                "drugs medication related death": "Alcohol / Drug / Medication",
+                "alcohol drug and medication related death": "Alcohol / Drug / Medication",
+                
+                "hospital death related deaths": "Hospital", 
+                "hospital deaths related deaths": "Hospital",
+                "hospital death related death": "Hospital", 
+                "hospital related deaths": "Hospital",
+                "hospital death (clinical procedures and medical management) related deaths": "Hospital",
+                "hospital (clinical procedures and medical management) related deaths": "Hospital",
+                "hospital death (clinical procedures and medical management) related death": "Hospital",
+                
+                "community health care and emergency services related deaths": "Community Health / Emergency services",
+                "community healthcare related deaths": "Community Health / Emergency services",
+                "community health care related deaths": "Community Health / Emergency services", 
+                "community health care services related deaths": "Community Health / Emergency services",
+                "emergency services related deaths": "Community Health / Emergency services"
+            }
+            
+            # Define the cleaning function for a single value
+            def clean_categories_value(categories_text):
+                if pd.isna(categories_text) or not isinstance(categories_text, str):
+                    return categories_text
+                
+                # Convert to lowercase for case-insensitive matching
+                categories_text_lower = categories_text.lower()
+                
+                # Patterns to look for and remove
+                report_patterns = [
+                    "these reports are being sent to:",
+                    "this report is being sent to:",
+                    "the report is being sent to:",
+                    "this report",
+                    "these reports",
+                    "the report",
+                    "this is being"
+                ]
+                
+                # Find the earliest position of any report-related pattern
+                earliest_pos = len(categories_text)
+                for pattern in report_patterns:
+                    pos = categories_text_lower.find(pattern)
+                    if pos != -1 and pos < earliest_pos:
+                        earliest_pos = pos
+                
+                # If a report pattern was found, truncate
+                if earliest_pos != len(categories_text):
+                    categories_text = categories_text[:earliest_pos].strip()
+                
+                # Normalize text: remove brackets, convert '&' and 'and' to a standard form
+                # Remove brackets
+                categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
+                
+                # Replace variations of conjunctions
+                categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
+                
+                # Map to main category if exists
+                normalized_text = categories_text.lower().strip()
+                if normalized_text in category_mappings:
+                    return category_mappings[normalized_text]
+                
+                return categories_text.strip()
+            
+            # Process based on data type
+            for idx, value in enumerate(cleaned_df["categories"]):
+                if isinstance(value, list):
+                    # For list values, we need to check each element
+                    cleaned_list = []
+                    for item in value:
+                        if isinstance(item, str):
+                            cleaned_list.append(clean_categories_value(item))
+                        else:
+                            cleaned_list.append(item)
+                    cleaned_df.at[idx, "categories"] = cleaned_list
+                elif isinstance(value, str):
+                    # For string values, clean directly
+                    cleaned_df.at[idx, "categories"] = clean_categories_value(value)
+            
+            return cleaned_df
         
         # Define the cleaning function for a single value
         def clean_categories_value(categories_text):
