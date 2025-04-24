@@ -11537,7 +11537,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         theme_pivot = pd.crosstab(
             index=filtered_df[id_column], 
             columns=filtered_df['Theme'],
-            values=filtered_df['Combined Score'],  # Use the score if we want weighted values
+            values=filtered_df.get('Combined Score', 1),  # Use the score if we want weighted values
             aggfunc='max'  # Take the maximum score for each theme in a report
         ).fillna(0)
         
@@ -11556,29 +11556,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         # Format column and index labels
         formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
         
-
-        st.plotly_chart(fig, key="correlation_matrix_chart")
-
-
-        fig = px.imshow(
-            top_theme_corr,
-            color_continuous_scale=px.colors.diverging.RdBu_r,  # Red-Blue diverging colorscale
-            color_continuous_midpoint=0,
-            labels=dict(x="Theme", y="Theme", color="Correlation"),
-            title="Theme Correlation Matrix",
-            height=700,
-            width=700,
-            text_auto=".2f",  # Show correlation values with 2 decimal places
-            x=formatted_themes,
-            y=formatted_themes
-        )
-        
-        fig.update_layout(
-            xaxis_tickangle=-45,
-        )
-        
-        # Replace with this improved version:
-        fig = px.imshow(
+        # Create the correlation matrix visualization
+        fig_corr_matrix = px.imshow(
             top_theme_corr,
             color_continuous_scale=px.colors.diverging.RdBu_r,  # Red-Blue diverging colorscale
             color_continuous_midpoint=0,
@@ -11592,7 +11571,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         )
         
         # Improved layout with better label positioning
-        fig.update_layout(
+        fig_corr_matrix.update_layout(
             margin=dict(l=200, r=80, b=220, t=80),  # Dramatically increased bottom margin
             font=dict(color="white"),
             paper_bgcolor="rgba(0,0,0,0)",
@@ -11608,14 +11587,14 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         )
         
         # Update axes for dark mode and ensure labels fit
-        fig.update_xaxes(
+        fig_corr_matrix.update_xaxes(
             title_font=dict(color="white"),
             tickfont=dict(color="white", size=11),
             gridcolor="rgba(255,255,255,0.1)",
             automargin=True  # Ensure labels fit properly
         )
         
-        fig.update_yaxes(
+        fig_corr_matrix.update_yaxes(
             title_font=dict(color="white"),
             tickfont=dict(color="white", size=11),
             gridcolor="rgba(255,255,255,0.1)",
@@ -11623,14 +11602,15 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         )
         
         # Update colorbar for dark mode
-        fig.update_traces(
+        fig_corr_matrix.update_traces(
             colorbar=dict(
                 title=dict(text="Correlation", font=dict(color="white")),
                 tickfont=dict(color="white")
             )
         )
-
-
+        
+        # Display the correlation matrix with a unique key
+        st.plotly_chart(fig_corr_matrix, use_container_width=True, key="theme_correlation_matrix")
         
         # Network graph of correlations
         st.subheader("Theme Connection Network")
@@ -11642,7 +11622,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             max_value=1.0, 
             value=0.3, 
             step=0.05,
-            help="Minimum correlation value to show connections between themes"
+            help="Minimum correlation value to show connections between themes",
+            key="correlation_threshold_slider"
         )
         
         # Create network from correlation matrix
@@ -11728,7 +11709,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             )
             
             # Create the figure
-            fig = go.Figure(
+            fig_network = go.Figure(
                 data=edge_trace + [node_trace],
                 layout=go.Layout(
                     title=dict(
@@ -11747,8 +11728,9 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 )
             )
             
-            st.plotly_chart(fig, key="network_viz_chart")
-    
+            # Display the network graph with a unique key
+            st.plotly_chart(fig_network, key="theme_network_graph")
+        
             # Create a co-occurrence frequency table
             st.subheader("Theme Co-occurrence Table")
             
@@ -11787,7 +11769,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             st.dataframe(
                 display_co_occurrence,
                 use_container_width=True,
-                height=400
+                height=400,
+                key="co_occurrence_table"
             )
             
             # Add explanation
@@ -11796,72 +11779,125 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             The diagonal represents the total count of each theme.
             """)
     
-            # Show detailed data table
-            with st.expander("View Detailed Data"):
-                st.dataframe(
-                    filtered_df,
-                    column_config={
-                        "Title": st.column_config.TextColumn("Document Title"),
-                        "Framework": st.column_config.TextColumn("Framework"),
-                        "Theme": st.column_config.TextColumn("Theme"),
-                        "Confidence": st.column_config.TextColumn("Confidence"),
-                        "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
-                        "Matched Keywords": st.column_config.TextColumn("Keywords"),
-                        "coroner_name": st.column_config.TextColumn("Coroner Name"),
-                        "coroner_area": st.column_config.TextColumn("Coroner Area"),
-                        "year": st.column_config.NumberColumn("Year"),
-                    },
-                    use_container_width=True
+            # Create a heatmap of the co-occurrence matrix
+            fig_cooccur = px.imshow(
+                co_occurrence_matrix,
+                x=[theme_display_map[theme] for theme in top_themes],
+                y=[theme_display_map[theme] for theme in top_themes],
+                labels=dict(x="Theme", y="Theme", color="Co-occurrences"),
+                title="Theme Co-occurrence Heatmap",
+                color_continuous_scale="Viridis",
+                text_auto=".0f"  # Show integer values
+            )
+            
+            fig_cooccur.update_layout(
+                margin=dict(l=200, r=80, b=220, t=80),
+                font=dict(color="white"),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                xaxis=dict(
+                    side="bottom",
+                    tickangle=90,
+                    automargin=True
+                ),
+                yaxis=dict(
+                    automargin=True
                 )
-                
-            # Export options
-            st.subheader("Export Filtered Data")
+            )
             
-            # Generate timestamp for filenames
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # Update axes for dark mode
+            fig_cooccur.update_xaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white", size=11),
+                gridcolor="rgba(255,255,255,0.1)",
+                automargin=True
+            )
             
-            # Create columns for download buttons
-            col1, col2, col3 = st.columns(3)
+            fig_cooccur.update_yaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white", size=11),
+                gridcolor="rgba(255,255,255,0.1)",
+                automargin=True
+            )
             
-            with col1:
-                # CSV Export
-                csv = filtered_df.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    "📥 Download Filtered Data (CSV)",
-                    data=csv,
-                    file_name=f"theme_analysis_export_{timestamp}.csv",
-                    mime="text/csv",
-                    key=f"download_csv_{timestamp}",
+            # Update colorbar for dark mode
+            fig_cooccur.update_traces(
+                colorbar=dict(
+                    title=dict(text="Co-occurrences", font=dict(color="white")),
+                    tickfont=dict(color="white")
                 )
+            )
             
-            with col2:
-                # Excel Export
-                excel_data = export_to_excel(filtered_df)
-                st.download_button(
-                    "📥 Download Filtered Data (Excel)",
-                    data=excel_data,
-                    file_name=f"theme_analysis_export_{timestamp}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    key=f"download_excel_{timestamp}",
-                )
+            # Display the co-occurrence heatmap with a unique key
+            st.plotly_chart(fig_cooccur, use_container_width=True, key="cooccurrence_heatmap")
+        
+        # Show detailed data table
+        with st.expander("View Detailed Data"):
+            st.dataframe(
+                filtered_df,
+                column_config={
+                    "Title": st.column_config.TextColumn("Document Title"),
+                    "Framework": st.column_config.TextColumn("Framework"),
+                    "Theme": st.column_config.TextColumn("Theme"),
+                    "Confidence": st.column_config.TextColumn("Confidence"),
+                    "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                    "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                    "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                    "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                    "year": st.column_config.NumberColumn("Year"),
+                },
+                use_container_width=True,
+                key="detailed_data_table"
+            )
+            
+        # Export options
+        st.subheader("Export Filtered Data")
+        
+        # Generate timestamp for filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create columns for download buttons
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            # CSV Export
+            csv = filtered_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "📥 Download Filtered Data (CSV)",
+                data=csv,
+                file_name=f"theme_analysis_export_{timestamp}.csv",
+                mime="text/csv",
+                key=f"download_csv_{timestamp}",
+            )
+        
+        with col2:
+            # Excel Export
+            excel_data = export_to_excel(filtered_df)
+            st.download_button(
+                "📥 Download Filtered Data (Excel)",
+                data=excel_data,
+                file_name=f"theme_analysis_export_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key=f"download_excel_{timestamp}",
+            )
     
-            with col3:
-                # All Images Export
-                try:
-                    # Get the zip file and image count
-                    images_zip, image_count = save_dashboard_images_as_zip(filtered_df)
-                    
-                    # Update button text to show number of images
-                    st.download_button(
-                        f"📥 Download {image_count} Visualizations (ZIP)",
-                        data=images_zip,
-                        file_name=f"theme_analysis_images_{timestamp}.zip",
-                        mime="application/zip",
-                        key=f"download_images_{timestamp}",
-                    )
-                except Exception as e:
-                    st.error(f"Error creating visualization zip: {e}")
-                    logging.error(f"Visualization zip error: {e}", exc_info=True)
+        with col3:
+            # All Images Export
+            try:
+                # Get the zip file and image count
+                images_zip, image_count = save_dashboard_images_as_zip(filtered_df)
+                
+                # Update button text to show number of images
+                st.download_button(
+                    f"📥 Download {image_count} Visualizations (ZIP)",
+                    data=images_zip,
+                    file_name=f"theme_analysis_images_{timestamp}.zip",
+                    mime="application/zip",
+                    key=f"download_images_{timestamp}",
+                )
+            except Exception as e:
+                st.error(f"Error creating visualization zip: {e}")
+                logging.error(f"Visualization zip error: {e}", exc_info=True)
         
        
 def render_analysis_tab(data: pd.DataFrame = None):
