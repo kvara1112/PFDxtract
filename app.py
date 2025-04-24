@@ -10269,6 +10269,84 @@ def perform_advanced_keyword_search(text, search_query):
     else:
         return search_query.lower() in text
 
+def improved_truncate_text(text, max_length=30):
+    """
+    Improved function to handle long text for chart display by breaking into lines
+    instead of simple truncation with ellipses
+    
+    Args:
+        text: String to format
+        max_length: Maximum length per line
+        
+    Returns:
+        Text with line breaks inserted at appropriate word boundaries
+    """
+    if not text or len(text) <= max_length:
+        return text
+    
+    # For theme names with ":" in them (framework:theme format)
+    if ":" in text:
+        parts = text.split(":", 1)
+        framework = parts[0].strip()
+        theme = parts[1].strip()
+        
+        # For theme part, break it into lines rather than truncate
+        if len(theme) > max_length - len(framework) - 2:  # -2 for ": "
+            # Process the theme part with word-aware line breaking
+            words = theme.split()
+            processed_theme = []
+            current_line = []
+            current_length = 0
+            
+            for word in words:
+                # If adding this word keeps us under the limit
+                if current_length + len(word) + (1 if current_line else 0) <= max_length - len(framework) - 2:
+                    current_line.append(word)
+                    current_length += len(word) + (1 if current_line else 0)
+                else:
+                    # Line is full, start a new one
+                    processed_theme.append(" ".join(current_line))
+                    current_line = [word]
+                    current_length = len(word)
+            
+            # Add the final line if any
+            if current_line:
+                processed_theme.append(" ".join(current_line))
+            
+            # If we have more than 2 lines, keep first 2 and add ellipsis
+            if len(processed_theme) > 2:
+                return f"{framework}: {processed_theme[0]}<br>{processed_theme[1]}..."
+            else:
+                # Join with line breaks
+                return f"{framework}: {('<br>').join(processed_theme)}"
+        
+        return f"{framework}: {theme}"
+    
+    # For normal long strings, add line breaks at word boundaries
+    words = text.split()
+    lines = []
+    current_line = []
+    current_length = 0
+    
+    for word in words:
+        if current_length + len(word) + (1 if current_line else 0) <= max_length:
+            current_line.append(word)
+            current_length += len(word) + (1 if current_line else 0)
+        else:
+            lines.append(" ".join(current_line))
+            current_line = [word]
+            current_length = len(word)
+    
+    if current_line:
+        lines.append(" ".join(current_line))
+    
+    # If we have more than 2 lines, keep first 2 and add ellipsis
+    if len(lines) > 2:
+        return f"{lines[0]}<br>{lines[1]}..."
+    
+    # For plotly charts, use <br> for line breaks
+    return "<br>".join(lines)
+    
 def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analyzing themes by various metadata fields
@@ -10522,6 +10600,10 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     ])
     
     # === TAB 1: FRAMEWORK HEATMAP ===
+    # First, define the improved truncate_text function that should be placed at the module level
+
+
+    # === TAB 1: FRAMEWORK HEATMAP ===
     with tab1:
         st.subheader("Framework Theme Heatmap by Year")
         
@@ -10538,10 +10620,15 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 # Sort by framework and count
                 theme_counts = theme_counts.sort_values(['Framework', 'Count'], ascending=[True, False])
                 
+                # Process theme names for better display using improved function
+                theme_counts['Display_Theme'] = theme_counts['Theme'].apply(
+                    lambda x: improved_truncate_text(x, max_length=40)
+                )
+                
                 # Display as a horizontal bar chart grouped by framework
                 fig = px.bar(
                     theme_counts,
-                    y='Theme',
+                    y='Display_Theme',  # Use formatted theme names
                     x='Count',
                     color='Framework',
                     title=f"Theme Distribution for Year {filtered_df['year'].iloc[0]}",
@@ -10560,7 +10647,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     font=dict(family="Arial, sans-serif", color="white"),
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=200, r=40, t=80, b=60)
+                    margin=dict(l=250, r=40, t=80, b=60)  # Increased left margin for theme labels
                 )
                 
                 # Update axes for dark mode
@@ -10572,7 +10659,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 
                 fig.update_yaxes(
                     title_font=dict(color="white"),
-                    tickfont=dict(color="white")
+                    tickfont=dict(color="white"),
+                    automargin=True  # Enable automargin to ensure labels fit
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
@@ -10658,27 +10746,17 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     framework = theme.split(':')[0].strip()
                     theme_name = theme.split(':', 1)[1].strip()
                     
-                    # Insert line breaks for long theme names
-                    if len(theme_name) > 30:
-                        # Try to break at a space near the middle
-                        words = theme_name.split()
-                        if len(words) > 1:
-                            # Find a breaking point near the middle
-                            mid_point = len(words) // 2
-                            first_part = ' '.join(words[:mid_point])
-                            second_part = ' '.join(words[mid_point:])
-                            theme_name = f"{first_part}<br>{second_part}"
+                    # Use improved_truncate_text for line breaking instead of manual handling
+                    formatted_theme = improved_truncate_text(theme_name, max_length=40)
                     
                     theme_display_data.append({
                         'original': theme,
-                        'clean_name': theme_name,
+                        'clean_name': formatted_theme,
                         'framework': framework,
                         'color': framework_colors[framework]
                     })
                     
                 theme_display_df = pd.DataFrame(theme_display_data)
-                # Truncate theme names using the existing truncate_text function
-                theme_display_df['clean_name'] = theme_display_df['clean_name'].apply(lambda x: truncate_text(x, max_length=30))
                 
                 # Add year count labels
                 year_labels = [f"{year}<br>n={reports_per_year[year]}" for year in pivot.columns]
@@ -10782,12 +10860,12 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 fig.update_layout(
                     title="Framework Theme Heatmap by Year",
                     font=dict(family="Arial, sans-serif", color="white"),  # White font for dark background
-                    title_font=dict(size=8, color="white"),  # Larger title with white color
+                    title_font=dict(size=16, color="white"),  # Larger title with white color (fixed small size)
                     xaxis_title="Year (number of reports)",
                     yaxis_title="Theme",
                     height=max(650, len(pivot.index) * 35),  # Increased height
                     width=900,  # Set explicit width
-                    margin=dict(l=220, r=60, t=80, b=80),  # Increased margins
+                    margin=dict(l=250, r=60, t=80, b=80),  # Increased left margin further
                     paper_bgcolor="rgba(0,0,0,0)",  # Transparent background
                     plot_bgcolor="rgba(0,0,0,0)",  # Transparent background
                     legend=dict(
@@ -10808,11 +10886,12 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     yaxis=dict(
                         tickmode='array',
                         tickvals=list(range(len(theme_display_df))),
-                        ticktext=[truncate_text(name, max_length=30) for name in theme_display_df['clean_name']],
+                        ticktext=theme_display_df['clean_name'],
                         tickfont=dict(
                             size=11,
-                            color='black'
+                            color='white'  # Changed to white from black for consistency
                         ),
+                        automargin=True  # Added to ensure labels fit properly
                     )
                 )
                 # Improve x-axis formatting for dark mode
