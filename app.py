@@ -334,10 +334,10 @@ class BERTResultsAnalyzer:
     def _clean_categories(self, df):
         """
         Clean categories column by removing specific sentences and replacing with official category names.
-        
+    
         Args:
             df (pd.DataFrame): DataFrame containing a 'categories' column
-            
+    
         Returns:
             pd.DataFrame: DataFrame with cleaned 'categories' column
         """
@@ -346,7 +346,23 @@ class BERTResultsAnalyzer:
     
         cleaned_df = df.copy()
     
-        # Updated official category mappings
+        # Define standard categories
+        standard_categories = [
+            "Alcohol drug and medication related deaths",
+            "Care Home Health related deaths",
+            "Community health care and emergency services related deaths",
+            "Emergency services related deaths 2019 onwards",
+            "Hospital Death Clinical Procedures and medical management related deaths",
+            "Police related deaths",
+            "Product related deaths",
+            "Railway related deaths",
+            "Road Highways Safety related deaths",
+            "State Custody related deaths",
+            "Other related deaths",
+            "Wales prevention of future deaths reports 2019 onwards",
+        ]
+    
+        # Mapping of known messy variations to official category names
         category_mappings = {
             # Alcohol/Drugs
             "alcohol drug and medication related deaths": "Alcohol drug and medication related deaths",
@@ -370,7 +386,7 @@ class BERTResultsAnalyzer:
             "community health care services related deaths": "Community health care and emergency services related deaths",
             "emergency services related deaths": "Emergency services related deaths 2019 onwards",
     
-            # Direct matches
+            # Direct
             "care home health related deaths": "Care Home Health related deaths",
             "police related deaths": "Police related deaths",
             "state custody related deaths": "State Custody related deaths",
@@ -380,7 +396,7 @@ class BERTResultsAnalyzer:
             "other related deaths": "Other related deaths",
             "wales prevention of future deaths reports": "Wales prevention of future deaths reports 2019 onwards",
             "wales prevention of future deaths reports 2019 onwards": "Wales prevention of future deaths reports 2019 onwards",
-            "department for health and social care": "Other related deaths"  # Best approximation
+            "department for health and social care": "Other related deaths"  # fallback match
         }
     
         def clean_categories_value(categories_text):
@@ -408,10 +424,10 @@ class BERTResultsAnalyzer:
             if earliest_pos != len(categories_text):
                 categories_text = categories_text[:earliest_pos].strip()
     
-            # Remove text in brackets and normalize spacing
-            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
+            # Normalize formatting
+            categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()  # remove brackets
             categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
-            categories_text = re.sub(r'\s+', ' ', categories_text)  # 🆕 Normalize multiple spaces
+            categories_text = re.sub(r'\s+', ' ', categories_text)  # normalize multiple spaces
     
             normalized_text = categories_text.lower().strip()
             return category_mappings.get(normalized_text, categories_text.strip())
@@ -438,6 +454,7 @@ class BERTResultsAnalyzer:
                 continue
     
         return cleaned_df
+
 
 
     ##################
