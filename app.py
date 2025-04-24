@@ -9780,17 +9780,6 @@ def render_filter_data_tab(data: pd.DataFrame = None):
     # Create a unique ID for this file to ensure caching is file-specific
     file_id = str(hash(uploaded_file.name + str(uploaded_file.size)))
 
-    #####fix
-    file_id = str(hash(uploaded_file.name + str(uploaded_file.size)))
-    
-    # Clear any existing filter selections when a new file is uploaded
-    if "prev_file_id" in st.session_state.filter_tab and st.session_state.filter_tab["prev_file_id"] != file_id:
-        for key in list(st.session_state.keys()):
-            if key.startswith(filter_key_prefix):
-                del st.session_state[key]
-    st.session_state.filter_tab["prev_file_id"] = file_id
-
-    ##############
 
 
     # Check if we need to reprocess the file or can use cached data
