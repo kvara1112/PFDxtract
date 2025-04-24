@@ -9969,7 +9969,7 @@ def render_filter_data_tab(data: pd.DataFrame = None):
                     options=sorted_categories,
                     key=f"{filter_key_prefix}categories",
                     help="Select categories to include",
-                    format_func=lambda x: x if not isinstance(x, list) else ", ".join(x)
+                    format_func=lambda x: ", ".join(x) if isinstance(x, list) else str(x) if x is not None else ""
                 )
 
         with row3_col2:
