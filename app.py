@@ -7833,14 +7833,15 @@ def apply_chart_truncation(fig, truncate_func=None, max_length=30, axis='both'):
 
 def truncate_text(text, max_length=30):
     """
-    Truncate long text for better display in charts
+    Improved function to handle long text for chart display by breaking into lines
+    instead of simple truncation with ellipses
     
     Args:
-        text: String to truncate
-        max_length: Maximum length before truncation
+        text: String to format
+        max_length: Maximum length per line
         
     Returns:
-        Truncated or line-broken text
+        Text with line breaks inserted at appropriate word boundaries
     """
     if not text or len(text) <= max_length:
         return text
@@ -7851,9 +7852,35 @@ def truncate_text(text, max_length=30):
         framework = parts[0].strip()
         theme = parts[1].strip()
         
-        # If theme part is too long, truncate it
+        # For theme part, break it into lines rather than truncate
         if len(theme) > max_length - len(framework) - 2:  # -2 for ": "
-            theme = theme[:max_length - len(framework) - 5] + "..."
+            # Process the theme part with word-aware line breaking
+            words = theme.split()
+            processed_theme = []
+            current_line = []
+            current_length = 0
+            
+            for word in words:
+                # If adding this word keeps us under the limit
+                if current_length + len(word) + (1 if current_line else 0) <= max_length - len(framework) - 2:
+                    current_line.append(word)
+                    current_length += len(word) + (1 if current_line else 0)
+                else:
+                    # Line is full, start a new one
+                    processed_theme.append(" ".join(current_line))
+                    current_line = [word]
+                    current_length = len(word)
+            
+            # Add the final line if any
+            if current_line:
+                processed_theme.append(" ".join(current_line))
+            
+            # If we have more than 2 lines, keep first 2 and add ellipsis
+            if len(processed_theme) > 2:
+                return f"{framework}: {processed_theme[0]}<br>{processed_theme[1]}..."
+            else:
+                # Join with line breaks
+                return f"{framework}: {('<br>').join(processed_theme)}"
         
         return f"{framework}: {theme}"
     
@@ -7874,6 +7901,10 @@ def truncate_text(text, max_length=30):
     
     if current_line:
         lines.append(" ".join(current_line))
+    
+    # If we have more than 2 lines, keep first 2 and add ellipsis
+    if len(lines) > 2:
+        return f"{lines[0]}<br>{lines[1]}..."
     
     # For plotly charts, use <br> for line breaks
     return "<br>".join(lines)
