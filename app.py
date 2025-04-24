@@ -359,9 +359,9 @@ class BERTResultsAnalyzer:
             "hospital death related death": "Hospital Death Clinical Procedures and medical management related deaths",
             "hospital deaths related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
             "hospital related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital death (clinical procedures and medical management) related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital (clinical procedures and medical management) related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital death (clinical procedures and medical management) related death": "Hospital Death Clinical Procedures and medical management related deaths",
+            "hospital death clinical procedures and medical management related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
+            "hospital clinical procedures and medical management related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
+            "hospital death clinical procedures and medical management related death": "Hospital Death Clinical Procedures and medical management related deaths",
     
             # Community / Emergency Services
             "community health care and emergency services related deaths": "Community health care and emergency services related deaths",
@@ -408,8 +408,10 @@ class BERTResultsAnalyzer:
             if earliest_pos != len(categories_text):
                 categories_text = categories_text[:earliest_pos].strip()
     
+            # Remove text in brackets and normalize spacing
             categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
             categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
+            categories_text = re.sub(r'\s+', ' ', categories_text)  # 🆕 Normalize multiple spaces
     
             normalized_text = categories_text.lower().strip()
             return category_mappings.get(normalized_text, categories_text.strip())
@@ -436,6 +438,7 @@ class BERTResultsAnalyzer:
                 continue
     
         return cleaned_df
+
 
     ##################
     def _extract_missing_concerns_from_pdf(self, df):
