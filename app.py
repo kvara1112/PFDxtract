@@ -8380,7 +8380,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                 fill="toself",
                                 name=area_display_map.get(area, area)
                             ))
-                        
+                    
                         fig.update_layout(
                             polar=dict(
                                 radialaxis=dict(
@@ -8388,9 +8388,12 @@ def save_dashboard_images_as_zip(filtered_df):
                                     range=[0, max(radar_data["Percentage"]) * 1.1]
                                 )
                             ),
+                            font=dict(
+                                color="black"
+                            ),
                             showlegend=True,
                             title="Theme Distribution Radar Chart"
-                        )
+                        )                
                         
                         add_figure_to_zip(fig, f"area_radar_chart_{timestamp}.png")
         except Exception as e:
