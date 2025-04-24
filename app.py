@@ -329,108 +329,6 @@ class BERTResultsAnalyzer:
         return processed_df
     
 
-
-    #################
-    def _clean_categories(self, df):
-        """
-        Clean categories column by removing specific sentences, applying stemming, 
-        removing unnecessary words like 'and', and replacing with official category names.
-    
-        Args:
-            df (pd.DataFrame): DataFrame containing a 'categories' column
-    
-        Returns:
-            pd.DataFrame: DataFrame with cleaned 'categories' column
-        """
-        if df is None or len(df) == 0 or 'categories' not in df.columns:
-            return df
-    
-        # Define standard categories with more comprehensive mapping
-        standard_categories = [
-            "Alcohol drug and medication related deaths",
-            "Care Home Health related deaths",
-            "Child Death",
-            "Community health care and emergency services related deaths", 
-            "Emergency services related deaths",
-            "Hospital Death Clinical Procedures and medical management related deaths",
-            "Hospital Death related deaths",
-            "Mental Health related deaths",
-            "Other related deaths",
-            "Police related deaths",
-            "Product related deaths",
-            "Railway related deaths", 
-            "Road Highways Safety related deaths",
-            "State Custody related deaths",
-            "Suicide",
-            "Wales prevention of future deaths reports",
-        ]
-    
-        # More comprehensive mappings
-        category_mappings = {
-            "hospital death related deaths": "Hospital Death related deaths",
-            "hospital death (clinical procedures and medical management) related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "hospital (clinical procedures and medical management) related deaths": "Hospital Death Clinical Procedures and medical management related deaths",
-            "child death from 2015": "Child Death",
-            "drugs medication related deaths": "Alcohol drug and medication related deaths",
-            "community healthcare related deaths": "Community health care and emergency services related deaths",
-            "community health care services related deaths": "Community health care and emergency services related deaths",
-            "community healthcare": "Community health care and emergency services related deaths",
-        }
-    
-        def clean_categories_value(categories_text):
-            if pd.isna(categories_text) or not isinstance(categories_text, str):
-                return categories_text
-    
-            # Lowercase and remove extra whitespaces
-            cleaned_text = re.sub(r'\s+', ' ', categories_text.lower().strip())
-    
-            # Remove text in brackets
-            cleaned_text = re.sub(r'\(.*?\)', '', cleaned_text).strip()
-    
-            # Remove any trailing commas, dots, or other punctuation
-            cleaned_text = re.sub(r'[,\.]+$', '', cleaned_text).strip()
-    
-            # Try direct mapping first
-            if cleaned_text in category_mappings:
-                return category_mappings[cleaned_text]
-    
-            # Try partial matching for more complex scenarios
-            for pattern, standard_category in category_mappings.items():
-                if all(word in cleaned_text for word in pattern.split()):
-                    return standard_category
-    
-            # For multiple categories, handle list-like inputs
-            if ',' in cleaned_text:
-                categories = [cat.strip() for cat in cleaned_text.split(',')]
-                cleaned_categories = []
-                for cat in categories:
-                    # First try direct mapping
-                    mapped_cat = category_mappings.get(cat, cat)
-                    
-                    # If no direct mapping, try partial matching
-                    if mapped_cat == cat:
-                        for pattern, standard_category in category_mappings.items():
-                            if all(word in cat for word in pattern.split()):
-                                mapped_cat = standard_category
-                                break
-                    
-                    cleaned_categories.append(mapped_cat)
-                
-                # Remove duplicates while preserving order
-                seen = set()
-                unique_categories = [x for x in cleaned_categories if not (x in seen or seen.add(x))]
-                
-                return unique_categories
-    
-            return cleaned_text
-    
-        # Apply the cleaning function to the dataframe
-        cleaned_df = df.copy()
-        cleaned_df['categories'] = cleaned_df['categories'].apply(clean_categories_value)
-    
-        return cleaned_df
-
-
     ##################
     def _extract_missing_concerns_from_pdf(self, df):
         """
@@ -1340,8 +1238,87 @@ class BERTResultsAnalyzer:
         ].copy()
 
         return missing_concerns
-    #
+   
     
+    #
+    def _clean_categories(self, df):
+            """
+            Clean categories column by removing "These reports are being sent to:" and any text that follows
+            
+            Args:
+                df (pd.DataFrame): DataFrame containing a 'categories' column
+                
+            Returns:
+                pd.DataFrame: DataFrame with cleaned 'categories' column
+            """
+            if df is None or len(df) == 0 or 'categories' not in df.columns:
+                return df
+            
+            # Create a copy to avoid modifying the original
+            cleaned_df = df.copy()
+            
+            # Define the cleaning function for a single value
+            def clean_categories_value(categories_text):
+                if pd.isna(categories_text) or not isinstance(categories_text, str):
+                    return categories_text
+                
+                # Convert to lowercase for case-insensitive matching
+                categories_text_lower = categories_text.lower()
+                
+                # Patterns to look for and remove
+                report_patterns = [
+                    "these reports are being sent to:",
+                    "this report is being sent to:",
+                    "the report is being sent to:",
+                    "this report",
+                    "these reports",
+                    "the report",
+                    "this is being"
+                ]
+                
+                # Find the earliest position of any report-related pattern
+                earliest_pos = len(categories_text)
+                for pattern in report_patterns:
+                    pos = categories_text_lower.find(pattern)
+                    if pos != -1 and pos < earliest_pos:
+                        earliest_pos = pos
+                
+                # If a report pattern was found, truncate
+                if earliest_pos != len(categories_text):
+                    categories_text = categories_text[:earliest_pos].strip()
+                
+                # Normalize text: remove brackets, convert '&' and 'and' to a standard form
+                # Remove brackets
+                categories_text = re.sub(r'\(.*?\)', '', categories_text).strip()
+                
+                # Replace variations of conjunctions
+                categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
+                
+                return categories_text.strip()
+            
+            # Apply the cleaning function to the DataFrame
+            # Handle both string values and list values
+            before_cleaning = cleaned_df["categories"].copy()
+            
+            # Process based on data type
+            for idx, value in enumerate(cleaned_df["categories"]):
+                if isinstance(value, list):
+                    # For list values, we need to check each element
+                    cleaned_list = []
+                    for item in value:
+                        if isinstance(item, str):
+                            cleaned_list.append(clean_categories_value(item))
+                        else:
+                            cleaned_list.append(item)
+                    cleaned_df.at[idx, "categories"] = cleaned_list
+                elif isinstance(value, str):
+                    # For string values, clean directly
+                    cleaned_df.at[idx, "categories"] = clean_categories_value(value)
+            
+            return cleaned_df
+
+
+
 
 
     
