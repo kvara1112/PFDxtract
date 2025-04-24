@@ -9800,62 +9800,49 @@ def render_filter_data_tab():
                     active_filters.append(f"Areas: {len(selected_areas)} selected")
 
             # Categories filter
-            if "categories" in filtered_df.columns and "filter_categories" in st.session_state and st.session_state.filter_categories:
-                selected_categories = st.session_state.filter_categories
+            # Categories filter
+            if "categories" in filtered_df.columns and "filter_categories_" + str(id(data)) in st.session_state and st.session_state["filter_categories_" + str(id(data))]:
+                selected_categories = st.session_state["filter_categories_" + str(id(data))]
                 
-                # Handle both string and list categories
-                if isinstance(filtered_df["categories"].iloc[0] if len(filtered_df) > 0 else "", list):
-                    # List case
-                    filtered_df = filtered_df[
-                        filtered_df["categories"].apply(
-                            lambda x: isinstance(x, list)
-                            and any(cat in x for cat in selected_categories)
-                        )
-                    ]
-                else:
-                    # String case
-                    filtered_df = filtered_df[
-                        filtered_df["categories"]
-                        .fillna("")
-                        .astype(str)
-                        .apply(lambda x: any(cat in x for cat in selected_categories))
-                    ]
+                before_count = len(filtered_df)
+                
+                # Handle both string and list categories with improved matching
+                def has_matching_category(row_categories):
+                    # Handle empty categories
+                    if pd.isna(row_categories) or (isinstance(row_categories, list) and len(row_categories) == 0):
+                        return False
+                        
+                    # Convert to list if it's a string
+                    if isinstance(row_categories, str):
+                        # Split by comma and normalize each category
+                        cats_list = [" ".join(cat.strip().split()) for cat in row_categories.split(",")]
+                    elif isinstance(row_categories, list):
+                        # Already a list, just normalize each item
+                        cats_list = [" ".join(cat.strip().split()) if isinstance(cat, str) else "" for cat in row_categories]
+                    else:
+                        return False
+                        
+                    # Check if any selected category matches any category in the row
+                    for selected_cat in selected_categories:
+                        for row_cat in cats_list:
+                            # Use exact matching after normalization
+                            if selected_cat == row_cat or selected_cat in row_cat:
+                                return True
+                    return False
+                
+                # Apply the matching function
+                filtered_df = filtered_df[filtered_df["categories"].apply(has_matching_category)]
+                
+                # Add to active filters
+                after_count = len(filtered_df)
+                filtered_count = before_count - after_count
                 
                 if len(selected_categories) <= 3:
-                    active_filters.append(f"Categories: {', '.join(selected_categories)}")
+                    active_filters.append(f"Categories: {', '.join(selected_categories)} ({after_count}/{before_count} records)")
                 else:
-                    active_filters.append(f"Categories: {len(selected_categories)} selected")
-
-            # Content keyword search with advanced AND/OR operators
-            if "filter_keyword_search" in st.session_state and st.session_state.filter_keyword_search:
-                keyword_search = st.session_state.filter_keyword_search
-                content_col = "content" if "content" in filtered_df.columns else "Content"
-                
-                if content_col in filtered_df.columns:
-                    before_count = len(filtered_df)
-                    
-                    #
-
-                    # Apply the advanced search with AND/OR operators
-                    filtered_df = filtered_df[
-                        filtered_df[content_col]
-                        .fillna("")
-                        .astype(str)
-                        .apply(lambda x: perform_advanced_keyword_search(x, keyword_search))
-                    ]
-                    
-                    after_count = len(filtered_df)
-                    
-                    # Add to active filters
-                    if " and " in keyword_search.lower():
-                        search_desc = f"Content contains all terms: '{keyword_search}'"
-                    elif " or " in keyword_search.lower():
-                        search_desc = f"Content contains any term: '{keyword_search}'"
-                    else:
-                        search_desc = f"Content contains: '{keyword_search}'"
-                    
-                    active_filters.append(f"{search_desc} ({after_count}/{before_count} records)")
-
+                    active_filters.append(f"Categories: {len(selected_categories)} selected ({after_count}/{before_count} records)")
+        
+           
             # Apply filter for records with extracted concerns
             if "filter_exclude_no_concerns" in st.session_state and st.session_state.filter_exclude_no_concerns:
                 concerns_col = (
