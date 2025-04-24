@@ -8486,27 +8486,28 @@ def save_dashboard_images_as_zip(filtered_df):
                         #
                         fig.update_layout(
                             polar=dict(
-                                bgcolor="white",  # Background inside the polar chart
+                                bgcolor="#f5f5f5",  # Light gray for better contrast
                                 radialaxis=dict(
                                     visible=True,
                                     range=[0, max(radar_data["Percentage"]) * 1.1],
-                                    color="black",  # Axis line and tick labels
-                                    tickfont=dict(color="black"),  # Tick label font color
+                                    color="black",
+                                    tickfont=dict(color="black"),
+                                    gridcolor="gray"  # Make gridlines more visible
                                 ),
                                 angularaxis=dict(
-                                    color="black",  # Angular axis line and labels
+                                    color="black",
                                     tickfont=dict(color="black"),
-                                ),
+                                    gridcolor="gray"
+                                )
                             ),
                             font=dict(
-                                color="black"  # All general text: title, legend, etc.
+                                color="black"
                             ),
-                            paper_bgcolor="grey",  # Outer chart background
-                            plot_bgcolor="white",   # Background inside the plotting area
+                            paper_bgcolor="#001F3F",  # Outer chart background (e.g., navy)
+                            plot_bgcolor="#001F3F",   # Match the outer background
                             showlegend=True,
                             title="Theme Distribution Radar Chart"
                         )
-
                         
                         add_figure_to_zip(fig, f"area_radar_chart_{timestamp}.png")
                         
