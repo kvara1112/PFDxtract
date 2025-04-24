@@ -11557,7 +11557,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
         
 
-        st.plotly_chart(fig)
+        st.plotly_chart(fig, key="correlation_matrix_chart")
+
 
         fig = px.imshow(
             top_theme_corr,
@@ -11746,7 +11747,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 )
             )
             
-            st.plotly_chart(fig)
+            st.plotly_chart(fig, key="network_viz_chart")
     
             # Create a co-occurrence frequency table
             st.subheader("Theme Co-occurrence Table")
