@@ -11050,6 +11050,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         )
         
         st.plotly_chart(fig, use_container_width=True)
+    
     # === TAB 3: TEMPORAL ANALYSIS ===
     with tab3:
         st.subheader("Temporal Analysis")
@@ -11066,6 +11067,12 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             
             year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
             
+            # Create a mapping dictionary for formatted theme names
+            theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
+            
+            # Apply the formatting to the DataFrame
+            year_theme_counts["Display_Theme"] = year_theme_counts["Theme"].map(theme_display_map)
+            
             # Create a line chart - important fix: convert year to string to treat as categorical
             year_theme_counts['year_str'] = year_theme_counts['year'].astype(str)
             
@@ -11073,10 +11080,10 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 year_theme_counts,
                 x="year_str",  # Use string version of year
                 y="Count",
-                color="Theme",
+                color="Display_Theme",  # Use formatted theme names
                 markers=True,
-                #title="Theme Trends Over Time",
-                height=500,
+                title="Theme Trends Over Time",
+                height=600,  # Increased height
             )
             
             # Improve layout
@@ -11089,7 +11096,16 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     tickvals=sorted(year_theme_counts['year_str'].unique()),
                     ticktext=sorted(year_theme_counts['year_str'].unique()),
                 ),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                # Move legend below the chart for more horizontal space and prevent overlap
+                legend=dict(
+                    orientation="h", 
+                    yanchor="top", 
+                    y=-0.2,  # Position below the chart
+                    xanchor="center", 
+                    x=0.5,
+                    title=None  # Remove legend title
+                ),
+                margin=dict(l=50, r=50, b=150, t=80),  # Increase bottom margin for legend
                 font=dict(color="white"),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
@@ -11117,9 +11133,12 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             pivot_df = year_theme_counts.pivot(index="Theme", columns="year_str", values="Count").fillna(0)
             
             # Convert to a normalized heatmap (percentage)
-            # Calculate the total themes per year (instead of total reports)
+            # Calculate the total themes per year
             year_theme_totals = pivot_df.sum(axis=0)
             normalized_pivot = pivot_df.div(year_theme_totals, axis=1) * 100
+            
+            # Format the theme names for better display
+            formatted_themes = [improved_truncate_text(theme, max_length=40) for theme in normalized_pivot.index]
             
             # Create a heatmap - ensure years are in correct order
             year_order = sorted(year_theme_counts['year'].unique())
@@ -11129,7 +11148,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 normalized_pivot[year_order_str],  # Ensure columns are in correct order
                 labels=dict(x="Year", y="Theme", color="% of Themes"),
                 x=year_order_str,  # Use sorted string years
-                y=normalized_pivot.index,
+                y=formatted_themes,  # Use formatted theme names
                 color_continuous_scale=[
                     [0, '#f7fbff'],      # Lightest blue (almost white) for zero values
                     [0.2, '#deebf7'],    # Very light blue
@@ -11151,6 +11170,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     tickvals=year_order_str,
                     ticktext=year_order_str,
                 ),
+                margin=dict(l=250, r=50, t=80, b=50),  # Increased left margin for theme labels
                 font=dict(color="white"),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
@@ -11159,12 +11179,14 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Update axes and colorbar for dark mode
             fig.update_xaxes(
                 title_font=dict(color="white"),
-                tickfont=dict(color="white")
+                tickfont=dict(color="white"),
+                automargin=True  # Ensure labels don't overlap
             )
             
             fig.update_yaxes(
                 title_font=dict(color="white"),
-                tickfont=dict(color="white")
+                tickfont=dict(color="white"),
+                automargin=True  # Ensure y-axis labels fit
             )
             
             fig.update_traces(
@@ -11187,16 +11209,46 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             area_counts = filtered_df["coroner_area"].value_counts().head(10)
             top_areas = area_counts.index.tolist()
             
-            # Create a bar chart of top areas
+            # Format area names for better display
+            formatted_areas = [improved_truncate_text(area, max_length=40) for area in area_counts.index]
+            
+            # Create a mapping for display names
+            area_display_map = dict(zip(area_counts.index, formatted_areas))
+            
+            # Create a bar chart of top areas with formatted names
             fig = px.bar(
-                x=area_counts.index,
+                x=formatted_areas,
                 y=area_counts.values,
                 labels={"x": "Coroner Area", "y": "Count"},
                 title="Theme Identifications by Coroner Area",
                 height=500,
+                color_discrete_sequence=['#ff9f40']  # Orange color for areas
             )
             
-            fig.update_layout(xaxis_tickangle=-45)
+            fig.update_layout(
+                xaxis_title="Coroner Area",
+                yaxis_title="Number of Theme Identifications",
+                xaxis_tickangle=-30,  # Less extreme angle for readability
+                margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin
+                font=dict(color="white"),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            
+            # Update axes for dark mode and ensure labels fit
+            fig.update_xaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white"),
+                gridcolor="rgba(255,255,255,0.1)",
+                automargin=True  # Ensure labels fit without overlap
+            )
+            
+            fig.update_yaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white"),
+                gridcolor="rgba(255,255,255,0.1)"
+            )
+            
             st.plotly_chart(fig, use_container_width=True)
             
             # Multi-area theme comparison
@@ -11210,6 +11262,13 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Get theme distribution for each area
             area_theme_data = []
             
+            # Get top themes overall for comparison
+            all_theme_counts = filtered_df["Theme"].value_counts()
+            top_themes = all_theme_counts.head(top_n_themes).index.tolist()
+            
+            # Create a mapping for formatted theme names
+            theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
+            
             for area in top_areas:
                 area_df = filtered_df[filtered_df["coroner_area"] == area]
                 area_themes = area_df["Theme"].value_counts()
@@ -11221,40 +11280,58 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     
                     area_theme_data.append({
                         "Coroner Area": area,
+                        "Display_Area": area_display_map[area],
                         "Theme": theme,
+                        "Display_Theme": theme_display_map[theme],
                         "Count": count,
                         "Percentage": round(percentage, 1)
                     })
             
             area_theme_df = pd.DataFrame(area_theme_data)
             
-            # Create heatmap
-            pivot_df = area_theme_df.pivot(index="Coroner Area", columns="Theme", values="Percentage").fillna(0)
+            # Create heatmap using formatted names
+            pivot_df = area_theme_df.pivot(
+                index="Display_Area", 
+                columns="Display_Theme", 
+                values="Percentage"
+            ).fillna(0)
             
-            # Limit to top areas and themes
-            pivot_df = pivot_df.loc[top_areas, top_themes]
-            
-            fig = px.imshow(
-                pivot_df,
-                labels=dict(x="Theme", y="Coroner Area", color="Percentage"),
-                x=pivot_df.columns,
-                y=pivot_df.index,
-                color_continuous_scale="YlGnBu",
-                title="Theme Distribution by Coroner Area (%)",
-                height=600,
-                aspect="auto",
-                text_auto=".1f"
-            )
-            
-            fig.update_layout(
-                xaxis_title="Theme",
-                yaxis_title="Coroner Area",
-                xaxis_tickangle=-45,
-                coloraxis_colorbar=dict(title="% of Cases")
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
+            # Ensure we have data to display
+            if not pivot_df.empty:
+                fig = px.imshow(
+                    pivot_df,
+                    labels=dict(x="Theme", y="Coroner Area", color="Percentage"),
+                    x=pivot_df.columns,
+                    y=pivot_df.index,
+                    color_continuous_scale="YlGnBu",
+                    title="Theme Distribution by Coroner Area (%)",
+                    height=700,  # Increased height
+                    aspect="auto",
+                    text_auto=".1f"  # Show to 1 decimal place
+                )
+                
+                fig.update_layout(
+                    xaxis_title="Theme",
+                    yaxis_title="Coroner Area",
+                    xaxis_tickangle=-30,  # Reduce angle
+                    coloraxis_colorbar=dict(
+                        title=dict(text="% of Cases", font=dict(color="white")),
+                        tickfont=dict(color="white")
+                    ),
+                    margin=dict(l=250, r=70, b=180, t=80),  # Increased margins
+                    font=dict(color="white"),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                )
+                
+                # Enable automargin to ensure labels fit
+                fig.update_xaxes(automargin=True)
+                fig.update_yaxes(automargin=True)
+                
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Not enough data to create area-theme heatmap.")
+                
             # Radar chart option for areas
             st.subheader("Theme Radar Comparison")
             
@@ -11283,27 +11360,38 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     
                     fig.add_trace(go.Scatterpolar(
                         r=area_data["Percentage"],
-                        theta=area_data["Theme"],
+                        theta=area_data["Display_Theme"],  # Use formatted theme names
                         fill="toself",
-                        name=area
+                        name=area_display_map.get(area, area)  # Use formatted area names
                     ))
                 
                 fig.update_layout(
                     polar=dict(
                         radialaxis=dict(
                             visible=True,
-                            range=[0, max(radar_data["Percentage"]) * 1.1]
+                            range=[0, max(radar_data["Percentage"]) * 1.1],
+                            tickfont=dict(color="white")
+                        ),
+                        angularaxis=dict(
+                            tickfont=dict(color="white")
                         )
                     ),
                     showlegend=True,
-                    title="Theme Distribution Radar Chart",
-                    height=600
+                    legend=dict(font=dict(color="white")),
+                    title=dict(
+                        text="Theme Distribution Radar Chart",
+                        font=dict(color="white")
+                    ),
+                    height=700,  # Increased height
+                    margin=dict(l=80, r=80, t=100, b=80),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("Please select at least 2 areas for radar comparison.")
-    
+            
     # === TAB 5: CORRELATION ANALYSIS ===
     with tab5:
         st.subheader("Theme Correlation Analysis")
