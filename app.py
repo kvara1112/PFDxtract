@@ -8486,28 +8486,37 @@ def save_dashboard_images_as_zip(filtered_df):
                         #
                         fig.update_layout(
                             polar=dict(
-                                bgcolor="#f5f5f5",  # Light gray for better contrast
+                                bgcolor="#f0f0f0",  # Light gray background inside the polar area
                                 radialaxis=dict(
                                     visible=True,
                                     range=[0, max(radar_data["Percentage"]) * 1.1],
-                                    color="black",
-                                    tickfont=dict(color="black"),
-                                    gridcolor="gray"  # Make gridlines more visible
+                                    color="black",                 # Axis lines
+                                    tickfont=dict(color="black"), # Tick labels
+                                    gridcolor="gray",             # Circular gridlines
+                                    linecolor="black"             # Axis line
                                 ),
                                 angularaxis=dict(
                                     color="black",
                                     tickfont=dict(color="black"),
-                                    gridcolor="gray"
+                                    gridcolor="gray",
+                                    linecolor="black"
                                 )
                             ),
                             font=dict(
                                 color="black"
                             ),
-                            paper_bgcolor="#001F3F",  # Outer chart background (e.g., navy)
-                            plot_bgcolor="#001F3F",   # Match the outer background
-                            showlegend=True,
-                            title="Theme Distribution Radar Chart"
+                            paper_bgcolor="#0c1f30",  # Dark blue outer background
+                            plot_bgcolor="#0c1f30",   # Match the paper background
+                            legend=dict(
+                                font=dict(color="white")  # Ensures legend text stays visible
+                            ),
+                            title=dict(
+                                text="Theme Distribution Radar Chart",
+                                font=dict(color="white")
+                            ),
+                            showlegend=True
                         )
+
                         
                         add_figure_to_zip(fig, f"area_radar_chart_{timestamp}.png")
                         
