@@ -1129,7 +1129,7 @@ class BERTResultsAnalyzer:
                 if example_changes:
                     st.info("Examples of cleaned coroner areas:\n" + "\n".join(example_changes))
 
-        ##her
+        ##
         # Remove duplicate Record IDs, keeping only the first occurrence
         if "Record ID" in merged_df.columns:
             before_count = len(merged_df)
@@ -1241,149 +1241,6 @@ class BERTResultsAnalyzer:
    
     
     #
-
-    def clean_categories(self, df):
-        """
-        Clean and map categories to standardized categories (case-insensitive and whitespace-insensitive)
-        
-        Args:
-            df (pd.DataFrame): DataFrame containing a 'categories' column
-            
-        Returns:
-            pd.DataFrame: DataFrame with cleaned and mapped 'categories' column
-        """
-        if df is None or len(df) == 0 or 'categories' not in df.columns:
-            return df
-        
-        # Create a copy to avoid modifying the original
-        cleaned_df = df.copy()
-        
-        # Comprehensive category mapping (whitespace and case-insensitive)
-        CATEGORY_MAPPING = {
-            "Accident at Work and Health and Safety related deaths": [
-                "emergency services related deaths"
-            ],
-            "Alcohol drug and medication related deaths": [
-                "alcohol drug and medication related deaths",
-                "drugs medication related deaths",
-                "drugs medication related death",
-                "alcohol drug and medication related death"
-            ],
-            "Care Home Health related deaths": [
-                "care home health related deaths",
-                "community healthcare related deaths",
-                "community healthcare"
-            ],
-            "Child Death from 2015": [
-                "child death",
-                "child death from 2015",
-                "child death from 2015",
-                "child death",
-                "child deaths"
-            ],
-            "Community health care and emergency services related deaths": [
-                "community health care and emergency services related deaths",
-                "community health care related deaths",
-                "community health care services related deaths",
-                "community healthcare related deaths",
-                "community health care and emergency services related death"
-            ],
-            "Emergency services related deaths 2019 onwards": [
-                "emergency services related deaths",
-                "emergency services related death"
-            ],
-            "Hospital Death Clinical Procedures and medical management related deaths": [
-                "hospital death (clinical procedures and medical management) related deaths",
-                "hospital death (clinical procedures and medical) related deaths",
-                "hospital clinical procedures and medical management related deaths",
-                "hospital death (clinical procedures and medical management) related death",
-                "hospital (clinical procedures and medical management) related deaths",
-                "hospital death (clinical procedures and medical management)",
-                "hospital death clinical procedures and medical management related deaths"
-            ],
-            "Mental Health related deaths": [
-                "mental health related deaths",
-                "mental health related death"
-            ],
-            "Other related deaths": [
-                "other related deaths",
-                "other related death"
-            ],
-            "Police related deaths": [
-                "police related deaths",
-                "police related death"
-            ],
-            "Product related deaths": [
-                "product related deaths",
-                "product related death"
-            ],
-            "Railway related deaths": [
-                "railway related deaths",
-                "railway related death"
-            ],
-            "Road Highways Safety related deaths": [
-                "road related deaths",
-                "road related death"
-            ],
-            "State Custody related deaths": [
-                "state custody related deaths",
-                "state custody related death"
-            ],
-            "Suicide from 2015": [
-                "suicide",
-                "suicide from 2015"
-            ],
-            "Wales prevention of future deaths reports 2019 onwards": [
-                "wales prevention of future deaths reports",
-                "wales prevention of future deaths report",
-                "prevention of future deaths reports"
-            ]
-        }
-        
-        def normalize_text(text):
-            """
-            Normalize text by:
-            1. Converting to lowercase
-            2. Removing multiple whitespaces
-            3. Stripping leading/trailing whitespaces
-            """
-            return re.sub(r'\s+', ' ', str(text).lower().strip())
-        
-        def clean_categories_value(categories_text):
-            if pd.isna(categories_text):
-                return []
-            
-            # Initial cleaning
-            categories_text = re.sub(r'\(.*?\)', '', str(categories_text)).strip()
-            categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
-            
-            # Split categories and normalize
-            category_list = [normalize_text(cat) for cat in categories_text.split(',')]
-            
-            # Map to standardized categories
-            mapped_categories = []
-            for cat in category_list:
-                mapped = False
-                for std_cat, variations in CATEGORY_MAPPING.items():
-                    # Normalize variations for comparison
-                    normalized_variations = [normalize_text(v) for v in variations]
-                    if cat in normalized_variations:
-                        mapped_categories.append(std_cat)
-                        mapped = True
-                        break
-                
-                # If no mapping found, keep original category (with first letter capitalized)
-                if not mapped and cat:
-                    mapped_categories.append(cat.capitalize())
-            
-            return list(set(mapped_categories))  # Remove duplicates
-        
-        # Apply cleaning and mapping
-        cleaned_df['categories'] = cleaned_df['categories'].apply(clean_categories_value)
-        
-        return cleaned_df
-
-
 
     
     #
@@ -1631,7 +1488,146 @@ class BERTResultsAnalyzer:
     
         
         #  
-
+        def _clean_categories(self, df):
+            """
+            Clean and map categories to standardized categories (case-insensitive and whitespace-insensitive)
+            
+            Args:
+                df (pd.DataFrame): DataFrame containing a 'categories' column
+                
+            Returns:
+                pd.DataFrame: DataFrame with cleaned and mapped 'categories' column
+            """
+            if df is None or len(df) == 0 or 'categories' not in df.columns:
+                return df
+            
+            # Create a copy to avoid modifying the original
+            cleaned_df = df.copy()
+            
+            # Comprehensive category mapping (whitespace and case-insensitive)
+            CATEGORY_MAPPING = {
+                "Accident at Work and Health and Safety related deaths": [
+                    "emergency services related deaths"
+                ],
+                "Alcohol drug and medication related deaths": [
+                    "alcohol drug and medication related deaths",
+                    "drugs medication related deaths",
+                    "drugs medication related death",
+                    "alcohol drug and medication related death"
+                ],
+                "Care Home Health related deaths": [
+                    "care home health related deaths",
+                    "community healthcare related deaths",
+                    "community healthcare"
+                ],
+                "Child Death from 2015": [
+                    "child death",
+                    "child death from 2015",
+                    "child death from 2015",
+                    "child death",
+                    "child deaths"
+                ],
+                "Community health care and emergency services related deaths": [
+                    "community health care and emergency services related deaths",
+                    "community health care related deaths",
+                    "community health care services related deaths",
+                    "community healthcare related deaths",
+                    "community health care and emergency services related death"
+                ],
+                "Emergency services related deaths 2019 onwards": [
+                    "emergency services related deaths",
+                    "emergency services related death"
+                ],
+                "Hospital Death Clinical Procedures and medical management related deaths": [
+                    "hospital death (clinical procedures and medical management) related deaths",
+                    "hospital death (clinical procedures and medical) related deaths",
+                    "hospital clinical procedures and medical management related deaths",
+                    "hospital death (clinical procedures and medical management) related death",
+                    "hospital (clinical procedures and medical management) related deaths",
+                    "hospital death (clinical procedures and medical management)",
+                    "hospital death clinical procedures and medical management related deaths"
+                ],
+                "Mental Health related deaths": [
+                    "mental health related deaths",
+                    "mental health related death"
+                ],
+                "Other related deaths": [
+                    "other related deaths",
+                    "other related death"
+                ],
+                "Police related deaths": [
+                    "police related deaths",
+                    "police related death"
+                ],
+                "Product related deaths": [
+                    "product related deaths",
+                    "product related death"
+                ],
+                "Railway related deaths": [
+                    "railway related deaths",
+                    "railway related death"
+                ],
+                "Road Highways Safety related deaths": [
+                    "road related deaths",
+                    "road related death"
+                ],
+                "State Custody related deaths": [
+                    "state custody related deaths",
+                    "state custody related death"
+                ],
+                "Suicide from 2015": [
+                    "suicide",
+                    "suicide from 2015"
+                ],
+                "Wales prevention of future deaths reports 2019 onwards": [
+                    "wales prevention of future deaths reports",
+                    "wales prevention of future deaths report",
+                    "prevention of future deaths reports"
+                ]
+            }
+            
+            def normalize_text(text):
+                """
+                Normalize text by:
+                1. Converting to lowercase
+                2. Removing multiple whitespaces
+                3. Stripping leading/trailing whitespaces
+                """
+                return re.sub(r'\s+', ' ', str(text).lower().strip())
+            
+            def clean_categories_value(categories_text):
+                if pd.isna(categories_text):
+                    return []
+                
+                # Initial cleaning
+                categories_text = re.sub(r'\(.*?\)', '', str(categories_text)).strip()
+                categories_text = re.sub(r'\s*&\s*', ' and ', categories_text)
+                
+                # Split categories and normalize
+                category_list = [normalize_text(cat) for cat in categories_text.split(',')]
+                
+                # Map to standardized categories
+                mapped_categories = []
+                for cat in category_list:
+                    mapped = False
+                    for std_cat, variations in CATEGORY_MAPPING.items():
+                        # Normalize variations for comparison
+                        normalized_variations = [normalize_text(v) for v in variations]
+                        if cat in normalized_variations:
+                            mapped_categories.append(std_cat)
+                            mapped = True
+                            break
+                    
+                    # If no mapping found, keep original category (with first letter capitalized)
+                    if not mapped and cat:
+                        mapped_categories.append(cat.capitalize())
+                
+                return list(set(mapped_categories))  # Remove duplicates
+            
+            # Apply cleaning and mapping
+            cleaned_df['categories'] = cleaned_df['categories'].apply(clean_categories_value)
+            
+            return cleaned_df
     
 
 
