@@ -16,6 +16,7 @@ import os
 import zipfile
 import unicodedata
 import nltk
+from nltk.stem import PorterStemmer
 import random
 import string
 import traceback
