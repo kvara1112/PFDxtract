@@ -10961,25 +10961,13 @@ def render_analysis_tab(data: pd.DataFrame = None):
     
     if uploaded_file is not None:
         try:
-            # Load file directly without additional processing
             if uploaded_file.name.endswith('.csv'):
                 data = pd.read_csv(uploaded_file)
             else:
                 data = pd.read_excel(uploaded_file)
             
-            # Convert date_of_report to datetime if it exists
-            if "date_of_report" in data.columns:
-                try:
-                    # Try multiple date formats
-                    data["date_of_report"] = pd.to_datetime(
-                        data["date_of_report"], errors="coerce"
-                    )
-                except Exception as e:
-                    st.warning(
-                        "Some date values could not be converted. Date filtering may not work completely."
-                    )
-            
-            # IMPORTANT: Do NOT call process_scraped_data here to avoid re-cleaning
+            # Process uploaded data
+            data = process_scraped_data(data)
             st.success("File uploaded and processed successfully!")
             
             # Update session state
@@ -10999,13 +10987,6 @@ def render_analysis_tab(data: pd.DataFrame = None):
     if data is None or len(data) == 0:
         st.warning("No data available. Please upload a file or scrape reports first.")
         return
-    
-    # Debug output - add this to help troubleshoot the issue
-    st.sidebar.expander("Debug Data Info", expanded=False).write(
-        f"Data source: {st.session_state.get('data_source')}\n"
-        f"Columns: {', '.join(data.columns)}\n"
-        f"Coroner name sample: {data['coroner_name'].head(3).tolist() if 'coroner_name' in data.columns else 'N/A'}"
-    )
         
     try:
         # Get date range for the data
@@ -11158,26 +11139,17 @@ def render_analysis_tab(data: pd.DataFrame = None):
                     )
                 ]
 
-        # Coroner name filter - using direct equality comparison
+        # Coroner name filter - use the filter_by_coroner_names function
         if 'selected_coroners' in locals() and selected_coroners:
-            filtered_df = filtered_df[filtered_df['coroner_name'].isin(selected_coroners)]
+            filtered_df = filter_by_coroner_names(filtered_df, selected_coroners)
 
-        # Coroner area filter - using direct equality comparison
+        # Coroner area filter - use the filter_by_areas function
         if 'selected_areas' in locals() and selected_areas:
-            filtered_df = filtered_df[filtered_df['coroner_area'].isin(selected_areas)]
+            filtered_df = filter_by_areas(filtered_df, selected_areas)
 
-        # Categories filter - handle both list and string types
+        # Categories filter - use the filter_by_categories function
         if 'selected_categories' in locals() and selected_categories:
-            if 'categories' in filtered_df.columns:
-                # Create a boolean mask for matching
-                mask = filtered_df['categories'].apply(
-                    lambda cats: any(
-                        cat in selected_categories for cat in 
-                        (cats if isinstance(cats, list) else 
-                         cats.split(',') if isinstance(cats, str) else [])
-                    )
-                )
-                filtered_df = filtered_df[mask]
+            filtered_df = filter_by_categories(filtered_df, selected_categories)
 
         # Show active filters
         active_filters = []
