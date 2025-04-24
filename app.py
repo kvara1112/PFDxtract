@@ -1068,7 +1068,7 @@ class BERTResultsAnalyzer:
         return missing_concerns
 
     #
-    def _clean_deceased_names(self, df):
+    def _clean_deceased_name(self, df):
         """
         Clean deceased name column by removing coroner-related text and normalizing
         
