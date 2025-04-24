@@ -10605,27 +10605,51 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
 
 
 def render_analysis_tab(data: pd.DataFrame = None):
-    """Render the analysis tab with completely fresh data loading and no cache usage"""
+    """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
 
-    # Clear specific session state variables related to this tab
-    for key in list(st.session_state.keys()):
-        if key.startswith("analysis_") or key.endswith("_filter") or key.endswith("_filter_text"):
-            del st.session_state[key]
-    
-    # Start completely fresh - ignore any passed data
-    data = None
-    
-    # Add file upload section at the top - this is the ONLY source of data for this tab
-    st.info("Please upload a file to begin analysis. Each tab functions independently.")
+    # Add file upload section at the top
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file", 
         type=['csv', 'xlsx'],
-        help="Upload a file to analyze (merged_* files recommended)",
-        key="analysis_file_uploader"
+        help="Upload previously exported data"
     )
     
-    if uploaded_file is None:
-        st.warning("No data available. Please upload a file to analyze.")
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                data = pd.read_csv(uploaded_file)
+            else:
+                data = pd.read_excel(uploaded_file)
+            
+            # Only convert dates, don't apply any other processing
+            if "date_of_report" in data.columns:
+                try:
+                    data["date_of_report"] = pd.to_datetime(
+                        data["date_of_report"], errors="coerce"
+                    )
+                except Exception as e:
+                    st.warning(
+                        "Some date values could not be converted. Date filtering may not work completely."
+                    )
+            
+            st.success("File uploaded and processed successfully!")
+            
+            # Update session state
+            st.session_state.uploaded_data = data.copy()
+            st.session_state.data_source = 'uploaded'
+            st.session_state.current_data = data.copy()
+        
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            logging.error(f"File upload error: {e}", exc_info=True)
+            return
+    
+    # Use either uploaded data or passed data, but DON'T clear data to None
+    if data is None:
+        data = st.session_state.get('current_data')
+    
+    if data is None or len(data) == 0:
+        st.warning("No data available. Please upload a file or scrape reports first.")
         return
         
     # Only proceed if a file is uploaded directly in this tab
