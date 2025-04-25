@@ -10208,7 +10208,7 @@ def render_filter_data_tab():
                     selected_categories = st.multiselect(
                         "Select categories",
                         options=sorted_categories,
-                        key="filter_categories",
+                        key="filter_categories1",
                         help="Select categories to include"
                     )
                     
