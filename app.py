@@ -6953,10 +6953,108 @@ def extract_categories(category_text: str, standard_categories: List[str]) -> Li
         if not (normalize_category(x) in seen or seen.add(normalize_category(x)))
     ]
 
+#################
+def normalize_category_text(category):
+    """
+    Normalize category text to create a standardized comparison key
+    This helps identify near-duplicate categories with minor differences
+    
+    Args:
+        category: Original category string
+        
+    Returns:
+        Normalized string for comparison
+    """
+    if not category or not isinstance(category, str):
+        return ""
+        
+    # Convert to lowercase
+    normalized = category.lower().strip()
+    
+    # Remove common punctuation and parentheses
+    normalized = normalized.replace("(", " ").replace(")", " ")
+    
+    # Remove common words that don't change meaning like "from" and "related"
+    normalized = re.sub(r'\bfrom\b', '', normalized)
+    normalized = re.sub(r'\brelated\b', '', normalized)
+    
+    # Standardize spaces
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    
+    # Remove years - they're often inconsistently formatted
+    normalized = re.sub(r'\b20\d\d\b', '', normalized)
+    
+    # Remove common structural words
+    for word in ['and', 'the', 'to', 'of', 'for', 'in', 'on', 'by', 'with']:
+        normalized = re.sub(r'\b' + word + r'\b', '', normalized)
+    
+    return normalized.strip()
+
+def get_unique_categories(data):
+    """
+    Extract unique categories from the data using normalization to group similar categories
+    
+    Args:
+        data: DataFrame with a categories column
+        
+    Returns:
+        List of unique categories (preserving original format but eliminating near-duplicates)
+    """
+    if "categories" not in data.columns:
+        return []
+        
+    all_categories = []
+    normalized_map = {}  # Maps normalized form to original (best) form
+    
+    # First pass: collect all categories and their normalized forms
+    for cats in data["categories"].dropna():
+        if isinstance(cats, list):
+            # Handle list type categories
+            for cat in cats:
+                if cat and isinstance(cat, str):
+                    cat_str = cat.strip()
+                    normalized = normalize_category_text(cat_str)
+                    if normalized:
+                        if normalized not in normalized_map:
+                            normalized_map[normalized] = cat_str
+                            all_categories.append(cat_str)
+                        elif len(cat_str) < len(normalized_map[normalized]):
+                            # If this version is shorter, it might be cleaner - replace
+                            normalized_map[normalized] = cat_str
+        elif isinstance(cats, str):
+            # Handle string type categories (comma-separated)
+            for cat in cats.split(','):
+                if cat and isinstance(cat, str):
+                    cat_str = cat.strip()
+                    normalized = normalize_category_text(cat_str)
+                    if normalized:
+                        if normalized not in normalized_map:
+                            normalized_map[normalized] = cat_str
+                            all_categories.append(cat_str)
+                        elif len(cat_str) < len(normalized_map[normalized]):
+                            # If this version is shorter, it might be cleaner - replace
+                            normalized_map[normalized] = cat_str
+    
+    # Second pass: replace all categories with their best representative
+    unique_categories = []
+    seen_normalized = set()
+    
+    for cat in all_categories:
+        normalized = normalize_category_text(cat)
+        if normalized not in seen_normalized:
+            seen_normalized.add(normalized)
+            # Use the "best" version of this category
+            unique_categories.append(normalized_map[normalized])
+    
+    # Return sorted list
+    return sorted(unique_categories, key=lambda x: x.lower())
+
+
+
 ######################
 def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd.DataFrame:
     """
-    Filter DataFrame by categories with case-insensitive matching
+    Filter DataFrame by categories with robust normalization for near-duplicate matching
     
     Args:
         df: DataFrame containing 'categories' column
@@ -6968,42 +7066,38 @@ def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd
     if not selected_categories:
         return df
     
-    # Convert selected categories to lowercase for case-insensitive comparison
-    selected_cats_lower = [cat.lower().strip() for cat in selected_categories if cat]
+    # Normalize selected categories for robust comparison
+    selected_cats_norm = [normalize_category_text(cat) for cat in selected_categories if cat]
     
     # Handle both string and list categories
     if "categories" in df.columns:
-        # Check if we can determine the data type based on first non-null value
-        first_valid_idx = df["categories"].first_valid_index()
-        if first_valid_idx is not None:
-            first_valid_value = df["categories"].loc[first_valid_idx]
+        # Create a filtering function that works with both types
+        def matches_any_category(row_cats):
+            # Handle missing values
+            if pd.isna(row_cats):
+                return False
+                
+            # Handle list type
+            if isinstance(row_cats, list):
+                row_cats_norm = [normalize_category_text(cat) for cat in row_cats if cat and isinstance(cat, str)]
+                return any(
+                    any(r_norm == s_norm for s_norm in selected_cats_norm)
+                    for r_norm in row_cats_norm if r_norm
+                )
             
-            if isinstance(first_valid_value, list):
-                # List case - with case-insensitive comparison
-                filtered_df = df[
-                    df["categories"].apply(
-                        lambda x: isinstance(x, list) and any(
-                            cat.lower().strip() in selected_cats_lower or
-                            any(selected.lower() in cat.lower().strip() for selected in selected_cats_lower)
-                            for cat in x if cat and isinstance(cat, str)
-                        )
-                    )
-                ]
-                return filtered_df
+            # Handle string type
+            elif isinstance(row_cats, str):
+                # Split by comma and normalize each part
+                row_cats_parts = [normalize_category_text(cat) for cat in row_cats.split(',') if cat]
+                return any(
+                    any(r_norm == s_norm for s_norm in selected_cats_norm)
+                    for r_norm in row_cats_parts if r_norm
+                )
+                
+            return False
         
-        # String case (default) or mixed types - with case-insensitive comparison
-        filtered_df = df[
-            df["categories"]
-            .fillna("")
-            .astype(str)
-            .str.lower()  # Convert to lowercase for case-insensitive matching
-            .apply(lambda x: any(
-                selected.lower() in x or  # Selected category appears in string
-                any(cat.lower().strip() in selected.lower() for cat in x.split(','))  # Category part appears in selected
-                for selected in selected_cats_lower
-            ))
-        ]
-        return filtered_df
+        # Apply the filtering function
+        return df[df["categories"].apply(matches_any_category)]
     
     return df  # Return original if no categories column
 
@@ -10104,8 +10198,23 @@ def render_filter_data_tab():
                 if "URL" in filtered_df.columns:
                     column_config["URL"] = st.column_config.LinkColumn("Report Link")
                 
+                # Categories Filter
                 if "categories" in filtered_df.columns:
-                    column_config["categories"] = st.column_config.ListColumn("Categories")
+                    st.markdown("**Categories**")
+                    # Extract unique categories using our new function
+                    sorted_categories = get_unique_categories(filtered_df)
+                
+                    # Create multiselect for categories
+                    selected_categories = st.multiselect(
+                        "Select categories",
+                        options=sorted_categories,
+                        key="filter_categories",
+                        help="Select categories to include"
+                    )
+                    
+                    # Apply category filter if needed using our improved filter function
+                    if selected_categories:
+                        filtered_df = filter_by_categories(filtered_df, selected_categories)
                 
                 # Display results in a Streamlit dataframe
                 st.dataframe(
@@ -12538,12 +12647,22 @@ def render_analysis_tab2(data: pd.DataFrame = None):
                 elif isinstance(cats, str):
                     all_categories.update(str(cat).strip() for cat in cats.split(','))
             
+
+            sorted_categories = get_unique_categories(data)
+                
             selected_categories = st.multiselect(
                 "Categories",
-                options=sorted(all_categories),
-                key="categories_filter"
+                options=sorted_categories,
+                key="categories_filter",
+                help="Select categories to include"
             )
             
+            # Then later where the filter is applied:
+            # Categories filter - use our improved filter function
+            if selected_categories:
+                filtered_df = filter_by_categories(filtered_df, selected_categories)
+
+    
             # Reset Filters Button
             if st.button("🔄 Reset Filters"):
                 for key in st.session_state:
