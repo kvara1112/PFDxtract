@@ -5292,211 +5292,277 @@ def construct_search_url(
     return url
 
 
-def render_topic_summary_tab(data: pd.DataFrame) -> None:
+def render_topic_summary_tab(data: pd.DataFrame = None) -> None:
     """Topic analysis with weighting schemes and essential controls"""
     st.subheader("Topic Analysis & Summaries")
-
-    # Show previous results if available
-    if "topic_model" in st.session_state and st.session_state.topic_model is not None:
-        st.sidebar.success("Previous analysis results available")
-        if st.sidebar.button("View Previous Results"):
-            render_summary_tab(st.session_state.topic_model, data)
-            return
-
-    st.subheader("Analysis Settings")
-
-    # Text Processing
-    col1, col2 = st.columns(2)
-
-    with col1:
-        # Vectorization method
-        vectorizer_type = st.selectbox(
-            "Vectorization Method",
-            options=["tfidf", "bm25", "weighted"],
-            help="Choose how to convert text to numerical features",
-        )
-
-        # Weighting Schemes
-        if vectorizer_type == "weighted":
-            tf_scheme = st.selectbox(
-                "Term Frequency Scheme",
-                options=["raw", "log", "binary", "augmented"],
-                help="How to count term occurrences",
-            )
-            idf_scheme = st.selectbox(
-                "Document Frequency Scheme",
-                options=["smooth", "standard", "probabilistic"],
-                help="How to weight document frequencies",
-            )
-        elif vectorizer_type == "bm25":
-            k1 = st.slider(
-                "Term Saturation (k1)",
-                min_value=0.5,
-                max_value=3.0,
-                value=1.5,
-                help="Controls term frequency impact",
-            )
-            b = st.slider(
-                "Length Normalization (b)",
-                min_value=0.0,
-                max_value=1.0,
-                value=0.75,
-                help="Document length impact",
-            )
-
-    with col2:
-        # Clustering Parameters
-        min_cluster_size = st.slider(
-            "Minimum Group Size",
-            min_value=2,
-            max_value=10,
-            value=3,
-            help="Minimum documents per theme",
-        )
-
-        max_features = st.slider(
-            "Maximum Features",
-            min_value=1000,
-            max_value=10000,
-            value=5000,
-            step=1000,
-            help="Number of terms to consider",
-        )
-
-    # Date range selection
-    st.subheader("Date Range")
-    date_col1, date_col2 = st.columns(2)
-    with date_col1:
-        start_date = st.date_input(
-            "From",
-            value=data["date_of_report"].min().date(),
-            min_value=data["date_of_report"].min().date(),
-            max_value=data["date_of_report"].max().date(),
-        )
-
-    with date_col2:
-        end_date = st.date_input(
-            "To",
-            value=data["date_of_report"].max().date(),
-            min_value=data["date_of_report"].min().date(),
-            max_value=data["date_of_report"].max().date(),
-        )
-
-    # Category selection
-    all_categories = set()
-    for cats in data["categories"].dropna():
-        if isinstance(cats, list):
-            all_categories.update(cats)
-
-    categories = st.multiselect(
-        "Filter by Categories (Optional)",
-        options=sorted(all_categories),
-        help="Select specific categories to analyse",
+    
+    # Start with file upload, ignoring any previously loaded data
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for Topic Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a preprocessed file containing report content",
+        key="topic_analysis_uploader"
     )
 
-    # Analysis button
-    analyze_clicked = st.button(
-        "🔍 Analyse Documents", type="primary", use_container_width=True
-    )
-
-    if analyze_clicked:
+    # Only proceed with analysis if a file is uploaded
+    if uploaded_file is not None:
         try:
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-
-            # Initialize
-            progress_bar.progress(0.2)
-            status_text.text("Processing documents...")
-            initialize_nltk()
-
-            # Filter data
-            filtered_df = data.copy()
-
-            # Apply date filter
-            filtered_df = filtered_df[
-                (filtered_df["date_of_report"].dt.date >= start_date)
-                & (filtered_df["date_of_report"].dt.date <= end_date)
-            ]
-
-            # Apply category filter
-            if categories:
-                filtered_df = filter_by_categories(filtered_df, categories)
-
-            # Remove empty content
-            filtered_df = filtered_df[
-                filtered_df["Content"].notna()
-                & (filtered_df["Content"].str.strip() != "")
-            ]
-
-            if len(filtered_df) < min_cluster_size:
-                progress_bar.empty()
-                status_text.empty()
-                st.warning(
-                    f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}."
-                )
+            # Process the uploaded file
+            if uploaded_file.name.endswith(".csv"):
+                data = pd.read_csv(uploaded_file)
+            else:
+                data = pd.read_excel(uploaded_file)
+                
+            # Process the data
+            data = process_scraped_data(data)
+            
+            # Validate that we have the needed content column
+            if "Content" not in data.columns:
+                st.error("The uploaded file does not contain a 'Content' column needed for topic analysis.")
                 return
+                
+            st.success(f"File loaded successfully with {len(data)} rows.")
+            
+            # Text Processing options
+            st.subheader("Analysis Settings")
+            col1, col2 = st.columns(2)
 
-            # Process content
-            progress_bar.progress(0.4)
-            status_text.text("Identifying themes...")
-
-            processed_df = pd.DataFrame(
-                {
-                    "Content": filtered_df["Content"],
-                    "Title": filtered_df["Title"],
-                    "date_of_report": filtered_df["date_of_report"],
-                    "URL": filtered_df["URL"],
-                    "categories": filtered_df["categories"],
-                }
-            )
-
-            progress_bar.progress(0.6)
-            status_text.text("Analyzing patterns...")
-
-            # Prepare vectorizer parameters
-            vectorizer_params = {}
-            if vectorizer_type == "weighted":
-                vectorizer_params.update(
-                    {"tf_scheme": tf_scheme, "idf_scheme": idf_scheme}
+            with col1:
+                # Vectorization method
+                vectorizer_type = st.selectbox(
+                    "Vectorization Method",
+                    options=["tfidf", "bm25", "weighted"],
+                    help="Choose how to convert text to numerical features",
                 )
-            elif vectorizer_type == "bm25":
-                vectorizer_params.update({"k1": k1, "b": b})
 
-            # Store vectorization settings in session state
-            st.session_state.vectorizer_type = vectorizer_type
-            st.session_state.update(vectorizer_params)
+                # Weighting Schemes
+                if vectorizer_type == "weighted":
+                    tf_scheme = st.selectbox(
+                        "Term Frequency Scheme",
+                        options=["raw", "log", "binary", "augmented"],
+                        help="How to count term occurrences",
+                    )
+                    idf_scheme = st.selectbox(
+                        "Document Frequency Scheme",
+                        options=["smooth", "standard", "probabilistic"],
+                        help="How to weight document frequencies",
+                    )
+                elif vectorizer_type == "bm25":
+                    k1 = st.slider(
+                        "Term Saturation (k1)",
+                        min_value=0.5,
+                        max_value=3.0,
+                        value=1.5,
+                        help="Controls term frequency impact",
+                    )
+                    b = st.slider(
+                        "Length Normalization (b)",
+                        min_value=0.0,
+                        max_value=1.0,
+                        value=0.75,
+                        help="Document length impact",
+                    )
 
-            # Perform clustering
-            cluster_results = perform_semantic_clustering(
-                processed_df,
-                min_cluster_size=min_cluster_size,
-                max_features=max_features,
-                min_df=2 / len(processed_df),
-                max_df=0.95,
-                similarity_threshold=0.3,
+            with col2:
+                # Clustering Parameters
+                min_cluster_size = st.slider(
+                    "Minimum Group Size",
+                    min_value=2,
+                    max_value=10,
+                    value=3,
+                    help="Minimum documents per theme",
+                )
+
+                max_features = st.slider(
+                    "Maximum Features",
+                    min_value=1000,
+                    max_value=10000,
+                    value=5000,
+                    step=1000,
+                    help="Number of terms to consider",
+                )
+
+            # Date range selection
+            st.subheader("Date Range")
+            date_col1, date_col2 = st.columns(2)
+            
+            # Only show date selector if date_of_report column exists
+            if "date_of_report" in data.columns and pd.api.types.is_datetime64_any_dtype(data["date_of_report"]):
+                with date_col1:
+                    start_date = st.date_input(
+                        "From",
+                        value=data["date_of_report"].min().date(),
+                        min_value=data["date_of_report"].min().date(),
+                        max_value=data["date_of_report"].max().date(),
+                    )
+
+                with date_col2:
+                    end_date = st.date_input(
+                        "To",
+                        value=data["date_of_report"].max().date(),
+                        min_value=data["date_of_report"].min().date(),
+                        max_value=data["date_of_report"].max().date(),
+                    )
+                
+                # Apply date filter
+                data = data[
+                    (data["date_of_report"].dt.date >= start_date)
+                    & (data["date_of_report"].dt.date <= end_date)
+                ]
+            else:
+                st.info("No date column found. Date filtering is not available.")
+
+            # Category selection
+            if "categories" in data.columns:
+                all_categories = set()
+                for cats in data["categories"].dropna():
+                    if isinstance(cats, list):
+                        all_categories.update(cats)
+                    elif isinstance(cats, str):
+                        # Handle comma-separated strings
+                        all_categories.update(cat.strip() for cat in cats.split(","))
+
+                # Remove any empty strings
+                all_categories = {cat for cat in all_categories if cat and isinstance(cat, str)}
+
+                if all_categories:
+                    categories = st.multiselect(
+                        "Filter by Categories (Optional)",
+                        options=sorted(all_categories),
+                        help="Select specific categories to analyse",
+                    )
+                    
+                    # Apply category filter if needed
+                    if categories:
+                        data = filter_by_categories(data, categories)
+            else:
+                st.info("No categories column found. Category filtering is not available.")
+
+            # Analysis button
+            analyze_clicked = st.button(
+                "🔍 Analyse Documents", type="primary", use_container_width=True
             )
 
-            progress_bar.progress(0.8)
-            status_text.text("Generating summaries...")
+            # Run analysis if button is clicked
+            if analyze_clicked:
+                try:
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
 
-            # Store results
-            st.session_state.topic_model = cluster_results
+                    # Initialize
+                    progress_bar.progress(0.2)
+                    status_text.text("Processing documents...")
+                    initialize_nltk()
 
-            progress_bar.progress(1.0)
-            status_text.text("Analysis complete!")
+                    # Remove empty content
+                    filtered_df = data[
+                        data["Content"].notna()
+                        & (data["Content"].str.strip() != "")
+                    ]
 
-            progress_bar.empty()
-            status_text.empty()
+                    if len(filtered_df) < min_cluster_size:
+                        progress_bar.empty()
+                        status_text.empty()
+                        st.warning(
+                            f"Not enough documents match the criteria. Found {len(filtered_df)}, need at least {min_cluster_size}."
+                        )
+                        return
 
-            # Display results
-            render_summary_tab(cluster_results, processed_df)
+                    # Process content
+                    progress_bar.progress(0.4)
+                    status_text.text("Identifying themes...")
 
+                    processed_df = pd.DataFrame(
+                        {
+                            "Content": filtered_df["Content"],
+                            "Title": filtered_df["Title"],
+                            "date_of_report": filtered_df["date_of_report"] if "date_of_report" in filtered_df.columns else None,
+                            "URL": filtered_df["URL"] if "URL" in filtered_df.columns else None,
+                            "categories": filtered_df["categories"] if "categories" in filtered_df.columns else None,
+                        }
+                    )
+
+                    progress_bar.progress(0.6)
+                    status_text.text("Analyzing patterns...")
+
+                    # Prepare vectorizer parameters
+                    vectorizer_params = {}
+                    if vectorizer_type == "weighted":
+                        vectorizer_params.update(
+                            {"tf_scheme": tf_scheme, "idf_scheme": idf_scheme}
+                        )
+                    elif vectorizer_type == "bm25":
+                        vectorizer_params.update({"k1": k1, "b": b})
+
+                    # Store vectorization settings in session state
+                    st.session_state.vectorizer_type = vectorizer_type
+                    st.session_state.update(vectorizer_params)
+
+                    # Perform clustering
+                    cluster_results = perform_semantic_clustering(
+                        processed_df,
+                        min_cluster_size=min_cluster_size,
+                        max_features=max_features,
+                        min_df=2 / len(processed_df),
+                        max_df=0.95,
+                        similarity_threshold=0.3,
+                    )
+
+                    progress_bar.progress(0.8)
+                    status_text.text("Generating summaries...")
+
+                    # Store results
+                    st.session_state.topic_model = cluster_results
+
+                    progress_bar.progress(1.0)
+                    status_text.text("Analysis complete!")
+
+                    progress_bar.empty()
+                    status_text.empty()
+
+                    # Display results
+                    render_summary_tab(cluster_results, processed_df)
+
+                except Exception as e:
+                    progress_bar.empty()
+                    status_text.empty()
+                    st.error(f"Analysis error: {str(e)}")
+                    logging.error(f"Analysis error: {e}", exc_info=True)
+                    
         except Exception as e:
-            progress_bar.empty()
-            status_text.empty()
-            st.error(f"Analysis error: {str(e)}")
-            logging.error(f"Analysis error: {e}", exc_info=True)
-
+            st.error(f"Error processing file: {str(e)}")
+    else:
+        # Show instructions when no file is uploaded
+        st.info("Please upload a file to begin topic analysis.")
+        
+        with st.expander("📋 File Requirements"):
+            st.markdown("""
+            ## Required Columns
+            
+            For topic analysis, your file should include:
+            
+            - **Content**: The text content to analyze (required)
+            - **Title**: Report titles (recommended)
+            - **date_of_report**: Report dates (optional, for filtering)
+            - **categories**: Report categories (optional, for filtering)
+            
+            Files prepared from Step 2 "Scraped File Preparation" are ideal for this analysis.
+            """)
+            
+        # Show a sample of what to expect
+        with st.expander("🔍 What to Expect"):
+            st.markdown("""
+            ## Topic Analysis Results
+            
+            The analysis will generate:
+            
+            1. **Topic clusters**: Groups of similar documents
+            2. **Key terms**: Important words in each topic
+            3. **Topic summaries**: Brief overview of each topic's content
+            4. **Network visualizations**: Showing relationships between terms
+            
+            The quality of results depends on having enough documents with good text content.
+            """)
 
 def render_topic_options():
     """Render enhanced topic analysis options in a clear layout"""
