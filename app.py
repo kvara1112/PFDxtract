@@ -36,7 +36,7 @@ from nltk.corpus import stopwords
 from collections import Counter, defaultdict
 from bs4 import BeautifulSoup, Tag
 import json  # Added for JSON export functionality
-nltk.download("punkt")
+#nltk.download("punkt")
 nltk.download("stopwords")
 nltk.download("averaged_perceptron_tagger")
 from openpyxl.utils import get_column_letter
