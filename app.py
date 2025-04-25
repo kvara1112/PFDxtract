@@ -170,7 +170,7 @@ class BERTResultsAnalyzer:
                     )
 
             # Button to process the files - static key
-            if st.button("Merge Files", key="merge_files_button_static"):
+            if st.button("Merge and/or Process Files", key="merge_files_button_static"):
                 try:
                     with st.spinner("Processing and merging files..."):
                         # Stack files
