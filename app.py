@@ -6887,8 +6887,51 @@ def extract_categories(category_text: str, standard_categories: List[str]) -> Li
         if not (normalize_category(x) in seen or seen.add(normalize_category(x)))
     ]
 
-
-def filter_by_categories(
+######################
+def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd.DataFrame:
+    """
+    Filter DataFrame by categories with improved handling of both list and string formats
+    
+    Args:
+        df: DataFrame containing 'categories' column
+        selected_categories: List of categories to filter by
+        
+    Returns:
+        Filtered DataFrame
+    """
+    if not selected_categories:
+        return df
+    
+    # Normalize selected categories for comparison
+    selected_cats_norm = [cat.lower().strip() for cat in selected_categories if cat]
+    
+    def has_matching_category(row_cats):
+        # Handle missing values
+        if pd.isna(row_cats):
+            return False
+            
+        # Convert to list of strings if it's not already a list
+        if not isinstance(row_cats, list):
+            # If it's a string with commas, split it
+            if isinstance(row_cats, str):
+                row_cats = [cat.strip() for cat in row_cats.split(',')]
+            else:
+                # If it's some other type, convert to string and wrap in list
+                row_cats = [str(row_cats)]
+        
+        # Normalize row categories for comparison
+        row_cats_norm = [cat.lower().strip() for cat in row_cats if cat]
+        
+        # Check for partial matches in either direction
+        for row_cat in row_cats_norm:
+            for selected_cat in selected_cats_norm:
+                if row_cat in selected_cat or selected_cat in row_cat:
+                    return True
+        return False
+    
+    return df[df["categories"].apply(has_matching_category)]
+    
+def filter_by_categories2(
     df: pd.DataFrame, selected_categories: List[str]
 ) -> pd.DataFrame:
     """
@@ -12010,9 +12053,324 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             except Exception as e:
                 st.error(f"Error creating visualization zip: {e}")
                 logging.error(f"Visualization zip error: {e}", exc_info=True)
-        
-       
+
 def render_analysis_tab(data: pd.DataFrame = None):
+    """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
+
+    # Add file upload section at the top
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file", 
+        type=['csv', 'xlsx'],
+        help="Upload previously exported data"
+    )
+    
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                data = pd.read_csv(uploaded_file)
+            else:
+                data = pd.read_excel(uploaded_file)
+            
+            # Process uploaded data
+            data = process_scraped_data(data)
+            st.success("File uploaded and processed successfully!")
+            
+            # Update session state
+            st.session_state.uploaded_data = data.copy()
+            st.session_state.data_source = 'uploaded'
+            st.session_state.current_data = data.copy()
+        
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            logging.error(f"File upload error: {e}", exc_info=True)
+            return
+    
+    # Use either uploaded data or passed data
+    if data is None:
+        data = st.session_state.get('current_data')
+    
+    if data is None or len(data) == 0:
+        st.warning("No data available. Please upload a file or scrape reports first.")
+        return
+        
+    try:
+        # Get date range for the data
+        min_date = data['date_of_report'].min().date()
+        max_date = data['date_of_report'].max().date()
+        
+        # Filters sidebar
+        with st.sidebar:
+            st.header("Filters")
+            
+            # Date Range
+            with st.expander("📅 Date Range", expanded=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_date = st.date_input(
+                        "From",
+                        value=min_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="start_date_filter",
+                        format="DD/MM/YYYY"
+                    )
+                with col2:
+                    end_date = st.date_input(
+                        "To",
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="end_date_filter",
+                        format="DD/MM/YYYY"
+                    )
+            
+            # Document Type Filter
+            doc_type = st.multiselect(
+                "Document Type",
+                ["Report", "Response"],
+                default=[],
+                key="doc_type_filter",
+                help="Filter by document type"
+            )
+            
+            # Reference Number
+            ref_numbers = sorted(data['ref'].dropna().unique())
+            selected_refs = st.multiselect(
+                "Reference Numbers",
+                options=ref_numbers,
+                key="ref_filter"
+            )
+            
+            # Deceased Name - Changed to dropdown instead of text input
+            deceased_names = sorted(set(
+                str(name).strip() for name in data['deceased_name'].dropna().unique()
+            ))
+            selected_deceased = st.multiselect(
+                "Deceased Name",
+                options=deceased_names,
+                key="deceased_filter",
+                help="Select one or more deceased names"
+            )
+            
+            # Coroner Name
+            # Normalize coroner names for selection and ensure uniqueness
+            coroner_names = sorted(set(
+                str(name).strip() for name in data['coroner_name'].dropna().unique()
+            ))
+            selected_coroners = st.multiselect(
+                "Coroner Names",
+                options=coroner_names,
+                key="coroner_filter"
+            )
+            
+            # Coroner Area
+            # Normalize coroner areas for selection and ensure uniqueness
+            coroner_areas = sorted(set(
+                str(area).strip() for area in data['coroner_area'].dropna().unique()
+            ))
+            selected_areas = st.multiselect(
+                "Coroner Areas",
+                options=coroner_areas,
+                key="areas_filter"
+            )
+            
+            # Categories - Improved handling of both list and string formats
+            all_categories = set()
+            for cats in data['categories'].dropna():
+                if isinstance(cats, list):
+                    all_categories.update(str(cat).strip() for cat in cats if cat)
+                elif isinstance(cats, str):
+                    # Handle comma-separated strings
+                    all_categories.update(str(cat).strip() for cat in cats.split(',') if cat)
+            
+            # Remove any empty strings
+            all_categories = {cat for cat in all_categories if cat.strip()}
+            
+            selected_categories = st.multiselect(
+                "Categories",
+                options=sorted(all_categories),
+                key="categories_filter"
+            )
+            
+            # Reset Filters Button
+            if st.button("🔄 Reset Filters"):
+                for key in st.session_state:
+                    if key.endswith('_filter'):
+                        del st.session_state[key]
+                st.rerun()
+
+        # Apply filters
+        filtered_df = data.copy()
+
+        # Date filter
+        if start_date and end_date:
+            filtered_df = filtered_df[
+                (filtered_df['date_of_report'].dt.date >= start_date) &
+                (filtered_df['date_of_report'].dt.date <= end_date)
+            ]
+
+        # Document type filter
+        if doc_type:
+            if "Response" in doc_type and "Report" not in doc_type:
+                # Only responses
+                filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
+            elif "Report" in doc_type and "Response" not in doc_type:
+                # Only reports
+                filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
+
+        # Reference number filter
+        if selected_refs:
+            filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
+
+        # Deceased name filter - changed to use dropdown selection
+        if selected_deceased:
+            # Normalize selected deceased names and create a case-insensitive filter
+            selected_deceased_norm = [str(name).lower().strip() for name in selected_deceased]
+            filtered_df = filtered_df[
+                filtered_df['deceased_name'].fillna('').str.lower().apply(
+                    lambda x: any(selected_name in x or x in selected_name for selected_name in selected_deceased_norm)
+                )
+            ]
+
+        # Coroner name filter - case-insensitive partial match
+        if selected_coroners:
+            # Normalize selected coroners and create a case-insensitive filter
+            selected_coroners_norm = [str(name).lower().strip() for name in selected_coroners]
+            filtered_df = filtered_df[
+                filtered_df['coroner_name'].fillna('').str.lower().apply(
+                    lambda x: any(selected_name in x or x in selected_name for selected_name in selected_coroners_norm)
+                )
+            ]
+
+        # Coroner area filter - case-insensitive partial match
+        if selected_areas:
+            # Normalize selected areas and create a case-insensitive filter
+            selected_areas_norm = [str(area).lower().strip() for area in selected_areas]
+            filtered_df = filtered_df[
+                filtered_df['coroner_area'].fillna('').str.lower().apply(
+                    lambda x: any(selected_area in x or x in selected_area for selected_area in selected_areas_norm)
+                )
+            ]
+
+        # Categories filter - use the improved filter_by_categories function
+        if selected_categories:
+            filtered_df = filter_by_categories(filtered_df, selected_categories)
+
+        # Show active filters
+        active_filters = []
+        if start_date != min_date or end_date != max_date:
+            active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
+        if doc_type:
+            active_filters.append(f"Document Types: {', '.join(doc_type)}")
+        if selected_refs:
+            active_filters.append(f"References: {', '.join(selected_refs)}")
+        if selected_deceased:
+            if len(selected_deceased) <= 3:
+                active_filters.append(f"Deceased Names: {', '.join(selected_deceased)}")
+            else:
+                active_filters.append(f"Deceased Names: {len(selected_deceased)} selected")
+        if selected_coroners:
+            if len(selected_coroners) <= 3:
+                active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+            else:
+                active_filters.append(f"Coroners: {len(selected_coroners)} selected")
+        if selected_areas:
+            if len(selected_areas) <= 3:
+                active_filters.append(f"Areas: {', '.join(selected_areas)}")
+            else:
+                active_filters.append(f"Areas: {len(selected_areas)} selected")
+        if selected_categories:
+            if len(selected_categories) <= 3:
+                active_filters.append(f"Categories: {', '.join(selected_categories)}")
+            else:
+                active_filters.append(f"Categories: {len(selected_categories)} selected")
+
+        if active_filters:
+            st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
+
+        # Display results
+        st.subheader("Results")
+        st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
+
+        if len(filtered_df) > 0:
+            # Display the dataframe
+            st.dataframe(
+                filtered_df,
+                column_config={
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "date_of_report": st.column_config.DateColumn(
+                        "Date of Report",
+                        format="DD/MM/YYYY"
+                    ),
+                    "categories": st.column_config.ListColumn("Categories"),
+                    "Document Type": st.column_config.TextColumn(
+                        "Document Type",
+                        help="Type of document based on PDF filename"
+                    )
+                },
+                hide_index=True
+            )
+
+            # Create tabs for different analyses
+            st.markdown("---")
+            quality_tab, temporal_tab, distribution_tab = st.tabs([
+                "📊 Data Quality Analysis",
+                "📅 Temporal Analysis", 
+                "📍 Distribution Analysis"
+            ])
+
+            # Data Quality Analysis Tab
+            with quality_tab:
+                analyze_data_quality(filtered_df)
+
+            # Temporal Analysis Tab
+            with temporal_tab:
+                # Timeline of reports
+                st.subheader("Reports Timeline")
+                plot_timeline(filtered_df)
+                
+                # Monthly distribution
+                st.subheader("Monthly Distribution")
+                plot_monthly_distribution(filtered_df)
+                
+                # Year-over-year comparison
+                st.subheader("Year-over-Year Comparison")
+                plot_yearly_comparison(filtered_df)
+                
+                # Seasonal patterns
+                st.subheader("Seasonal Patterns")
+                seasonal_counts = filtered_df['date_of_report'].dt.month.value_counts().sort_index()
+                month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                fig = px.line(
+                    x=month_names,
+                    y=[seasonal_counts.get(i, 0) for i in range(1, 13)],
+                    markers=True,
+                    labels={'x': 'Month', 'y': 'Number of Reports'},
+                    title='Seasonal Distribution of Reports'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Distribution Analysis Tab
+            with distribution_tab:
+                st.subheader("Reports by Category")
+                plot_category_distribution(filtered_df)
+  
+                st.subheader("Reports by Coroner Area")
+                plot_coroner_areas(filtered_df)
+
+            # Export options
+            st.markdown("---")
+            show_export_options(filtered_df, "analysis")
+
+        else:
+            st.warning("No reports match your filter criteria. Try adjusting the filters.")
+
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        logging.error(f"Analysis error: {e}", exc_info=True)
+
+def render_analysis_tab2(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
 
     # Add file upload section at the top
