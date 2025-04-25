@@ -6890,7 +6890,7 @@ def extract_categories(category_text: str, standard_categories: List[str]) -> Li
 ######################
 def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd.DataFrame:
     """
-    Filter DataFrame by categories with improved handling of both list and string formats
+    Filter DataFrame by categories using the approach from tab (2)
     
     Args:
         df: DataFrame containing 'categories' column
@@ -6902,68 +6902,38 @@ def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd
     if not selected_categories:
         return df
     
-    # Normalize selected categories for comparison
-    selected_cats_norm = [cat.lower().strip() for cat in selected_categories if cat]
-    
-    def has_matching_category(row_cats):
-        # Handle missing values
-        if pd.isna(row_cats):
-            return False
+    # Handle both string and list categories
+    if "categories" in df.columns:
+        # Check if we can determine the data type based on first non-null value
+        first_valid_idx = df["categories"].first_valid_index()
+        if first_valid_idx is not None:
+            first_valid_value = df["categories"].loc[first_valid_idx]
             
-        # Convert to list of strings if it's not already a list
-        if not isinstance(row_cats, list):
-            # If it's a string with commas, split it
-            if isinstance(row_cats, str):
-                row_cats = [cat.strip() for cat in row_cats.split(',')]
-            else:
-                # If it's some other type, convert to string and wrap in list
-                row_cats = [str(row_cats)]
+            if isinstance(first_valid_value, list):
+                # List case
+                filtered_df = df[
+                    df["categories"].apply(
+                        lambda x: isinstance(x, list)
+                        and any(cat in x for cat in selected_categories)
+                    )
+                ]
+                return filtered_df
         
-        # Normalize row categories for comparison
-        row_cats_norm = [cat.lower().strip() for cat in row_cats if cat]
-        
-        # Check for partial matches in either direction
-        for row_cat in row_cats_norm:
-            for selected_cat in selected_cats_norm:
-                if row_cat in selected_cat or selected_cat in row_cat:
-                    return True
-        return False
+        # String case (default) or mixed types
+        filtered_df = df[
+            df["categories"]
+            .fillna("")
+            .astype(str)
+            .apply(lambda x: any(cat in x for cat in selected_categories))
+        ]
+        return filtered_df
     
-    return df[df["categories"].apply(has_matching_category)]
-    
-def filter_by_categories2(
-    df: pd.DataFrame, selected_categories: List[str]
-) -> pd.DataFrame:
-    """
-    Filter DataFrame by categories with fuzzy matching
+    return df  # Return original if no categories column
 
-    Args:
-        df: DataFrame containing 'categories' column
-        selected_categories: List of categories to filter by
 
-    Returns:
-        Filtered DataFrame
-    """
-    if not selected_categories:
-        return df
 
-    def has_matching_category(row_categories):
-        if not isinstance(row_categories, list):
-            return False
 
-        # Normalize categories for comparison
-        row_cats_norm = [cat.lower().strip() for cat in row_categories if cat]
-        selected_cats_norm = [cat.lower().strip() for cat in selected_categories if cat]
-
-        for row_cat in row_cats_norm:
-            for selected_cat in selected_cats_norm:
-                # Check for partial matches in either direction
-                if row_cat in selected_cat or selected_cat in row_cat:
-                    return True
-        return False
-
-    return df[df["categories"].apply(has_matching_category)]
-
+#####
 def filter_by_areas(df: pd.DataFrame, selected_areas: List[str]) -> pd.DataFrame:
     if not selected_areas:
         return df
