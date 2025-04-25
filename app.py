@@ -6956,7 +6956,7 @@ def extract_categories(category_text: str, standard_categories: List[str]) -> Li
 ######################
 def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd.DataFrame:
     """
-    Filter DataFrame by categories with case-insensitive matching
+    Filter DataFrame by categories using the approach from tab (2)
     
     Args:
         df: DataFrame containing 'categories' column
@@ -6968,9 +6968,6 @@ def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd
     if not selected_categories:
         return df
     
-    # Convert selected categories to lowercase for case-insensitive comparison
-    selected_cats_lower = [cat.lower().strip() for cat in selected_categories if cat]
-    
     # Handle both string and list categories
     if "categories" in df.columns:
         # Check if we can determine the data type based on first non-null value
@@ -6979,33 +6976,28 @@ def filter_by_categories(df: pd.DataFrame, selected_categories: List[str]) -> pd
             first_valid_value = df["categories"].loc[first_valid_idx]
             
             if isinstance(first_valid_value, list):
-                # List case - with case-insensitive comparison
+                # List case
                 filtered_df = df[
                     df["categories"].apply(
-                        lambda x: isinstance(x, list) and any(
-                            cat.lower().strip() in selected_cats_lower or
-                            any(selected.lower() in cat.lower().strip() for selected in selected_cats_lower)
-                            for cat in x if cat and isinstance(cat, str)
-                        )
+                        lambda x: isinstance(x, list)
+                        and any(cat in x for cat in selected_categories)
                     )
                 ]
                 return filtered_df
         
-        # String case (default) or mixed types - with case-insensitive comparison
+        # String case (default) or mixed types
         filtered_df = df[
             df["categories"]
             .fillna("")
             .astype(str)
-            .str.lower()  # Convert to lowercase for case-insensitive matching
-            .apply(lambda x: any(
-                selected.lower() in x or  # Selected category appears in string
-                any(cat.lower().strip() in selected.lower() for cat in x.split(','))  # Category part appears in selected
-                for selected in selected_cats_lower
-            ))
+            .apply(lambda x: any(cat in x for cat in selected_categories))
         ]
         return filtered_df
     
     return df  # Return original if no categories column
+
+
+
 
 #####
 def filter_by_areas(df: pd.DataFrame, selected_areas: List[str]) -> pd.DataFrame:
