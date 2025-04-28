@@ -4640,6 +4640,50 @@ def get_category_slug(category: str) -> str:
     logging.info(f"Generated category slug: {slug} from category: {category}")
     return slug
 
+def construct_search_url(
+    base_url: str,
+    keyword: Optional[str] = None,
+    category: Optional[str] = None,
+    category_slug: Optional[str] = None,
+    page: Optional[int] = None,
+    after_date: Optional[str] = None,
+    before_date: Optional[str] = None,
+) -> str:
+    """Constructs proper search URL with pagination and date filters"""
+    # Start with base search URL
+    url = f"{base_url}?s=&post_type=pfd"
+
+    # Add category filter
+    if category and category_slug:
+        url += f"&pfd_report_type={category_slug}"
+
+    # Add keyword search
+    if keyword:
+        url = f"{base_url}?s={keyword}&post_type=pfd"
+        if category and category_slug:
+            url += f"&pfd_report_type={category_slug}"
+
+    # Add pagination
+    if page and page > 1:
+        url += f"&paged={page}"  # Changed from &page= to &paged= for proper pagination
+        
+    # Add date filters
+    if after_date:
+        # Parse the date parts
+        parts = after_date.split("-")
+        if len(parts) == 3:
+            day, month, year = parts
+            url += f"&after-day={day}&after-month={month}&after-year={year}"
+            
+    if before_date:
+        # Parse the date parts
+        parts = before_date.split("-")
+        if len(parts) == 3:
+            day, month, year = parts
+            url += f"&before-day={day}&before-month={month}&before-year={year}"
+
+    return url
+
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
     category: Optional[str] = None,
@@ -4647,10 +4691,12 @@ def scrape_pfd_reports(
     start_page: int = 1,
     end_page: Optional[int] = None,
     auto_save_batches: bool = True,
-    batch_size: int = 5
+    batch_size: int = 5,
+    after_date: Optional[str] = None,
+    before_date: Optional[str] = None,
 ) -> List[Dict]:
     """
-    Scrape PFD reports with enhanced progress tracking, proper pagination, and automatic batch saving
+    Scrape PFD reports with enhanced progress tracking, proper pagination, date filters, and automatic batch saving
     
     Args:
         keyword: Optional keyword to search for
@@ -4660,6 +4706,8 @@ def scrape_pfd_reports(
         end_page: Last page to scrape (None for all pages)
         auto_save_batches: Whether to automatically save batches of results
         batch_size: Number of pages per batch
+        after_date: Date filter for reports published after (format: day-month-year)
+        before_date: Date filter for reports published before (format: day-month-year)
         
     Returns:
         List of report dictionaries
@@ -4687,12 +4735,14 @@ def scrape_pfd_reports(
             )
             logging.info(f"Using category: {category}, slug: {category_slug}")
 
-        # Construct initial search URL
+        # Construct initial search URL with date filters
         base_search_url = construct_search_url(
             base_url=base_url,
             keyword=keyword,
             category=category,
             category_slug=category_slug,
+            after_date=after_date,
+            before_date=before_date,
         )
 
         st.info(f"Searching at: {base_search_url}")
@@ -4754,13 +4804,15 @@ def scrape_pfd_reports(
                     f"Processing page {current_page} of {end_page} (out of {total_pages} total pages)"
                 )
 
-                # Construct current page URL
+                # Construct current page URL with date filters
                 page_url = construct_search_url(
                     base_url=base_url,
                     keyword=keyword,
                     category=category,
                     category_slug=category_slug,
                     page=current_page,
+                    after_date=after_date,
+                    before_date=before_date,
                 )
 
                 # Scrape current page
@@ -4907,9 +4959,8 @@ def save_batch(
     logging.info(f"Saved batch {batch_number} to {file_path}")
     return filename
 
-
 def render_scraping_tab():
-    """Render the scraping tab with batch saving options"""
+    """Render the scraping tab with batch saving options and date filters"""
     st.subheader("Scrape PFD Reports")
 
     # Initialize default values if not in session state
@@ -4964,7 +5015,7 @@ def render_scraping_tab():
                 [""] + get_pfd_categories(),
                 index=0,
                 key="category",
-                format_func=lambda x: x if x else "Select a category",
+                format_func=lambda x: x if x else "Select element",
             )
 
         # Second row
@@ -5034,7 +5085,7 @@ def render_scraping_tab():
 
         with row3_col2:
             end_page = st.number_input(
-                "End page (Optimal: 10 pages per extraction:)",
+                "End page (Optimal: 10 pages per extraction):",
                 min_value=0,
                 value=st.session_state.get("end_page_default", 0),
                 key="end_page",
@@ -5058,6 +5109,73 @@ def render_scraping_tab():
                 value=st.session_state.get("batch_size_default", 5),
                 key="batch_size",
                 help="Number of pages to process before saving a batch",
+            )
+            
+        # Date filter section
+        st.markdown("### Filter search")
+        
+        # Published on or after
+        st.markdown("**Published on or after**")
+        st.markdown("For example, 27 3 2007")
+        after_day_col, after_month_col, after_year_col = st.columns(3)
+        
+        with after_day_col:
+            after_day = st.number_input(
+                "Day",
+                min_value=0,
+                max_value=31,
+                value=0,
+                key="after_day"
+            )
+        
+        with after_month_col:
+            after_month = st.number_input(
+                "Month",
+                min_value=0,
+                max_value=12,
+                value=0,
+                key="after_month"
+            )
+        
+        with after_year_col:
+            after_year = st.number_input(
+                "Year",
+                min_value=0,
+                max_value=2025,
+                value=0,
+                key="after_year"
+            )
+        
+        # Published on or before
+        st.markdown("**Published on or before**")
+        st.markdown("For example, 27 3 2007")
+        before_day_col, before_month_col, before_year_col = st.columns(3)
+        
+        with before_day_col:
+            before_day = st.number_input(
+                "Day",
+                min_value=0,
+                max_value=31,
+                value=0,
+                key="before_day"
+            )
+        
+        with before_month_col:
+            before_month = st.number_input(
+                "Month",
+                min_value=0,
+                max_value=12,
+                value=0,
+                key="before_month"
+            )
+        
+        with before_year_col:
+            before_year = st.number_input(
+                "Year",
+                min_value=0,
+                max_value=2025,
+                value=0,
+                key="before_year"
             )
 
         # Action buttons in a row
@@ -5084,6 +5202,12 @@ def render_scraping_tab():
                 "end_page": end_page,
                 "auto_save_batches": auto_save_batches,
                 "batch_size": batch_size,
+                "after_day": after_day,
+                "after_month": after_month,
+                "after_year": after_year,
+                "before_day": before_day,
+                "before_month": before_month,
+                "before_year": before_year,
             }
 
             # Initialize stop_scraping flag
@@ -5091,8 +5215,17 @@ def render_scraping_tab():
 
             # Convert end_page=0 to None (all pages)
             end_page_val = None if end_page == 0 else end_page
+            
+            # Create date filter strings
+            after_date = None
+            if after_day > 0 and after_month > 0 and after_year > 0:
+                after_date = f"{after_day}-{after_month}-{after_year}"
+                
+            before_date = None
+            if before_day > 0 and before_month > 0 and before_year > 0:
+                before_date = f"{before_day}-{before_month}-{before_year}"
 
-            # Perform scraping with batch options
+            # Perform scraping with batch options and date filters
             reports = scrape_pfd_reports(
                 keyword=search_keyword,
                 category=category if category else None,
@@ -5101,6 +5234,8 @@ def render_scraping_tab():
                 end_page=end_page_val,
                 auto_save_batches=auto_save_batches,
                 batch_size=batch_size,
+                after_date=after_date,
+                before_date=before_date,
             )
 
             if reports:
@@ -5123,173 +5258,8 @@ def render_scraping_tab():
             logging.error(f"Scraping error: {e}")
             return False
 
-def scrape_pfd_reports2(
-    keyword: Optional[str] = None,
-    category: Optional[str] = None,
-    order: str = "relevance",
-    start_page: int = 1,
-    end_page: Optional[int] = None,
-) -> List[Dict]:
-    """
-    Scrape PFD reports with enhanced progress tracking and proper pagination
-    """
-    all_reports = []
-    base_url = "https://www.judiciary.uk/"
-
-    try:
-        # Initialize progress tracking
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        report_count_text = st.empty()
-
-        # Validate and prepare category
-        category_slug = None
-        if category:
-            category_slug = (
-                category.lower()
-                .replace(" ", "-")
-                .replace("&", "and")
-                .replace("--", "-")
-                .strip("-")
-            )
-            logging.info(f"Using category: {category}, slug: {category_slug}")
-
-        # Construct initial search URL
-        base_search_url = construct_search_url(
-            base_url=base_url,
-            keyword=keyword,
-            category=category,
-            category_slug=category_slug,
-        )
-
-        st.info(f"Searching at: {base_search_url}")
-
-        # Get total pages and results count
-        total_pages, total_results = get_total_pages(base_search_url)
-
-        if total_results == 0:
-            st.warning("No results found matching your search criteria")
-            return []
-
-        st.info(f"Found {total_results} matching reports across {total_pages} pages")
-
-        # Apply page range limits
-        start_page = max(1, start_page)  # Ensure start_page is at least 1
-        if end_page is None:
-            end_page = total_pages
-        else:
-            end_page = min(
-                end_page, total_pages
-            )  # Ensure end_page doesn't exceed total_pages
-
-        if start_page > end_page:
-            st.warning(f"Invalid page range: {start_page} to {end_page}")
-            return []
-
-        st.info(f"Scraping pages {start_page} to {end_page}")
-
-        # Process each page in the specified range
-        for current_page in range(start_page, end_page + 1):
-            try:
-                # Check if scraping should be stopped
-                if (
-                    hasattr(st.session_state, "stop_scraping")
-                    and st.session_state.stop_scraping
-                ):
-                    st.warning("Scraping stopped by user")
-                    break
-
-                # Update progress
-                progress = (current_page - start_page) / (end_page - start_page + 1)
-                progress_bar.progress(progress)
-                status_text.text(
-                    f"Processing page {current_page} of {end_page} (out of {total_pages} total pages)"
-                )
-
-                # Construct current page URL
-                page_url = construct_search_url(
-                    base_url=base_url,
-                    keyword=keyword,
-                    category=category,
-                    category_slug=category_slug,
-                    page=current_page,
-                )
-
-                # Scrape current page
-                page_reports = scrape_page(page_url)
-
-                if page_reports:
-                    # Deduplicate based on title and URL
-                    existing_reports = {(r["Title"], r["URL"]) for r in all_reports}
-                    new_reports = [
-                        r
-                        for r in page_reports
-                        if (r["Title"], r["URL"]) not in existing_reports
-                    ]
-
-                    all_reports.extend(new_reports)
-                    report_count_text.text(
-                        f"Retrieved {len(all_reports)} unique reports so far..."
-                    )
-
-                # Add delay between pages
-                time.sleep(2)
-
-            except Exception as e:
-                logging.error(f"Error processing page {current_page}: {e}")
-                st.warning(
-                    f"Error on page {current_page}. Continuing with next page..."
-                )
-                continue
-
-        # Sort results if specified
-        if order != "relevance":
-            all_reports = sort_reports(all_reports, order)
-
-        # Clear progress indicators
-        progress_bar.empty()
-        status_text.empty()
-        report_count_text.empty()
-
-        if all_reports:
-            st.success(f"Successfully scraped {len(all_reports)} unique reports")
-        else:
-            st.warning("No reports were successfully retrieved")
-
-        return all_reports
-
-    except Exception as e:
-        logging.error(f"Error in scrape_pfd_reports: {e}")
-        st.error(f"An error occurred while scraping reports: {e}")
-        return []
 
 
-def construct_search_url(
-    base_url: str,
-    keyword: Optional[str] = None,
-    category: Optional[str] = None,
-    category_slug: Optional[str] = None,
-    page: Optional[int] = None,
-) -> str:
-    """Constructs proper search URL with pagination"""
-    # Start with base search URL
-    url = f"{base_url}?s=&post_type=pfd"
-
-    # Add category filter
-    if category and category_slug:
-        url += f"&pfd_report_type={category_slug}"
-
-    # Add keyword search
-    if keyword:
-        url = f"{base_url}?s={keyword}&post_type=pfd"
-        if category and category_slug:
-            url += f"&pfd_report_type={category_slug}"
-
-    # Add pagination
-    if page and page > 1:
-        url += f"&paged={page}"  # Changed from &page= to &paged= for proper pagination
-
-    return url
 
 
 def render_topic_summary_tab(data: pd.DataFrame = None) -> None:
