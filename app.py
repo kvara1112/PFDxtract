@@ -4994,13 +4994,11 @@ def render_scraping_tab():
 
     # Create the search form with page range selection and batch options
     with st.form("scraping_form"):
-        # Create two rows with two columns each
+        # Create rows for the main search criteria
         row1_col1, row1_col2 = st.columns(2)
         row2_col1, row2_col2 = st.columns(2)
-        row3_col1, row3_col2 = st.columns(2)
-        row4_col1, row4_col2 = st.columns(2)
 
-        # First row
+        # First row - Main search criteria
         with row1_col1:
             search_keyword = st.text_input(
                 "Search keywords:",
@@ -5018,7 +5016,7 @@ def render_scraping_tab():
                 format_func=lambda x: x if x else "Select element",
             )
 
-        # Second row
+        # Second row - Sort by
         with row2_col1:
             order = st.selectbox(
                 "Sort by:",
@@ -5031,7 +5029,7 @@ def render_scraping_tab():
                     "asc": "Oldest first",
                 }[x],
             )
-
+            
         # Date filter section
         st.markdown("### Filter search")
         
@@ -5149,8 +5147,12 @@ def render_scraping_tab():
                 st.session_state["total_pages_preview"] = 0
         else:
             st.session_state["total_pages_preview"] = 0
+            
+        # Page settings AFTER filter search
+        row3_col1, row3_col2 = st.columns(2)
+        row4_col1, row4_col2 = st.columns(2)
 
-        # Third row for page range
+        # Page range row - MOVED to after filter search
         with row3_col1:
             start_page = st.number_input(
                 "Start page:",
@@ -5169,7 +5171,7 @@ def render_scraping_tab():
                 help="Last page to scrape (0 for all pages)",
             )
 
-        # Fourth row for batch options
+        # Batch options row - MOVED to after filter search
         with row4_col1:
             auto_save_batches = st.checkbox(
                 "Auto-save batches",
@@ -5267,7 +5269,6 @@ def render_scraping_tab():
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
-
 
 
 def render_topic_summary_tab(data: pd.DataFrame = None) -> None:
