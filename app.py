@@ -4986,13 +4986,12 @@ def render_scraping_tab():
         if before_day > 0 and before_month > 0 and before_year > 0:
             before_date = f"{before_day}-{before_month}-{before_year}"
 
-        # Create a container for the preview results
-        preview_container = st.container()
-        
+
+        #
         # Display preview results count with date filters
         if search_keyword or category or after_date or before_date:
             base_url = "https://www.judiciary.uk/"
-
+        
             # Prepare category slug
             category_slug = None
             if category:
@@ -5003,7 +5002,7 @@ def render_scraping_tab():
                     .replace("--", "-")
                     .strip("-")
                 )
-
+        
             # Create preview URL with date filters
             preview_url = construct_search_url(
                 base_url=base_url,
@@ -5013,10 +5012,7 @@ def render_scraping_tab():
                 after_date=after_date,
                 before_date=before_date,
             )
-
-            # Show preview URL for debugging if needed
-            # st.code(preview_url)
-
+        
             try:
                 with st.spinner("Checking total pages..."):
                     total_pages, total_results = get_total_pages(preview_url)
@@ -5030,26 +5026,37 @@ def render_scraping_tab():
                         # Display styled message based on results
                         if total_pages > 0:
                             st.markdown(f"""
-                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #4CAF50; background-color: #666666; margin: 10px 0;">
+                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #4CAF50; background-color: #EAF7E8; margin: 10px 0; color: #333;">
                             <strong>Search Preview:</strong> This search has {total_pages} pages with {total_results} results
                             </div>
                             """, unsafe_allow_html=True)
                         else:
                             st.markdown(f"""
-                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #FF5733; background-color: #666666; margin: 10px 0;">
+                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #FF5733; background-color: #FFEEEE; margin: 10px 0; color: #333;">
                             <strong>Search Preview:</strong> No results found for this search with the current filters
                             </div>
                             """, unsafe_allow_html=True)
             except Exception as e:
                 with preview_container:
                     st.markdown(f"""
-                    <div style="padding: 10px; border-radius: 5px; border: 1px solid #FFC107; background-color: #FFFBEE; margin: 10px 0;">
+                    <div style="padding: 10px; border-radius: 5px; border: 1px solid #FFC107; background-color: #FFFBEE; margin: 10px 0; color: #333;">
                     <strong>Search Preview:</strong> Error checking pages: {str(e)}
                     </div>
                     """, unsafe_allow_html=True)
                 logging.error(f"Error checking pages: {str(e)}")
                 st.session_state["total_pages_preview"] = 0
                 st.session_state["total_results_preview"] = 0
+        else:
+            # No search criteria provided yet
+            with preview_container:
+                st.markdown(f"""
+                <div style="padding: 10px; border-radius: 5px; border: 1px solid #3498db; background-color: #EEF7FB; margin: 10px 0; color: #333;">
+                <strong>Search Preview:</strong> Enter search criteria to see how many results are available
+                </div>
+                """, unsafe_allow_html=True)
+            st.session_state["total_pages_preview"] = 0
+            st.session_state["total_results_preview"] = 0
+
         else:
             # No search criteria provided yet
             with preview_container:
