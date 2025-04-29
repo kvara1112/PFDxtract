@@ -5030,7 +5030,7 @@ def render_scraping_tab():
                         # Display styled message based on results
                         if total_pages > 0:
                             st.markdown(f"""
-                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #4CAF50; background-color: #EAF7E8; margin: 10px 0;">
+                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #4CAF50; background-color: #666666; margin: 10px 0;">
                             <strong>Search Preview:</strong> This search has {total_pages} pages with {total_results} results
                             </div>
                             """, unsafe_allow_html=True)
