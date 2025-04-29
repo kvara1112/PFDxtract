@@ -6165,62 +6165,6 @@ def initialize_session_state():
         finally:
             st.session_state.cleanup_done = True
             
-def initialize_session_state2():
-    """Initialize all required session state variables"""
-    # Initialize basic state variables if they don't exist
-    if not hasattr(st.session_state, "initialized"):
-        # Clear all existing session state
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-
-        # Set new session state variables
-        st.session_state.data_source = None
-        st.session_state.current_data = None
-        st.session_state.scraped_data = None
-        st.session_state.uploaded_data = None
-        st.session_state.topic_model = None
-        st.session_state.cleanup_done = False
-        st.session_state.last_scrape_time = None
-        st.session_state.last_upload_time = None
-        st.session_state.analysis_filters = {
-            "date_range": None,
-            "selected_categories": None,
-            "selected_areas": None,
-        }
-        st.session_state.topic_model_settings = {
-            "num_topics": 5,
-            "max_features": 1000,
-            "similarity_threshold": 0.3,
-        }
-        st.session_state.initialized = True
-
-    # Perform PDF cleanup if not done
-    if not st.session_state.cleanup_done:
-        try:
-            pdf_dir = "pdfs"
-            os.makedirs(pdf_dir, exist_ok=True)
-
-            current_time = time.time()
-            cleanup_count = 0
-
-            for file in os.listdir(pdf_dir):
-                file_path = os.path.join(pdf_dir, file)
-                try:
-                    if os.path.isfile(file_path):
-                        if os.stat(file_path).st_mtime < current_time - 86400:
-                            os.remove(file_path)
-                            cleanup_count += 1
-                except Exception as e:
-                    logging.warning(f"Error cleaning up file {file_path}: {e}")
-                    continue
-
-            if cleanup_count > 0:
-                logging.info(f"Cleaned up {cleanup_count} old PDF files")
-        except Exception as e:
-            logging.error(f"Error during PDF cleanup: {e}")
-        finally:
-            st.session_state.cleanup_done = True
-
 
 def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
     """
