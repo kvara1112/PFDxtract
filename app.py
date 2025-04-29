@@ -4836,9 +4836,8 @@ def scrape_pfd_reports(
             )
         return []
 
-
 def render_scraping_tab():
-    """Render the scraping tab with batch saving options and date filters"""
+    """Render scraping tab with batch saving options and date filters"""
     st.subheader("Scrape PFD Reports")
 
     # Initialize default values if not in session state
@@ -4986,12 +4985,13 @@ def render_scraping_tab():
         if before_day > 0 and before_month > 0 and before_year > 0:
             before_date = f"{before_day}-{before_month}-{before_year}"
 
-
-        #
+        # Create a container for the preview results
+        preview_container = st.container()
+        
         # Display preview results count with date filters
         if search_keyword or category or after_date or before_date:
             base_url = "https://www.judiciary.uk/"
-        
+
             # Prepare category slug
             category_slug = None
             if category:
@@ -5002,7 +5002,7 @@ def render_scraping_tab():
                     .replace("--", "-")
                     .strip("-")
                 )
-        
+
             # Create preview URL with date filters
             preview_url = construct_search_url(
                 base_url=base_url,
@@ -5012,7 +5012,7 @@ def render_scraping_tab():
                 after_date=after_date,
                 before_date=before_date,
             )
-        
+
             try:
                 with st.spinner("Checking total pages..."):
                     total_pages, total_results = get_total_pages(preview_url)
@@ -5056,17 +5056,6 @@ def render_scraping_tab():
                 """, unsafe_allow_html=True)
             st.session_state["total_pages_preview"] = 0
             st.session_state["total_results_preview"] = 0
-
-        else:
-            # No search criteria provided yet
-            with preview_container:
-                st.markdown(f"""
-                <div style="padding: 10px; border-radius: 5px; border: 1px solid #3498db; background-color: #EEF7FB; margin: 10px 0;">
-                <strong>Search Preview:</strong> Enter search criteria to see how many results are available
-                </div>
-                """, unsafe_allow_html=True)
-            st.session_state["total_pages_preview"] = 0
-            st.session_state["total_results_preview"] = 0
             
         # Page settings AFTER filter search
         row3_col1, row3_col2 = st.columns(2)
@@ -5086,10 +5075,14 @@ def render_scraping_tab():
             # Update end_page default based on total pages preview
             default_end_page = min(10, st.session_state["total_pages_preview"]) if st.session_state["total_pages_preview"] > 0 else 0
             
+            # Important fix: provide a default value of 0 when total_pages_preview is 0
+            end_page_default = default_end_page if st.session_state["total_pages_preview"] > 0 else 0
+            
             end_page = st.number_input(
                 "End page (Optimal: 10 pages per extraction):",
                 min_value=0,
-                value=default_end_page,
+                max_value=100,  # Set a reasonable maximum
+                value=end_page_default,  # Use our calculated default with fallback
                 key="end_page",
                 help="Last page to scrape (0 for all pages)",
             )
@@ -5119,7 +5112,7 @@ def render_scraping_tab():
             if total_expected_batches > 0:
                 st.info(f"With these settings, approximately {total_expected_batches} batches will be created.")
 
-        # Action buttons in a row
+        # Action buttons in a row - fixed form submit button
         button_col1, button_col2 = st.columns(2)
         with button_col1:
             submitted = st.form_submit_button("Search Reports")
