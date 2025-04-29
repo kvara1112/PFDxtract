@@ -5036,7 +5036,7 @@ def render_scraping_tab():
                             """, unsafe_allow_html=True)
                         else:
                             st.markdown(f"""
-                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #FF5733; background-color: #FFEEEE; margin: 10px 0;">
+                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #FF5733; background-color: #666666; margin: 10px 0;">
                             <strong>Search Preview:</strong> No results found for this search with the current filters
                             </div>
                             """, unsafe_allow_html=True)
