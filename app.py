@@ -9757,7 +9757,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 key="bert_excel_download",
             )
-        
+
         with col2:
             # Always regenerate HTML report when results are available
             if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
@@ -9771,7 +9771,31 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                             theme_analyzer.frameworks[name] = framework
                 
                 html_content = theme_analyzer._create_integrated_html_for_pdf(
-                    results_df, st.session_state.bert_results
+                    results_df, st.session_state.bert_results["highlighted_texts"]
+                )
+                html_filename = f"theme_analysis_report_{timestamp}.html"
+                
+                with open(html_filename, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                    
+                st.session_state.bert_results["html_filename"] = html_filename
+                
+                # Provide download button for fresh HTML
+                with open(html_filename, "rb") as f:
+                    html_data = f.read()
+                
+                st.download_button(
+                    "📄 Download Annotated Reports (HTML)",
+                    data=html_data,
+                    file_name=os.path.basename(html_filename),
+                    mime="text/html",
+                    key="bert_html_download",
+                )
+            else:
+                st.warning("HTML report not available")
+                
+
+                    
                     
 def render_bert_analysis_tabv2(data: pd.DataFrame = None):
     """
