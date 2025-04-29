@@ -4871,197 +4871,198 @@ def render_scraping_tab():
 
         show_export_options(st.session_state.scraped_data, "scraped")
 
-    # Create the search form with page range selection and batch options
-    with st.form("scraping_form"):
-        # Create rows for the main search criteria
-        row1_col1, row1_col2 = st.columns(2)
-        row2_col1, row2_col2 = st.columns(2)
+    # First, collect search parameters OUTSIDE the form to enable interactive preview
+    st.subheader("Search Parameters")
+    
+    # Main search criteria
+    row1_col1, row1_col2 = st.columns(2)
+    with row1_col1:
+        search_keyword = st.text_input(
+            "Search keywords:",
+            value=st.session_state.get("search_keyword_default", ""),
+            key="search_keyword_outside",
+            help="Do not leave empty, use 'report' or another search term",
+        )
 
-        # First row - Main search criteria
-        with row1_col1:
-            search_keyword = st.text_input(
-                "Search keywords:",
-                value=st.session_state.get("search_keyword_default", ""),
-                key="search_keyword",
-                help="Do not leave empty, use 'report' or another search term",
-            )
+    with row1_col2:
+        category = st.selectbox(
+            "PFD Report type:",
+            [""] + get_pfd_categories(),
+            index=0,
+            key="category_outside",
+            format_func=lambda x: x if x else "Select element",
+        )
+    
+    # Sort by
+    order = st.selectbox(
+        "Sort by:",
+        ["relevance", "desc", "asc"],
+        index=0,
+        key="order_outside",
+        format_func=lambda x: {
+            "relevance": "Relevance",
+            "desc": "Newest first",
+            "asc": "Oldest first",
+        }[x],
+    )
+    
+    # Date filter section
+    st.markdown("### Filter search")
+    
+    # Published on or after
+    st.markdown("**Published on or after**")
+    st.markdown("For example, 27 3 2007")
+    after_day_col, after_month_col, after_year_col = st.columns(3)
+    
+    with after_day_col:
+        after_day = st.number_input(
+            "Day",
+            min_value=0,
+            max_value=31,
+            value=0,
+            key="after_day_outside"
+        )
+    
+    with after_month_col:
+        after_month = st.number_input(
+            "Month",
+            min_value=0,
+            max_value=12,
+            value=0,
+            key="after_month_outside"
+        )
+    
+    with after_year_col:
+        after_year = st.number_input(
+            "Year",
+            min_value=0,
+            max_value=2025,
+            value=0,
+            key="after_year_outside"
+        )
+    
+    # Published on or before
+    st.markdown("**Published on or before**")
+    st.markdown("For example, 27 3 2007")
+    before_day_col, before_month_col, before_year_col = st.columns(3)
+    
+    with before_day_col:
+        before_day = st.number_input(
+            "Day",
+            min_value=0,
+            max_value=31,
+            value=0,
+            key="before_day_outside"
+        )
+    
+    with before_month_col:
+        before_month = st.number_input(
+            "Month",
+            min_value=0,
+            max_value=12,
+            value=0,
+            key="before_month_outside"
+        )
+    
+    with before_year_col:
+        before_year = st.number_input(
+            "Year",
+            min_value=0,
+            max_value=2025,
+            value=0,
+            key="before_year_outside"
+        )
 
-        with row1_col2:
-            category = st.selectbox(
-                "PFD Report type:",
-                [""] + get_pfd_categories(),
-                index=0,
-                key="category",
-                format_func=lambda x: x if x else "Select element",
-            )
+    # Create date filter strings for preview
+    after_date = None
+    if after_day > 0 and after_month > 0 and after_year > 0:
+        after_date = f"{after_day}-{after_month}-{after_year}"
+        
+    before_date = None
+    if before_day > 0 and before_month > 0 and before_year > 0:
+        before_date = f"{before_day}-{before_month}-{before_year}"
 
-        # Second row - Sort by
-        with row2_col1:
-            order = st.selectbox(
-                "Sort by:",
-                ["relevance", "desc", "asc"],
-                index=0,
-                key="order",
-                format_func=lambda x: {
-                    "relevance": "Relevance",
-                    "desc": "Newest first",
-                    "asc": "Oldest first",
-                }[x],
-            )
-            
-        # Date filter section
-        st.markdown("### Filter search")
-        
-        # Published on or after
-        st.markdown("**Published on or after**")
-        st.markdown("For example, 27 3 2007")
-        after_day_col, after_month_col, after_year_col = st.columns(3)
-        
-        with after_day_col:
-            after_day = st.number_input(
-                "Day",
-                min_value=0,
-                max_value=31,
-                value=0,
-                key="after_day"
-            )
-        
-        with after_month_col:
-            after_month = st.number_input(
-                "Month",
-                min_value=0,
-                max_value=12,
-                value=0,
-                key="after_month"
-            )
-        
-        with after_year_col:
-            after_year = st.number_input(
-                "Year",
-                min_value=0,
-                max_value=2025,
-                value=0,
-                key="after_year"
-            )
-        
-        # Published on or before
-        st.markdown("**Published on or before**")
-        st.markdown("For example, 27 3 2007")
-        before_day_col, before_month_col, before_year_col = st.columns(3)
-        
-        with before_day_col:
-            before_day = st.number_input(
-                "Day",
-                min_value=0,
-                max_value=31,
-                value=0,
-                key="before_day"
-            )
-        
-        with before_month_col:
-            before_month = st.number_input(
-                "Month",
-                min_value=0,
-                max_value=12,
-                value=0,
-                key="before_month"
-            )
-        
-        with before_year_col:
-            before_year = st.number_input(
-                "Year",
-                min_value=0,
-                max_value=2025,
-                value=0,
-                key="before_year"
-            )
+    # Interactive search preview outside the form
+    preview_container = st.container()
+    
+    # Display preview results count with date filters
+    if search_keyword or category or after_date or before_date:
+        base_url = "https://www.judiciary.uk/"
 
-        # Create date filter strings for preview
-        after_date = None
-        if after_day > 0 and after_month > 0 and after_year > 0:
-            after_date = f"{after_day}-{after_month}-{after_year}"
-            
-        before_date = None
-        if before_day > 0 and before_month > 0 and before_year > 0:
-            before_date = f"{before_day}-{before_month}-{before_year}"
-
-        # Create a container for the preview results
-        preview_container = st.container()
-        
-        # Display preview results count with date filters
-        if search_keyword or category or after_date or before_date:
-            base_url = "https://www.judiciary.uk/"
-
-            # Prepare category slug
-            category_slug = None
-            if category:
-                category_slug = (
-                    category.lower()
-                    .replace(" ", "-")
-                    .replace("&", "and")
-                    .replace("--", "-")
-                    .strip("-")
-                )
-
-            # Create preview URL with date filters
-            preview_url = construct_search_url(
-                base_url=base_url,
-                keyword=search_keyword,
-                category=category,
-                category_slug=category_slug,
-                after_date=after_date,
-                before_date=before_date,
+        # Prepare category slug
+        category_slug = None
+        if category:
+            category_slug = (
+                category.lower()
+                .replace(" ", "-")
+                .replace("&", "and")
+                .replace("--", "-")
+                .strip("-")
             )
 
-            try:
-                with st.spinner("Checking total pages..."):
-                    total_pages, total_results = get_total_pages(preview_url)
-                    
-                    # Store in session state for later use
-                    st.session_state["total_pages_preview"] = total_pages
-                    st.session_state["total_results_preview"] = total_results
-                    
-                    # Display results in the preview container
-                    with preview_container:
-                        # Display styled message based on results
-                        if total_pages > 0:
-                            st.markdown(f"""
-                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #4CAF50; background-color: #EAF7E8; margin: 10px 0; color: #333;">
-                            <strong>Search Preview:</strong> This search has {total_pages} pages with {total_results} results
-                            </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"""
-                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #FF5733; background-color: #FFEEEE; margin: 10px 0; color: #333;">
-                            <strong>Search Preview:</strong> No results found for this search with the current filters
-                            </div>
-                            """, unsafe_allow_html=True)
-            except Exception as e:
+        # Create preview URL with date filters
+        preview_url = construct_search_url(
+            base_url=base_url,
+            keyword=search_keyword,
+            category=category,
+            category_slug=category_slug,
+            after_date=after_date,
+            before_date=before_date,
+        )
+
+        try:
+            with st.spinner("Checking total pages..."):
+                total_pages, total_results = get_total_pages(preview_url)
+                
+                # Store in session state for later use
+                st.session_state["total_pages_preview"] = total_pages
+                st.session_state["total_results_preview"] = total_results
+                
+                # Display results in the preview container
                 with preview_container:
-                    st.markdown(f"""
-                    <div style="padding: 10px; border-radius: 5px; border: 1px solid #FFC107; background-color: #FFFBEE; margin: 10px 0; color: #333;">
-                    <strong>Search Preview:</strong> Error checking pages: {str(e)}
-                    </div>
-                    """, unsafe_allow_html=True)
-                logging.error(f"Error checking pages: {str(e)}")
-                st.session_state["total_pages_preview"] = 0
-                st.session_state["total_results_preview"] = 0
-        else:
-            # No search criteria provided yet
+                    # Display styled message based on results
+                    if total_pages > 0:
+                        st.markdown(f"""
+                        <div style="padding: 10px; border-radius: 5px; border: 1px solid #4CAF50; background-color: #EAF7E8; margin: 10px 0; color: #333;">
+                        <strong>Search Preview:</strong> This search has {total_pages} pages with {total_results} results
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div style="padding: 10px; border-radius: 5px; border: 1px solid #FF5733; background-color: #FFEEEE; margin: 10px 0; color: #333;">
+                        <strong>Search Preview:</strong> No results found for this search with the current filters
+                        </div>
+                        """, unsafe_allow_html=True)
+        except Exception as e:
             with preview_container:
                 st.markdown(f"""
-                <div style="padding: 10px; border-radius: 5px; border: 1px solid #3498db; background-color: #EEF7FB; margin: 10px 0; color: #333;">
-                <strong>Search Preview:</strong> Enter search criteria to see how many results are available
+                <div style="padding: 10px; border-radius: 5px; border: 1px solid #FFC107; background-color: #FFFBEE; margin: 10px 0; color: #333;">
+                <strong>Search Preview:</strong> Error checking pages: {str(e)}
                 </div>
                 """, unsafe_allow_html=True)
+            logging.error(f"Error checking pages: {str(e)}")
             st.session_state["total_pages_preview"] = 0
             st.session_state["total_results_preview"] = 0
-            
-        # Page settings AFTER filter search
+    else:
+        # No search criteria provided yet
+        with preview_container:
+            st.markdown(f"""
+            <div style="padding: 10px; border-radius: 5px; border: 1px solid #3498db; background-color: #EEF7FB; margin: 10px 0; color: #333;">
+            <strong>Search Preview:</strong> Enter search criteria to see how many results are available
+            </div>
+            """, unsafe_allow_html=True)
+        st.session_state["total_pages_preview"] = 0
+        st.session_state["total_results_preview"] = 0
+    
+    # Now create the form for actual scraping
+    st.markdown("### Scraping Settings")
+    
+    with st.form("scraping_form"):
+        # Create rows for scraping settings
         row3_col1, row3_col2 = st.columns(2)
         row4_col1, row4_col2 = st.columns(2)
 
-        # Page range row - MOVED to after filter search
+        # Page range row
         with row3_col1:
             start_page = st.number_input(
                 "Start page:",
@@ -5087,7 +5088,7 @@ def render_scraping_tab():
                 help="Last page to scrape (0 for all pages)",
             )
 
-        # Batch options row - MOVED to after filter search
+        # Batch options row
         with row4_col1:
             auto_save_batches = st.checkbox(
                 "Auto-save batches",
@@ -5112,6 +5113,17 @@ def render_scraping_tab():
             if total_expected_batches > 0:
                 st.info(f"With these settings, approximately {total_expected_batches} batches will be created.")
 
+        # Hidden fields to carry over the search parameters from outside the form
+        search_keyword_hidden = st.text_input("Hidden Search Keyword", value=search_keyword, key="search_keyword", label_visibility="collapsed")
+        category_hidden = st.text_input("Hidden Category", value=category, key="category", label_visibility="collapsed")
+        order_hidden = st.text_input("Hidden Order", value=order, key="order", label_visibility="collapsed")
+        after_day_hidden = st.number_input("Hidden After Day", value=after_day, key="after_day", label_visibility="collapsed")
+        after_month_hidden = st.number_input("Hidden After Month", value=after_month, key="after_month", label_visibility="collapsed")
+        after_year_hidden = st.number_input("Hidden After Year", value=after_year, key="after_year", label_visibility="collapsed")
+        before_day_hidden = st.number_input("Hidden Before Day", value=before_day, key="before_day", label_visibility="collapsed")
+        before_month_hidden = st.number_input("Hidden Before Month", value=before_month, key="before_month", label_visibility="collapsed")
+        before_year_hidden = st.number_input("Hidden Before Year", value=before_year, key="before_year", label_visibility="collapsed")
+
         # Action buttons in a row - fixed form submit button
         button_col1, button_col2 = st.columns(2)
         with button_col1:
@@ -5129,19 +5141,19 @@ def render_scraping_tab():
         try:
             # Store search parameters in session state
             st.session_state.last_search_params = {
-                "keyword": search_keyword,
-                "category": category,
-                "order": order,
+                "keyword": search_keyword_hidden,
+                "category": category_hidden,
+                "order": order_hidden,
                 "start_page": start_page,
                 "end_page": end_page,
                 "auto_save_batches": auto_save_batches,
                 "batch_size": batch_size,
-                "after_day": after_day,
-                "after_month": after_month,
-                "after_year": after_year,
-                "before_day": before_day,
-                "before_month": before_month,
-                "before_year": before_year,
+                "after_day": after_day_hidden,
+                "after_month": after_month_hidden,
+                "after_year": after_year_hidden,
+                "before_day": before_day_hidden,
+                "before_month": before_month_hidden,
+                "before_year": before_year_hidden,
             }
 
             # Initialize stop_scraping flag
@@ -5152,18 +5164,18 @@ def render_scraping_tab():
             
             # Create date filter strings
             after_date = None
-            if after_day > 0 and after_month > 0 and after_year > 0:
-                after_date = f"{after_day}-{after_month}-{after_year}"
+            if after_day_hidden > 0 and after_month_hidden > 0 and after_year_hidden > 0:
+                after_date = f"{after_day_hidden}-{after_month_hidden}-{after_year_hidden}"
                 
             before_date = None
-            if before_day > 0 and before_month > 0 and before_year > 0:
-                before_date = f"{before_day}-{before_month}-{before_year}"
+            if before_day_hidden > 0 and before_month_hidden > 0 and before_year_hidden > 0:
+                before_date = f"{before_day_hidden}-{before_month_hidden}-{before_year_hidden}"
 
             # Perform scraping with batch options and date filters
             reports = scrape_pfd_reports(
-                keyword=search_keyword,
-                category=category if category else None,
-                order=order,
+                keyword=search_keyword_hidden,
+                category=category_hidden if category_hidden else None,
+                order=order_hidden,
                 start_page=start_page,
                 end_page=end_page_val,
                 auto_save_batches=auto_save_batches,
@@ -5191,7 +5203,6 @@ def render_scraping_tab():
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
-
 def render_topic_summary_tab(data: pd.DataFrame = None) -> None:
     """Topic analysis with weighting schemes and essential controls"""
     st.subheader("Topic Analysis & Summaries")
