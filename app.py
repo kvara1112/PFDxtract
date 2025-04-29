@@ -4836,6 +4836,7 @@ def scrape_pfd_reports(
             )
         return []
 
+
 def render_scraping_tab():
     """Render scraping tab with batch saving options and date filters"""
     st.subheader("Scrape PFD Reports")
@@ -5113,23 +5114,20 @@ def render_scraping_tab():
             if total_expected_batches > 0:
                 st.info(f"With these settings, approximately {total_expected_batches} batches will be created.")
 
-        # Hidden fields to carry over the search parameters from outside the form
-        search_keyword_hidden = st.text_input("Hidden Search Keyword", value=search_keyword, key="search_keyword", label_visibility="collapsed")
-        category_hidden = st.text_input("Hidden Category", value=category, key="category", label_visibility="collapsed")
-        order_hidden = st.text_input("Hidden Order", value=order, key="order", label_visibility="collapsed")
-        after_day_hidden = st.number_input("Hidden After Day", value=after_day, key="after_day", label_visibility="collapsed")
-        after_month_hidden = st.number_input("Hidden After Month", value=after_month, key="after_month", label_visibility="collapsed")
-        after_year_hidden = st.number_input("Hidden After Year", value=after_year, key="after_year", label_visibility="collapsed")
-        before_day_hidden = st.number_input("Hidden Before Day", value=before_day, key="before_day", label_visibility="collapsed")
-        before_month_hidden = st.number_input("Hidden Before Month", value=before_month, key="before_month", label_visibility="collapsed")
-        before_year_hidden = st.number_input("Hidden Before Year", value=before_year, key="before_year", label_visibility="collapsed")
-
-        # Action buttons in a row - fixed form submit button
-        button_col1, button_col2 = st.columns(2)
-        with button_col1:
-            submitted = st.form_submit_button("Search Reports")
-        with button_col2:
-            stop_scraping = st.form_submit_button("Stop Scraping")
+        # Store search parameters in session state instead of using hidden fields
+        if submitted := st.form_submit_button("Search Reports"):
+            st.session_state["form_search_keyword"] = search_keyword
+            st.session_state["form_category"] = category
+            st.session_state["form_order"] = order
+            st.session_state["form_after_day"] = after_day
+            st.session_state["form_after_month"] = after_month
+            st.session_state["form_after_year"] = after_year
+            st.session_state["form_before_day"] = before_day
+            st.session_state["form_before_month"] = before_month
+            st.session_state["form_before_year"] = before_year
+        
+        # Add Stop Scraping button
+        stop_scraping = st.form_submit_button("Stop Scraping")
 
     # Handle stop scraping
     if stop_scraping:
@@ -5139,21 +5137,32 @@ def render_scraping_tab():
 
     if submitted:
         try:
+            # Retrieve the search parameters from session state
+            form_search_keyword = st.session_state.get("form_search_keyword", search_keyword)
+            form_category = st.session_state.get("form_category", category)
+            form_order = st.session_state.get("form_order", order)
+            form_after_day = st.session_state.get("form_after_day", after_day)
+            form_after_month = st.session_state.get("form_after_month", after_month)
+            form_after_year = st.session_state.get("form_after_year", after_year)
+            form_before_day = st.session_state.get("form_before_day", before_day)
+            form_before_month = st.session_state.get("form_before_month", before_month)
+            form_before_year = st.session_state.get("form_before_year", before_year)
+            
             # Store search parameters in session state
             st.session_state.last_search_params = {
-                "keyword": search_keyword_hidden,
-                "category": category_hidden,
-                "order": order_hidden,
+                "keyword": form_search_keyword,
+                "category": form_category,
+                "order": form_order,
                 "start_page": start_page,
                 "end_page": end_page,
                 "auto_save_batches": auto_save_batches,
                 "batch_size": batch_size,
-                "after_day": after_day_hidden,
-                "after_month": after_month_hidden,
-                "after_year": after_year_hidden,
-                "before_day": before_day_hidden,
-                "before_month": before_month_hidden,
-                "before_year": before_year_hidden,
+                "after_day": form_after_day,
+                "after_month": form_after_month,
+                "after_year": form_after_year,
+                "before_day": form_before_day,
+                "before_month": form_before_month,
+                "before_year": form_before_year,
             }
 
             # Initialize stop_scraping flag
@@ -5164,18 +5173,18 @@ def render_scraping_tab():
             
             # Create date filter strings
             after_date = None
-            if after_day_hidden > 0 and after_month_hidden > 0 and after_year_hidden > 0:
-                after_date = f"{after_day_hidden}-{after_month_hidden}-{after_year_hidden}"
+            if form_after_day > 0 and form_after_month > 0 and form_after_year > 0:
+                after_date = f"{form_after_day}-{form_after_month}-{form_after_year}"
                 
             before_date = None
-            if before_day_hidden > 0 and before_month_hidden > 0 and before_year_hidden > 0:
-                before_date = f"{before_day_hidden}-{before_month_hidden}-{before_year_hidden}"
+            if form_before_day > 0 and form_before_month > 0 and form_before_year > 0:
+                before_date = f"{form_before_day}-{form_before_month}-{form_before_year}"
 
             # Perform scraping with batch options and date filters
             reports = scrape_pfd_reports(
-                keyword=search_keyword_hidden,
-                category=category_hidden if category_hidden else None,
-                order=order_hidden,
+                keyword=form_search_keyword,
+                category=form_category if form_category else None,
+                order=form_order,
                 start_page=start_page,
                 end_page=end_page_val,
                 auto_save_batches=auto_save_batches,
@@ -5203,6 +5212,9 @@ def render_scraping_tab():
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
+
+
+
 def render_topic_summary_tab(data: pd.DataFrame = None) -> None:
     """Topic analysis with weighting schemes and essential controls"""
     st.subheader("Topic Analysis & Summaries")
