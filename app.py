@@ -4370,54 +4370,6 @@ def scrape_page(url: str) -> List[Dict]:
         return []
 
 
-def get_total_pages(url: str) -> Tuple[int, int]:
-    """
-    Get total number of pages and total results count
-
-    Returns:
-        Tuple[int, int]: (total_pages, total_results)
-    """
-    try:
-        response = make_request(url)
-        if not response:
-            logging.error(f"No response from URL: {url}")
-            return 0, 0
-
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # First check for total results count
-        total_results = 0
-        results_header = soup.find("div", class_="search__header")
-        if results_header:
-            results_text = results_header.get_text()
-            match = re.search(r"found (\d+) results?", results_text, re.IGNORECASE)
-            if match:
-                total_results = int(match.group(1))
-                total_pages = (total_results + 9) // 10  # 10 results per page
-                return total_pages, total_results
-
-        # If no results header, check pagination
-        pagination = soup.find("nav", class_="navigation pagination")
-        if pagination:
-            page_numbers = pagination.find_all("a", class_="page-numbers")
-            numbers = [
-                int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()
-            ]
-            if numbers:
-                return max(numbers), len(numbers) * 10  # Approximate result count
-
-        # If no pagination but results exist
-        results = soup.find("ul", class_="search__list")
-        if results and results.find_all("div", class_="card"):
-            cards = results.find_all("div", class_="card")
-            return 1, len(cards)
-
-        return 0, 0
-
-    except Exception as e:
-        logging.error(f"Error in get_total_pages: {str(e)}")
-        return 0, 0
-
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with metadata extraction and concern extraction"""
@@ -4507,6 +4459,113 @@ def get_category_slug(category: str) -> str:
     logging.info(f"Generated category slug: {slug} from category: {category}")
     return slug
 
+
+
+
+
+def save_batch(
+    reports: List[Dict], 
+    batch_number: int, 
+    keyword: Optional[str], 
+    category: Optional[str], 
+    start_page: int, 
+    end_page: Union[int, str]
+) -> str:
+    """
+    Save a batch of reports to Excel file with appropriate naming
+    
+    Args:
+        reports: List of report dictionaries to save
+        batch_number: Current batch number
+        keyword: Search keyword used (for filename)
+        category: Category used (for filename)
+        start_page: Starting page of this batch
+        end_page: Ending page of this batch (or "error" if saving due to error)
+        
+    Returns:
+        Filename of the saved file
+    """
+    if not reports:
+        return ""
+    
+    # Process the data
+    df = pd.DataFrame(reports)
+    df = process_scraped_data(df)
+    
+    # Create timestamp for filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Create descriptive filename parts
+    keyword_part = f"kw_{keyword.replace(' ', '_')}" if keyword else "no_keyword"
+    category_part = f"cat_{category.replace(' ', '_')}" if category else "no_category"
+    page_part = f"pages_{start_page}_to_{end_page}"
+    
+    # Generate filename
+    filename = f"pfd_reports_scraped_batch{batch_number}_{keyword_part}_{category_part}_{page_part}_{timestamp}.xlsx"
+    
+    # Ensure filename is valid (remove any problematic characters)
+    filename = re.sub(r'[\\/*?:"<>|]', "", filename)
+    
+    # Create directory if it doesn't exist
+    os.makedirs("scraped_reports", exist_ok=True)
+    file_path = os.path.join("scraped_reports", filename)
+    
+    # Save to Excel
+    df.to_excel(file_path, index=False, engine="openpyxl")
+    
+    logging.info(f"Saved batch {batch_number} to {file_path}")
+    return filename
+
+
+def get_total_pages(url: str) -> Tuple[int, int]:
+    """
+    Get total number of pages and total results count
+
+    Returns:
+        Tuple[int, int]: (total_pages, total_results)
+    """
+    try:
+        response = make_request(url)
+        if not response:
+            logging.error(f"No response from URL: {url}")
+            return 0, 0
+
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # First check for total results count
+        total_results = 0
+        results_header = soup.find("div", class_="search__header")
+        if results_header:
+            results_text = results_header.get_text()
+            match = re.search(r"found (\d+) results?", results_text, re.IGNORECASE)
+            if match:
+                total_results = int(match.group(1))
+                total_pages = (total_results + 9) // 10  # 10 results per page
+                return total_pages, total_results
+
+        # If no results header, check pagination
+        pagination = soup.find("nav", class_="navigation pagination")
+        if pagination:
+            page_numbers = pagination.find_all("a", class_="page-numbers")
+            numbers = [
+                int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()
+            ]
+            if numbers:
+                return max(numbers), len(numbers) * 10  # Approximate result count
+
+        # If no pagination but results exist
+        results = soup.find("ul", class_="search__list")
+        if results and results.find_all("div", class_="card"):
+            cards = results.find_all("div", class_="card")
+            return 1, len(cards)
+
+        return 0, 0
+
+    except Exception as e:
+        logging.error(f"Error in get_total_pages: {str(e)}")
+        return 0, 0
+
+
 def construct_search_url(
     base_url: str,
     keyword: Optional[str] = None,
@@ -4550,6 +4609,7 @@ def construct_search_url(
             url += f"&before-day={day}&before-month={month}&before-year={year}"
 
     return url
+
 
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
@@ -4612,16 +4672,20 @@ def scrape_pfd_reports(
             before_date=before_date,
         )
 
-        st.info(f"Searching at: {base_search_url}")
-
         # Get total pages and results count
         total_pages, total_results = get_total_pages(base_search_url)
 
         if total_results == 0:
-            st.warning("No results found matching your search criteria")
+            st.warning("No results found matching your search criteria", icon="⚠️")
             return []
 
-        st.info(f"Found {total_results} matching reports across {total_pages} pages")
+        # Display results count in a highlighted box
+        results_info = f"After filtering, this search has {total_pages} pages with {total_results} results"
+        st.markdown(f"""
+        <div style="padding: 10px; border-radius: 5px; border: 1px solid #4CAF50; background-color: #EAF7E8; margin: 10px 0;">
+        <strong>Search Results:</strong> {results_info}
+        </div>
+        """, unsafe_allow_html=True)
 
         # Apply page range limits
         start_page = max(1, start_page)  # Ensure start_page is at least 1
@@ -4633,7 +4697,7 @@ def scrape_pfd_reports(
             )  # Ensure end_page doesn't exceed total_pages
 
         if start_page > end_page:
-            st.warning(f"Invalid page range: {start_page} to {end_page}")
+            st.warning(f"Invalid page range: {start_page} to {end_page}", icon="⚠️")
             return []
 
         st.info(f"Scraping pages {start_page} to {end_page}")
@@ -4661,7 +4725,7 @@ def scrape_pfd_reports(
                             current_batch_start, 
                             current_page - 1
                         )
-                    st.warning("Scraping stopped by user")
+                    st.warning("Scraping stopped by user", icon="⚠️")
                     break
 
                 # Update progress
@@ -4733,7 +4797,7 @@ def scrape_pfd_reports(
             except Exception as e:
                 logging.error(f"Error processing page {current_page}: {e}")
                 st.warning(
-                    f"Error on page {current_page}. Continuing with next page..."
+                    f"Error on page {current_page}. Continuing with next page...", icon="⚠️"
                 )
                 continue
 
@@ -4747,13 +4811,13 @@ def scrape_pfd_reports(
         report_count_text.empty()
 
         if all_reports:
-            st.success(f"Successfully scraped {len(all_reports)} unique reports")
+            st.success(f"Successfully scraped {len(all_reports)} unique reports", icon="✅")
             
             # Final report
             if auto_save_batches:
                 st.info(f"Reports were automatically saved in {batch_number} batches")
         else:
-            st.warning("No reports were successfully retrieved")
+            st.warning("No reports were successfully retrieved", icon="⚠️")
 
         return all_reports
 
@@ -4773,59 +4837,6 @@ def scrape_pfd_reports(
         return []
 
 
-def save_batch(
-    reports: List[Dict], 
-    batch_number: int, 
-    keyword: Optional[str], 
-    category: Optional[str], 
-    start_page: int, 
-    end_page: Union[int, str]
-) -> str:
-    """
-    Save a batch of reports to Excel file with appropriate naming
-    
-    Args:
-        reports: List of report dictionaries to save
-        batch_number: Current batch number
-        keyword: Search keyword used (for filename)
-        category: Category used (for filename)
-        start_page: Starting page of this batch
-        end_page: Ending page of this batch (or "error" if saving due to error)
-        
-    Returns:
-        Filename of the saved file
-    """
-    if not reports:
-        return ""
-    
-    # Process the data
-    df = pd.DataFrame(reports)
-    df = process_scraped_data(df)
-    
-    # Create timestamp for filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # Create descriptive filename parts
-    keyword_part = f"kw_{keyword.replace(' ', '_')}" if keyword else "no_keyword"
-    category_part = f"cat_{category.replace(' ', '_')}" if category else "no_category"
-    page_part = f"pages_{start_page}_to_{end_page}"
-    
-    # Generate filename
-    filename = f"pfd_reports_scraped_batch{batch_number}_{keyword_part}_{category_part}_{page_part}_{timestamp}.xlsx"
-    
-    # Ensure filename is valid (remove any problematic characters)
-    filename = re.sub(r'[\\/*?:"<>|]', "", filename)
-    
-    # Create directory if it doesn't exist
-    os.makedirs("scraped_reports", exist_ok=True)
-    file_path = os.path.join("scraped_reports", filename)
-    
-    # Save to Excel
-    df.to_excel(file_path, index=False, engine="openpyxl")
-    
-    logging.info(f"Saved batch {batch_number} to {file_path}")
-    return filename
-
 def render_scraping_tab():
     """Render the scraping tab with batch saving options and date filters"""
     st.subheader("Scrape PFD Reports")
@@ -4840,6 +4851,8 @@ def render_scraping_tab():
         st.session_state["end_page_default"] = None
         st.session_state["auto_save_batches_default"] = True
         st.session_state["batch_size_default"] = 5
+        st.session_state["total_pages_preview"] = 0
+        st.session_state["total_results_preview"] = 0
 
     if "scraped_data" in st.session_state and st.session_state.scraped_data is not None:
         st.success(f"Found {len(st.session_state.scraped_data)} reports")
@@ -4973,6 +4986,9 @@ def render_scraping_tab():
         if before_day > 0 and before_month > 0 and before_year > 0:
             before_date = f"{before_day}-{before_month}-{before_year}"
 
+        # Create a container for the preview results
+        preview_container = st.container()
+        
         # Display preview results count with date filters
         if search_keyword or category or after_date or before_date:
             base_url = "https://www.judiciary.uk/"
@@ -4998,22 +5014,52 @@ def render_scraping_tab():
                 before_date=before_date,
             )
 
+            # Show preview URL for debugging if needed
+            # st.code(preview_url)
+
             try:
                 with st.spinner("Checking total pages..."):
                     total_pages, total_results = get_total_pages(preview_url)
-                    if total_pages > 0:
-                        st.info(
-                            f"After filtering, this search has {total_pages} pages with {total_results} results"
-                        )
-                        st.session_state["total_pages_preview"] = total_pages
-                    else:
-                        st.warning("No results found for this search with the current filters")
-                        st.session_state["total_pages_preview"] = 0
+                    
+                    # Store in session state for later use
+                    st.session_state["total_pages_preview"] = total_pages
+                    st.session_state["total_results_preview"] = total_results
+                    
+                    # Display results in the preview container
+                    with preview_container:
+                        # Display styled message based on results
+                        if total_pages > 0:
+                            st.markdown(f"""
+                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #4CAF50; background-color: #EAF7E8; margin: 10px 0;">
+                            <strong>Search Preview:</strong> This search has {total_pages} pages with {total_results} results
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div style="padding: 10px; border-radius: 5px; border: 1px solid #FF5733; background-color: #FFEEEE; margin: 10px 0;">
+                            <strong>Search Preview:</strong> No results found for this search with the current filters
+                            </div>
+                            """, unsafe_allow_html=True)
             except Exception as e:
-                st.error(f"Error checking pages: {str(e)}")
+                with preview_container:
+                    st.markdown(f"""
+                    <div style="padding: 10px; border-radius: 5px; border: 1px solid #FFC107; background-color: #FFFBEE; margin: 10px 0;">
+                    <strong>Search Preview:</strong> Error checking pages: {str(e)}
+                    </div>
+                    """, unsafe_allow_html=True)
+                logging.error(f"Error checking pages: {str(e)}")
                 st.session_state["total_pages_preview"] = 0
+                st.session_state["total_results_preview"] = 0
         else:
+            # No search criteria provided yet
+            with preview_container:
+                st.markdown(f"""
+                <div style="padding: 10px; border-radius: 5px; border: 1px solid #3498db; background-color: #EEF7FB; margin: 10px 0;">
+                <strong>Search Preview:</strong> Enter search criteria to see how many results are available
+                </div>
+                """, unsafe_allow_html=True)
             st.session_state["total_pages_preview"] = 0
+            st.session_state["total_results_preview"] = 0
             
         # Page settings AFTER filter search
         row3_col1, row3_col2 = st.columns(2)
@@ -5030,10 +5076,13 @@ def render_scraping_tab():
             )
 
         with row3_col2:
+            # Update end_page default based on total pages preview
+            default_end_page = min(10, st.session_state["total_pages_preview"]) if st.session_state["total_pages_preview"] > 0 else 0
+            
             end_page = st.number_input(
                 "End page (Optimal: 10 pages per extraction):",
                 min_value=0,
-                value=st.session_state.get("end_page_default", 0),
+                value=default_end_page,
                 key="end_page",
                 help="Last page to scrape (0 for all pages)",
             )
@@ -5057,6 +5106,12 @@ def render_scraping_tab():
                 help="Number of pages to process before saving a batch",
             )
 
+        # Display total expected batches if both end_page and batch_size are set
+        if end_page > 0 and batch_size > 0:
+            total_expected_batches = (end_page - start_page + 1 + batch_size - 1) // batch_size
+            if total_expected_batches > 0:
+                st.info(f"With these settings, approximately {total_expected_batches} batches will be created.")
+
         # Action buttons in a row
         button_col1, button_col2 = st.columns(2)
         with button_col1:
@@ -5067,7 +5122,7 @@ def render_scraping_tab():
     # Handle stop scraping
     if stop_scraping:
         st.session_state.stop_scraping = True
-        st.warning("Scraping will be stopped after the current page completes...")
+        st.warning("Scraping will be stopped after the current page completes...", icon="⚠️")
         return
 
     if submitted:
@@ -5130,13 +5185,12 @@ def render_scraping_tab():
                 # Trigger a rerun to refresh the page
                 st.rerun()
             else:
-                st.warning("No reports found matching your search criteria")
+                st.warning("No reports found matching your search criteria", icon="⚠️")
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
-
 
 def render_topic_summary_tab(data: pd.DataFrame = None) -> None:
     """Topic analysis with weighting schemes and essential controls"""
