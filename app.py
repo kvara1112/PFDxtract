@@ -9072,6 +9072,728 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
         st.markdown("---")
 
 def render_bert_analysis_tab(data: pd.DataFrame = None):
+    """
+    Enhanced version of render_bert_analysis_tab that includes batch processing by year
+    with configurable batch size and progress tracking
+    """
+    
+    # Ensure the bert_results dictionary exists in session state
+    if "bert_results" not in st.session_state:
+        st.session_state.bert_results = {}
+    
+    # Track if BERT model is initialized
+    if "bert_initialized" not in st.session_state:
+        st.session_state.bert_initialized = False
+    
+    # Initialize custom frameworks dictionary if not present
+    if "custom_frameworks" not in st.session_state:
+        st.session_state.custom_frameworks = {}
+        
+    # Safer initialization with validation
+    if "selected_frameworks" not in st.session_state:
+        # Only include frameworks that actually exist
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        st.session_state.selected_frameworks = default_frameworks
+    else:
+        # Validate existing selections against available options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"] + list(st.session_state.get("custom_frameworks", {}).keys())
+        st.session_state.selected_frameworks = [f for f in st.session_state.selected_frameworks if f in available_frameworks]
+
+    # File upload section
+    st.subheader("Upload Data")
+    reset_counter = st.session_state.get("reset_counter", 0)
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for BERT Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a file with reports for theme analysis",
+        key="bert_file_uploader",
+    )
+
+    # If a file is uploaded, process it
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_data = pd.read_csv(uploaded_file)
+            else:
+                uploaded_data = pd.read_excel(uploaded_file)
+
+            # Process the uploaded data
+            uploaded_data = process_scraped_data(uploaded_data)
+
+            # Update the data reference
+            data = uploaded_data
+
+            st.success(f"File uploaded and processed successfully! Found {len(data)} records.")
+                
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            return
+
+    # Check if data is available
+    if data is None or len(data) == 0:
+        st.warning(
+            "No data available. Please upload a file or ensure existing data is loaded."
+        )
+        return
+
+    # Framework selection section
+    st.subheader("Select Frameworks")
+    
+    # Create columns for the framework selection and custom framework upload
+    frame_col1, frame_col2 = st.columns([2, 1])
+    
+    with frame_col1:
+        # Get all available framework options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        if "custom_frameworks" in st.session_state:
+            available_frameworks.extend(list(st.session_state.custom_frameworks.keys()))
+        
+        # Predefined framework selection - use a unique key
+        st.session_state.selected_frameworks = st.multiselect(
+            "Choose Frameworks to Use",
+            options=available_frameworks,
+            default=st.session_state.selected_frameworks,
+            help="Select which conceptual frameworks to use for theme analysis",
+            key=f"framework_select_{reset_counter}"
+        )
+    
+    with frame_col2:
+        # Custom framework upload
+        custom_framework_file = st.file_uploader(
+            "Upload Custom Framework",
+            type=["json", "txt"],
+            help="Upload a JSON file containing custom framework definitions",
+            key=f"custom_framework_uploader_{reset_counter}"
+        )
+        
+        if custom_framework_file is not None:
+            try:
+                # Read framework definition
+                custom_framework_content = custom_framework_file.read().decode("utf-8")
+                custom_framework_data = json.loads(custom_framework_content)
+                
+                # Validate framework structure
+                if isinstance(custom_framework_data, list) and all(isinstance(item, dict) and "name" in item and "keywords" in item for item in custom_framework_data):
+                    # Framework name input
+                    custom_framework_name = st.text_input(
+                        "Custom Framework Name", 
+                        f"Custom Framework {len(st.session_state.custom_frameworks) + 1}",
+                        key=f"custom_framework_name_{reset_counter}"
+                    )
+                    
+                    # Add button for the custom framework
+                    if st.button("Add Custom Framework", key=f"add_custom_framework_{reset_counter}"):
+                        # Check if name already exists
+                        if custom_framework_name in st.session_state.custom_frameworks:
+                            st.warning(f"A framework with the name '{custom_framework_name}' already exists. Please choose a different name.")
+                        else:
+                            # Add to session state
+                            st.session_state.custom_frameworks[custom_framework_name] = custom_framework_data
+                            
+                            # Add to selected frameworks if not already there
+                            if custom_framework_name not in st.session_state.selected_frameworks:
+                                st.session_state.selected_frameworks.append(custom_framework_name)
+                            
+                            st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
+                            st.rerun()  # Refresh to update UI
+                else:
+                    st.error("Invalid framework format. Each item must have 'name' and 'keywords' fields.")
+            except json.JSONDecodeError:
+                st.error("Invalid JSON format. Please check your file.")
+            except Exception as e:
+                st.error(f"Error processing custom framework: {str(e)}")
+                logging.error(f"Custom framework error: {e}", exc_info=True)
+    
+    # Display currently loaded custom frameworks
+    if "custom_frameworks" in st.session_state and st.session_state.custom_frameworks:
+        st.subheader("Loaded Custom Frameworks")
+        for name, framework in st.session_state.custom_frameworks.items():
+            with st.expander(f"{name} ({len(framework)} themes)"):
+                # Display the first few themes as an example
+                for i, theme in enumerate(framework[:5]):
+                    st.markdown(f"**{theme['name']}**: {', '.join(theme['keywords'][:5])}...")
+                    if i >= 4 and len(framework) > 5:
+                        st.markdown(f"*... and {len(framework) - 5} more themes*")
+                        break
+                
+                # Add option to remove this framework
+                if st.button("Remove Framework", key=f"remove_{name}_{reset_counter}"):
+                    del st.session_state.custom_frameworks[name]
+                    if name in st.session_state.selected_frameworks:
+                        st.session_state.selected_frameworks.remove(name)
+                    st.success(f"Removed framework '{name}'")
+                    st.rerun()  # Refresh to update UI
+
+    # Column selection for analysis
+    st.subheader("Select Analysis Column")
+
+    # Find text columns (object/string type)
+    text_columns = data.select_dtypes(include=["object"]).columns.tolist()
+
+    # If no text columns found
+    if not text_columns:
+        st.error("No text columns found in the dataset.")
+        return
+
+    # Column selection with dropdown
+    content_column = st.selectbox(
+        "Choose the column to analyse:",
+        options=text_columns,
+        index=text_columns.index("Content") if "Content" in text_columns else 0,
+        help="Select the column containing the text you want to analyse",
+        key="bert_content_column",
+    )
+
+    # Batch processing settings section
+    st.subheader("Batch Processing Settings")
+    
+    # Split by Year vs Manual Selection
+    batch_mode = st.radio(
+        "Batch Processing Mode",
+        ["Process All Records", "Split by Year", "Manual Selection"],
+        horizontal=True,
+        key="bert_batch_mode"
+    )
+    
+    # Batch size input
+    batch_size = st.slider(
+        "Batch Size",
+        min_value=5,
+        max_value=50,
+        value=20,
+        step=5,
+        help="Number of records to process in each batch",
+        key="bert_batch_size"
+    )
+    
+    # Create storage folder for batch results
+    results_folder = "theme_analysis_results"
+    os.makedirs(results_folder, exist_ok=True)
+    
+    # Setup for specific batch modes
+    selected_data = None
+    batches = []
+    
+    if batch_mode == "Split by Year":
+        # Check if year column exists
+        if "year" in data.columns and not data["year"].isna().all():
+            # Get available years
+            available_years = sorted(data["year"].dropna().unique())
+            
+            # Allow selection of years to process
+            selected_years = st.multiselect(
+                "Select Years to Process",
+                options=available_years,
+                default=available_years[:1] if available_years else [],
+                help="Select which years to process in batches",
+                key="bert_selected_years"
+            )
+            
+            if selected_years:
+                # Filter data by selected years
+                year_data = data[data["year"].isin(selected_years)]
+                
+                # Create batch progress overview
+                st.info(f"Will process {len(year_data)} records across {len(selected_years)} years")
+                
+                # Create batches for each year
+                for year in selected_years:
+                    year_subset = data[data["year"] == year]
+                    
+                    # Split each year into batches of specified size
+                    num_batches = (len(year_subset) + batch_size - 1) // batch_size
+                    for i in range(num_batches):
+                        start_idx = i * batch_size
+                        end_idx = min(start_idx + batch_size, len(year_subset))
+                        batch_df = year_subset.iloc[start_idx:end_idx]
+                        
+                        batches.append({
+                            "name": f"Year {year} - Batch {i+1}",
+                            "data": batch_df,
+                            "year": year,
+                            "batch_num": i+1
+                        })
+                
+                st.success(f"Created {len(batches)} batches for processing")
+            else:
+                st.warning("Please select at least one year to process")
+        else:
+            st.error("Year column not found or contains no valid data. Cannot split by year.")
+            # Fall back to Process All Records mode
+            batch_mode = "Process All Records"
+                
+    elif batch_mode == "Manual Selection":
+        # Multi-select for reports
+        selected_indices = st.multiselect(
+            "Choose specific reports to analyse",
+            options=list(range(len(data))),
+            format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
+            key="bert_selected_indices",
+        )
+        
+        if selected_indices:
+            selected_data = data.iloc[selected_indices]
+            
+            # Create batches for manual selection
+            num_batches = (len(selected_data) + batch_size - 1) // batch_size
+            for i in range(num_batches):
+                start_idx = i * batch_size
+                end_idx = min(start_idx + batch_size, len(selected_data))
+                batch_df = selected_data.iloc[start_idx:end_idx]
+                
+                batches.append({
+                    "name": f"Manual Selection - Batch {i+1}",
+                    "data": batch_df,
+                    "batch_num": i+1
+                })
+                
+            st.success(f"Created {len(batches)} batches from your selection of {len(selected_data)} records")
+        else:
+            st.warning("Please select specific records to process")
+    else:  # Process All Records
+        # Use all data but still split into batches
+        num_batches = (len(data) + batch_size - 1) // batch_size
+        for i in range(num_batches):
+            start_idx = i * batch_size
+            end_idx = min(start_idx + batch_size, len(data))
+            batch_df = data.iloc[start_idx:end_idx]
+            
+            batches.append({
+                "name": f"Batch {i+1}",
+                "data": batch_df,
+                "batch_num": i+1
+            })
+        
+        st.success(f"Will process all {len(data)} records in {len(batches)} batches")
+    
+    # Analysis parameters
+    st.subheader("Analysis Parameters")
+    similarity_threshold = st.slider(
+        "Similarity Threshold",
+        min_value=0.3,
+        max_value=0.9,
+        value=0.65,
+        step=0.05,
+        help="Minimum similarity score for theme detection (higher = more strict)",
+        key="bert_similarity_threshold",
+    )
+
+    # Analysis button with batch count indication
+    run_analysis = st.button(
+        f"Run Analysis on {len(batches)} Batches" if batches else "Run Analysis", 
+        type="primary", 
+        key="bert_run_analysis"
+    )
+
+    # Run analysis if button is clicked
+    if run_analysis:
+        if batches:  # We have batches to process
+            # Create a progress bar for overall batch progress
+            overall_progress = st.progress(0)
+            batch_status = st.empty()
+            current_batch_progress = st.progress(0)
+            current_batch_status = st.empty()
+            
+            # Create tab containers for successes and errors
+            result_tabs = st.tabs(["Successful Batches", "Failed Batches"])
+            
+            with result_tabs[0]:  # Successful Batches tab
+                success_container = st.container()
+            
+            with result_tabs[1]:  # Failed Batches tab
+                error_container = st.container()
+            
+            # Storage for successful and failed batches
+            successful_batches = []
+            failed_batches = []
+            
+            # Process each batch
+            for batch_idx, batch in enumerate(batches):
+                # Update overall progress
+                overall_progress.progress((batch_idx) / len(batches))
+                batch_status.text(f"Processing batch {batch_idx+1} of {len(batches)}: {batch['name']}")
+                
+                try:
+                    # Reset current batch progress
+                    current_batch_progress.progress(0)
+                    current_batch_status.text(f"Initializing analysis for batch with {len(batch['data'])} records...")
+                    
+                    # Initialize the theme analyzer
+                    if not st.session_state.bert_initialized:
+                        with st.spinner("Loading annotation model and tokenizer..."):
+                            # Initialize the analyzer
+                            theme_analyzer = ThemeAnalyzer(
+                                model_name="emilyalsentzer/Bio_ClinicalBERT"
+                            )
+                            
+                            # Mark as initialized
+                            st.session_state.bert_initialized = True
+                            st.session_state.theme_analyzer = theme_analyzer
+                    else:
+                        # Use existing analyzer
+                        theme_analyzer = st.session_state.theme_analyzer
+                    
+                    # Set custom configuration
+                    theme_analyzer.config["base_similarity_threshold"] = similarity_threshold
+                    
+                    # Filter frameworks based on user selection
+                    filtered_frameworks = {}
+                    
+                    # Add selected built-in frameworks
+                    for framework in st.session_state.selected_frameworks:
+                        if framework == "I-SIRch":
+                            filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
+                        elif framework == "House of Commons":
+                            filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
+                        elif framework == "Extended Analysis":
+                            filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
+                        elif framework in st.session_state.custom_frameworks:
+                            # Add custom framework
+                            filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
+                    
+                    # Set the filtered frameworks
+                    theme_analyzer.frameworks = filtered_frameworks
+                    
+                    # If no frameworks selected, show error
+                    if not filtered_frameworks:
+                        st.error("Please select at least one framework for analysis.")
+                        return
+                    
+                    # Update status
+                    current_batch_status.text(f"Analyzing {len(batch['data'])} records with {len(filtered_frameworks)} frameworks...")
+                    current_batch_progress.progress(0.3)
+                    
+                    # Run the analysis
+                    (
+                        results_df,
+                        highlighted_texts,
+                    ) = theme_analyzer.create_detailed_results(
+                        batch["data"], content_column=content_column
+                    )
+                    
+                    # Update progress
+                    current_batch_progress.progress(0.7)
+                    current_batch_status.text("Creating output files...")
+                    
+                    # Generate timestamp for filenames
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    
+                    # Create batch-specific filename with year if available
+                    if "year" in batch:
+                        batch_filename = f"annotated_theme_analysis_year{batch['year']}_batch{batch['batch_num']}_{timestamp}"
+                    else:
+                        batch_filename = f"annotated_theme_analysis_batch{batch['batch_num']}_{timestamp}"
+                    
+                    # Save Excel file
+                    excel_path = os.path.join(results_folder, f"{batch_filename}.xlsx")
+                    
+                    # Create display DataFrame with only essential columns
+                    display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
+                    
+                    # Add metadata columns if available
+                    for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
+                        if col in results_df.columns:
+                            display_cols.append(col)
+                    
+                    # Add matched sentences at the end
+                    if "Matched Sentences" in results_df.columns:
+                        display_cols.append("Matched Sentences")
+                    
+                    # Create the display DataFrame with only existing columns
+                    valid_cols = [col for col in display_cols if col in results_df.columns]
+                    clean_df = results_df[valid_cols].copy()
+                    
+                    # Save Excel file
+                    clean_df.to_excel(excel_path, index=False)
+                    
+                    # Generate HTML report
+                    html_content = theme_analyzer._create_integrated_html_for_pdf(
+                        results_df, highlighted_texts
+                    )
+                    
+                    html_path = os.path.join(results_folder, f"{batch_filename}.html")
+                    
+                    with open(html_path, "w", encoding="utf-8") as f:
+                        f.write(html_content)
+                    
+                    # Update progress
+                    current_batch_progress.progress(1.0)
+                    current_batch_status.text(f"Completed batch {batch_idx+1}: Found {len(results_df)} themes")
+                    
+                    # Record successful batch
+                    successful_batches.append({
+                        "name": batch["name"],
+                        "record_count": len(batch["data"]),
+                        "theme_count": len(results_df),
+                        "excel_path": excel_path,
+                        "html_path": html_path
+                    })
+                    
+                    # Update successful batches display
+                    with success_container:
+                        st.markdown(f"### Successful Batches ({len(successful_batches)})")
+                        for i, success_batch in enumerate(successful_batches):
+                            with st.expander(f"{success_batch['name']} - {success_batch['theme_count']} themes found"):
+                                st.markdown(f"- **Records processed**: {success_batch['record_count']}")
+                                st.markdown(f"- **Themes identified**: {success_batch['theme_count']}")
+                                st.markdown(f"- **Excel file**: {os.path.basename(success_batch['excel_path'])}")
+                                st.markdown(f"- **HTML file**: {os.path.basename(success_batch['html_path'])}")
+                                
+                                # Add download buttons for the batch
+                                col1, col2 = st.columns(2)
+                                with col1:
+                                    with open(success_batch['excel_path'], "rb") as file:
+                                        st.download_button(
+                                            f"Download Excel File",
+                                            data=file.read(),
+                                            file_name=os.path.basename(success_batch['excel_path']),
+                                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                            key=f"dl_excel_{i}_{batch_idx}"
+                                        )
+                                with col2:
+                                    with open(success_batch['html_path'], "rb") as file:
+                                        st.download_button(
+                                            f"Download HTML Report",
+                                            data=file.read(),
+                                            file_name=os.path.basename(success_batch['html_path']),
+                                            mime="text/html",
+                                            key=f"dl_html_{i}_{batch_idx}"
+                                        )
+                    
+                except Exception as e:
+                    # Record failed batch
+                    current_batch_progress.progress(1.0)  # Mark as completed regardless
+                    current_batch_status.text(f"Error in batch {batch_idx+1}: {str(e)}")
+                    
+                    failed_batches.append({
+                        "name": batch["name"],
+                        "record_count": len(batch["data"]),
+                        "error": str(e)
+                    })
+                    
+                    # Update failed batches display
+                    with error_container:
+                        st.markdown(f"### Failed Batches ({len(failed_batches)})")
+                        for failed_batch in failed_batches:
+                            with st.expander(f"{failed_batch['name']} - ERROR"):
+                                st.markdown(f"- **Records attempted**: {failed_batch['record_count']}")
+                                st.error(f"**Error**: {failed_batch['error']}")
+            
+            # Complete the overall progress bar
+            overall_progress.progress(1.0)
+            batch_status.text(f"Processing complete: {len(successful_batches)} successful batches, {len(failed_batches)} failed")
+            
+            # Final summary and ZIP download option
+            st.subheader("Batch Processing Results")
+            st.success(f"Completed processing {len(batches)} batches with {len(successful_batches)} successful and {len(failed_batches)} failed")
+            
+            # Option to download all results as ZIP
+            if successful_batches:
+                # Create a zip file containing all batch results
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                zip_path = os.path.join(results_folder, f"all_theme_analysis_results_{timestamp}.zip")
+                
+                with zipfile.ZipFile(zip_path, 'w') as zipf:
+                    for success_batch in successful_batches:
+                        # Add Excel file
+                        zipf.write(
+                            success_batch['excel_path'], 
+                            arcname=os.path.basename(success_batch['excel_path'])
+                        )
+                        # Add HTML file
+                        zipf.write(
+                            success_batch['html_path'], 
+                            arcname=os.path.basename(success_batch['html_path'])
+                        )
+                
+                # Provide download button for ZIP file
+                with open(zip_path, "rb") as f:
+                    st.download_button(
+                        "📦 Download All Results (ZIP)",
+                        data=f.read(),
+                        file_name=os.path.basename(zip_path),
+                        mime="application/zip",
+                        key="download_all_zip"
+                    )
+            
+        else:  # No batches created - run on all data or selected data
+            with st.spinner("Performing Theme Analysis..."):
+                try:
+                    # Use either selected data or all data
+                    analysis_data = selected_data if selected_data is not None else data
+                    
+                    # Validate data selection
+                    if analysis_data is None or len(analysis_data) == 0:
+                        st.warning("No documents selected for analysis.")
+                        return
+
+                    # Initialize the theme analyzer (with loading message in a spinner)
+                    with st.spinner("Loading annotation model and tokenizer..."):
+                        # Initialize the analyzer
+                        theme_analyzer = ThemeAnalyzer(
+                            model_name="emilyalsentzer/Bio_ClinicalBERT"
+                        )
+                        
+                        # Mark as initialized
+                        st.session_state.bert_initialized = True
+                    
+                    # Set custom configuration
+                    theme_analyzer.config[
+                        "base_similarity_threshold"
+                    ] = similarity_threshold
+                    
+                    # Filter frameworks based on user selection
+                    filtered_frameworks = {}
+                    
+                    # Add selected built-in frameworks
+                    for framework in st.session_state.selected_frameworks:
+                        if framework == "I-SIRch":
+                            filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
+                        elif framework == "House of Commons":
+                            filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
+                        elif framework == "Extended Analysis":
+                            filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
+                        elif framework in st.session_state.custom_frameworks:
+                            # Add custom framework
+                            filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
+                    
+                    # Set the filtered frameworks
+                    theme_analyzer.frameworks = filtered_frameworks
+                    
+                    # If no frameworks selected, show error
+                    if not filtered_frameworks:
+                        st.error("Please select at least one framework for analysis.")
+                        return
+
+                    # Use the enhanced create_detailed_results method
+                    (
+                        results_df,
+                        highlighted_texts,
+                    ) = theme_analyzer.create_detailed_results(
+                        analysis_data, content_column=content_column
+                    )
+
+                    # Save results to session state to ensure persistence
+                    st.session_state.bert_results["results_df"] = results_df
+                    st.session_state.bert_results["highlighted_texts"] = highlighted_texts
+
+                    st.success(f"Analysis complete using {len(filtered_frameworks)} frameworks!")
+
+                except Exception as e:
+                    st.error(f"Error during annotation analysis: {str(e)}")
+                    logging.error(f"Annotation analysis error: {e}", exc_info=True)
+
+    # Display results if they exist
+    if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+        results_df = st.session_state.bert_results["results_df"]
+        
+        # Summary stats
+        st.subheader("Results")
+        
+        # Show framework distribution
+        if "Framework" in results_df.columns:
+            framework_counts = results_df["Framework"].value_counts()
+            
+            # Create columns for framework distribution metrics
+            framework_cols = st.columns(len(framework_counts))
+            
+            for i, (framework, count) in enumerate(framework_counts.items()):
+                with framework_cols[i]:
+                    st.metric(framework, count, help=f"Number of theme identifications from {framework} framework")
+        
+        st.write(f"Total Theme Identifications: {len(results_df)}")
+        
+        # Clean up the results DataFrame to display only the essential columns
+        display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
+        
+        # Add metadata columns if available
+        for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
+            if col in results_df.columns:
+                display_cols.append(col)
+        
+        # Add matched sentences at the end
+        if "Matched Sentences" in results_df.columns:
+            display_cols.append("Matched Sentences")
+        
+        # Create the display DataFrame with only existing columns
+        valid_cols = [col for col in display_cols if col in results_df.columns]
+        clean_df = results_df[valid_cols].copy()
+        
+        # Display the results table
+        st.dataframe(
+            clean_df,
+            use_container_width=True,
+            column_config={
+                "Title": st.column_config.TextColumn("Document Title"),
+                "Framework": st.column_config.TextColumn("Framework"),
+                "Theme": st.column_config.TextColumn("Theme"),
+                "Confidence": st.column_config.TextColumn("Confidence"),
+                "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                "Matched Sentences": st.column_config.TextColumn("Matched Sentences"),
+                "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                "year": st.column_config.NumberColumn("Year"),
+                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY")
+            }
+        )
+        
+        # Add download options
+        st.subheader("Export Results")
+        
+        # Generate timestamp for filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create columns for download buttons
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Excel download button using the enhanced export_to_excel function
+            excel_data = export_to_excel(clean_df)
+            st.download_button(
+                "📥 Download Results Table",
+                data=excel_data,
+                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="bert_excel_download",
+            )
+        
+        with col2:
+            # Always regenerate HTML report when results are available
+            if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
+                # Generate fresh HTML report based on current results
+                theme_analyzer = ThemeAnalyzer()
+                
+                # Set custom frameworks if they exist
+                if st.session_state.custom_frameworks:
+                    for name, framework in st.session_state.custom_frameworks.items():
+                        if name in st.session_state.selected_frameworks:
+                            theme_analyzer.frameworks[name] = framework
+                
+                html_content = theme_analyzer._create_integrated_html_for_pdf(
+                    results_df, st.session_state.bert_results["highlighted_texts"]
+                )
+                html_filename = f"theme_analysis_report_{timestamp}.html"
+                
+                with open(html_filename, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                    
+                st.session_state.bert_results["html_filename"] = html_filename
+                
+                # Provide download button for fresh HTML
+                with open(html_filename, "rb") as f:
+                    html_data = f.read()
+                
+                st.download_button(
+                    "📄 Download Annotated Reports (HTML)",
+                    data=html_data,
+                    file_name=os.path.basename(html_filename),
+                    mime="text/html",
+                    key="bert_html_download",
+                )
+            else:
+                st.warning("HTML report not available")
+def render_bert_analysis_tab2(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
     
     # Ensure the bert_results dictionary exists in session state
