@@ -9071,7 +9071,7 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
 
         st.markdown("---")
 
-def render_bert_analysis_tab(data: pd.DataFrame = None):
+def render_bert_analysis_tabnewnotworking(data: pd.DataFrame = None):
     """
     Enhanced version of render_bert_analysis_tab that includes batch processing by year
     with configurable batch size and progress tracking
@@ -9793,7 +9793,8 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                 )
             else:
                 st.warning("HTML report not available")
-def render_bert_analysis_tab2(data: pd.DataFrame = None):
+                
+def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
     
     # Ensure the bert_results dictionary exists in session state
