@@ -4025,6 +4025,139 @@ def extract_concern_text(content):
 
     return concerns_text
 
+
+def extract_concern_text2(content):
+    """Extract concern text from PFD report content with improved handling for complete text extraction"""
+    if pd.isna(content) or not isinstance(content, str):
+        return ""
+    
+    # Keywords to identify sections with concerns - expanded with more variations
+    concern_identifiers = [
+        "CORONER'S CONCERNS",
+        "MATTERS OF CONCERN",
+        "The MATTERS OF CONCERN",
+        "CORONER'S CONCERNS are",  
+        "MATTERS OF CONCERN are",
+        "The MATTERS OF CONCERN are",
+        "HEALTHCARE SAFETY CONCERNS",
+        "SAFETY CONCERNS",
+        "PATIENT SAFETY ISSUES",
+        "HSIB FINDINGS",
+        "INVESTIGATION FINDINGS",
+        "THE CORONER'S MATTER OF CONCERN",
+        "CONCERNS AND RECOMMENDATIONS",
+        "CONCERNS IDENTIFIED",
+        "Concerns of the Coroner:"
+    ]
+    
+    # Make case-insensitive search by converting content to lowercase once
+    content_lower = content.lower()
+    
+    for identifier in concern_identifiers:
+        identifier_lower = identifier.lower()
+        if identifier_lower in content_lower:
+            # Find position - use the original content after position is found
+            start_pos = content_lower.find(identifier_lower)
+            
+            # Find the end of the identifier to determine where content starts
+            # Look for colon or text like "are" that might occur at the end
+            if ":" in content[start_pos:start_pos + len(identifier) + 5]:
+                # If there's a colon right after the identifier, start after it
+                colon_pos = content.find(":", start_pos)
+                start_idx = colon_pos + 1
+            elif " are" in content_lower[start_pos:start_pos + len(identifier) + 5]:
+                # If "are" appears right after, find the end
+                are_pos = content_lower.find(" are", start_pos)
+                start_idx = are_pos + 5  # " are " length is 4 + 1 for safety
+            else:
+                # Otherwise just use end of identifier
+                start_idx = start_pos + len(identifier)
+            
+            # Find end markers - expanded list with more variants
+            end_markers = [
+                "ACTION SHOULD BE TAKEN", 
+                "RECOMMENDATION", 
+                "CONCLUSIONS", 
+                "NEXT STEPS",
+                "YOUR RESPONSE",
+                "YOU ARE UNDER A DUTY",
+                "RESPONSE",
+                "COPIES"
+            ]
+            
+            end_idx = float('inf')
+            
+            for marker in end_markers:
+                marker_lower = marker.lower()
+                temp_pos = content_lower.find(marker_lower, start_idx)
+                if temp_pos != -1 and temp_pos < end_idx:
+                    end_idx = temp_pos
+            
+            # If identified a proper end marker
+            if end_idx != float('inf'):
+                # Get the full text between start and end markers
+                extracted_text = content[start_idx:end_idx].strip()
+                
+                # Add extra validation to ensure we got complete paragraphs
+                if extracted_text:
+                    # Double check if the extracted text is substantial (at least 20 chars)
+                    if len(extracted_text) > 20:
+                        return extracted_text
+                    else:
+                        # If too short, try to get more text in case markers weren't correctly identified
+                        # Get a larger chunk and try to find paragraph boundaries
+                        enlarged_extract = content[start_idx:start_idx + 2000].strip()
+                        return enlarged_extract
+                
+            else:
+                # No end marker found, try paragraph-based extraction strategies
+                
+                # Strategy 1: Look for numbered sections that follow the concerns
+                possible_extract = content[start_idx:start_idx + 5000].strip()
+                
+                # Check for numbered sections (a., b., 1., 2., etc.)
+                section_matches = list(re.finditer(r'\n\s*(?:[a-z]|[0-9]+)\.\s+', possible_extract))
+                if section_matches:
+                    # Found numbered sections - collect all content until we hit a major heading
+                    major_heading_pattern = r'\n\n+\s*[A-Z]{2,}'
+                    major_heading_match = re.search(major_heading_pattern, possible_extract)
+                    
+                    if major_heading_match:
+                        # If we found a major heading after the sections, use that as endpoint
+                        return possible_extract[:major_heading_match.start()].strip()
+                    else:
+                        # Otherwise just return what we have
+                        return possible_extract
+                
+                # Strategy 2: Look for a chunk of text that might be a complete statement
+                # Try to find a natural ending after a reasonable chunk
+                chunk = content[start_idx:start_idx + 1500].strip()
+                
+                # Look for multiple consecutive line breaks which often indicate section changes
+                section_breaks = list(re.finditer(r'\n\s*\n\s*\n', chunk))
+                if section_breaks:
+                    # Return up to the first major section break
+                    return chunk[:section_breaks[0].start()].strip()
+                
+                # If all else fails, just return a reasonable chunk
+                return chunk
+    
+    # If no identifier found but content contains "concern" keyword, try a more liberal approach
+    if "concern" in content_lower:
+        concern_pos = content_lower.find("concern")
+        # Extract a section around the keyword
+        start_pos = max(0, concern_pos - 100)
+        # Find sentence start
+        while start_pos > 0 and content[start_pos] not in ".!?\n":
+            start_pos -= 1
+        if start_pos > 0:
+            start_pos += 1  # Move past the period
+            
+        # Find a reasonable end point
+        end_pos = min(len(content), concern_pos + 1000)
+        return content[start_pos:end_pos].strip()
+            
+    return ""  # No identifier found
     
 def extract_metadata(content: str) -> dict:
     """
@@ -4370,6 +4503,54 @@ def scrape_page(url: str) -> List[Dict]:
         return []
 
 
+def get_total_pages(url: str) -> Tuple[int, int]:
+    """
+    Get total number of pages and total results count
+
+    Returns:
+        Tuple[int, int]: (total_pages, total_results)
+    """
+    try:
+        response = make_request(url)
+        if not response:
+            logging.error(f"No response from URL: {url}")
+            return 0, 0
+
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # First check for total results count
+        total_results = 0
+        results_header = soup.find("div", class_="search__header")
+        if results_header:
+            results_text = results_header.get_text()
+            match = re.search(r"found (\d+) results?", results_text, re.IGNORECASE)
+            if match:
+                total_results = int(match.group(1))
+                total_pages = (total_results + 9) // 10  # 10 results per page
+                return total_pages, total_results
+
+        # If no results header, check pagination
+        pagination = soup.find("nav", class_="navigation pagination")
+        if pagination:
+            page_numbers = pagination.find_all("a", class_="page-numbers")
+            numbers = [
+                int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()
+            ]
+            if numbers:
+                return max(numbers), len(numbers) * 10  # Approximate result count
+
+        # If no pagination but results exist
+        results = soup.find("ul", class_="search__list")
+        if results and results.find_all("div", class_="card"):
+            cards = results.find_all("div", class_="card")
+            return 1, len(cards)
+
+        return 0, 0
+
+    except Exception as e:
+        logging.error(f"Error in get_total_pages: {str(e)}")
+        return 0, 0
+
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
     """Process and clean scraped data with metadata extraction and concern extraction"""
@@ -4459,113 +4640,6 @@ def get_category_slug(category: str) -> str:
     logging.info(f"Generated category slug: {slug} from category: {category}")
     return slug
 
-
-
-
-
-def save_batch(
-    reports: List[Dict], 
-    batch_number: int, 
-    keyword: Optional[str], 
-    category: Optional[str], 
-    start_page: int, 
-    end_page: Union[int, str]
-) -> str:
-    """
-    Save a batch of reports to Excel file with appropriate naming
-    
-    Args:
-        reports: List of report dictionaries to save
-        batch_number: Current batch number
-        keyword: Search keyword used (for filename)
-        category: Category used (for filename)
-        start_page: Starting page of this batch
-        end_page: Ending page of this batch (or "error" if saving due to error)
-        
-    Returns:
-        Filename of the saved file
-    """
-    if not reports:
-        return ""
-    
-    # Process the data
-    df = pd.DataFrame(reports)
-    df = process_scraped_data(df)
-    
-    # Create timestamp for filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
-    # Create descriptive filename parts
-    keyword_part = f"kw_{keyword.replace(' ', '_')}" if keyword else "no_keyword"
-    category_part = f"cat_{category.replace(' ', '_')}" if category else "no_category"
-    page_part = f"pages_{start_page}_to_{end_page}"
-    
-    # Generate filename
-    filename = f"pfd_reports_scraped_batch{batch_number}_{keyword_part}_{category_part}_{page_part}_{timestamp}.xlsx"
-    
-    # Ensure filename is valid (remove any problematic characters)
-    filename = re.sub(r'[\\/*?:"<>|]', "", filename)
-    
-    # Create directory if it doesn't exist
-    os.makedirs("scraped_reports", exist_ok=True)
-    file_path = os.path.join("scraped_reports", filename)
-    
-    # Save to Excel
-    df.to_excel(file_path, index=False, engine="openpyxl")
-    
-    logging.info(f"Saved batch {batch_number} to {file_path}")
-    return filename
-
-
-def get_total_pages(url: str) -> Tuple[int, int]:
-    """
-    Get total number of pages and total results count
-
-    Returns:
-        Tuple[int, int]: (total_pages, total_results)
-    """
-    try:
-        response = make_request(url)
-        if not response:
-            logging.error(f"No response from URL: {url}")
-            return 0, 0
-
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        # First check for total results count
-        total_results = 0
-        results_header = soup.find("div", class_="search__header")
-        if results_header:
-            results_text = results_header.get_text()
-            match = re.search(r"found (\d+) results?", results_text, re.IGNORECASE)
-            if match:
-                total_results = int(match.group(1))
-                total_pages = (total_results + 9) // 10  # 10 results per page
-                return total_pages, total_results
-
-        # If no results header, check pagination
-        pagination = soup.find("nav", class_="navigation pagination")
-        if pagination:
-            page_numbers = pagination.find_all("a", class_="page-numbers")
-            numbers = [
-                int(p.text.strip()) for p in page_numbers if p.text.strip().isdigit()
-            ]
-            if numbers:
-                return max(numbers), len(numbers) * 10  # Approximate result count
-
-        # If no pagination but results exist
-        results = soup.find("ul", class_="search__list")
-        if results and results.find_all("div", class_="card"):
-            cards = results.find_all("div", class_="card")
-            return 1, len(cards)
-
-        return 0, 0
-
-    except Exception as e:
-        logging.error(f"Error in get_total_pages: {str(e)}")
-        return 0, 0
-
-
 def construct_search_url(
     base_url: str,
     keyword: Optional[str] = None,
@@ -4609,7 +4683,6 @@ def construct_search_url(
             url += f"&before-day={day}&before-month={month}&before-year={year}"
 
     return url
-
 
 def scrape_pfd_reports(
     keyword: Optional[str] = None,
@@ -4672,20 +4745,16 @@ def scrape_pfd_reports(
             before_date=before_date,
         )
 
+        st.info(f"Searching at: {base_search_url}")
+
         # Get total pages and results count
         total_pages, total_results = get_total_pages(base_search_url)
 
         if total_results == 0:
-            st.warning("No results found matching your search criteria", icon="⚠️")
+            st.warning("No results found matching your search criteria")
             return []
 
-        # Display results count in a highlighted box
-        results_info = f"After filtering, this search has {total_pages} pages with {total_results} results"
-        st.markdown(f"""
-        <div style="padding: 10px; border-radius: 5px; border: 1px solid #4CAF50; background-color: #EAF7E8; margin: 10px 0;">
-        <strong>Search Results:</strong> {results_info}
-        </div>
-        """, unsafe_allow_html=True)
+        st.info(f"Found {total_results} matching reports across {total_pages} pages")
 
         # Apply page range limits
         start_page = max(1, start_page)  # Ensure start_page is at least 1
@@ -4697,7 +4766,7 @@ def scrape_pfd_reports(
             )  # Ensure end_page doesn't exceed total_pages
 
         if start_page > end_page:
-            st.warning(f"Invalid page range: {start_page} to {end_page}", icon="⚠️")
+            st.warning(f"Invalid page range: {start_page} to {end_page}")
             return []
 
         st.info(f"Scraping pages {start_page} to {end_page}")
@@ -4725,7 +4794,7 @@ def scrape_pfd_reports(
                             current_batch_start, 
                             current_page - 1
                         )
-                    st.warning("Scraping stopped by user", icon="⚠️")
+                    st.warning("Scraping stopped by user")
                     break
 
                 # Update progress
@@ -4797,7 +4866,7 @@ def scrape_pfd_reports(
             except Exception as e:
                 logging.error(f"Error processing page {current_page}: {e}")
                 st.warning(
-                    f"Error on page {current_page}. Continuing with next page...", icon="⚠️"
+                    f"Error on page {current_page}. Continuing with next page..."
                 )
                 continue
 
@@ -4811,13 +4880,13 @@ def scrape_pfd_reports(
         report_count_text.empty()
 
         if all_reports:
-            st.success(f"Successfully scraped {len(all_reports)} unique reports", icon="✅")
+            st.success(f"Successfully scraped {len(all_reports)} unique reports")
             
             # Final report
             if auto_save_batches:
                 st.info(f"Reports were automatically saved in {batch_number} batches")
         else:
-            st.warning("No reports were successfully retrieved", icon="⚠️")
+            st.warning("No reports were successfully retrieved")
 
         return all_reports
 
@@ -4837,8 +4906,61 @@ def scrape_pfd_reports(
         return []
 
 
+def save_batch(
+    reports: List[Dict], 
+    batch_number: int, 
+    keyword: Optional[str], 
+    category: Optional[str], 
+    start_page: int, 
+    end_page: Union[int, str]
+) -> str:
+    """
+    Save a batch of reports to Excel file with appropriate naming
+    
+    Args:
+        reports: List of report dictionaries to save
+        batch_number: Current batch number
+        keyword: Search keyword used (for filename)
+        category: Category used (for filename)
+        start_page: Starting page of this batch
+        end_page: Ending page of this batch (or "error" if saving due to error)
+        
+    Returns:
+        Filename of the saved file
+    """
+    if not reports:
+        return ""
+    
+    # Process the data
+    df = pd.DataFrame(reports)
+    df = process_scraped_data(df)
+    
+    # Create timestamp for filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Create descriptive filename parts
+    keyword_part = f"kw_{keyword.replace(' ', '_')}" if keyword else "no_keyword"
+    category_part = f"cat_{category.replace(' ', '_')}" if category else "no_category"
+    page_part = f"pages_{start_page}_to_{end_page}"
+    
+    # Generate filename
+    filename = f"pfd_reports_scraped_batch{batch_number}_{keyword_part}_{category_part}_{page_part}_{timestamp}.xlsx"
+    
+    # Ensure filename is valid (remove any problematic characters)
+    filename = re.sub(r'[\\/*?:"<>|]', "", filename)
+    
+    # Create directory if it doesn't exist
+    os.makedirs("scraped_reports", exist_ok=True)
+    file_path = os.path.join("scraped_reports", filename)
+    
+    # Save to Excel
+    df.to_excel(file_path, index=False, engine="openpyxl")
+    
+    logging.info(f"Saved batch {batch_number} to {file_path}")
+    return filename
+
 def render_scraping_tab():
-    """Render scraping tab with batch saving options and date filters"""
+    """Render the scraping tab with batch saving options and date filters"""
     st.subheader("Scrape PFD Reports")
 
     # Initialize default values if not in session state
@@ -4851,8 +4973,6 @@ def render_scraping_tab():
         st.session_state["end_page_default"] = None
         st.session_state["auto_save_batches_default"] = True
         st.session_state["batch_size_default"] = 5
-        st.session_state["total_pages_preview"] = 0
-        st.session_state["total_results_preview"] = 0
 
     if "scraped_data" in st.session_state and st.session_state.scraped_data is not None:
         st.success(f"Found {len(st.session_state.scraped_data)} reports")
@@ -4872,198 +4992,167 @@ def render_scraping_tab():
 
         show_export_options(st.session_state.scraped_data, "scraped")
 
-    # First, collect search parameters OUTSIDE the form to enable interactive preview
-    st.subheader("Search Parameters")
-    
-    # Main search criteria
-    row1_col1, row1_col2 = st.columns(2)
-    with row1_col1:
-        search_keyword = st.text_input(
-            "Search keywords:",
-            value=st.session_state.get("search_keyword_default", ""),
-            key="search_keyword_outside",
-            help="Do not leave empty, use 'report' or another search term",
-        )
+    # Create the search form with page range selection and batch options
+    with st.form("scraping_form"):
+        # Create rows for the main search criteria
+        row1_col1, row1_col2 = st.columns(2)
+        row2_col1, row2_col2 = st.columns(2)
 
-    with row1_col2:
-        category = st.selectbox(
-            "PFD Report type:",
-            [""] + get_pfd_categories(),
-            index=0,
-            key="category_outside",
-            format_func=lambda x: x if x else "Select element",
-        )
-    
-    # Sort by
-    order = st.selectbox(
-        "Sort by:",
-        ["relevance", "desc", "asc"],
-        index=0,
-        key="order_outside",
-        format_func=lambda x: {
-            "relevance": "Relevance",
-            "desc": "Newest first",
-            "asc": "Oldest first",
-        }[x],
-    )
-    
-    # Date filter section
-    st.markdown("### Filter search")
-    
-    # Published on or after
-    st.markdown("**Published on or after**")
-    st.markdown("For example, 27 3 2007")
-    after_day_col, after_month_col, after_year_col = st.columns(3)
-    
-    with after_day_col:
-        after_day = st.number_input(
-            "Day",
-            min_value=0,
-            max_value=31,
-            value=0,
-            key="after_day_outside"
-        )
-    
-    with after_month_col:
-        after_month = st.number_input(
-            "Month",
-            min_value=0,
-            max_value=12,
-            value=0,
-            key="after_month_outside"
-        )
-    
-    with after_year_col:
-        after_year = st.number_input(
-            "Year",
-            min_value=0,
-            max_value=2025,
-            value=0,
-            key="after_year_outside"
-        )
-    
-    # Published on or before
-    st.markdown("**Published on or before**")
-    st.markdown("For example, 27 3 2007")
-    before_day_col, before_month_col, before_year_col = st.columns(3)
-    
-    with before_day_col:
-        before_day = st.number_input(
-            "Day",
-            min_value=0,
-            max_value=31,
-            value=0,
-            key="before_day_outside"
-        )
-    
-    with before_month_col:
-        before_month = st.number_input(
-            "Month",
-            min_value=0,
-            max_value=12,
-            value=0,
-            key="before_month_outside"
-        )
-    
-    with before_year_col:
-        before_year = st.number_input(
-            "Year",
-            min_value=0,
-            max_value=2025,
-            value=0,
-            key="before_year_outside"
-        )
-
-    # Create date filter strings for preview
-    after_date = None
-    if after_day > 0 and after_month > 0 and after_year > 0:
-        after_date = f"{after_day}-{after_month}-{after_year}"
-        
-    before_date = None
-    if before_day > 0 and before_month > 0 and before_year > 0:
-        before_date = f"{before_day}-{before_month}-{before_year}"
-
-    # Interactive search preview outside the form
-    preview_container = st.container()
-    
-    # Display preview results count with date filters
-    if search_keyword or category or after_date or before_date:
-        base_url = "https://www.judiciary.uk/"
-
-        # Prepare category slug
-        category_slug = None
-        if category:
-            category_slug = (
-                category.lower()
-                .replace(" ", "-")
-                .replace("&", "and")
-                .replace("--", "-")
-                .strip("-")
+        # First row - Main search criteria
+        with row1_col1:
+            search_keyword = st.text_input(
+                "Search keywords:",
+                value=st.session_state.get("search_keyword_default", ""),
+                key="search_keyword",
+                help="Do not leave empty, use 'report' or another search term",
             )
 
-        # Create preview URL with date filters
-        preview_url = construct_search_url(
-            base_url=base_url,
-            keyword=search_keyword,
-            category=category,
-            category_slug=category_slug,
-            after_date=after_date,
-            before_date=before_date,
-        )
+        with row1_col2:
+            category = st.selectbox(
+                "PFD Report type:",
+                [""] + get_pfd_categories(),
+                index=0,
+                key="category",
+                format_func=lambda x: x if x else "Select element",
+            )
 
-        try:
-            with st.spinner("Checking total pages..."):
-                total_pages, total_results = get_total_pages(preview_url)
-                
-                # Store in session state for later use
-                st.session_state["total_pages_preview"] = total_pages
-                st.session_state["total_results_preview"] = total_results
-                
-                # Display results in the preview container
-                with preview_container:
-                    # Display styled message based on results
+        # Second row - Sort by
+        with row2_col1:
+            order = st.selectbox(
+                "Sort by:",
+                ["relevance", "desc", "asc"],
+                index=0,
+                key="order",
+                format_func=lambda x: {
+                    "relevance": "Relevance",
+                    "desc": "Newest first",
+                    "asc": "Oldest first",
+                }[x],
+            )
+            
+        # Date filter section
+        st.markdown("### Filter search")
+        
+        # Published on or after
+        st.markdown("**Published on or after**")
+        st.markdown("For example, 27 3 2007")
+        after_day_col, after_month_col, after_year_col = st.columns(3)
+        
+        with after_day_col:
+            after_day = st.number_input(
+                "Day",
+                min_value=0,
+                max_value=31,
+                value=0,
+                key="after_day"
+            )
+        
+        with after_month_col:
+            after_month = st.number_input(
+                "Month",
+                min_value=0,
+                max_value=12,
+                value=0,
+                key="after_month"
+            )
+        
+        with after_year_col:
+            after_year = st.number_input(
+                "Year",
+                min_value=0,
+                max_value=2025,
+                value=0,
+                key="after_year"
+            )
+        
+        # Published on or before
+        st.markdown("**Published on or before**")
+        st.markdown("For example, 27 3 2007")
+        before_day_col, before_month_col, before_year_col = st.columns(3)
+        
+        with before_day_col:
+            before_day = st.number_input(
+                "Day",
+                min_value=0,
+                max_value=31,
+                value=0,
+                key="before_day"
+            )
+        
+        with before_month_col:
+            before_month = st.number_input(
+                "Month",
+                min_value=0,
+                max_value=12,
+                value=0,
+                key="before_month"
+            )
+        
+        with before_year_col:
+            before_year = st.number_input(
+                "Year",
+                min_value=0,
+                max_value=2025,
+                value=0,
+                key="before_year"
+            )
+
+        # Create date filter strings for preview
+        after_date = None
+        if after_day > 0 and after_month > 0 and after_year > 0:
+            after_date = f"{after_day}-{after_month}-{after_year}"
+            
+        before_date = None
+        if before_day > 0 and before_month > 0 and before_year > 0:
+            before_date = f"{before_day}-{before_month}-{before_year}"
+
+        # Display preview results count with date filters
+        if search_keyword or category or after_date or before_date:
+            base_url = "https://www.judiciary.uk/"
+
+            # Prepare category slug
+            category_slug = None
+            if category:
+                category_slug = (
+                    category.lower()
+                    .replace(" ", "-")
+                    .replace("&", "and")
+                    .replace("--", "-")
+                    .strip("-")
+                )
+
+            # Create preview URL with date filters
+            preview_url = construct_search_url(
+                base_url=base_url,
+                keyword=search_keyword,
+                category=category,
+                category_slug=category_slug,
+                after_date=after_date,
+                before_date=before_date,
+            )
+
+            try:
+                with st.spinner("Checking total pages..."):
+                    total_pages, total_results = get_total_pages(preview_url)
                     if total_pages > 0:
-                        st.markdown(f"""
-                        <div style="padding: 10px; border-radius: 5px; border: 1px solid #4CAF50; background-color: #EAF7E8; margin: 10px 0; color: #333;">
-                        <strong>Search Preview:</strong> This search has {total_pages} pages with {total_results} results
-                        </div>
-                        """, unsafe_allow_html=True)
+                        st.info(
+                            f"After filtering, this search has {total_pages} pages with {total_results} results"
+                        )
+                        st.session_state["total_pages_preview"] = total_pages
                     else:
-                        st.markdown(f"""
-                        <div style="padding: 10px; border-radius: 5px; border: 1px solid #FF5733; background-color: #FFEEEE; margin: 10px 0; color: #333;">
-                        <strong>Search Preview:</strong> No results found for this search with the current filters
-                        </div>
-                        """, unsafe_allow_html=True)
-        except Exception as e:
-            with preview_container:
-                st.markdown(f"""
-                <div style="padding: 10px; border-radius: 5px; border: 1px solid #FFC107; background-color: #FFFBEE; margin: 10px 0; color: #333;">
-                <strong>Search Preview:</strong> Error checking pages: {str(e)}
-                </div>
-                """, unsafe_allow_html=True)
-            logging.error(f"Error checking pages: {str(e)}")
+                        st.warning("No results found for this search with the current filters")
+                        st.session_state["total_pages_preview"] = 0
+            except Exception as e:
+                st.error(f"Error checking pages: {str(e)}")
+                st.session_state["total_pages_preview"] = 0
+        else:
             st.session_state["total_pages_preview"] = 0
-            st.session_state["total_results_preview"] = 0
-    else:
-        # No search criteria provided yet
-        with preview_container:
-            st.markdown(f"""
-            <div style="padding: 10px; border-radius: 5px; border: 1px solid #3498db; background-color: #EEF7FB; margin: 10px 0; color: #333;">
-            <strong>Search Preview:</strong> Enter search criteria to see how many results are available
-            </div>
-            """, unsafe_allow_html=True)
-        st.session_state["total_pages_preview"] = 0
-        st.session_state["total_results_preview"] = 0
-    
-    # Now create the form for actual scraping
-    st.markdown("### Scraping Settings")
-    
-    with st.form("scraping_form"):
-        # Create rows for scraping settings
+            
+        # Page settings AFTER filter search
         row3_col1, row3_col2 = st.columns(2)
         row4_col1, row4_col2 = st.columns(2)
 
-        # Page range row
+        # Page range row - MOVED to after filter search
         with row3_col1:
             start_page = st.number_input(
                 "Start page:",
@@ -5074,22 +5163,15 @@ def render_scraping_tab():
             )
 
         with row3_col2:
-            # Update end_page default based on total pages preview
-            default_end_page = min(10, st.session_state["total_pages_preview"]) if st.session_state["total_pages_preview"] > 0 else 0
-            
-            # Important fix: provide a default value of 0 when total_pages_preview is 0
-            end_page_default = default_end_page if st.session_state["total_pages_preview"] > 0 else 0
-            
             end_page = st.number_input(
                 "End page (Optimal: 10 pages per extraction):",
                 min_value=0,
-                max_value=100,  # Set a reasonable maximum
-                value=end_page_default,  # Use our calculated default with fallback
+                value=st.session_state.get("end_page_default", 0),
                 key="end_page",
                 help="Last page to scrape (0 for all pages)",
             )
 
-        # Batch options row
+        # Batch options row - MOVED to after filter search
         with row4_col1:
             auto_save_batches = st.checkbox(
                 "Auto-save batches",
@@ -5108,61 +5190,36 @@ def render_scraping_tab():
                 help="Number of pages to process before saving a batch",
             )
 
-        # Display total expected batches if both end_page and batch_size are set
-        if end_page > 0 and batch_size > 0:
-            total_expected_batches = (end_page - start_page + 1 + batch_size - 1) // batch_size
-            if total_expected_batches > 0:
-                st.info(f"With these settings, approximately {total_expected_batches} batches will be created.")
-
-        # Store search parameters in session state instead of using hidden fields
-        if submitted := st.form_submit_button("Search Reports"):
-            st.session_state["form_search_keyword"] = search_keyword
-            st.session_state["form_category"] = category
-            st.session_state["form_order"] = order
-            st.session_state["form_after_day"] = after_day
-            st.session_state["form_after_month"] = after_month
-            st.session_state["form_after_year"] = after_year
-            st.session_state["form_before_day"] = before_day
-            st.session_state["form_before_month"] = before_month
-            st.session_state["form_before_year"] = before_year
-        
-        # Add Stop Scraping button
-        stop_scraping = st.form_submit_button("Stop Scraping")
+        # Action buttons in a row
+        button_col1, button_col2 = st.columns(2)
+        with button_col1:
+            submitted = st.form_submit_button("Search Reports")
+        with button_col2:
+            stop_scraping = st.form_submit_button("Stop Scraping")
 
     # Handle stop scraping
     if stop_scraping:
         st.session_state.stop_scraping = True
-        st.warning("Scraping will be stopped after the current page completes...", icon="⚠️")
+        st.warning("Scraping will be stopped after the current page completes...")
         return
 
     if submitted:
         try:
-            # Retrieve the search parameters from session state
-            form_search_keyword = st.session_state.get("form_search_keyword", search_keyword)
-            form_category = st.session_state.get("form_category", category)
-            form_order = st.session_state.get("form_order", order)
-            form_after_day = st.session_state.get("form_after_day", after_day)
-            form_after_month = st.session_state.get("form_after_month", after_month)
-            form_after_year = st.session_state.get("form_after_year", after_year)
-            form_before_day = st.session_state.get("form_before_day", before_day)
-            form_before_month = st.session_state.get("form_before_month", before_month)
-            form_before_year = st.session_state.get("form_before_year", before_year)
-            
             # Store search parameters in session state
             st.session_state.last_search_params = {
-                "keyword": form_search_keyword,
-                "category": form_category,
-                "order": form_order,
+                "keyword": search_keyword,
+                "category": category,
+                "order": order,
                 "start_page": start_page,
                 "end_page": end_page,
                 "auto_save_batches": auto_save_batches,
                 "batch_size": batch_size,
-                "after_day": form_after_day,
-                "after_month": form_after_month,
-                "after_year": form_after_year,
-                "before_day": form_before_day,
-                "before_month": form_before_month,
-                "before_year": form_before_year,
+                "after_day": after_day,
+                "after_month": after_month,
+                "after_year": after_year,
+                "before_day": before_day,
+                "before_month": before_month,
+                "before_year": before_year,
             }
 
             # Initialize stop_scraping flag
@@ -5173,18 +5230,18 @@ def render_scraping_tab():
             
             # Create date filter strings
             after_date = None
-            if form_after_day > 0 and form_after_month > 0 and form_after_year > 0:
-                after_date = f"{form_after_day}-{form_after_month}-{form_after_year}"
+            if after_day > 0 and after_month > 0 and after_year > 0:
+                after_date = f"{after_day}-{after_month}-{after_year}"
                 
             before_date = None
-            if form_before_day > 0 and form_before_month > 0 and form_before_year > 0:
-                before_date = f"{form_before_day}-{form_before_month}-{form_before_year}"
+            if before_day > 0 and before_month > 0 and before_year > 0:
+                before_date = f"{before_day}-{before_month}-{before_year}"
 
             # Perform scraping with batch options and date filters
             reports = scrape_pfd_reports(
-                keyword=form_search_keyword,
-                category=form_category if form_category else None,
-                order=form_order,
+                keyword=search_keyword,
+                category=category if category else None,
+                order=order,
                 start_page=start_page,
                 end_page=end_page_val,
                 auto_save_batches=auto_save_batches,
@@ -5206,13 +5263,12 @@ def render_scraping_tab():
                 # Trigger a rerun to refresh the page
                 st.rerun()
             else:
-                st.warning("No reports found matching your search criteria", icon="⚠️")
+                st.warning("No reports found matching your search criteria")
 
         except Exception as e:
             st.error(f"An error occurred: {e}")
             logging.error(f"Scraping error: {e}")
             return False
-
 
 
 def render_topic_summary_tab(data: pd.DataFrame = None) -> None:
@@ -6109,6 +6165,62 @@ def initialize_session_state():
         finally:
             st.session_state.cleanup_done = True
             
+def initialize_session_state2():
+    """Initialize all required session state variables"""
+    # Initialize basic state variables if they don't exist
+    if not hasattr(st.session_state, "initialized"):
+        # Clear all existing session state
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+
+        # Set new session state variables
+        st.session_state.data_source = None
+        st.session_state.current_data = None
+        st.session_state.scraped_data = None
+        st.session_state.uploaded_data = None
+        st.session_state.topic_model = None
+        st.session_state.cleanup_done = False
+        st.session_state.last_scrape_time = None
+        st.session_state.last_upload_time = None
+        st.session_state.analysis_filters = {
+            "date_range": None,
+            "selected_categories": None,
+            "selected_areas": None,
+        }
+        st.session_state.topic_model_settings = {
+            "num_topics": 5,
+            "max_features": 1000,
+            "similarity_threshold": 0.3,
+        }
+        st.session_state.initialized = True
+
+    # Perform PDF cleanup if not done
+    if not st.session_state.cleanup_done:
+        try:
+            pdf_dir = "pdfs"
+            os.makedirs(pdf_dir, exist_ok=True)
+
+            current_time = time.time()
+            cleanup_count = 0
+
+            for file in os.listdir(pdf_dir):
+                file_path = os.path.join(pdf_dir, file)
+                try:
+                    if os.path.isfile(file_path):
+                        if os.stat(file_path).st_mtime < current_time - 86400:
+                            os.remove(file_path)
+                            cleanup_count += 1
+                except Exception as e:
+                    logging.warning(f"Error cleaning up file {file_path}: {e}")
+                    continue
+
+            if cleanup_count > 0:
+                logging.info(f"Cleaned up {cleanup_count} old PDF files")
+        except Exception as e:
+            logging.error(f"Error during PDF cleanup: {e}")
+        finally:
+            st.session_state.cleanup_done = True
+
 
 def validate_data(data: pd.DataFrame, purpose: str = "analysis") -> Tuple[bool, str]:
     """
@@ -6523,7 +6635,102 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         st.error(f"Error setting up export options: {str(e)}")
         logging.error(f"Export options error: {e}", exc_info=True)
 
-    
+        
+def show_export_options2(df: pd.DataFrame, prefix: str):
+    """Show export options for the data with descriptive filename and unique keys"""
+    try:
+        st.subheader("Export Options")
+
+        # Generate timestamp and random suffix for unique keys
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        random_suffix = "".join(
+            random.choices(string.ascii_lowercase + string.digits, k=6)
+        )
+        unique_id = f"{timestamp}_{random_suffix}"
+        filename = f"pfd_reports_{prefix}_{timestamp}"
+
+        col1, col2 = st.columns(2)
+
+        # CSV Export
+        with col1:
+            try:
+                # Create export copy with formatted dates
+                df_csv = df.copy()
+                if "date_of_report" in df_csv.columns:
+                    df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime(
+                        "%d/%m/%Y"
+                    )
+
+                csv = df_csv.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "📥 Download Reports (CSV)",
+                    csv,
+                    f"{filename}.csv",
+                    "text/csv",
+                    key=f"download_csv_{prefix}_{unique_id}",
+                )
+            except Exception as e:
+                st.error(f"Error preparing CSV export: {str(e)}")
+
+        # Excel Export
+        with col2:
+            try:
+                excel_data = export_to_excel(df)
+                st.download_button(
+                    "📥 Download Reports (Excel)",
+                    excel_data,
+                    f"{filename}.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"download_excel_{prefix}_{unique_id}",
+                )
+            except Exception as e:
+                st.error(f"Error preparing Excel export: {str(e)}")
+
+        # PDF Download
+        if any(col.startswith("PDF_") and col.endswith("_Path") for col in df.columns):
+            st.subheader("Download PDFs")
+            if st.button(f"Download all PDFs", key=f"pdf_button_{prefix}_{unique_id}"):
+                with st.spinner("Preparing PDF download..."):
+                    try:
+                        pdf_zip_path = f"{filename}_pdfs.zip"
+
+                        with zipfile.ZipFile(pdf_zip_path, "w") as zipf:
+                            pdf_columns = [
+                                col
+                                for col in df.columns
+                                if col.startswith("PDF_") and col.endswith("_Path")
+                            ]
+                            added_files = set()
+
+                            for col in pdf_columns:
+                                paths = df[col].dropna()
+                                for pdf_path in paths:
+                                    if (
+                                        pdf_path
+                                        and os.path.exists(pdf_path)
+                                        and pdf_path not in added_files
+                                    ):
+                                        zipf.write(pdf_path, os.path.basename(pdf_path))
+                                        added_files.add(pdf_path)
+
+                        with open(pdf_zip_path, "rb") as f:
+                            st.download_button(
+                                "📦 Download All PDFs (ZIP)",
+                                f.read(),
+                                pdf_zip_path,
+                                "application/zip",
+                                key=f"download_pdfs_zip_{prefix}_{unique_id}",
+                            )
+
+                        # Cleanup zip file
+                        os.remove(pdf_zip_path)
+                    except Exception as e:
+                        st.error(f"Error preparing PDF download: {str(e)}")
+
+    except Exception as e:
+        st.error(f"Error setting up export options: {str(e)}")
+        logging.error(f"Export options error: {e}", exc_info=True)
+
 
 def extract_advanced_topics(
     data: pd.DataFrame,
@@ -8865,10 +9072,7 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
         st.markdown("---")
 
 def render_bert_analysis_tab(data: pd.DataFrame = None):
-    """
-    Enhanced version of render_bert_analysis_tab that includes batch processing by year
-    with configurable batch size and progress tracking
-    """
+    """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
     
     # Ensure the bert_results dictionary exists in session state
     if "bert_results" not in st.session_state:
@@ -8916,7 +9120,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             # Update the data reference
             data = uploaded_data
 
-            st.success(f"File uploaded and processed successfully! Found {len(data)} records.")
+            st.success("File uploaded and processed successfully!")
                 
         except Exception as e:
             st.error(f"Error uploading file: {str(e)}")
@@ -9037,85 +9241,18 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
         key="bert_content_column",
     )
 
-    # Batch processing settings section
-    st.subheader("Batch Processing Settings")
-    
-    # Split by Year vs Manual Selection
-    batch_mode = st.radio(
-        "Batch Processing Mode",
-        ["Process All Records", "Split by Year", "Manual Selection"],
+    # Filtering options
+    st.subheader("Select Documents to Analyse")
+
+    # Option to select all or specific records
+    analysis_type = st.radio(
+        "Analysis Type",
+        ["All Reports", "Selected Reports"],
         horizontal=True,
-        key="bert_batch_mode"
+        key="bert_analysis_type",
     )
-    
-    # Batch size input
-    batch_size = st.slider(
-        "Batch Size",
-        min_value=5,
-        max_value=50,
-        value=20,
-        step=5,
-        help="Number of records to process in each batch",
-        key="bert_batch_size"
-    )
-    
-    # Create storage folder for batch results
-    results_folder = "theme_analysis_results"
-    os.makedirs(results_folder, exist_ok=True)
-    
-    # Setup for specific batch modes
-    selected_data = None
-    batches = []
-    
-    if batch_mode == "Split by Year":
-        # Check if year column exists
-        if "year" in data.columns and not data["year"].isna().all():
-            # Get available years
-            available_years = sorted(data["year"].dropna().unique())
-            
-            # Allow selection of years to process
-            selected_years = st.multiselect(
-                "Select Years to Process",
-                options=available_years,
-                default=available_years[:1] if available_years else [],
-                help="Select which years to process in batches",
-                key="bert_selected_years"
-            )
-            
-            if selected_years:
-                # Filter data by selected years
-                year_data = data[data["year"].isin(selected_years)]
-                
-                # Create batch progress overview
-                st.info(f"Will process {len(year_data)} records across {len(selected_years)} years")
-                
-                # Create batches for each year
-                for year in selected_years:
-                    year_subset = data[data["year"] == year]
-                    
-                    # Split each year into batches of specified size
-                    num_batches = (len(year_subset) + batch_size - 1) // batch_size
-                    for i in range(num_batches):
-                        start_idx = i * batch_size
-                        end_idx = min(start_idx + batch_size, len(year_subset))
-                        batch_df = year_subset.iloc[start_idx:end_idx]
-                        
-                        batches.append({
-                            "name": f"Year {year} - Batch {i+1}",
-                            "data": batch_df,
-                            "year": year,
-                            "batch_num": i+1
-                        })
-                
-                st.success(f"Created {len(batches)} batches for processing")
-            else:
-                st.warning("Please select at least one year to process")
-        else:
-            st.error("Year column not found or contains no valid data. Cannot split by year.")
-            # Fall back to Process All Records mode
-            batch_mode = "Process All Records"
-                
-    elif batch_mode == "Manual Selection":
+
+    if analysis_type == "Selected Reports":
         # Multi-select for reports
         selected_indices = st.multiselect(
             "Choose specific reports to analyse",
@@ -9123,42 +9260,10 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
             key="bert_selected_indices",
         )
-        
-        if selected_indices:
-            selected_data = data.iloc[selected_indices]
-            
-            # Create batches for manual selection
-            num_batches = (len(selected_data) + batch_size - 1) // batch_size
-            for i in range(num_batches):
-                start_idx = i * batch_size
-                end_idx = min(start_idx + batch_size, len(selected_data))
-                batch_df = selected_data.iloc[start_idx:end_idx]
-                
-                batches.append({
-                    "name": f"Manual Selection - Batch {i+1}",
-                    "data": batch_df,
-                    "batch_num": i+1
-                })
-                
-            st.success(f"Created {len(batches)} batches from your selection of {len(selected_data)} records")
-        else:
-            st.warning("Please select specific records to process")
-    else:  # Process All Records
-        # Use all data but still split into batches
-        num_batches = (len(data) + batch_size - 1) // batch_size
-        for i in range(num_batches):
-            start_idx = i * batch_size
-            end_idx = min(start_idx + batch_size, len(data))
-            batch_df = data.iloc[start_idx:end_idx]
-            
-            batches.append({
-                "name": f"Batch {i+1}",
-                "data": batch_df,
-                "batch_num": i+1
-            })
-        
-        st.success(f"Will process all {len(data)} records in {len(batches)} batches")
-    
+        selected_data = data.iloc[selected_indices] if selected_indices else None
+    else:
+        selected_data = data
+
     # Analysis parameters
     st.subheader("Analysis Parameters")
     similarity_threshold = st.slider(
@@ -9171,310 +9276,75 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
         key="bert_similarity_threshold",
     )
 
-    # Analysis button with batch count indication
+    # Analysis button
     run_analysis = st.button(
-        f"Run Analysis on {len(batches)} Batches" if batches else "Run Analysis", 
-        type="primary", 
-        key="bert_run_analysis"
+        "Run Analysis", type="primary", key="bert_run_analysis"
     )
 
     # Run analysis if button is clicked
     if run_analysis:
-        if batches:  # We have batches to process
-            # Create a progress bar for overall batch progress
-            overall_progress = st.progress(0)
-            batch_status = st.empty()
-            current_batch_progress = st.progress(0)
-            current_batch_status = st.empty()
-            
-            # Create tab containers for successes and errors
-            result_tabs = st.tabs(["Successful Batches", "Failed Batches"])
-            
-            with result_tabs[0]:  # Successful Batches tab
-                success_container = st.container()
-            
-            with result_tabs[1]:  # Failed Batches tab
-                error_container = st.container()
-            
-            # Storage for successful and failed batches
-            successful_batches = []
-            failed_batches = []
-            
-            # Process each batch
-            for batch_idx, batch in enumerate(batches):
-                # Update overall progress
-                overall_progress.progress((batch_idx) / len(batches))
-                batch_status.text(f"Processing batch {batch_idx+1} of {len(batches)}: {batch['name']}")
+        with st.spinner("Performing Theme Analysis..."):
+            try:
+                # Validate data selection
+                if selected_data is None or len(selected_data) == 0:
+                    st.warning("No documents selected for analysis.")
+                    return
+
+                # Initialize the theme analyzer (with loading message in a spinner)
+                with st.spinner("Loading annotation model and tokenizer..."):
+                    # Initialize the analyzer
+                    theme_analyzer = ThemeAnalyzer(
+                        model_name="emilyalsentzer/Bio_ClinicalBERT"
+                    )
+                    
+                    # Mark as initialized
+                    st.session_state.bert_initialized = True
                 
-                try:
-                    # Reset current batch progress
-                    current_batch_progress.progress(0)
-                    current_batch_status.text(f"Initializing analysis for batch with {len(batch['data'])} records...")
-                    
-                    # Initialize the theme analyzer
-                    if not st.session_state.bert_initialized:
-                        with st.spinner("Loading annotation model and tokenizer..."):
-                            # Initialize the analyzer
-                            theme_analyzer = ThemeAnalyzer(
-                                model_name="emilyalsentzer/Bio_ClinicalBERT"
-                            )
-                            
-                            # Mark as initialized
-                            st.session_state.bert_initialized = True
-                            st.session_state.theme_analyzer = theme_analyzer
-                    else:
-                        # Use existing analyzer
-                        theme_analyzer = st.session_state.theme_analyzer
-                    
-                    # Set custom configuration
-                    theme_analyzer.config["base_similarity_threshold"] = similarity_threshold
-                    
-                    # Filter frameworks based on user selection
-                    filtered_frameworks = {}
-                    
-                    # Add selected built-in frameworks
-                    for framework in st.session_state.selected_frameworks:
-                        if framework == "I-SIRch":
-                            filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
-                        elif framework == "House of Commons":
-                            filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
-                        elif framework == "Extended Analysis":
-                            filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
-                        elif framework in st.session_state.custom_frameworks:
-                            # Add custom framework
-                            filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
-                    
-                    # Set the filtered frameworks
-                    theme_analyzer.frameworks = filtered_frameworks
-                    
-                    # If no frameworks selected, show error
-                    if not filtered_frameworks:
-                        st.error("Please select at least one framework for analysis.")
-                        return
-                    
-                    # Update status
-                    current_batch_status.text(f"Analyzing {len(batch['data'])} records with {len(filtered_frameworks)} frameworks...")
-                    current_batch_progress.progress(0.3)
-                    
-                    # Run the analysis
-                    (
-                        results_df,
-                        highlighted_texts,
-                    ) = theme_analyzer.create_detailed_results(
-                        batch["data"], content_column=content_column
-                    )
-                    
-                    # Update progress
-                    current_batch_progress.progress(0.7)
-                    current_batch_status.text("Creating output files...")
-                    
-                    # Generate timestamp for filenames
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    
-                    # Create batch-specific filename with year if available
-                    if "year" in batch:
-                        batch_filename = f"annotated_theme_analysis_year{batch['year']}_batch{batch['batch_num']}_{timestamp}"
-                    else:
-                        batch_filename = f"annotated_theme_analysis_batch{batch['batch_num']}_{timestamp}"
-                    
-                    # Save Excel file
-                    excel_path = os.path.join(results_folder, f"{batch_filename}.xlsx")
-                    
-                    # Create display DataFrame with only essential columns
-                    display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
-                    
-                    # Add metadata columns if available
-                    for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
-                        if col in results_df.columns:
-                            display_cols.append(col)
-                    
-                    # Add matched sentences at the end
-                    if "Matched Sentences" in results_df.columns:
-                        display_cols.append("Matched Sentences")
-                    
-                    # Create the display DataFrame with only existing columns
-                    valid_cols = [col for col in display_cols if col in results_df.columns]
-                    clean_df = results_df[valid_cols].copy()
-                    
-                    # Save Excel file
-                    clean_df.to_excel(excel_path, index=False)
-                    
-                    # Generate HTML report
-                    html_content = theme_analyzer._create_integrated_html_for_pdf(
-                        results_df, highlighted_texts
-                    )
-                    
-                    html_path = os.path.join(results_folder, f"{batch_filename}.html")
-                    
-                    with open(html_path, "w", encoding="utf-8") as f:
-                        f.write(html_content)
-                    
-                    # Update progress
-                    current_batch_progress.progress(1.0)
-                    current_batch_status.text(f"Completed batch {batch_idx+1}: Found {len(results_df)} themes")
-                    
-                    # Record successful batch
-                    successful_batches.append({
-                        "name": batch["name"],
-                        "record_count": len(batch["data"]),
-                        "theme_count": len(results_df),
-                        "excel_path": excel_path,
-                        "html_path": html_path
-                    })
-                    
-                    # Update successful batches display
-                    with success_container:
-                        st.markdown(f"### Successful Batches ({len(successful_batches)})")
-                        for i, success_batch in enumerate(successful_batches):
-                            with st.expander(f"{success_batch['name']} - {success_batch['theme_count']} themes found"):
-                                st.markdown(f"- **Records processed**: {success_batch['record_count']}")
-                                st.markdown(f"- **Themes identified**: {success_batch['theme_count']}")
-                                st.markdown(f"- **Excel file**: {os.path.basename(success_batch['excel_path'])}")
-                                st.markdown(f"- **HTML file**: {os.path.basename(success_batch['html_path'])}")
-                                
-                                # Add download buttons for the batch
-                                col1, col2 = st.columns(2)
-                                with col1:
-                                    with open(success_batch['excel_path'], "rb") as file:
-                                        st.download_button(
-                                            f"Download Excel File",
-                                            data=file.read(),
-                                            file_name=os.path.basename(success_batch['excel_path']),
-                                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                            key=f"dl_excel_{i}_{batch_idx}"
-                                        )
-                                with col2:
-                                    with open(success_batch['html_path'], "rb") as file:
-                                        st.download_button(
-                                            f"Download HTML Report",
-                                            data=file.read(),
-                                            file_name=os.path.basename(success_batch['html_path']),
-                                            mime="text/html",
-                                            key=f"dl_html_{i}_{batch_idx}"
-                                        )
-                    
-                except Exception as e:
-                    # Record failed batch
-                    current_batch_progress.progress(1.0)  # Mark as completed regardless
-                    current_batch_status.text(f"Error in batch {batch_idx+1}: {str(e)}")
-                    
-                    failed_batches.append({
-                        "name": batch["name"],
-                        "record_count": len(batch["data"]),
-                        "error": str(e)
-                    })
-                    
-                    # Update failed batches display
-                    with error_container:
-                        st.markdown(f"### Failed Batches ({len(failed_batches)})")
-                        for failed_batch in failed_batches:
-                            with st.expander(f"{failed_batch['name']} - ERROR"):
-                                st.markdown(f"- **Records attempted**: {failed_batch['record_count']}")
-                                st.error(f"**Error**: {failed_batch['error']}")
-            
-            # Complete the overall progress bar
-            overall_progress.progress(1.0)
-            batch_status.text(f"Processing complete: {len(successful_batches)} successful batches, {len(failed_batches)} failed")
-            
-            # Final summary and ZIP download option
-            st.subheader("Batch Processing Results")
-            st.success(f"Completed processing {len(batches)} batches with {len(successful_batches)} successful and {len(failed_batches)} failed")
-            
-            # Option to download all results as ZIP
-            if successful_batches:
-                # Create a zip file containing all batch results
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                zip_path = os.path.join(results_folder, f"all_theme_analysis_results_{timestamp}.zip")
+                # Set custom configuration
+                theme_analyzer.config[
+                    "base_similarity_threshold"
+                ] = similarity_threshold
                 
-                with zipfile.ZipFile(zip_path, 'w') as zipf:
-                    for success_batch in successful_batches:
-                        # Add Excel file
-                        zipf.write(
-                            success_batch['excel_path'], 
-                            arcname=os.path.basename(success_batch['excel_path'])
-                        )
-                        # Add HTML file
-                        zipf.write(
-                            success_batch['html_path'], 
-                            arcname=os.path.basename(success_batch['html_path'])
-                        )
+                # Filter frameworks based on user selection
+                filtered_frameworks = {}
                 
-                # Provide download button for ZIP file
-                with open(zip_path, "rb") as f:
-                    st.download_button(
-                        "📦 Download All Results (ZIP)",
-                        data=f.read(),
-                        file_name=os.path.basename(zip_path),
-                        mime="application/zip",
-                        key="download_all_zip"
-                    )
-            
-        else:  # No batches created - run on all data or selected data
-            with st.spinner("Performing Theme Analysis..."):
-                try:
-                    # Use either selected data or all data
-                    analysis_data = selected_data if selected_data is not None else data
-                    
-                    # Validate data selection
-                    if analysis_data is None or len(analysis_data) == 0:
-                        st.warning("No documents selected for analysis.")
-                        return
+                # Add selected built-in frameworks
+                for framework in st.session_state.selected_frameworks:
+                    if framework == "I-SIRch":
+                        filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
+                    elif framework == "House of Commons":
+                        filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
+                    elif framework == "Extended Analysis":
+                        filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
+                    elif framework in st.session_state.custom_frameworks:
+                        # Add custom framework
+                        filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
+                
+                # Set the filtered frameworks
+                theme_analyzer.frameworks = filtered_frameworks
+                
+                # If no frameworks selected, show error
+                if not filtered_frameworks:
+                    st.error("Please select at least one framework for analysis.")
+                    return
 
-                    # Initialize the theme analyzer (with loading message in a spinner)
-                    with st.spinner("Loading annotation model and tokenizer..."):
-                        # Initialize the analyzer
-                        theme_analyzer = ThemeAnalyzer(
-                            model_name="emilyalsentzer/Bio_ClinicalBERT"
-                        )
-                        
-                        # Mark as initialized
-                        st.session_state.bert_initialized = True
-                    
-                    # Set custom configuration
-                    theme_analyzer.config[
-                        "base_similarity_threshold"
-                    ] = similarity_threshold
-                    
-                    # Filter frameworks based on user selection
-                    filtered_frameworks = {}
-                    
-                    # Add selected built-in frameworks
-                    for framework in st.session_state.selected_frameworks:
-                        if framework == "I-SIRch":
-                            filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
-                        elif framework == "House of Commons":
-                            filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
-                        elif framework == "Extended Analysis":
-                            filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
-                        elif framework in st.session_state.custom_frameworks:
-                            # Add custom framework
-                            filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
-                    
-                    # Set the filtered frameworks
-                    theme_analyzer.frameworks = filtered_frameworks
-                    
-                    # If no frameworks selected, show error
-                    if not filtered_frameworks:
-                        st.error("Please select at least one framework for analysis.")
-                        return
+                # Use the enhanced create_detailed_results method
+                (
+                    results_df,
+                    highlighted_texts,
+                ) = theme_analyzer.create_detailed_results(
+                    selected_data, content_column=content_column
+                )
 
-                    # Use the enhanced create_detailed_results method
-                    (
-                        results_df,
-                        highlighted_texts,
-                    ) = theme_analyzer.create_detailed_results(
-                        analysis_data, content_column=content_column
-                    )
+                # Save results to session state to ensure persistence
+                st.session_state.bert_results["results_df"] = results_df
+                st.session_state.bert_results["highlighted_texts"] = highlighted_texts
 
-                    # Save results to session state to ensure persistence
-                    st.session_state.bert_results["results_df"] = results_df
-                    st.session_state.bert_results["highlighted_texts"] = highlighted_texts
+                st.success(f"Analysis complete using {len(filtered_frameworks)} frameworks!")
 
-                    st.success(f"Analysis complete using {len(filtered_frameworks)} frameworks!")
-
-                except Exception as e:
-                    st.error(f"Error during annotation analysis: {str(e)}")
-                    logging.error(f"Annotation analysis error: {e}", exc_info=True)
+            except Exception as e:
+                st.error(f"Error during annotation analysis: {str(e)}")
+                logging.error(f"Annotation analysis error: {e}", exc_info=True)
 
     # Display results if they exist
     if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
@@ -9587,6 +9457,247 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             else:
                 st.warning("HTML report not available")
 
+def render_bert_analysis_tabworking(data: pd.DataFrame = None):
+    """Modified render_bert_analysis_tab function to include enhanced metadata in results"""
+    
+    # Ensure the bert_results dictionary exists in session state
+    if "bert_results" not in st.session_state:
+        st.session_state.bert_results = {}
+    
+    # Track if BERT model is initialized
+    if "bert_initialized" not in st.session_state:
+        st.session_state.bert_initialized = False
+
+    # File upload section
+    st.subheader("Upload Data")
+    reset_counter = st.session_state.get("reset_counter", 0)
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for BERT Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a file with reports for theme analysis",
+        key="bert_file_uploader",
+    )
+
+    # If a file is uploaded, process it
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_data = pd.read_csv(uploaded_file)
+            else:
+                uploaded_data = pd.read_excel(uploaded_file)
+
+            # Process the uploaded data
+            uploaded_data = process_scraped_data(uploaded_data)
+
+            # Update the data reference
+            data = uploaded_data
+
+            st.success("File uploaded and processed successfully!")
+                
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            return
+
+    # Check if data is available
+    if data is None or len(data) == 0:
+        st.warning(
+            "No data available. Please upload a file or ensure existing data is loaded."
+        )
+        return
+
+    # Column selection for analysis
+    st.subheader("Select Analysis Column")
+
+    # Find text columns (object/string type)
+    text_columns = data.select_dtypes(include=["object"]).columns.tolist()
+
+    # If no text columns found
+    if not text_columns:
+        st.error("No text columns found in the dataset.")
+        return
+
+    # Column selection with dropdown
+    content_column = st.selectbox(
+        "Choose the column to analyse:",
+        options=text_columns,
+        index=text_columns.index("Content") if "Content" in text_columns else 0,
+        help="Select the column containing the text you want to analyse",
+        key="bert_content_column",
+    )
+
+    # Filtering options
+    st.subheader("Select Documents to Analyse")
+
+    # Option to select all or specific records
+    analysis_type = st.radio(
+        "Analysis Type",
+        ["All Reports", "Selected Reports"],
+        horizontal=True,
+        key="bert_analysis_type",
+    )
+
+    if analysis_type == "Selected Reports":
+        # Multi-select for reports
+        selected_indices = st.multiselect(
+            "Choose specific reports to analyse",
+            options=list(range(len(data))),
+            format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
+            key="bert_selected_indices",
+        )
+        selected_data = data.iloc[selected_indices] if selected_indices else None
+    else:
+        selected_data = data
+
+    # Analysis parameters
+    st.subheader("Analysis Parameters")
+    similarity_threshold = st.slider(
+        "Similarity Threshold",
+        min_value=0.3,
+        max_value=0.9,
+        value=0.65,
+        step=0.05,
+        help="Minimum similarity score for theme detection (higher = more strict)",
+        key="bert_similarity_threshold",
+    )
+
+    # Analysis button
+    run_analysis = st.button(
+        "Run Analysis", type="primary", key="bert_run_analysis"
+    )
+
+    # Run analysis if button is clicked
+    if run_analysis:
+        with st.spinner("Performing Theme Analysis..."):
+            try:
+                # Validate data selection
+                if selected_data is None or len(selected_data) == 0:
+                    st.warning("No documents selected for analysis.")
+                    return
+
+                # Initialize the theme analyzer (with loading message in a spinner)
+                with st.spinner("Loading annotation model and tokenizer..."):
+                    # Initialize the analyzer
+                    theme_analyzer = ThemeAnalyzer(
+                        model_name="emilyalsentzer/Bio_ClinicalBERT"
+                    )
+                    
+                    # Mark as initialized
+                    st.session_state.bert_initialized = True
+                
+                # Set custom configuration
+                theme_analyzer.config[
+                    "base_similarity_threshold"
+                ] = similarity_threshold
+
+                # Use the enhanced create_detailed_results method
+                (
+                    results_df,
+                    highlighted_texts,
+                ) = theme_analyzer.create_detailed_results(
+                    selected_data, content_column=content_column
+                )
+
+                # Save results to session state to ensure persistence
+                st.session_state.bert_results["results_df"] = results_df
+                st.session_state.bert_results["highlighted_texts"] = highlighted_texts
+
+                st.success("Analysis complete!")
+
+            except Exception as e:
+                st.error(f"Error during annotation analysis: {str(e)}")
+                logging.error(f"Annotation analysis error: {e}", exc_info=True)
+
+    # Display results if they exist
+    if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+        results_df = st.session_state.bert_results["results_df"]
+        
+        # Summary stats
+        st.subheader("Results")
+        st.write(f"Total Theme Identifications: {len(results_df)}")
+        
+        # Clean up the results DataFrame to display only the essential columns
+        display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
+        
+        # Add metadata columns if available
+        for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
+            if col in results_df.columns:
+                display_cols.append(col)
+        
+        # Add matched sentences at the end
+        if "Matched Sentences" in results_df.columns:
+            display_cols.append("Matched Sentences")
+        
+        # Create the display DataFrame with only existing columns
+        valid_cols = [col for col in display_cols if col in results_df.columns]
+        clean_df = results_df[valid_cols].copy()
+        
+        # Display the results table
+        st.dataframe(
+            clean_df,
+            use_container_width=True,
+            column_config={
+                "Title": st.column_config.TextColumn("Document Title"),
+                "Framework": st.column_config.TextColumn("Framework"),
+                "Theme": st.column_config.TextColumn("Theme"),
+                "Confidence": st.column_config.TextColumn("Confidence"),
+                "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                "Matched Sentences": st.column_config.TextColumn("Matched Sentences"),
+                "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                "year": st.column_config.NumberColumn("Year"),
+                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY")
+            }
+        )
+        
+        # Add download options
+        st.subheader("Export Results")
+        
+        # Generate timestamp for filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create columns for download buttons
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Excel download button using the enhanced export_to_excel function
+            excel_data = export_to_excel(clean_df)
+            st.download_button(
+                "📥 Download Results Table",
+                data=excel_data,
+                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="bert_excel_download",
+            )
+        
+        with col2:
+            # Always regenerate HTML report when results are available
+            if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
+                # Generate fresh HTML report based on current results
+                theme_analyzer = ThemeAnalyzer()
+                html_content = theme_analyzer._create_integrated_html_for_pdf(
+                    results_df, st.session_state.bert_results["highlighted_texts"]
+                )
+                html_filename = f"theme_analysis_report_{timestamp}.html"
+                
+                with open(html_filename, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                    
+                st.session_state.bert_results["html_filename"] = html_filename
+                
+                # Provide download button for fresh HTML
+                with open(html_filename, "rb") as f:
+                    html_data = f.read()
+                
+                st.download_button(
+                    "📄 Download Annotated Reports (HTML)",
+                    data=html_data,
+                    file_name=os.path.basename(html_filename),
+                    mime="text/html",
+                    key="bert_html_download",
+                )
+            else:
+                st.warning("HTML report not available")
 
 def render_filter_data_tab():
     """Render a filtering tab within the Scraped File Preparation section with layout similar to Scrape Reports tab"""
@@ -9984,6 +10095,392 @@ def render_filter_data_tab():
         st.error(f"Error processing file: {str(e)}")
         logging.error(f"File processing error: {e}", exc_info=True)
 
+
+def render_bert_analysis_tab(data: pd.DataFrame = None):
+    """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
+    
+    # Ensure the bert_results dictionary exists in session state
+    if "bert_results" not in st.session_state:
+        st.session_state.bert_results = {}
+    
+    # Track if BERT model is initialized
+    if "bert_initialized" not in st.session_state:
+        st.session_state.bert_initialized = False
+    
+    # Initialize custom frameworks dictionary if not present
+    if "custom_frameworks" not in st.session_state:
+        st.session_state.custom_frameworks = {}
+        
+    # Safer initialization with validation
+    if "selected_frameworks" not in st.session_state:
+        # Only include frameworks that actually exist
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        st.session_state.selected_frameworks = default_frameworks
+    else:
+        # Validate existing selections against available options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"] + list(st.session_state.get("custom_frameworks", {}).keys())
+        st.session_state.selected_frameworks = [f for f in st.session_state.selected_frameworks if f in available_frameworks]
+
+    # File upload section
+    st.subheader("Upload Data")
+    reset_counter = st.session_state.get("reset_counter", 0)
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for BERT Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a file with reports for theme analysis",
+        key="bert_file_uploader",
+    )
+
+    # If a file is uploaded, process it
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_data = pd.read_csv(uploaded_file)
+            else:
+                uploaded_data = pd.read_excel(uploaded_file)
+
+            # Process the uploaded data
+            uploaded_data = process_scraped_data(uploaded_data)
+
+            # Update the data reference
+            data = uploaded_data
+
+            st.success("File uploaded and processed successfully!")
+                
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            return
+
+    # Check if data is available
+    if data is None or len(data) == 0:
+        st.warning(
+            "No data available. Please upload a file or ensure existing data is loaded."
+        )
+        return
+
+    # Framework selection section
+    st.subheader("Select Frameworks")
+    
+    # Create columns for the framework selection and custom framework upload
+    frame_col1, frame_col2 = st.columns([2, 1])
+    
+    with frame_col1:
+        # Get all available framework options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        if "custom_frameworks" in st.session_state:
+            available_frameworks.extend(list(st.session_state.custom_frameworks.keys()))
+        
+        # Predefined framework selection - use a unique key
+        st.session_state.selected_frameworks = st.multiselect(
+            "Choose Frameworks to Use",
+            options=available_frameworks,
+            default=st.session_state.selected_frameworks,
+            help="Select which conceptual frameworks to use for theme analysis",
+            key=f"framework_select_{reset_counter}"
+        )
+    
+    with frame_col2:
+        # Custom framework upload
+        custom_framework_file = st.file_uploader(
+            "Upload Custom Framework",
+            type=["json", "txt"],
+            help="Upload a JSON file containing custom framework definitions",
+            key=f"custom_framework_uploader_{reset_counter}"
+        )
+        
+        if custom_framework_file is not None:
+            try:
+                # Read framework definition
+                custom_framework_content = custom_framework_file.read().decode("utf-8")
+                custom_framework_data = json.loads(custom_framework_content)
+                
+                # Validate framework structure
+                if isinstance(custom_framework_data, list) and all(isinstance(item, dict) and "name" in item and "keywords" in item for item in custom_framework_data):
+                    # Framework name input
+                    custom_framework_name = st.text_input(
+                        "Custom Framework Name", 
+                        f"Custom Framework {len(st.session_state.custom_frameworks) + 1}",
+                        key=f"custom_framework_name_{reset_counter}"
+                    )
+                    
+                    # Add button for the custom framework
+                    if st.button("Add Custom Framework", key=f"add_custom_framework_{reset_counter}"):
+                        # Check if name already exists
+                        if custom_framework_name in st.session_state.custom_frameworks:
+                            st.warning(f"A framework with the name '{custom_framework_name}' already exists. Please choose a different name.")
+                        else:
+                            # Add to session state
+                            st.session_state.custom_frameworks[custom_framework_name] = custom_framework_data
+                            
+                            # Add to selected frameworks if not already there
+                            if custom_framework_name not in st.session_state.selected_frameworks:
+                                st.session_state.selected_frameworks.append(custom_framework_name)
+                            
+                            st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
+                            st.rerun()  # Refresh to update UI
+                else:
+                    st.error("Invalid framework format. Each item must have 'name' and 'keywords' fields.")
+            except json.JSONDecodeError:
+                st.error("Invalid JSON format. Please check your file.")
+            except Exception as e:
+                st.error(f"Error processing custom framework: {str(e)}")
+                logging.error(f"Custom framework error: {e}", exc_info=True)
+    
+    # Display currently loaded custom frameworks
+    if "custom_frameworks" in st.session_state and st.session_state.custom_frameworks:
+        st.subheader("Loaded Custom Frameworks")
+        for name, framework in st.session_state.custom_frameworks.items():
+            with st.expander(f"{name} ({len(framework)} themes)"):
+                # Display the first few themes as an example
+                for i, theme in enumerate(framework[:5]):
+                    st.markdown(f"**{theme['name']}**: {', '.join(theme['keywords'][:5])}...")
+                    if i >= 4 and len(framework) > 5:
+                        st.markdown(f"*... and {len(framework) - 5} more themes*")
+                        break
+                
+                # Add option to remove this framework
+                if st.button("Remove Framework", key=f"remove_{name}_{reset_counter}"):
+                    del st.session_state.custom_frameworks[name]
+                    if name in st.session_state.selected_frameworks:
+                        st.session_state.selected_frameworks.remove(name)
+                    st.success(f"Removed framework '{name}'")
+                    st.rerun()  # Refresh to update UI
+
+    # Column selection for analysis
+    st.subheader("Select Analysis Column")
+
+    # Find text columns (object/string type)
+    text_columns = data.select_dtypes(include=["object"]).columns.tolist()
+
+    # If no text columns found
+    if not text_columns:
+        st.error("No text columns found in the dataset.")
+        return
+
+    # Column selection with dropdown
+    content_column = st.selectbox(
+        "Choose the column to analyse:",
+        options=text_columns,
+        index=text_columns.index("Content") if "Content" in text_columns else 0,
+        help="Select the column containing the text you want to analyse",
+        key="bert_content_column",
+    )
+
+    # Filtering options
+    st.subheader("Select Documents to Analyse")
+
+    # Option to select all or specific records
+    analysis_type = st.radio(
+        "Analysis Type",
+        ["All Reports", "Selected Reports"],
+        horizontal=True,
+        key="bert_analysis_type",
+    )
+
+    if analysis_type == "Selected Reports":
+        # Multi-select for reports
+        selected_indices = st.multiselect(
+            "Choose specific reports to analyse",
+            options=list(range(len(data))),
+            format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
+            key="bert_selected_indices",
+        )
+        selected_data = data.iloc[selected_indices] if selected_indices else None
+    else:
+        selected_data = data
+
+    # Analysis parameters
+    st.subheader("Analysis Parameters")
+    similarity_threshold = st.slider(
+        "Similarity Threshold",
+        min_value=0.3,
+        max_value=0.9,
+        value=0.65,
+        step=0.05,
+        help="Minimum similarity score for theme detection (higher = more strict)",
+        key="bert_similarity_threshold",
+    )
+
+    # Analysis button
+    run_analysis = st.button(
+        "Run Analysis", type="primary", key="bert_run_analysis"
+    )
+
+    # Run analysis if button is clicked
+    if run_analysis:
+        with st.spinner("Performing Theme Analysis..."):
+            try:
+                # Validate data selection
+                if selected_data is None or len(selected_data) == 0:
+                    st.warning("No documents selected for analysis.")
+                    return
+
+                # Initialize the theme analyzer (with loading message in a spinner)
+                with st.spinner("Loading annotation model and tokenizer..."):
+                    # Initialize the analyzer
+                    theme_analyzer = ThemeAnalyzer(
+                        model_name="emilyalsentzer/Bio_ClinicalBERT"
+                    )
+                    
+                    # Mark as initialized
+                    st.session_state.bert_initialized = True
+                
+                # Set custom configuration
+                theme_analyzer.config[
+                    "base_similarity_threshold"
+                ] = similarity_threshold
+                
+                # Filter frameworks based on user selection
+                filtered_frameworks = {}
+                
+                # Add selected built-in frameworks
+                for framework in st.session_state.selected_frameworks:
+                    if framework == "I-SIRch":
+                        filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
+                    elif framework == "House of Commons":
+                        filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
+                    elif framework == "Extended Analysis":
+                        filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
+                    elif framework in st.session_state.custom_frameworks:
+                        # Add custom framework
+                        filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
+                
+                # Set the filtered frameworks
+                theme_analyzer.frameworks = filtered_frameworks
+                
+                # If no frameworks selected, show error
+                if not filtered_frameworks:
+                    st.error("Please select at least one framework for analysis.")
+                    return
+
+                # Use the enhanced create_detailed_results method
+                (
+                    results_df,
+                    highlighted_texts,
+                ) = theme_analyzer.create_detailed_results(
+                    selected_data, content_column=content_column
+                )
+
+                # Save results to session state to ensure persistence
+                st.session_state.bert_results["results_df"] = results_df
+                st.session_state.bert_results["highlighted_texts"] = highlighted_texts
+
+                st.success(f"Analysis complete using {len(filtered_frameworks)} frameworks!")
+
+            except Exception as e:
+                st.error(f"Error during annotation analysis: {str(e)}")
+                logging.error(f"Annotation analysis error: {e}", exc_info=True)
+
+    # Display results if they exist
+    if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
+        results_df = st.session_state.bert_results["results_df"]
+        
+        # Summary stats
+        st.subheader("Results")
+        
+        # Show framework distribution
+        if "Framework" in results_df.columns:
+            framework_counts = results_df["Framework"].value_counts()
+            
+            # Create columns for framework distribution metrics
+            framework_cols = st.columns(len(framework_counts))
+            
+            for i, (framework, count) in enumerate(framework_counts.items()):
+                with framework_cols[i]:
+                    st.metric(framework, count, help=f"Number of theme identifications from {framework} framework")
+        
+        st.write(f"Total Theme Identifications: {len(results_df)}")
+        
+        # Clean up the results DataFrame to display only the essential columns
+        display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
+        
+        # Add metadata columns if available
+        for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
+            if col in results_df.columns:
+                display_cols.append(col)
+        
+        # Add matched sentences at the end
+        if "Matched Sentences" in results_df.columns:
+            display_cols.append("Matched Sentences")
+        
+        # Create the display DataFrame with only existing columns
+        valid_cols = [col for col in display_cols if col in results_df.columns]
+        clean_df = results_df[valid_cols].copy()
+        
+        # Display the results table
+        st.dataframe(
+            clean_df,
+            use_container_width=True,
+            column_config={
+                "Title": st.column_config.TextColumn("Document Title"),
+                "Framework": st.column_config.TextColumn("Framework"),
+                "Theme": st.column_config.TextColumn("Theme"),
+                "Confidence": st.column_config.TextColumn("Confidence"),
+                "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                "Matched Sentences": st.column_config.TextColumn("Matched Sentences"),
+                "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                "year": st.column_config.NumberColumn("Year"),
+                "date_of_report": st.column_config.DateColumn("Date of Report", format="DD/MM/YYYY")
+            }
+        )
+        
+        # Add download options
+        st.subheader("Export Results")
+        
+        # Generate timestamp for filenames
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        
+        # Create columns for download buttons
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Excel download button using the enhanced export_to_excel function
+            excel_data = export_to_excel(clean_df)
+            st.download_button(
+                "📥 Download Results Table",
+                data=excel_data,
+                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                key="bert_excel_download",
+            )
+        
+        with col2:
+            # Always regenerate HTML report when results are available
+            if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
+                # Generate fresh HTML report based on current results
+                theme_analyzer = ThemeAnalyzer()
+                
+                # Set custom frameworks if they exist
+                if st.session_state.custom_frameworks:
+                    for name, framework in st.session_state.custom_frameworks.items():
+                        if name in st.session_state.selected_frameworks:
+                            theme_analyzer.frameworks[name] = framework
+                
+                html_content = theme_analyzer._create_integrated_html_for_pdf(
+                    results_df, st.session_state.bert_results["highlighted_texts"]
+                )
+                html_filename = f"theme_analysis_report_{timestamp}.html"
+                
+                with open(html_filename, "w", encoding="utf-8") as f:
+                    f.write(html_content)
+                    
+                st.session_state.bert_results["html_filename"] = html_filename
+                
+                # Provide download button for fresh HTML
+                with open(html_filename, "rb") as f:
+                    html_data = f.read()
+                
+                st.download_button(
+                    "📄 Download Annotated Reports (HTML)",
+                    data=html_data,
+                    file_name=os.path.basename(html_filename),
+                    mime="text/html",
+                    key="bert_html_download",
+                )
+            else:
+                st.warning("HTML report not available")
 
 
 def check_app_password():
@@ -11888,6 +12385,328 @@ def render_analysis_tab(data: pd.DataFrame = None):
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
 
+def render_analysis_tab2(data: pd.DataFrame = None):
+    """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
+
+    # Add file upload section at the top
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file", 
+        type=['csv', 'xlsx'],
+        help="Upload previously exported data"
+    )
+    
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                data = pd.read_csv(uploaded_file)
+            else:
+                data = pd.read_excel(uploaded_file)
+            
+            # Process uploaded data
+            data = process_scraped_data(data)
+            st.success("File uploaded and processed successfully!")
+            
+            # Update session state
+            st.session_state.uploaded_data = data.copy()
+            st.session_state.data_source = 'uploaded'
+            st.session_state.current_data = data.copy()
+        
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            logging.error(f"File upload error: {e}", exc_info=True)
+            return
+    
+    # Use either uploaded data or passed data
+    if data is None:
+        data = st.session_state.get('current_data')
+    
+    if data is None or len(data) == 0:
+        st.warning("No data available. Please upload a file or scrape reports first.")
+        return
+        
+    try:
+        # Get date range for the data
+        min_date = data['date_of_report'].min().date()
+        max_date = data['date_of_report'].max().date()
+        
+        # Filters sidebar
+        with st.sidebar:
+            st.header("Filters")
+            
+            # Date Range
+            with st.expander("📅 Date Range", expanded=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_date = st.date_input(
+                        "From",
+                        value=min_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="start_date_filter",
+                        format="DD/MM/YYYY"
+                    )
+                with col2:
+                    end_date = st.date_input(
+                        "To",
+                        value=max_date,
+                        min_value=min_date,
+                        max_value=max_date,
+                        key="end_date_filter",
+                        format="DD/MM/YYYY"
+                    )
+            
+            # Document Type Filter
+            doc_type = st.multiselect(
+                "Document Type",
+                ["Report", "Response"],
+                default=[],
+                key="doc_type_filter",
+                help="Filter by document type"
+            )
+            
+            # Reference Number
+            ref_numbers = sorted(data['ref'].dropna().unique())
+            selected_refs = st.multiselect(
+                "Reference Numbers",
+                options=ref_numbers,
+                key="ref_filter"
+            )
+            
+            # Deceased Name
+            deceased_search = st.text_input(
+                "Deceased Name",
+                key="deceased_filter",
+                help="Enter partial or full name (case-insensitive)"
+            )
+            
+            # Coroner Name
+            # Normalize coroner names for selection and ensure uniqueness
+            coroner_names = sorted(set(
+                str(name).strip() for name in data['coroner_name'].dropna().unique()
+            ))
+            selected_coroners = st.multiselect(
+                "Coroner Names",
+                options=coroner_names,
+                key="coroner_filter"
+            )
+            
+            # Coroner Area
+            # Normalize coroner areas for selection and ensure uniqueness
+            coroner_areas = sorted(set(
+                str(area).strip() for area in data['coroner_area'].dropna().unique()
+            ))
+            selected_areas = st.multiselect(
+                "Coroner Areas",
+                options=coroner_areas,
+                key="areas_filter"
+            )
+            
+            # Categories
+            all_categories = set()
+            for cats in data['categories'].dropna():
+                if isinstance(cats, list):
+                    all_categories.update(str(cat).strip() for cat in cats)
+                elif isinstance(cats, str):
+                    all_categories.update(str(cat).strip() for cat in cats.split(','))
+            
+            selected_categories = st.multiselect(
+                "Categories",
+                options=sorted(all_categories),
+                key="categories_filter"
+            )
+            
+            # Reset Filters Button
+            if st.button("🔄 Reset Filters"):
+                for key in st.session_state:
+                    if key.endswith('_filter'):
+                        del st.session_state[key]
+                st.rerun()
+
+        # Apply filters
+        filtered_df = data.copy()
+
+        # Date filter
+        if start_date and end_date:
+            filtered_df = filtered_df[
+                (filtered_df['date_of_report'].dt.date >= start_date) &
+                (filtered_df['date_of_report'].dt.date <= end_date)
+            ]
+
+        # Document type filter
+        if doc_type:
+            if "Response" in doc_type and "Report" not in doc_type:
+                # Only responses
+                filtered_df = filtered_df[filtered_df.apply(is_response, axis=1)]
+            elif "Report" in doc_type and "Response" not in doc_type:
+                # Only reports
+                filtered_df = filtered_df[~filtered_df.apply(is_response, axis=1)]
+
+        # Reference number filter
+        if selected_refs:
+            filtered_df = filtered_df[filtered_df['ref'].isin(selected_refs)]
+
+        # Deceased name filter - case-insensitive partial match
+        if deceased_search:
+            search_lower = deceased_search.lower().strip()
+            filtered_df = filtered_df[
+                filtered_df['deceased_name'].fillna('').str.lower().str.contains(
+                    search_lower, 
+                    case=False, 
+                    na=False
+                )
+            ]
+
+        # Coroner name filter - case-insensitive partial match
+        if selected_coroners:
+            # Normalize selected coroners and create a case-insensitive filter
+            selected_coroners_norm = [str(name).lower().strip() for name in selected_coroners]
+            filtered_df = filtered_df[
+                filtered_df['coroner_name'].fillna('').str.lower().apply(
+                    lambda x: any(selected_name in x or x in selected_name for selected_name in selected_coroners_norm)
+                )
+            ]
+
+        # Coroner area filter - case-insensitive partial match
+        if selected_areas:
+            # Normalize selected areas and create a case-insensitive filter
+            selected_areas_norm = [str(area).lower().strip() for area in selected_areas]
+            filtered_df = filtered_df[
+                filtered_df['coroner_area'].fillna('').str.lower().apply(
+                    lambda x: any(selected_area in x or x in selected_area for selected_area in selected_areas_norm)
+                )
+            ]
+
+        # Categories filter - handle both list and string types with case-insensitive partial match
+        if selected_categories:
+            # Normalize selected categories
+            selected_cats_norm = [str(cat).lower().strip() for cat in selected_categories]
+            
+            def category_matches(row_cats):
+                # Handle both list and string types
+                if pd.isna(row_cats):
+                    return False
+                
+                # Convert to list if it's a string
+                if isinstance(row_cats, str):
+                    row_cats = [cat.strip() for cat in row_cats.split(',')]
+                
+                # Normalize row categories
+                row_cats_norm = [str(cat).lower().strip() for cat in row_cats]
+                
+                # Check for partial matches
+                return any(
+                    any(selected_cat in row_cat or row_cat in selected_cat 
+                        for row_cat in row_cats_norm)
+                    for selected_cat in selected_cats_norm
+                )
+            
+            filtered_df = filtered_df[filtered_df['categories'].apply(category_matches)]
+
+        # Show active filters
+        active_filters = []
+        if start_date != min_date or end_date != max_date:
+            active_filters.append(f"Date: {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
+        if doc_type:
+            active_filters.append(f"Document Types: {', '.join(doc_type)}")
+        if selected_refs:
+            active_filters.append(f"References: {', '.join(selected_refs)}")
+        if deceased_search:
+            active_filters.append(f"Deceased name contains: {deceased_search}")
+        if selected_coroners:
+            active_filters.append(f"Coroners: {', '.join(selected_coroners)}")
+        if selected_areas:
+            active_filters.append(f"Areas: {', '.join(selected_areas)}")
+        if selected_categories:
+            active_filters.append(f"Categories: {', '.join(selected_categories)}")
+
+        if active_filters:
+            st.info("Active filters:\n" + "\n".join(f"• {filter_}" for filter_ in active_filters))
+
+        # Display results
+        st.subheader("Results")
+        st.write(f"Showing {len(filtered_df)} of {len(data)} reports")
+
+        if len(filtered_df) > 0:
+            # Display the dataframe
+            st.dataframe(
+                filtered_df,
+                column_config={
+                    "URL": st.column_config.LinkColumn("Report Link"),
+                    "date_of_report": st.column_config.DateColumn(
+                        "Date of Report",
+                        format="DD/MM/YYYY"
+                    ),
+                    "categories": st.column_config.ListColumn("Categories"),
+                    "Document Type": st.column_config.TextColumn(
+                        "Document Type",
+                        help="Type of document based on PDF filename"
+                    )
+                },
+                hide_index=True
+            )
+
+            # Create tabs for different analyses
+            st.markdown("---")
+            quality_tab, temporal_tab, distribution_tab = st.tabs([
+                "📊 Data Quality Analysis",
+                "📅 Temporal Analysis", 
+                "📍 Distribution Analysis"
+            ])
+
+            # Data Quality Analysis Tab
+            with quality_tab:
+                analyze_data_quality(filtered_df)
+
+            # Temporal Analysis Tab
+            with temporal_tab:
+                # Timeline of reports
+                st.subheader("Reports Timeline")
+                plot_timeline(filtered_df)
+                
+                # Monthly distribution
+                st.subheader("Monthly Distribution")
+                plot_monthly_distribution(filtered_df)
+                
+                # Year-over-year comparison
+                st.subheader("Year-over-Year Comparison")
+                plot_yearly_comparison(filtered_df)
+                
+                # Seasonal patterns
+                st.subheader("Seasonal Patterns")
+                seasonal_counts = filtered_df['date_of_report'].dt.month.value_counts().sort_index()
+                month_names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 
+                             'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                fig = px.line(
+                    x=month_names,
+                    y=[seasonal_counts.get(i, 0) for i in range(1, 13)],
+                    markers=True,
+                    labels={'x': 'Month', 'y': 'Number of Reports'},
+                    title='Seasonal Distribution of Reports'
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+            # Distribution Analysis Tab
+            with distribution_tab:
+        
+       
+                    st.subheader("Reports by Category")
+                    plot_category_distribution(filtered_df)
+  
+                    st.subheader("Reports by Coroner Area")
+                    plot_coroner_areas(filtered_df)
+
+            # Export options
+            st.markdown("---")
+            show_export_options(filtered_df, "analysis")
+
+        else:
+            st.warning("No reports match your filter criteria. Try adjusting the filters.")
+
+    except Exception as e:
+        st.error(f"An error occurred: {str(e)}")
+        logging.error(f"Analysis error: {e}", exc_info=True)
+
+                
 def render_framework_heatmap(filtered_df, top_n_themes=5):
     """
     Create a framework-based heatmap of theme distribution by year with framework coloring
