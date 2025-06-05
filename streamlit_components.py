@@ -110,7 +110,7 @@ def initialize_session_state():
 def check_app_password():
     """Check if user has entered correct password"""
     # Get password from environment variable or use default
-    correct_password = os.environ.get('STREAMLIT_PASSWORD', 'pfd2024')
+    correct_password = os.environ.get('STREAMLIT_PASSWORD', 'amazing2')
     
     # Check if already authenticated
     if st.session_state.get('authenticated', False):
@@ -241,7 +241,8 @@ def render_scraping_tab():
             with after_col2:
                 after_month = st.number_input("After Month", min_value=0, max_value=12, value=0, key="after_month")
             with after_col3:
-                after_year = st.number_input("After Year", min_value=2000, max_value=2030, value=0, key="after_year")
+                after_year = st.number_input("After Year", min_value=0, max_value=2030, value=0, key="after_year",
+                                           help="Enter 0 to ignore date filter")
             
             # Before date
             before_col1, before_col2, before_col3 = st.columns(3)
@@ -250,18 +251,19 @@ def render_scraping_tab():
             with before_col2:
                 before_month = st.number_input("Before Month", min_value=0, max_value=12, value=0, key="before_month")
             with before_col3:
-                before_year = st.number_input("Before Year", min_value=2000, max_value=2030, value=0, key="before_year")
+                before_year = st.number_input("Before Year", min_value=0, max_value=2030, value=0, key="before_year",
+                                            help="Enter 0 to ignore date filter")
         
         # Preview search results
         if st.form_submit_button("Preview Search Results"):
             try:
                 # Create date filter strings
                 after_date = None
-                if after_day > 0 and after_month > 0 and after_year > 0:
+                if after_day > 0 and after_month > 0 and after_year >= 2000:
                     after_date = f"{after_day}-{after_month}-{after_year}"
                     
                 before_date = None
-                if before_day > 0 and before_month > 0 and before_year > 0:
+                if before_day > 0 and before_month > 0 and before_year >= 2000:
                     before_date = f"{before_day}-{before_month}-{before_year}"
                 
                 # Convert category to slug
@@ -366,11 +368,11 @@ def render_scraping_tab():
             
             # Create date filters
             after_date = None
-            if after_day > 0 and after_month > 0 and after_year > 0:
+            if after_day > 0 and after_month > 0 and after_year >= 2000:
                 after_date = f"{after_day}-{after_month}-{after_year}"
                 
             before_date = None
-            if before_day > 0 and before_month > 0 and before_year > 0:
+            if before_day > 0 and before_month > 0 and before_year >= 2000:
                 before_date = f"{before_day}-{before_month}-{before_year}"
             
             # Convert end_page=0 to None (all pages)

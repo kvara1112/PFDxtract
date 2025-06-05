@@ -265,179 +265,199 @@ def create_vectorizer(vectorizer_type="tfidf", **params):
 
 
 def perform_semantic_clustering(
-    df: pd.DataFrame,
+    data: pd.DataFrame,
     min_cluster_size: int = 3,
     max_features: int = 5000,
     min_df: float = 0.01,
     max_df: float = 0.95,
     similarity_threshold: float = 0.3,
-    n_topics: int = 5,
 ) -> Dict:
     """
-    Perform semantic clustering on documents with enhanced configurability
-    
-    Args:
-        df: DataFrame with Content column
-        min_cluster_size: Minimum documents per cluster
-        max_features: Maximum number of features for vectorization
-        min_df: Minimum document frequency
-        max_df: Maximum document frequency
-        similarity_threshold: Similarity threshold for clustering
-        n_topics: Number of topics for LDA
-        
-    Returns:
-        Dictionary containing clustering results
+    Perform semantic clustering with improved cluster selection
     """
     try:
+        # Initialize NLTK resources
         initialize_nltk()
 
-        # Clean and filter content
-        docs = df["Content"].fillna("").astype(str)
-        processed_docs = [clean_text_for_modeling(doc) for doc in docs]
-        
-        # Filter out empty documents
-        valid_docs = [(i, doc) for i, doc in enumerate(processed_docs) if len(doc.split()) > 10]
-        
-        if len(valid_docs) < min_cluster_size:
-            return {"error": "Not enough valid documents for clustering"}
+        # Validate input data
+        if "Content" not in data.columns:
+            raise ValueError("Input data must contain 'Content' column")
 
-        indices, cleaned_docs = zip(*valid_docs)
+        processed_texts = data["Content"].apply(clean_text_for_modeling)
+        valid_mask = processed_texts.notna() & (processed_texts != "")
+        processed_texts = processed_texts[valid_mask]
 
-        # Vectorization based on session state settings
+        if len(processed_texts) == 0:
+            raise ValueError("No valid text content found after preprocessing")
+
+        # Keep the original data for display
+        display_data = data[valid_mask].copy()
+
+        # Calculate optimal parameters based on dataset size
+        n_docs = len(processed_texts)
+        min_clusters = max(2, min(3, n_docs // 20))  # More conservative minimum
+        max_clusters = max(3, min(8, n_docs // 10))  # More conservative maximum
+
+        # Get vectorization parameters from session state
         vectorizer_type = st.session_state.get("vectorizer_type", "tfidf")
-        
-        # Create vectorizer with parameters from session state
-        vectorizer_params = {
-            "max_features": max_features,
-            "min_df": max(2, int(min_df * len(cleaned_docs)) if min_df < 1 else min_df),
-            "max_df": max_df,
-            "ngram_range": (1, 2),
-        }
-        
-        # Add specific parameters based on vectorizer type
-        if vectorizer_type == "weighted":
-            vectorizer_params.update({
-                "tf_scheme": st.session_state.get("tf_scheme", "raw"),
-                "idf_scheme": st.session_state.get("idf_scheme", "smooth")
-            })
-        elif vectorizer_type == "bm25":
-            vectorizer_params.update({
-                "k1": st.session_state.get("k1", 1.5),
-                "b": st.session_state.get("b", 0.75)
-            })
+        vectorizer_params = {}
 
-        vectorizer = create_vectorizer(vectorizer_type, **vectorizer_params)
-        
-        # Fit and transform documents
-        doc_vectors = vectorizer.fit_transform(cleaned_docs)
+        if vectorizer_type == "bm25":
+            vectorizer_params.update(
+                {
+                    "k1": st.session_state.get("bm25_k1", 1.5),
+                    "b": st.session_state.get("bm25_b", 0.75),
+                }
+            )
+        elif vectorizer_type == "weighted":
+            vectorizer_params.update(
+                {
+                    "tf_scheme": st.session_state.get("tf_scheme", "raw"),
+                    "idf_scheme": st.session_state.get("idf_scheme", "smooth"),
+                }
+            )
+
+        # Create the vectorizer
+        vectorizer = get_vectorizer(
+            vectorizer_type=vectorizer_type,
+            max_features=max_features,
+            min_df=max(min_df, 3 / len(processed_texts)),
+            max_df=min(max_df, 0.7),
+            **vectorizer_params,
+        )
+
+        # Create document vectors
+        tfidf_matrix = vectorizer.fit_transform(processed_texts)
         feature_names = vectorizer.get_feature_names_out()
 
-        # Perform LDA topic modeling
-        lda = LatentDirichletAllocation(
-            n_components=n_topics,
-            random_state=42,
-            max_iter=20,
-            learning_method="batch",
-            doc_topic_prior=0.1,
-            topic_word_prior=0.01,
+        # Find optimal number of clusters
+        best_n_clusters, best_labels = find_optimal_clusters(
+            tfidf_matrix,
+            min_clusters=min_clusters,
+            max_clusters=max_clusters,
+            min_cluster_size=min_cluster_size,
         )
-        
-        doc_topic_probs = lda.fit_transform(doc_vectors)
 
-        # Hierarchical clustering for document similarity
-        try:
-            # Normalize vectors for cosine similarity
-            normalized_vectors = normalize(doc_vectors, norm="l2")
-            
-            # Compute similarity matrix
-            similarity_matrix = cosine_similarity(normalized_vectors)
-            
-            # Convert to distance matrix
-            distance_matrix = 1 - similarity_matrix
-            
-            # Perform hierarchical clustering
-            n_clusters = min(n_topics, len(cleaned_docs) // min_cluster_size)
-            clusterer = AgglomerativeClustering(
-                n_clusters=n_clusters, 
-                metric="precomputed", 
-                linkage="average"
-            )
-            
-            cluster_labels = clusterer.fit_predict(distance_matrix)
-            
-        except Exception as e:
-            logging.warning(f"Clustering failed, using topic assignments: {e}")
-            # Fallback to using dominant topics as clusters
-            cluster_labels = np.argmax(doc_topic_probs, axis=1)
+        # Calculate final clustering quality
+        silhouette_avg = silhouette_score(
+            tfidf_matrix.toarray(), best_labels, metric="euclidean"
+        )
 
-        # Generate cluster summaries
-        clusters = defaultdict(list)
-        for i, (doc_idx, doc) in enumerate(valid_docs):
-            clusters[cluster_labels[i]].append({
-                "index": doc_idx,
-                "content": doc,
-                "title": df.iloc[doc_idx]["Title"] if "Title" in df.columns else f"Document {doc_idx}",
-                "topic_probs": doc_topic_probs[i],
-                "dominant_topic": np.argmax(doc_topic_probs[i]),
-            })
+        # Calculate similarities using similarity threshold
+        similarity_matrix = cosine_similarity(tfidf_matrix)
+        similarity_matrix[similarity_matrix < similarity_threshold] = 0
 
-        # Create cluster summaries
-        cluster_summaries = {}
-        for cluster_id, docs in clusters.items():
-            if len(docs) >= min_cluster_size:
-                # Get top terms for this cluster
-                cluster_vectors = doc_vectors[[doc["index"] for doc in docs if doc["index"] < len(doc_vectors)]]
-                
-                if cluster_vectors.shape[0] > 0:
-                    # Calculate average TF-IDF scores for cluster
-                    avg_scores = np.mean(cluster_vectors, axis=0).A1
-                    top_indices = avg_scores.argsort()[-10:][::-1]
-                    top_terms = [feature_names[i] for i in top_indices if avg_scores[i] > 0]
-                    
-                    cluster_summaries[cluster_id] = {
-                        "size": len(docs),
-                        "documents": docs,
-                        "top_terms": top_terms[:10],
-                        "dominant_topic": Counter([doc["dominant_topic"] for doc in docs]).most_common(1)[0][0],
-                        "avg_topic_probs": np.mean([doc["topic_probs"] for doc in docs], axis=0),
-                    }
+        # Extract cluster information
+        clusters = []
+        for cluster_id in range(best_n_clusters):
+            cluster_indices = np.where(best_labels == cluster_id)[0]
 
-        # Get topic terms from LDA
-        topic_terms = {}
-        for topic_idx in range(n_topics):
-            top_words_idx = lda.components_[topic_idx].argsort()[-10:][::-1]
-            topic_terms[topic_idx] = [feature_names[i] for i in top_words_idx]
+            # Skip if cluster is too small
+            if len(cluster_indices) < min_cluster_size:
+                continue
 
-        # Calculate clustering metrics if we have enough clusters
-        clustering_metrics = {}
-        if len(set(cluster_labels)) > 1 and len(cluster_labels) > 3:
-            try:
-                clustering_metrics = {
-                    "silhouette_score": silhouette_score(doc_vectors.toarray(), cluster_labels),
-                    "calinski_harabasz_score": calinski_harabasz_score(doc_vectors.toarray(), cluster_labels),
-                    "davies_bouldin_score": davies_bouldin_score(doc_vectors.toarray(), cluster_labels),
+            # Calculate cluster terms
+            cluster_tfidf = tfidf_matrix[cluster_indices].toarray()
+            centroid = np.mean(cluster_tfidf, axis=0)
+
+            # Get important terms with improved distinctiveness
+            term_scores = []
+            for idx, score in enumerate(centroid):
+                if score > 0:
+                    term = feature_names[idx]
+                    cluster_freq = np.mean(cluster_tfidf[:, idx] > 0)
+                    total_freq = np.mean(tfidf_matrix[:, idx].toarray() > 0)
+                    distinctiveness = cluster_freq / (total_freq + 1e-10)
+
+                    term_scores.append(
+                        {
+                            "term": term,
+                            "score": float(score * distinctiveness),
+                            "cluster_frequency": float(cluster_freq),
+                            "total_frequency": float(total_freq),
+                        }
+                    )
+
+            term_scores.sort(key=lambda x: x["score"], reverse=True)
+            top_terms = term_scores[:20]
+
+            # Get representative documents
+            doc_similarities = []
+            for idx in cluster_indices:
+                doc_vector = tfidf_matrix[idx].toarray().flatten()
+                sim_to_centroid = cosine_similarity(
+                    doc_vector.reshape(1, -1), centroid.reshape(1, -1)
+                )[0][0]
+
+                doc_info = {
+                    "title": display_data.iloc[idx]["Title"],
+                    "date": display_data.iloc[idx]["date_of_report"],
+                    "similarity": float(sim_to_centroid),
+                    "summary": display_data.iloc[idx]["Content"][:500],
                 }
-            except Exception as e:
-                logging.warning(f"Could not compute clustering metrics: {e}")
+                doc_similarities.append((idx, sim_to_centroid, doc_info))
+
+            # Sort by similarity and get representative docs
+            doc_similarities.sort(key=lambda x: x[1], reverse=True)
+            representative_docs = [item[2] for item in doc_similarities]
+
+            # Calculate cluster cohesion
+            cluster_similarities = similarity_matrix[cluster_indices][
+                :, cluster_indices
+            ]
+            cohesion = float(np.mean(cluster_similarities))
+
+            clusters.append(
+                {
+                    "id": len(clusters),
+                    "size": len(cluster_indices),
+                    "cohesion": cohesion,
+                    "terms": top_terms,
+                    "documents": representative_docs,
+                    "balance_ratio": max(
+                        len(cluster_indices)
+                        for cluster_indices in [
+                            np.where(best_labels == i)[0]
+                            for i in range(best_n_clusters)
+                        ]
+                    )
+                    / min(
+                        len(cluster_indices)
+                        for cluster_indices in [
+                            np.where(best_labels == i)[0]
+                            for i in range(best_n_clusters)
+                        ]
+                    ),
+                }
+            )
+
+        # Add cluster quality metrics to results
+        metrics = {
+            "silhouette_score": float(silhouette_avg),
+            "calinski_score": float(
+                calinski_harabasz_score(tfidf_matrix.toarray(), best_labels)
+            ),
+            "davies_score": float(
+                davies_bouldin_score(tfidf_matrix.toarray(), best_labels)
+            ),
+            "balance_ratio": float(
+                max(len(c["documents"]) for c in clusters)
+                / min(len(c["documents"]) for c in clusters)
+            ),
+        }
 
         return {
-            "clusters": cluster_summaries,
-            "topic_terms": topic_terms,
-            "lda_model": lda,
-            "vectorizer": vectorizer,
-            "feature_names": feature_names,
-            "doc_topic_probs": doc_topic_probs,
-            "cluster_labels": cluster_labels,
-            "valid_indices": indices,
-            "metrics": clustering_metrics,
-            "n_documents": len(valid_docs),
-            "n_clusters": len(cluster_summaries),
-            "n_topics": n_topics,
+            "n_clusters": len(clusters),
+            "total_documents": len(processed_texts),
+            "silhouette_score": float(silhouette_avg),
+            "clusters": clusters,
+            "vectorizer_type": vectorizer_type,
+            "quality_metrics": metrics,
         }
 
     except Exception as e:
         logging.error(f"Error in semantic clustering: {e}", exc_info=True)
-        return {"error": f"Clustering failed: {str(e)}"}
+        raise
 
 
 def generate_cluster_summary(documents: List[str], top_terms: List[str], max_length: int = 200) -> str:
@@ -604,4 +624,201 @@ def optimize_cluster_parameters(
         
     except Exception as e:
         logging.error(f"Error in parameter optimization: {e}")
-        return {"error": f"Parameter optimization failed: {str(e)}"} 
+        return {"error": f"Parameter optimization failed: {str(e)}"}
+
+
+def render_topic_summary_tab(data: pd.DataFrame = None):
+    """Render the topic analysis and summary tab"""
+    st.subheader("Topic Analysis & Document Summaries")
+    
+    # File upload
+    uploaded_file = st.file_uploader(
+        "Upload processed file from Step 2",
+        type=["csv", "xlsx"],
+        help="Upload the merged file from the Scraped File Preparation step",
+        key="topic_analysis_uploader"
+    )
+    
+    if uploaded_file is not None:
+        try:
+            # Load data
+            if uploaded_file.name.endswith(".csv"):
+                data = pd.read_csv(uploaded_file)
+            else:
+                data = pd.read_excel(uploaded_file)
+            
+            st.success(f"File loaded successfully with {len(data)} records")
+            
+            # Analysis settings
+            with st.expander("Topic Analysis Settings", expanded=True):
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    n_topics = st.slider(
+                        "Number of Topics",
+                        min_value=3,
+                        max_value=15,
+                        value=5,
+                        key="n_topics_slider"
+                    )
+                    
+                    max_features = st.slider(
+                        "Maximum Features",
+                        min_value=500,
+                        max_value=5000,
+                        value=1000,
+                        step=100,
+                        key="max_features_slider"
+                    )
+                
+                with col2:
+                    min_cluster_size = st.slider(
+                        "Minimum Cluster Size",
+                        min_value=2,
+                        max_value=10,
+                        value=3,
+                        key="min_cluster_size_slider"
+                    )
+                    
+                    similarity_threshold = st.slider(
+                        "Similarity Threshold",
+                        min_value=0.1,
+                        max_value=0.8,
+                        value=0.3,
+                        step=0.05,
+                        key="similarity_threshold_slider"
+                    )
+            
+            # Run clustering analysis
+            if st.button("🔬 Run Topic Analysis", key="run_topic_analysis"):
+                try:
+                    with st.spinner("Performing semantic clustering and topic modeling..."):
+                        # Initialize NLTK
+                        initialize_nltk()
+                        
+                        # Run clustering
+                        clustering_result = perform_semantic_clustering(
+                            data,
+                            min_cluster_size=min_cluster_size,
+                            max_features=max_features,
+                            similarity_threshold=similarity_threshold,
+                            n_topics=n_topics,
+                        )
+                        
+                        if "error" in clustering_result:
+                            st.error(f"Clustering failed: {clustering_result['error']}")
+                        else:
+                            st.success("Topic analysis completed successfully!")
+                            
+                            # Display results
+                            st.subheader("Analysis Results")
+                            
+                            # Metrics
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Documents Analyzed", clustering_result.get("n_documents", 0))
+                            with col2:
+                                st.metric("Clusters Found", clustering_result.get("n_clusters", 0))
+                            with col3:
+                                st.metric("Topics Generated", clustering_result.get("n_topics", 0))
+                            
+                            # Display clusters
+                            clusters = clustering_result.get("clusters", {})
+                            if clusters:
+                                st.subheader("Document Clusters")
+                                
+                                for cluster_id, cluster_info in clusters.items():
+                                    with st.expander(f"Cluster {cluster_id} - {cluster_info['size']} documents"):
+                                        st.write(f"**Top Terms:** {', '.join(cluster_info['top_terms'][:10])}")
+                                        st.write(f"**Dominant Topic:** {cluster_info['dominant_topic']}")
+                                        
+                                        # Show some example documents
+                                        st.write("**Example Documents:**")
+                                        for i, doc in enumerate(cluster_info['documents'][:3]):
+                                            st.write(f"{i+1}. {doc['title'][:100]}...")
+                            
+                            # Display topics
+                            topic_terms = clustering_result.get("topic_terms", {})
+                            if topic_terms:
+                                st.subheader("Topic Terms")
+                                
+                                cols = st.columns(min(len(topic_terms), 3))
+                                for i, (topic_id, terms) in enumerate(topic_terms.items()):
+                                    with cols[i % len(cols)]:
+                                        st.write(f"**Topic {topic_id}**")
+                                        st.write(", ".join(terms[:8]))
+                            
+                            # Clustering metrics
+                            metrics = clustering_result.get("metrics", {})
+                            if metrics:
+                                st.subheader("Clustering Quality Metrics")
+                                
+                                col1, col2, col3 = st.columns(3)
+                                with col1:
+                                    if "silhouette_score" in metrics:
+                                        st.metric("Silhouette Score", f"{metrics['silhouette_score']:.3f}")
+                                with col2:
+                                    if "calinski_harabasz_score" in metrics:
+                                        st.metric("Calinski-Harabasz Score", f"{metrics['calinski_harabasz_score']:.0f}")
+                                with col3:
+                                    if "davies_bouldin_score" in metrics:
+                                        st.metric("Davies-Bouldin Score", f"{metrics['davies_bouldin_score']:.3f}")
+                            
+                            # Download results
+                            st.subheader("Download Results")
+                            
+                            # Prepare summary data
+                            summary_data = []
+                            for cluster_id, cluster_info in clusters.items():
+                                for doc in cluster_info['documents']:
+                                    summary_data.append({
+                                        "Document_Index": doc['index'],
+                                        "Title": doc['title'],
+                                        "Cluster_ID": cluster_id,
+                                        "Cluster_Size": cluster_info['size'],
+                                        "Top_Terms": ", ".join(cluster_info['top_terms'][:5]),
+                                        "Dominant_Topic": cluster_info['dominant_topic'],
+                                    })
+                            
+                            if summary_data:
+                                summary_df = pd.DataFrame(summary_data)
+                                
+                                # Merge with original data
+                                if "index" in data.columns or data.index.name:
+                                    # Reset index to get numeric index
+                                    data_reset = data.reset_index()
+                                    merged_df = summary_df.merge(
+                                        data_reset, 
+                                        left_on="Document_Index", 
+                                        right_index=True, 
+                                        how="left"
+                                    )
+                                else:
+                                    merged_df = summary_df
+                                
+                                # Create Excel output
+                                from datetime import datetime
+                                import io
+                                
+                                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                filename = f"topic_analysis_results_{timestamp}.xlsx"
+                                
+                                excel_buffer = io.BytesIO()
+                                merged_df.to_excel(excel_buffer, index=False, engine="openpyxl")
+                                excel_buffer.seek(0)
+                                
+                                st.download_button(
+                                    "📥 Download Topic Analysis Results (Excel)",
+                                    data=excel_buffer.getvalue(),
+                                    file_name=filename,
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                                )
+                
+                except Exception as e:
+                    st.error(f"Error in topic analysis: {str(e)}")
+                    logging.error(f"Topic analysis error: {e}", exc_info=True)
+        
+        except Exception as e:
+            st.error(f"Error loading file: {str(e)}")
+    else:
+        st.info("Please upload a file to begin topic analysis.") 

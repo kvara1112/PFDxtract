@@ -2,6 +2,7 @@ import re
 import logging
 import unicodedata
 from datetime import datetime
+from typing import Dict
 import pandas as pd
 import nltk # type: ignore
 
@@ -468,3 +469,167 @@ def combine_document_text(row: pd.Series) -> str:
             text_parts.append(str(row[pdf_col_name]))
             
     return " ".join(text_parts)
+
+def export_to_excel(df: pd.DataFrame, filename: str = None) -> bytes:
+    """
+    Export DataFrame to Excel format with proper formatting
+    
+    Args:
+        df: DataFrame to export
+        filename: Optional filename (not used, kept for compatibility)
+        
+    Returns:
+        Excel file as bytes
+    """
+    try:
+        import io
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment
+        from openpyxl.utils.dataframe import dataframe_to_rows
+        
+        # Create Excel buffer
+        excel_buffer = io.BytesIO()
+        
+        # Create workbook and worksheet
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "PFD Reports"
+        
+        # Add DataFrame to worksheet
+        for r in dataframe_to_rows(df, index=False, header=True):
+            ws.append(r)
+        
+        # Format headers
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        
+        for cell in ws[1]:
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+        
+        # Auto-adjust column widths
+        for column in ws.columns:
+            max_length = 0
+            column_letter = get_column_letter(column[0].column)
+            
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            
+            # Set reasonable width limits
+            adjusted_width = min(max_length + 2, 50)
+            ws.column_dimensions[column_letter].width = max(adjusted_width, 10)
+        
+        # Set row height for header
+        ws.row_dimensions[1].height = 20
+        
+        # Add data formatting
+        for row in ws.iter_rows(min_row=2, max_row=ws.max_row):
+            for cell in row:
+                cell.alignment = Alignment(wrap_text=True, vertical="top")
+        
+        # Save to buffer
+        wb.save(excel_buffer)
+        excel_buffer.seek(0)
+        
+        return excel_buffer.getvalue()
+        
+    except Exception as e:
+        logging.error(f"Error exporting to Excel: {e}")
+        # Fallback to simple Excel export
+        try:
+            excel_buffer = io.BytesIO()
+            df.to_excel(excel_buffer, index=False, engine="openpyxl")
+            excel_buffer.seek(0)
+            return excel_buffer.getvalue()
+        except Exception as fallback_error:
+            logging.error(f"Fallback Excel export also failed: {fallback_error}")
+            raise Exception("Excel export failed")
+
+
+def validate_data(df: pd.DataFrame) -> Dict[str, any]:
+    """
+    Validate DataFrame and return validation results
+    
+    Args:
+        df: DataFrame to validate
+        
+    Returns:
+        Dictionary containing validation results
+    """
+    validation_results = {
+        "is_valid": True,
+        "errors": [],
+        "warnings": [],
+        "row_count": len(df),
+        "column_count": len(df.columns),
+        "missing_required_columns": [],
+        "data_quality_score": 0.0
+    }
+    
+    try:
+        # Check for required columns
+        required_columns = ["Title", "Content"]
+        for col in required_columns:
+            if col not in df.columns:
+                validation_results["missing_required_columns"].append(col)
+                validation_results["errors"].append(f"Missing required column: {col}")
+                validation_results["is_valid"] = False
+        
+        # Check for empty DataFrame
+        if len(df) == 0:
+            validation_results["errors"].append("DataFrame is empty")
+            validation_results["is_valid"] = False
+            return validation_results
+        
+        # Calculate data quality metrics
+        quality_scores = []
+        
+        # Title completeness
+        if "Title" in df.columns:
+            title_completeness = df["Title"].notna().mean()
+            quality_scores.append(title_completeness)
+            if title_completeness < 0.9:
+                validation_results["warnings"].append(f"Title completeness: {title_completeness:.1%}")
+        
+        # Content completeness
+        if "Content" in df.columns:
+            content_completeness = df["Content"].notna().mean()
+            quality_scores.append(content_completeness)
+            if content_completeness < 0.8:
+                validation_results["warnings"].append(f"Content completeness: {content_completeness:.1%}")
+        
+        # Date completeness
+        if "date_of_report" in df.columns:
+            date_completeness = df["date_of_report"].notna().mean()
+            quality_scores.append(date_completeness)
+            if date_completeness < 0.7:
+                validation_results["warnings"].append(f"Date completeness: {date_completeness:.1%}")
+        
+        # Calculate overall quality score
+        if quality_scores:
+            validation_results["data_quality_score"] = sum(quality_scores) / len(quality_scores)
+        
+        # Check for duplicates
+        if "Title" in df.columns and "ref" in df.columns:
+            duplicate_count = df.duplicated(subset=["Title", "ref"]).sum()
+            if duplicate_count > 0:
+                validation_results["warnings"].append(f"Found {duplicate_count} potential duplicates")
+        
+        # Check data types
+        if "date_of_report" in df.columns:
+            if not pd.api.types.is_datetime64_any_dtype(df["date_of_report"]):
+                validation_results["warnings"].append("Date column is not in datetime format")
+        
+        return validation_results
+        
+    except Exception as e:
+        validation_results["errors"].append(f"Validation error: {str(e)}")
+        validation_results["is_valid"] = False
+        logging.error(f"Data validation error: {e}")
+        return validation_results

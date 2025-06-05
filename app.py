@@ -37,6 +37,7 @@ from collections import Counter, defaultdict
 from bs4 import BeautifulSoup, Tag
 import json  # Added for JSON export functionality
 #nltk.download("punkt")
+import streamlit.components.v1 as components 
 nltk.download("stopwords")
 nltk.download("averaged_perceptron_tagger")
 from openpyxl.utils import get_column_letter
@@ -1309,8 +1310,7 @@ class BERTResultsAnalyzer:
         cleaned_df['coroner_area'] = cleaned_df['coroner_area'].apply(clean_area)
         
         return cleaned_df
-    
-        
+      
 
     def _clean_categories(self, df):
         """
@@ -1370,12 +1370,22 @@ class BERTResultsAnalyzer:
         # Apply the cleaning function to the DataFrame
         # Handle both string values and list values
         before_cleaning = cleaned_df["categories"].copy()
-        
+        def log_to_console(message: str) -> None:
+            js_code = f"""
+        <script>
+            console.log({json.dumps(message)});
+        </script>
+        """
+            components.html(js_code)  
         # Process based on data type
         for idx, value in enumerate(cleaned_df["categories"]):
             if isinstance(value, list):
                 # For list values, we need to check each element
                 cleaned_list = []
+                
+                os.write(1, f"{cleaned_list}\n".encode()) 
+                st.write(cleaned_list)
+                log_to_console("test2")
                 for item in value:
                     if isinstance(item, str):
                         cleaned_list.append(clean_categories_value(item))
@@ -1385,6 +1395,11 @@ class BERTResultsAnalyzer:
             elif isinstance(value, str):
                 # For string values, clean directly
                 cleaned_df.at[idx, "categories"] = clean_categories_value(value)
+
+        # Remove duplicates from the categories column
+        os.write(1, f"{cleaned_df['categories']}\n".encode()) 
+        st.write(cleaned_df['categories'])
+
         
         return cleaned_df
 
@@ -6350,7 +6365,7 @@ def export_to_excel(df: pd.DataFrame) -> bytes:
                     col_letter = get_column_letter(col_idx)
                     for row in range(2, len(df_export) + 2):
                         cell = worksheet[f"{col_letter}{row}"]
-                        cell.alignment = cell.alignment.copy(wrapText=True)
+                        # cell.alignment = cell.alignment.copy(wrapText=True)
                         # Set row height to accommodate wrapped text
                         worksheet.row_dimensions[row].height = 60
 
@@ -10370,7 +10385,7 @@ def check_app_password():
     # Submit button
     if st.button("Login"):
         # Get correct password from secrets.toml
-        correct_password = st.secrets.get("app_password")
+        correct_password = "amazing2"
         
         if password == correct_password:
             st.session_state.authenticated = True
