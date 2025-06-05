@@ -7,13 +7,14 @@ import pandas as pd
 import nltk # type: ignore
 from typing import Union
 import urllib3
+from sklearn.feature_extraction.text import TfidfVectorizer
 
-from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s: %(message)s",
+    handlers=[logging.FileHandler("app.log"), logging.StreamHandler()],
 )
 
 def clean_text(text: str) -> str:
@@ -490,6 +491,7 @@ def export_to_excel(df: pd.DataFrame, filename: str = None) -> bytes:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill, Alignment
         from openpyxl.utils.dataframe import dataframe_to_rows
+        from openpyxl.utils import get_column_letter
         
         # Create Excel buffer
         excel_buffer = io.BytesIO()
@@ -639,6 +641,18 @@ def validate_data(df: pd.DataFrame) -> Dict[str, any]:
         return validation_results
 
 
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Global headers for all requests
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Connection": "keep-alive",
+    "Referer": "https://judiciary.uk/",
+}
+
 def get_vectorizer(
     vectorizer_type: str, max_features: int, min_df: float, max_df: float, **kwargs
 ) -> Union[TfidfVectorizer, any, any]:  # Using 'any' to avoid circular import in type hints
@@ -647,7 +661,7 @@ def get_vectorizer(
     Uses lazy imports to avoid circular dependencies.
     """
     # Lazy imports to avoid circular dependency
-    from vectorizer_models import BM25Vectorizer, WeightedTfidfVectorizer
+    from vectorizer_utils import BM25Vectorizer, WeightedTfIdfVectorizer
     
     if vectorizer_type == "bm25":
         return BM25Vectorizer(
@@ -657,7 +671,7 @@ def get_vectorizer(
             **kwargs
         )
     elif vectorizer_type == "weighted":
-        return WeightedTfidfVectorizer(
+        return WeightedTfIdfVectorizer(
             max_features=max_features,
             min_df=min_df,
             max_df=max_df,
@@ -672,23 +686,3 @@ def get_vectorizer(
             stop_words="english",
             **kwargs
         )
-
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s: %(message)s",
-    handlers=[logging.FileHandler("app.log"), logging.StreamHandler()],
-)
-
-# Disable SSL warnings
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# Global headers for all requests
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-    "Accept-Language": "en-US,en;q=0.5",
-    "Connection": "keep-alive",
-    "Referer": "https://judiciary.uk/",
-}
