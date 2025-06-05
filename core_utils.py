@@ -5,6 +5,10 @@ from datetime import datetime
 from typing import Dict
 import pandas as pd
 import nltk # type: ignore
+from typing import Union
+import urllib3
+
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
@@ -633,3 +637,58 @@ def validate_data(df: pd.DataFrame) -> Dict[str, any]:
         validation_results["is_valid"] = False
         logging.error(f"Data validation error: {e}")
         return validation_results
+
+
+def get_vectorizer(
+    vectorizer_type: str, max_features: int, min_df: float, max_df: float, **kwargs
+) -> Union[TfidfVectorizer, any, any]:  # Using 'any' to avoid circular import in type hints
+    """
+    Get vectorizer instance based on type and parameters.
+    Uses lazy imports to avoid circular dependencies.
+    """
+    # Lazy imports to avoid circular dependency
+    from vectorizer_models import BM25Vectorizer, WeightedTfidfVectorizer
+    
+    if vectorizer_type == "bm25":
+        return BM25Vectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=max_df,
+            **kwargs
+        )
+    elif vectorizer_type == "weighted":
+        return WeightedTfidfVectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=max_df,
+            **kwargs
+        )
+    else:  # Default to TfidfVectorizer
+        return TfidfVectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=max_df,
+            ngram_range=(1, 2),
+            stop_words="english",
+            **kwargs
+        )
+
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s: %(message)s",
+    handlers=[logging.FileHandler("app.log"), logging.StreamHandler()],
+)
+
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Global headers for all requests
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.5",
+    "Connection": "keep-alive",
+    "Referer": "https://judiciary.uk/",
+}

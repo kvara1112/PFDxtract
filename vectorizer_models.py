@@ -1,8 +1,10 @@
+import re
 import logging
-import numpy as np
 import pandas as pd
+import numpy as np
 import scipy.sparse as sp
-from typing import Dict, List, Optional, Tuple, Union
+import streamlit as st
+from typing import Dict, List, Tuple, Optional
 from collections import Counter, defaultdict
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
@@ -18,13 +20,14 @@ from sklearn.metrics import (
 import nltk
 from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
-import streamlit as st
 
 # Import our core utilities
 from core_utils import (
     clean_text_for_modeling,
     initialize_nltk,
-    perform_advanced_keyword_search
+    perform_advanced_keyword_search,
+    process_scraped_data,
+    filter_by_categories
 )
 
 class WeightedTfIdfVectorizer(BaseEstimator, TransformerMixin):
@@ -264,6 +267,107 @@ def create_vectorizer(vectorizer_type="tfidf", **params):
         raise ValueError(f"Unknown vectorizer type: {vectorizer_type}")
 
 
+def find_optimal_clusters(
+    tfidf_matrix: sp.csr_matrix,
+    min_clusters: int = 2,
+    max_clusters: int = 10,
+    min_cluster_size: int = 3,
+) -> Tuple[int, np.ndarray]:
+    """Find optimal number of clusters with relaxed constraints"""
+
+    best_score = -1
+    best_n_clusters = min_clusters
+    best_labels = None
+
+    # Store metrics for each clustering attempt
+    metrics = []
+
+    # Try different numbers of clusters
+    for n_clusters in range(min_clusters, max_clusters + 1):
+        try:
+            # Perform clustering
+            clustering = AgglomerativeClustering(
+                n_clusters=n_clusters, metric="euclidean", linkage="ward"
+            )
+
+            labels = clustering.fit_predict(tfidf_matrix.toarray())
+
+            # Calculate cluster sizes
+            cluster_sizes = np.bincount(labels)
+
+            # Skip if any cluster is too small
+            if min(cluster_sizes) < min_cluster_size:
+                continue
+
+            # Calculate balance ratio (smaller is better)
+            balance_ratio = max(cluster_sizes) / min(cluster_sizes)
+
+            # Skip only if clusters are extremely imbalanced
+            if balance_ratio > 10:  # Relaxed from 5 to 10
+                continue
+
+            # Calculate clustering metrics
+            sil_score = silhouette_score(
+                tfidf_matrix.toarray(), labels, metric="euclidean"
+            )
+
+            # Simplified scoring focused on silhouette and basic balance
+            combined_score = sil_score * (
+                1 - (balance_ratio / 20)
+            )  # Relaxed balance penalty
+
+            metrics.append(
+                {
+                    "n_clusters": n_clusters,
+                    "silhouette": sil_score,
+                    "balance_ratio": balance_ratio,
+                    "combined_score": combined_score,
+                    "labels": labels,
+                }
+            )
+
+        except Exception as e:
+            logging.warning(f"Error trying {n_clusters} clusters: {str(e)}")
+            continue
+
+    # If no configurations met the strict criteria, try to find the best available
+    if not metrics:
+        # Try again with minimal constraints
+        for n_clusters in range(min_clusters, max_clusters + 1):
+            try:
+                clustering = AgglomerativeClustering(
+                    n_clusters=n_clusters, metric="euclidean", linkage="ward"
+                )
+
+                labels = clustering.fit_predict(tfidf_matrix.toarray())
+                sil_score = silhouette_score(
+                    tfidf_matrix.toarray(), labels, metric="euclidean"
+                )
+
+                if sil_score > best_score:
+                    best_score = sil_score
+                    best_n_clusters = n_clusters
+                    best_labels = labels
+
+            except Exception as e:
+                continue
+
+        if best_labels is None:
+            # If still no valid configuration, use minimum number of clusters
+            clustering = AgglomerativeClustering(
+                n_clusters=min_clusters, metric="euclidean", linkage="ward"
+            )
+            best_labels = clustering.fit_predict(tfidf_matrix.toarray())
+            best_n_clusters = min_clusters
+    else:
+        # Use the best configuration from metrics
+        best_metric = max(metrics, key=lambda x: x["combined_score"])
+        best_n_clusters = best_metric["n_clusters"]
+        best_labels = best_metric["labels"]
+
+    return best_n_clusters, best_labels
+
+
 def perform_semantic_clustering(
     data: pd.DataFrame,
     min_cluster_size: int = 3,
@@ -460,6 +564,7 @@ def perform_semantic_clustering(
         raise
 
 
+
 def generate_cluster_summary(documents: List[str], top_terms: List[str], max_length: int = 200) -> str:
     """Generate a natural language summary for a cluster"""
     try:
@@ -625,6 +730,142 @@ def optimize_cluster_parameters(
     except Exception as e:
         logging.error(f"Error in parameter optimization: {e}")
         return {"error": f"Parameter optimization failed: {str(e)}"}
+
+
+def generate_abstractive_summary(terms, documents):
+    """Generate a natural language summary from cluster terms and documents"""
+    try:
+        if not terms:
+            return "No significant terms found for this cluster."
+        
+        # Extract top term names
+        if isinstance(terms[0], dict):
+            top_terms = [term["term"] for term in terms[:5]]
+        else:
+            top_terms = terms[:5]
+        
+        # Create a basic summary
+        if len(top_terms) >= 3:
+            summary = f"This cluster focuses on {', '.join(top_terms[:-1])} and {top_terms[-1]}."
+        elif len(top_terms) == 2:
+            summary = f"This cluster focuses on {top_terms[0]} and {top_terms[1]}."
+        elif len(top_terms) == 1:
+            summary = f"This cluster focuses on {top_terms[0]}."
+        else:
+            summary = "This cluster contains miscellaneous documents."
+        
+        # Add document count information
+        doc_count = len(documents)
+        if doc_count > 10:
+            summary += f" This is a major theme appearing in {doc_count} documents."
+        elif doc_count > 5:
+            summary += f" This theme appears in {doc_count} documents."
+        else:
+            summary += f" This is a smaller theme with {doc_count} documents."
+        
+        return summary
+        
+    except Exception as e:
+        logging.error(f"Error generating abstractive summary: {e}")
+        return f"Cluster containing {len(documents) if documents else 0} documents."
+
+
+def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> None:
+    """Render cluster summaries and records with flexible column handling"""
+    if not cluster_results or "clusters" not in cluster_results:
+        st.warning("No cluster results available.")
+        return
+
+    st.write(
+        f"Found {cluster_results['total_documents']} total documents in {cluster_results['n_clusters']} clusters"
+    )
+
+    for cluster in cluster_results["clusters"]:
+        st.markdown(f"### Cluster {cluster['id']+1} ({cluster['size']} documents)")
+
+        # Overview
+        st.markdown("#### Overview")
+        abstractive_summary = generate_abstractive_summary(
+            cluster["terms"], cluster["documents"]
+        )
+        st.write(abstractive_summary)
+
+        # Key terms table
+        st.markdown("#### Key Terms")
+        terms_df = pd.DataFrame(
+            [
+                {
+                    "Term": term["term"],
+                    "Frequency": f"{term['cluster_frequency']*100:.0f}%",
+                }
+                for term in cluster["terms"][:10]
+            ]
+        )
+        st.dataframe(terms_df, hide_index=True)
+
+        # Records
+        st.markdown("#### Records")
+        st.success(f"Showing {len(cluster['documents'])} matching documents")
+
+        # Get the full records from original data
+        doc_titles = [doc.get("title", "") for doc in cluster["documents"]]
+        cluster_docs = original_data[original_data["Title"].isin(doc_titles)].copy()
+
+        # Sort to match the original order
+        title_to_position = {title: i for i, title in enumerate(doc_titles)}
+        cluster_docs["sort_order"] = cluster_docs["Title"].map(title_to_position)
+        cluster_docs = cluster_docs.sort_values("sort_order").drop("sort_order", axis=1)
+
+        # Determine available columns
+        available_columns = []
+        column_config = {}
+
+        # Always include URL and Title if available
+        if "URL" in cluster_docs.columns:
+            available_columns.append("URL")
+            column_config["URL"] = st.column_config.LinkColumn("Report Link")
+
+        if "Title" in cluster_docs.columns:
+            available_columns.append("Title")
+            column_config["Title"] = st.column_config.TextColumn("Title")
+
+        # Add date if available
+        if "date_of_report" in cluster_docs.columns:
+            available_columns.append("date_of_report")
+            column_config["date_of_report"] = st.column_config.DateColumn(
+                "Date of Report", format="DD/MM/YYYY"
+            )
+
+        # Add optional columns if available
+        optional_columns = [
+            "ref",
+            "deceased_name",
+            "coroner_name",
+            "coroner_area",
+            "categories",
+        ]
+        for col in optional_columns:
+            if col in cluster_docs.columns:
+                available_columns.append(col)
+                if col == "categories":
+                    column_config[col] = st.column_config.ListColumn("Categories")
+                else:
+                    column_config[col] = st.column_config.TextColumn(
+                        col.replace("_", " ").title()
+                    )
+
+        # Display the dataframe with available columns
+        if available_columns:
+            st.dataframe(
+                cluster_docs[available_columns],
+                column_config=column_config,
+                hide_index=True,
+                use_container_width=True,
+            )
+        else:
+            st.warning("No displayable columns found in the data")
+
+        st.markdown("---")
 
 
 def render_topic_summary_tab(data: pd.DataFrame = None) -> None:
