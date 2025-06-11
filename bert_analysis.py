@@ -41,7 +41,8 @@ class BERTResultsAnalyzer:
     def render_analyzer_ui(self):
         """Render the file merger UI."""
         st.subheader("Scraped File Merger")
-        st.markdown("""
+        st.markdown(
+            """
             This tool merges multiple scraped files into a single dataset. It prepares the data for steps (3) - (5).
             
             - Run this step even if you only have one scraped file. This step extracts the year and applies other processing as described in the bullets below. 
@@ -52,7 +53,8 @@ class BERTResultsAnalyzer:
             - Export full or reduced datasets with essential columns
             
             Use the options below to control how your files will be processed.
-        """)
+            """
+        )
 
         # File upload section
         self._render_multiple_file_upload()

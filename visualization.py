@@ -612,6 +612,38 @@ def render_framework_heatmap(filtered_df, top_n_themes=5):
                     yshift=-12
                 )
     
+    # Set y-axis ordering and color-coding
+    fig.update_layout(
+        yaxis=dict(
+            tickmode='array',
+            tickvals=list(range(len(theme_display_df))),
+            ticktext=theme_display_df['clean_name'],
+            tickfont=dict(
+                size=11,
+                color='black'
+            ),
+        )
+    )
+    
+    # Add colored framework indicators
+    for framework, color in framework_colors.items():
+        # Count themes for this framework
+        framework_theme_count = theme_display_df[theme_display_df['framework'] == framework].shape[0]
+        
+        if framework_theme_count > 0:
+            # Add a shape for the framework indicator
+            fig.add_shape(
+                type="rect",
+                x0=-1,  # Slightly to the left of the y-axis
+                x1=-0.5,
+                y0=len(theme_display_df) - theme_display_df[theme_display_df['framework'] == framework].index[0] - framework_theme_count,
+                y1=len(theme_display_df) - theme_display_df[theme_display_df['framework'] == framework].index[0],
+                fillcolor=color,
+                opacity=0.6,
+                layer="below",
+                line=dict(width=0)
+            )
+    
     # Add framework legend
     for i, (framework, color) in enumerate(framework_colors.items()):
         fig.add_trace(go.Scatter(
@@ -640,7 +672,6 @@ def render_framework_heatmap(filtered_df, top_n_themes=5):
     )
     
     return fig
-
 
 def create_lda_visualization(lda_model, vectorizer, documents):
     """Create interactive LDA visualization using pyLDAvis"""

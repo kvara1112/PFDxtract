@@ -244,42 +244,75 @@ def extract_metadata(content: str) -> dict:
         return metadata
 
 def process_scraped_data(df: pd.DataFrame) -> pd.DataFrame:
-    """Process and clean scraped data with metadata and concern extraction."""
+    """Process and clean scraped data with metadata extraction and concern extraction"""
     try:
         if df is None or len(df) == 0:
             return pd.DataFrame()
-        df_copy = df.copy()
-        if "Content" in df_copy.columns:
+
+        # Create a copy
+        df = df.copy()
+
+        # Extract metadata from Content field if it exists
+        if "Content" in df.columns:
+            # Process each row
             processed_rows = []
-            for _, row in df_copy.iterrows():
+            for _, row in df.iterrows():
+                # Start with original row data
                 processed_row = row.to_dict()
+
+                # Extract metadata using existing function
                 content = str(row.get("Content", ""))
-                metadata_extracted = extract_metadata(content)
+                metadata = extract_metadata(content)
+
+                # Extract concerns text
                 processed_row["Extracted_Concerns"] = extract_concern_text(content)
-                processed_row.update(metadata_extracted)
+
+                # Update row with metadata
+                processed_row.update(metadata)
                 processed_rows.append(processed_row)
+
+            # Create new DataFrame from processed rows
             result = pd.DataFrame(processed_rows)
         else:
-            result = df_copy.copy()
+            result = df.copy()
 
+        # Convert date_of_report to datetime with UK format handling
         if "date_of_report" in result.columns:
+
             def parse_date(date_str):
-                if pd.isna(date_str): return pd.NaT
+                if pd.isna(date_str):
+                    return pd.NaT
+
                 date_str = str(date_str).strip()
+
+                # If already in DD/MM/YYYY format
                 if re.match(r"\d{1,2}/\d{1,2}/\d{4}", date_str):
-                    return pd.to_datetime(date_str, format="%d/%m/%Y", errors='coerce')
+                    return pd.to_datetime(date_str, format="%d/%m/%Y")
+
+                # Remove ordinal indicators
                 date_str = re.sub(r"(\d)(st|nd|rd|th)", r"\1", date_str)
+
+                # Try different formats
                 formats = ["%Y-%m-%d", "%d-%m-%Y", "%d %B %Y", "%d %b %Y"]
+
                 for fmt in formats:
-                    try: return pd.to_datetime(date_str, format=fmt)
-                    except ValueError: continue
-                try: return pd.to_datetime(date_str, errors='coerce')
-                except: return pd.NaT
+                    try:
+                        return pd.to_datetime(date_str, format=fmt)
+                    except ValueError:
+                        continue
+
+                try:
+                    return pd.to_datetime(date_str)
+                except:
+                    return pd.NaT
+
             result["date_of_report"] = result["date_of_report"].apply(parse_date)
+
         return result
+
     except Exception as e:
         logging.error(f"Error in process_scraped_data: {e}")
-        return df # Return original on error
+        return df
 
 def is_response_document(row: pd.Series) -> bool:
     """Check if a document is a response based on its metadata and content."""
