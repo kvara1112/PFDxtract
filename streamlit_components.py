@@ -164,29 +164,50 @@ def initialize_session_state2():
             logging.error(f"Error during PDF cleanup: {e}")
         finally:
             st.session_state.cleanup_done = True
+            
 def check_app_password():
-    """Check if user has entered correct password"""
-    # Get password from environment variable or use default
-    correct_password = os.environ.get('STREAMLIT_PASSWORD', 'amazing2')
+    """Check if user has entered the correct password to access the app"""
+    # Initialize session state for authentication
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
     
-    # Check if already authenticated
-    if st.session_state.get('authenticated', False):
+    # If already authenticated, continue
+    if st.session_state.authenticated:
         return True
     
-    # Show password input
-    st.title("🔒 Access Required")
-    st.markdown("Please enter the password to access the PFD Analysis Tool.")
+    # Otherwise show login screen
+    st.title("UK Judiciary PFD Reports Analysis")
+    st.markdown("### Authentication Required")
+    st.markdown("Please enter the password to access the application.")
+
+    correct_password = "amazing2"
+    # Password input as a form to accept enter key - Jamie L
+    with st.form("login_form"):
+        password = st.text_input("Password", type="password")
+        if st.form_submit_button("Login"):
+            if password == correct_password:
+                st.session_state.authenticated = True
+                st.success("Login successful!")
+                st.rerun()
+                return True
+            else:
+                st.error("Incorrect password. Please try again.")
+                return False
     
-    password = st.text_input("Password", type="password", key="password_input")
-    
-    if st.button("Login", key="login_button"):
-        if password == correct_password:
-            st.session_state.authenticated = True
-            st.success("✅ Access granted! Redirecting...")
-            time.sleep(1)
-            st.rerun()
-        else:
-            st.error("❌ Incorrect password. Please try again.")
+    # Old code for password input - Jamie L
+    # # Submit button
+    # if st.button("Login"):
+    #     # Get correct password from secrets.toml
+    #     correct_password = "amazing2"
+        
+    #     if password == correct_password:
+    #         st.session_state.authenticated = True
+    #         st.success("Login successful!")
+    #         st.rerun()
+    #         return True
+    #     else:
+    #         st.error("Incorrect password. Please try again.")
+    #         return False
     
     return False
 
