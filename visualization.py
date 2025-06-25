@@ -777,3 +777,83 @@ def plot_themes_by_year(df: pd.DataFrame) -> None:
     )
     
     st.plotly_chart(fig, use_container_width=True) 
+
+
+def improved_truncate_text(text, max_length=30):
+    """
+    Improved function to handle long text for chart display by breaking into lines
+    instead of simple truncation with ellipses
+    
+    Args:
+        text: String to format
+        max_length: Maximum length per line
+        
+    Returns:
+        Text with line breaks inserted at appropriate word boundaries
+    """
+    if not text or len(text) <= max_length:
+        return text
+    
+    # For theme names with ":" in them (framework:theme format)
+    if ":" in text:
+        parts = text.split(":", 1)
+        framework = parts[0].strip()
+        theme = parts[1].strip()
+        
+        # For theme part, break it into lines rather than truncate
+        if len(theme) > max_length - len(framework) - 2:  # -2 for ": "
+            # Process the theme part with word-aware line breaking
+            words = theme.split()
+            processed_theme = []
+            current_line = []
+            current_length = 0
+            
+            for word in words:
+                # If adding this word keeps us under the limit
+                if current_length + len(word) + (1 if current_line else 0) <= max_length - len(framework) - 2:
+                    current_line.append(word)
+                    current_length += len(word) + (1 if current_line else 0)
+                else:
+                    # Line is full, start a new one
+                    processed_theme.append(" ".join(current_line))
+                    current_line = [word]
+                    current_length = len(word)
+            
+            # Add the final line if any
+            if current_line:
+                processed_theme.append(" ".join(current_line))
+            
+            # If we have more than 2 lines, keep first 2 and add ellipsis
+            if len(processed_theme) > 2:
+                return f"{framework}: {processed_theme[0]}<br>{processed_theme[1]}..."
+            else:
+                # Join with line breaks
+                return f"{framework}: {('<br>').join(processed_theme)}"
+        
+        return f"{framework}: {theme}"
+    
+    # For normal long strings, add line breaks at word boundaries
+    words = text.split()
+    lines = []
+    current_line = []
+    current_length = 0
+    
+    for word in words:
+        if current_length + len(word) + (1 if current_line else 0) <= max_length:
+            current_line.append(word)
+            current_length += len(word) + (1 if current_line else 0)
+        else:
+            lines.append(" ".join(current_line))
+            current_line = [word]
+            current_length = len(word)
+    
+    if current_line:
+        lines.append(" ".join(current_line))
+    
+    # If we have more than 2 lines, keep first 2 and add ellipsis
+    if len(lines) > 2:
+        return f"{lines[0]}<br>{lines[1]}..."
+    
+    # For plotly charts, use <br> for line breaks
+    return "<br>".join(lines)
+  
