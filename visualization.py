@@ -285,6 +285,7 @@ def analyze_data_quality(df: pd.DataFrame) -> None:
 
 def display_topic_network(lda, feature_names):
     """Display word similarity network with interactive filters"""
+    # st.markdown("### Word Similarity Network")
     st.markdown(
         "This network shows relationships between words based on their co-occurrence in documents."
     )

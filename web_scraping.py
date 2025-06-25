@@ -10,9 +10,22 @@ import pdfplumber
 from pathlib import Path
 from datetime import datetime, timedelta
 from bs4 import BeautifulSoup
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 import streamlit as st
 import pandas as pd
+import logging  
+import os
+import re
+import time
+import urllib3
+import requests
+import zipfile
+
+from core_utils import (
+    clean_text, 
+    extract_metadata, 
+    process_scraped_data
+)
 
 # Global headers for all requests
 HEADERS = {
@@ -23,8 +36,7 @@ HEADERS = {
     "Referer": "https://judiciary.uk/",
 }
 
-# Import our core utilities
-from core_utils import clean_text, extract_metadata, process_scraped_data
+
 
 # Disable SSL warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -542,6 +554,7 @@ def make_request(
     return None
 
 
+
 def save_batch_results(reports: List[Dict], batch_num: int, keyword: str = "") -> str:
     """
     Save batch of reports to file
@@ -891,3 +904,56 @@ def sort_reports(reports: List[Dict], order: str) -> List[Dict]:
     elif order == "date_asc":
         return sorted(reports, key=lambda x: datetime.strptime(x["date"], "%Y-%m-%d"))
     return reports
+
+def save_batch(
+    reports: List[Dict], 
+    batch_number: int, 
+    keyword: Optional[str], 
+    category: Optional[str], 
+    start_page: int, 
+    end_page: Union[int, str]
+) -> str:
+    """
+    Save a batch of reports to Excel file with appropriate naming
+    
+    Args:
+        reports: List of report dictionaries to save
+        batch_number: Current batch number
+        keyword: Search keyword used (for filename)
+        category: Category used (for filename)
+        start_page: Starting page of this batch
+        end_page: Ending page of this batch (or "error" if saving due to error)
+        
+    Returns:
+        Filename of the saved file
+    """
+    if not reports:
+        return ""
+    
+    # Process the data
+    df = pd.DataFrame(reports)
+    df = process_scraped_data(df)
+    
+    # Create timestamp for filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Create descriptive filename parts
+    keyword_part = f"kw_{keyword.replace(' ', '_')}" if keyword else "no_keyword"
+    category_part = f"cat_{category.replace(' ', '_')}" if category else "no_category"
+    page_part = f"pages_{start_page}_to_{end_page}"
+    
+    # Generate filename
+    filename = f"pfd_reports_scraped_batch{batch_number}_{keyword_part}_{category_part}_{page_part}_{timestamp}.xlsx"
+    
+    # Ensure filename is valid (remove any problematic characters)
+    filename = re.sub(r'[\\/*?:"<>|]', "", filename)
+    
+    # Create directory if it doesn't exist
+    os.makedirs("scraped_reports", exist_ok=True)
+    file_path = os.path.join("scraped_reports", filename)
+    
+    # Save to Excel
+    df.to_excel(file_path, index=False, engine="openpyxl")
+    
+    logging.info(f"Saved batch {batch_number} to {file_path}")
+    return filename

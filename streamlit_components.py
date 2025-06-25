@@ -11,12 +11,14 @@ from datetime import datetime
 from typing import Dict, List, Optional
 from openpyxl.utils import get_column_letter
 import pytz
+import plotly.express as px
+from sklearn.decomposition import LatentDirichletAllocation
 
 # Import our modules
 from core_utils import (
     process_scraped_data, 
-    validate_data, 
-    export_to_excel,
+    clean_text_for_modeling, 
+    export_topic_results,
     filter_by_categories,
     filter_by_areas,
     filter_by_coroner_names,
@@ -31,7 +33,7 @@ from web_scraping import (
     construct_search_url,
     estimate_scraping_time
 )
-from vectorizer_models import render_topic_summary_tab
+from vectorizer_models import get_vectorizer
 from bert_analysis import BERTResultsAnalyzer, ThemeAnalyzer
 from visualization import (
     plot_category_distribution,
@@ -39,9 +41,14 @@ from visualization import (
     plot_timeline,
     plot_monthly_distribution,
     plot_yearly_comparison,
-    analyze_data_quality,
+    display_topic_network,
     render_framework_heatmap
 )
+from file_prep import ( 
+    render_filter_data_tab,
+    show_export_options
+)
+
 
 # Add this to your initialize_session_state function
 def initialize_session_state():
@@ -595,10 +602,21 @@ def render_scraping_tab():
             logging.error(f"Scraping error: {e}")
             return False
 
+
 def render_bert_file_merger():
-    """Render the BERT file merger interface"""
+    """Render the BERT file merger tab in the Streamlit app with custom initialization."""
+    # Create an instance of the analyzer
     analyzer = BERTResultsAnalyzer()
-    analyzer.render_analyzer_ui()
+    
+    # Add tabs for Merger and Filter functionality
+    merger_tab, filter_tab = st.tabs(["Merge & Process Files", "Filter & Explore Data"])
+    
+    with merger_tab:
+        # Skip the standard render_analyzer_ui and call the file upload directly
+        analyzer._render_multiple_file_upload()
+    
+    with filter_tab:
+        render_filter_data_tab()
 
 def render_bert_analysis_tab(data: pd.DataFrame = None):
     """Render the BERT analysis interface"""

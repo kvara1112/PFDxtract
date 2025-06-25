@@ -24,7 +24,7 @@ from nltk.corpus import stopwords
 
 # Import vectorizer utilities from separate module
 from vectorizer_utils import (
-    WeightedTfIdfVectorizer,
+    WeightedTfidfVectorizer,
     BM25Vectorizer,
     get_vectorizer,
     create_vectorizer

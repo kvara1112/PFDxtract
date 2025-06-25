@@ -1,114 +1,83 @@
 import numpy as np
 import scipy.sparse as sp
-from typing import Union
+from typing import Union, List, Optional
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.preprocessing import normalize
 
 
-class WeightedTfIdfVectorizer(BaseEstimator, TransformerMixin):
-    """Enhanced TF-IDF vectorizer with configurable weighting schemes"""
+class WeightedTfidfVectorizer(BaseEstimator, TransformerMixin):
+    """TF-IDF vectorizer with configurable weighting schemes"""
 
     def __init__(
         self,
-        max_features=5000,
-        min_df=2,
-        max_df=0.95,
-        tf_scheme="raw",
-        idf_scheme="smooth",
-        ngram_range=(1, 2),
-        stop_words="english",
+        tf_scheme: str = "raw",
+        idf_scheme: str = "smooth",
+        norm: Optional[str] = "l2",
+        max_features: Optional[int] = None,
+        min_df: Union[int, float] = 1,
+        max_df: Union[int, float] = 1.0,
     ):
+        self.tf_scheme = tf_scheme
+        self.idf_scheme = idf_scheme
+        self.norm = norm
         self.max_features = max_features
         self.min_df = min_df
         self.max_df = max_df
-        self.tf_scheme = tf_scheme
-        self.idf_scheme = idf_scheme
-        self.ngram_range = ngram_range
-        self.stop_words = stop_words
-        self.feature_names_ = None
-        self.vocabulary_ = None
-        self.idf_ = None
 
-    def _compute_tf(self, X_count):
-        """Compute term frequency with different schemes"""
+        self.count_vectorizer = CountVectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=max_df,
+            stop_words="english",
+        )
+
+    def _compute_tf(self, X: sp.csr_matrix) -> sp.csr_matrix:
         if self.tf_scheme == "raw":
-            return X_count.astype(float)
+            return X
         elif self.tf_scheme == "log":
-            return np.log1p(X_count.astype(float))
+            X.data = np.log1p(X.data)
         elif self.tf_scheme == "binary":
-            return (X_count > 0).astype(float)
+            X.data = np.ones_like(X.data)
         elif self.tf_scheme == "augmented":
-            # Augmented frequency: 0.5 + 0.5 * (tf / max_tf_in_doc)
-            max_tf = np.array(X_count.max(axis=1)).flatten()
-            max_tf[max_tf == 0] = 1  # Avoid division by zero
-            return 0.5 + 0.5 * X_count.multiply(1.0 / max_tf[:, np.newaxis])
-        else:
-            raise ValueError(f"Unknown tf_scheme: {self.tf_scheme}")
+            max_tf = X.max(axis=1).toarray().flatten()
+            max_tf[max_tf == 0] = 1
+            for i in range(X.shape[0]):
+                start = X.indptr[i]
+                end = X.indptr[i + 1]
+                X.data[start:end] = 0.5 + 0.5 * (X.data[start:end] / max_tf[i])
+        return X
 
-    def _compute_idf(self, X_count):
-        """Compute inverse document frequency with different schemes"""
-        n_docs = X_count.shape[0]
-        df = np.array((X_count > 0).sum(axis=0)).flatten()
+    def _compute_idf(self, X: sp.csr_matrix) -> np.ndarray:
+        n_samples = X.shape[0]
+        df = np.bincount(X.indices, minlength=X.shape[1])
+        df = np.maximum(df, 1)
 
         if self.idf_scheme == "smooth":
-            idf = np.log(n_docs / (1 + df)) + 1
+            return np.log((n_samples + 1) / (df + 1)) + 1
         elif self.idf_scheme == "standard":
-            idf = np.log(n_docs / df)
+            return np.log(n_samples / df) + 1
         elif self.idf_scheme == "probabilistic":
-            idf = np.log((n_docs - df) / df)
-        else:
-            raise ValueError(f"Unknown idf_scheme: {self.idf_scheme}")
+            return np.log((n_samples - df) / df)
 
-        return idf
-
-    def fit(self, documents):
-        """Fit the vectorizer to documents"""
-        # Use CountVectorizer to get basic counts
-        count_vectorizer = CountVectorizer(
-            max_features=self.max_features,
-            min_df=self.min_df,
-            max_df=self.max_df,
-            ngram_range=self.ngram_range,
-            stop_words=self.stop_words,
-        )
-
-        X_count = count_vectorizer.fit_transform(documents)
-        self.vocabulary_ = count_vectorizer.vocabulary_
-        self.feature_names_ = count_vectorizer.get_feature_names_out()
-
-        # Compute IDF
-        self.idf_ = self._compute_idf(X_count)
-
+    def fit(self, raw_documents: List[str], y=None):
+        X = self.count_vectorizer.fit_transform(raw_documents)
+        self.idf_ = self._compute_idf(X)
         return self
 
-    def transform(self, documents):
-        """Transform documents using weighted TF-IDF"""
-        if self.vocabulary_ is None:
-            raise ValueError("Vectorizer has not been fitted yet")
+    def transform(self, raw_documents: List[str]) -> sp.csr_matrix:
+        X = self.count_vectorizer.transform(raw_documents)
+        X = self._compute_tf(X)
+        X = X.multiply(self.idf_)
 
-        # Get term counts using the fitted vocabulary
-        count_vectorizer = CountVectorizer(
-            vocabulary=self.vocabulary_,
-            ngram_range=self.ngram_range,
-            stop_words=self.stop_words,
-        )
-        X_count = count_vectorizer.transform(documents)
+        if self.norm:
+            X = normalize(X, norm=self.norm, copy=False)
 
-        # Compute TF
-        X_tf = self._compute_tf(X_count)
-
-        # Apply IDF
-        X_tfidf = X_tf.multiply(self.idf_)
-
-        return X_tfidf
-
-    def fit_transform(self, documents):
-        """Fit and transform documents"""
-        return self.fit(documents).transform(documents)
+        return X
 
     def get_feature_names_out(self):
-        """Get feature names"""
-        return self.feature_names_
+        return self.count_vectorizer.get_feature_names_out()
+
 
 
 class BM25Vectorizer(BaseEstimator, TransformerMixin):
@@ -116,98 +85,64 @@ class BM25Vectorizer(BaseEstimator, TransformerMixin):
 
     def __init__(
         self,
-        max_features=5000,
-        min_df=2,
-        max_df=0.95,
-        k1=1.5,
-        b=0.75,
-        ngram_range=(1, 2),
-        stop_words="english",
+        k1: float = 1.5,
+        b: float = 0.75,
+        max_features: Optional[int] = None,
+        min_df: Union[int, float] = 1,
+        max_df: Union[int, float] = 1.0,
     ):
+        self.k1 = k1
+        self.b = b
         self.max_features = max_features
         self.min_df = min_df
         self.max_df = max_df
-        self.k1 = k1
-        self.b = b
-        self.ngram_range = ngram_range
-        self.stop_words = stop_words
-        self.vocabulary_ = None
-        self.feature_names_ = None
-        self.idf_ = None
-        self.avgdl_ = None
 
-    def fit(self, documents):
-        """Fit the BM25 vectorizer"""
-        # Use CountVectorizer to get basic counts and vocabulary
-        count_vectorizer = CountVectorizer(
-            max_features=self.max_features,
-            min_df=self.min_df,
-            max_df=self.max_df,
-            ngram_range=self.ngram_range,
-            stop_words=self.stop_words,
+        self.count_vectorizer = CountVectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=max_df,
+            stop_words="english",
         )
 
-        X_count = count_vectorizer.fit_transform(documents)
-        self.vocabulary_ = count_vectorizer.vocabulary_
-        self.feature_names_ = count_vectorizer.get_feature_names_out()
+    def fit(self, raw_documents: List[str], y=None):
+        X = self.count_vectorizer.fit_transform(raw_documents)
 
-        # Calculate document frequencies for IDF
-        n_docs = X_count.shape[0]
-        df = np.array((X_count > 0).sum(axis=0)).flatten()
-        self.idf_ = np.log((n_docs - df + 0.5) / (df + 0.5))
+        # Calculate document lengths
+        self.doc_lengths = np.array(X.sum(axis=1)).flatten()
+        self.avg_doc_length = np.mean(self.doc_lengths)
 
-        # Calculate average document length
-        doc_lengths = np.array(X_count.sum(axis=1)).flatten()
-        self.avgdl_ = np.mean(doc_lengths)
+        # Calculate IDF scores
+        n_samples = X.shape[0]
+        df = np.bincount(X.indices, minlength=X.shape[1])
+        df = np.maximum(df, 1)
+        self.idf = np.log((n_samples - df + 0.5) / (df + 0.5) + 1.0)
 
         return self
 
-    def transform(self, documents):
-        """Transform documents using BM25"""
-        if self.vocabulary_ is None:
-            raise ValueError("Vectorizer has not been fitted yet")
+    def transform(self, raw_documents: List[str]) -> sp.csr_matrix:
+        X = self.count_vectorizer.transform(raw_documents)
+        doc_lengths = np.array(X.sum(axis=1)).flatten()
 
-        # Get term counts
-        count_vectorizer = CountVectorizer(
-            vocabulary=self.vocabulary_,
-            ngram_range=self.ngram_range,
-            stop_words=self.stop_words,
-        )
-        X_count = count_vectorizer.transform(documents)
+        X = sp.csr_matrix(X)
 
-        # Compute document lengths for new documents
-        doc_len = np.array(X_count.sum(axis=1)).flatten()
+        # Calculate BM25 scores
+        for i in range(X.shape[0]):
+            start_idx = X.indptr[i]
+            end_idx = X.indptr[i + 1]
 
-        # Convert to dense for easier computation
-        X_count_dense = X_count.toarray()
-        n_docs, n_features = X_count_dense.shape
+            freqs = X.data[start_idx:end_idx]
+            length_norm = 1 - self.b + self.b * doc_lengths[i] / self.avg_doc_length
 
-        # BM25 calculation
-        bm25_matrix = np.zeros((n_docs, n_features))
+            # BM25 formula
+            X.data[start_idx:end_idx] = (
+                ((self.k1 + 1) * freqs) / (self.k1 * length_norm + freqs)
+            ) * self.idf[X.indices[start_idx:end_idx]]
 
-        for i in range(n_docs):
-            for j in range(n_features):
-                tf = X_count_dense[i, j]
-                if tf > 0:
-                    # BM25 score calculation
-                    score = (
-                        self.idf_[j]
-                        * tf
-                        * (self.k1 + 1)
-                        / (tf + self.k1 * (1 - self.b + self.b * doc_len[i] / self.avgdl_))
-                    )
-                    bm25_matrix[i, j] = score
-
-        return sp.csr_matrix(bm25_matrix)
-
-    def fit_transform(self, documents):
-        """Fit and transform documents"""
-        return self.fit(documents).transform(documents)
+        return X
 
     def get_feature_names_out(self):
-        """Get feature names"""
-        return self.feature_names_
-
+        return self.count_vectorizer.get_feature_names_out()
+    
 
 def create_vectorizer(vectorizer_type="tfidf", **params):
     """Create a vectorizer instance based on type and parameters"""
@@ -220,7 +155,7 @@ def create_vectorizer(vectorizer_type="tfidf", **params):
             stop_words=params.get("stop_words", "english"),
         )
     elif vectorizer_type == "weighted":
-        return WeightedTfIdfVectorizer(
+        return WeightedTfidfVectorizer(
             max_features=params.get("max_features", 5000),
             min_df=params.get("min_df", 2),
             max_df=params.get("max_df", 0.95),
@@ -245,31 +180,32 @@ def create_vectorizer(vectorizer_type="tfidf", **params):
 
 def get_vectorizer(
     vectorizer_type: str, max_features: int, min_df: float, max_df: float, **kwargs
-) -> Union[TfidfVectorizer, WeightedTfIdfVectorizer, BM25Vectorizer]:
-    """
-    Get vectorizer instance based on type and parameters.
-    """
-    
-    if vectorizer_type == "bm25":
-        return BM25Vectorizer(
-            max_features=max_features,
-            min_df=min_df,
-            max_df=max_df,
-            **kwargs
-        )
-    elif vectorizer_type == "weighted":
-        return WeightedTfIdfVectorizer(
-            max_features=max_features,
-            min_df=min_df,
-            max_df=max_df,
-            **kwargs
-        )
-    else:  # Default to TfidfVectorizer
+) -> Union[TfidfVectorizer, BM25Vectorizer, WeightedTfidfVectorizer]:
+    """Create and configure the specified vectorizer type"""
+
+    if vectorizer_type == "tfidf":
         return TfidfVectorizer(
             max_features=max_features,
             min_df=min_df,
             max_df=max_df,
-            ngram_range=(1, 2),
             stop_words="english",
-            **kwargs
-        ) 
+        )
+    elif vectorizer_type == "bm25":
+        return BM25Vectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=max_df,
+            k1=kwargs.get("k1", 1.5),
+            b=kwargs.get("b", 0.75),
+        )
+    elif vectorizer_type == "weighted":
+        return WeightedTfidfVectorizer(
+            max_features=max_features,
+            min_df=min_df,
+            max_df=max_df,
+            tf_scheme=kwargs.get("tf_scheme", "raw"),
+            idf_scheme=kwargs.get("idf_scheme", "smooth"),
+        )
+    else:
+        raise ValueError(f"Unknown vectorizer type: {vectorizer_type}")
+

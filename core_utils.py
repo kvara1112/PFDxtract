@@ -8,7 +8,12 @@ import nltk # type: ignore
 from typing import Union
 import urllib3
 from sklearn.feature_extraction.text import TfidfVectorizer
-
+from vectorizer_utils import BM25Vectorizer, WeightedTfidfVectorizer
+import io
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
+from openpyxl.utils.dataframe import dataframe_to_rows
+from openpyxl.utils import get_column_letter
 
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
@@ -520,11 +525,6 @@ def export_to_excel(df: pd.DataFrame, filename: str = None) -> bytes:
         Excel file as bytes
     """
     try:
-        import io
-        from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment
-        from openpyxl.utils.dataframe import dataframe_to_rows
-        from openpyxl.utils import get_column_letter
         
         # Create Excel buffer
         excel_buffer = io.BytesIO()
@@ -693,8 +693,6 @@ def get_vectorizer(
     Get vectorizer instance based on type and parameters.
     Uses lazy imports to avoid circular dependencies.
     """
-    # Lazy imports to avoid circular dependency
-    from vectorizer_utils import BM25Vectorizer, WeightedTfIdfVectorizer
     
     if vectorizer_type == "bm25":
         return BM25Vectorizer(
@@ -704,7 +702,7 @@ def get_vectorizer(
             **kwargs
         )
     elif vectorizer_type == "weighted":
-        return WeightedTfIdfVectorizer(
+        return WeightedTfidfVectorizer(
             max_features=max_features,
             min_df=min_df,
             max_df=max_df,
@@ -719,3 +717,28 @@ def get_vectorizer(
             stop_words="english",
             **kwargs
         )
+
+def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> str:
+    """Export topic modeling results to JSON format"""
+    results = {
+        "topics": [],
+        "model_params": {
+            "n_topics": lda_model.n_components,
+            "max_features": len(feature_names),
+        },
+        "topic_distribution": doc_topics.mean(axis=0).tolist(),
+    }
+
+    # Add topic details
+    for idx, topic in enumerate(lda_model.components_):
+        top_indices = topic.argsort()[:-11:-1]
+
+        topic_words = [
+            {"word": feature_names[i], "weight": float(topic[i])} for i in top_indices
+        ]
+
+        results["topics"].append(
+            {"id": idx, "words": topic_words, "total_weight": float(topic.sum())}
+        )
+
+    return json.dumps(results, indent=2)
