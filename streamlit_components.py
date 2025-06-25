@@ -20,6 +20,7 @@ from core_utils import (
     process_scraped_data, 
     clean_text_for_modeling, 
     export_topic_results,
+    export_to_excel,
     filter_by_categories,
     filter_by_areas,
     filter_by_coroner_names,
@@ -116,6 +117,7 @@ def initialize_session_state():
             logging.error(f"Error during PDF cleanup: {e}")
         finally:
             st.session_state.cleanup_done = True
+            
             
 def initialize_session_state2():
     """Initialize all required session state variables"""

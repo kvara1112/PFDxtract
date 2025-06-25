@@ -6,7 +6,7 @@ import io
 import time
 import random
 import string
-from datetime import datetime
+import datetime
 from collections import defaultdict, Counter
 from typing import Dict, List, Optional, Tuple
 import torch
@@ -14,10 +14,24 @@ from transformers import AutoTokenizer, AutoModel
 from sklearn.metrics.pairwise import cosine_similarity
 import re
 from tqdm import tqdm
+import os
+import shutil
+import streamlit as st
+
+# Optional WeasyPrint import (only needed for PDF generation)
+try:
+    from weasyprint import HTML, CSS
+    WEASYPRINT_AVAILABLE = True
+except (ImportError, OSError) as e:
+    # Handle both import errors and OS-level library errors (like GTK on Windows)
+    WEASYPRINT_AVAILABLE = False
+    HTML = None
+    CSS = None
+
 
 # Import our core utilities
 from core_utils import (
-    clean_text, 
+    export_to_excel, 
     extract_concern_text, 
     format_date_uk,
     is_response_document
@@ -369,9 +383,6 @@ class BERTResultsAnalyzer:
         Optimized function to extract year from dd/mm/yyyy date format.
         Works with both string representations and datetime objects.
         """
-        import re
-        import datetime
-        import pandas as pd
 
         # Return None for empty inputs
         if pd.isna(date_val):
@@ -402,9 +413,7 @@ class BERTResultsAnalyzer:
     # block3
     def _add_missing_years_from_content(self, concern_sections, df=None):
         """Try to extract years from content when date_of_report is missing."""
-        import re
-        import datetime
-        from collections import Counter
+
 
         missing_year_count = 0
 
@@ -584,7 +593,7 @@ class BERTResultsAnalyzer:
         st.subheader("Download Merged Data")
         
         # Generate timestamp and random suffix for truly unique keys
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         random_suffix = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
         unique_id = f"{timestamp}_{random_suffix}"
         
@@ -1716,15 +1725,14 @@ class ThemeAnalyzer:
         Returns:
             str: Path to the generated PDF file
         """
-        try:
-            # Import weasyprint
-            from weasyprint import HTML, CSS
-            from datetime import datetime
-            import os
+        if not WEASYPRINT_AVAILABLE:
+            st.warning("WeasyPrint is not available. PDF conversion is disabled on this platform.")
+            return None
             
+        try:
             # Generate default filename if not provided
             if output_filename is None:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                 output_filename = f"theme_analysis_{timestamp}.pdf"
             
             # Ensure the filename ends with .pdf
@@ -1765,10 +1773,6 @@ class ThemeAnalyzer:
             
             return output_filename
         
-        except ImportError:
-            # Handle case where weasyprint is not installed
-            st.error("WeasyPrint is not installed. Please install it using 'pip install weasyprint'")
-            return None
         except Exception as e:
             # Handle other potential errors
             st.error(f"Error converting HTML to PDF: {str(e)}")
@@ -1980,7 +1984,7 @@ class ThemeAnalyzer:
             <body>
                 <div class="report-header">
                     <h1>Theme Analysis Results</h1>
-                    <p>Generated on """ + datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
+                    <p>Generated on """ + datetime.datetime.now().strftime("%d %B %Y, %H:%M") + """</p>
                 </div>
                 
                 <div class="summary-card">
@@ -3040,7 +3044,6 @@ class ThemeAnalyzer:
         Returns:
             Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
         """
-        import streamlit as st
     
         results = []
         highlighted_texts = {}
@@ -3174,7 +3177,7 @@ class ThemeAnalyzer:
 
         # Generate default filename if not provided
         if output_filename is None:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
             output_filename = f"theme_analysis_report_{timestamp}.pdf"
 
         # Use a tempfile for matplotlib to avoid file conflicts
@@ -3197,7 +3200,7 @@ class ThemeAnalyzer:
             plt.text(
                 0.5,
                 0.5,
-                f"Generated on {datetime.now().strftime('%d %B %Y, %H:%M')}",
+                f"Generated on {datetime.datetime.now().strftime('%d %B %Y, %H:%M')}",
                 fontsize=16,
                 ha="center",
                 va="center",
@@ -3481,7 +3484,6 @@ class ThemeAnalyzer:
                 plt.close(fig)
 
         # Copy the temp file to the desired output filename
-        import shutil
 
         shutil.copy2(temp_pdf_path, output_filename)
 
@@ -3506,96 +3508,3 @@ class ThemeAnalyzer:
                 color_idx = i % len(self.theme_colors)
                 self.theme_color_map[theme_key] = self.theme_colors[color_idx]
 
-
-    def export_to_excel(df: pd.DataFrame) -> bytes:
-        """
-        Export BERT results DataFrame to Excel bytes with proper formatting,
-        including additional metadata columns.
-        """
-        try:
-            if df is None or len(df) == 0:
-                raise ValueError("No data available to export")
-    
-            # Create clean copy for export
-            df_export = df.copy()
-    
-            # Format dates to UK format
-            if "date_of_report" in df_export.columns:
-                df_export["date_of_report"] = df_export["date_of_report"].dt.strftime(
-                    "%d/%m/%Y"
-                )
-    
-            # Handle list columns (like categories)
-            for col in df_export.columns:
-                if df_export[col].dtype == "object":
-                    df_export[col] = df_export[col].apply(
-                        lambda x: ", ".join(x)
-                        if isinstance(x, list)
-                        else str(x)
-                        if pd.notna(x)
-                        else ""
-                    )
-    
-            # Create output buffer
-            output = io.BytesIO()
-    
-            # Write to Excel
-            with pd.ExcelWriter(output, engine="openpyxl") as writer:
-                df_export.to_excel(writer, sheet_name="BERT Results", index=False)
-    
-                # Get the worksheet
-                worksheet = writer.sheets["BERT Results"]
-    
-                # Auto-adjust column widths
-                for idx, col in enumerate(df_export.columns, 1):
-                    # Set larger width for Matched Sentences column
-                    if col == "Matched Sentences":
-                        worksheet.column_dimensions[get_column_letter(idx)].width = 80
-                    # Set wider width for coroner_area (often long)
-                    elif col == "coroner_area":
-                        worksheet.column_dimensions[get_column_letter(idx)].width = 40
-                    # Set appropriate width for coroner_name
-                    elif col == "coroner_name":
-                        worksheet.column_dimensions[get_column_letter(idx)].width = 30
-                    else:
-                        max_length = max(
-                            df_export[col].astype(str).apply(len).max(),
-                            len(str(col)),
-                        )
-                        adjusted_width = min(max_length + 2, 50)
-                        column_letter = get_column_letter(idx)
-                        worksheet.column_dimensions[
-                            column_letter
-                        ].width = adjusted_width
-    
-                # Add filters to header row
-                worksheet.auto_filter.ref = worksheet.dimensions
-    
-                # Freeze the header row
-                worksheet.freeze_panes = "A2"
-    
-                # Set wrap text for Matched Sentences column
-                matched_sent_col = next(
-                    (
-                        idx
-                        for idx, col in enumerate(df_export.columns, 1)
-                        if col == "Matched Sentences"
-                    ),
-                    None,
-                )
-                if matched_sent_col:
-                    col_letter = get_column_letter(matched_sent_col)
-                    for row in range(2, len(df_export) + 2):
-                        cell = worksheet[f"{col_letter}{row}"]
-                        cell.alignment = cell.alignment.copy(wrapText=True)
-                        # Set row height to accommodate wrapped text
-                        worksheet.row_dimensions[row].height = 60
-    
-            # Get the bytes value
-            output.seek(0)
-            return output.getvalue()
-    
-        except Exception as e:
-            logging.error(f"Error exporting to Excel: {e}", exc_info=True)
-            raise Exception(f"Failed to export data to Excel: {str(e)}")
-        
