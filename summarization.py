@@ -113,7 +113,7 @@ def generate_summary(doc: Dict) -> DocumentSummary:
         confidence=len(facts) / 3
     )
 
-    def display_cluster_summaries(cluster_docs: List[dict]) -> None:
+def display_cluster_summaries(cluster_docs: List[dict]) -> None:
     """Display document summaries for cluster"""
     # Generate summaries
     summaries = []
