@@ -13,18 +13,13 @@ import matplotlib.gridspec as gridspec
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.patches import Patch
 import networkx as nx
-from collections import Counter, defaultdict
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import normalize
 import pyLDAvis
 import pyLDAvis.sklearn
 import streamlit.components.v1 as components
 import tempfile
-from matplotlib.backends.backend_pdf import PdfPages
-from datetime import datetime
 
-# Import our core utilities
-from core_utils import format_date_uk, is_response_document
 
 def plot_category_distribution(df: pd.DataFrame) -> None:
     """Plot category distribution"""
