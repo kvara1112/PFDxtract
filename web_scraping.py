@@ -4,8 +4,6 @@ import re
 import time
 import urllib3
 import requests
-import zipfile
-import io
 import pdfplumber
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -19,7 +17,6 @@ import re
 import time
 import urllib3
 import requests
-import zipfile
 
 from core_utils import (
     clean_text, 

@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import scipy.sparse as sp
 import streamlit as st
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Tuple
 from collections import Counter, defaultdict
 from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
