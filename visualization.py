@@ -589,7 +589,8 @@ def render_framework_heatmap(filtered_df, top_n_themes=5):
         colorbar=dict(title='Percentage (%)'),
         hoverongaps=False,
         htext=count_pivot.values,  # This will show the count in the hover
-        hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{htext}<extra></extra>'
+        text=[[f'{val}' for val in row] for row in count_pivot.values],
+        hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{text}<extra></extra>'
     )
     
     fig.add_trace(heatmap)
