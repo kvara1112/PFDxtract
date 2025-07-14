@@ -588,8 +588,7 @@ def render_framework_heatmap(filtered_df, top_n_themes=5):
         zmax=min(100, pivot.values.max() * 1.2),  # Cap at 100% or 20% higher than max
         colorbar=dict(title='Percentage (%)'),
         hoverongaps=False,
-        htext=count_pivot.values,  # This will show the count in the hover
-        text=[[f'{val}' for val in row] for row in count_pivot.values],
+        text=count_pivot.values,  # This will show the count in the hover
         hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{text}<extra></extra>'
     )
     
