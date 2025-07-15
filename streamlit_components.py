@@ -1978,7 +1978,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             year_theme_counts["Display_Theme"] = year_theme_counts["Theme"].map(theme_display_map)
             
             # Create a line chart - important fix: convert year to string to treat as categorical
-            year_theme_counts['year_str'] = year_theme_counts['year'].astype(int).astype(str)
+            year_theme_counts['year_str'] = year_theme_counts['year'].astype(str)
             
             fig = px.line(
                 year_theme_counts,
