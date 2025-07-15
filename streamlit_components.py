@@ -1761,7 +1761,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     title="Framework Theme Heatmap by Year",
                     font=dict(family="Arial, sans-serif", color="white"),  # White font for dark background
                     title_font=dict(size=16, color="white"),  # Larger title with white color (fixed small size)
-                    xaxis_title="Year (number of reports)",
+                    xaxis_title="Year <br> (number of reports)",
                     yaxis_title="Theme",
                     height=max(650, len(pivot.index) * 35),  # Increased height
                     width=900,  # Set explicit width
