@@ -1667,7 +1667,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 # Add heatmap
                 heatmap = go.Heatmap(
                     z=pivot.values,
-                    x=year_labels,
+                    x=math.floor(year_labels),
                     y=theme_display_df['clean_name'],
                     colorscale=[
                         [0, '#f7fbff'],      # Lightest blue (almost white) for zero values
