@@ -303,7 +303,7 @@ def main():
             """
             ### Complete Analysis Pipeline:
             
-            1. **(1) 🔍 Scrape Reports**: Start by collecting PFD reports from the UK Judiciary website
+            1. **(Step 1) 🔍 Scrape Reports**: Start by collecting PFD reports from the UK Judiciary website
             2. **(2) 📂 Scraped File Preparation**: Process and merge your scraped reports
             3. **(3) 📊 Scraped File Analysis**: Visualise and analyse basic report patterns
             4. **(4) 📝 Topic Analysis & Summaries**: Generate basic themes from report content
