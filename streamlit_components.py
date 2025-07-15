@@ -2573,13 +2573,13 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             )
             
             fig_cooccur.update_layout(
-                margin=dict(l=400, r=80, b=220, t=80),
+                margin=dict(l=200, r=80, b=220, t=80),
                 font=dict(color="white"),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 xaxis=dict(
                     side="bottom",
-                    tickangle=90,
+                    tickangle=120,
                     automargin=True
                 ),
                 yaxis=dict(
