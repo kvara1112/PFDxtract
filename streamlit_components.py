@@ -1982,7 +1982,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             
             fig = px.line(
                 year_theme_counts,
-                x="year_str",  # Use string version of year
+                x="Year",  # Use string version of year
                 y="Count",
                 color="Display_Theme",  # Use formatted theme names
                 markers=True,
