@@ -2049,11 +2049,12 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Create a heatmap - ensure years are in correct order
             year_order = sorted(year_theme_counts['year'].unique())
             year_order_str = [str(y) for y in year_order]
+            year_order_int = [int(y) for y in year_order]
             
             fig = px.imshow(
                 normalized_pivot[year_order_str],  # Ensure columns are in correct order
                 labels=dict(x="Year", y="Theme", color="% of Themes"),
-                x=year_order_str,  # Use sorted string years
+                x=year_order_int,  # Use sorted string years
                 y=formatted_themes,  # Use formatted theme names
                 color_continuous_scale=[
                     [0, '#f7fbff'],      # Lightest blue (almost white) for zero values
