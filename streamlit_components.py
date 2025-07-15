@@ -1659,7 +1659,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 theme_display_df = pd.DataFrame(theme_display_data)
                 
                 # Add year count labels
-                year_labels = [f"{year}<br>n={reports_per_year[year]}" for year in pivot.columns]
+                year_labels = [f"{math.floor(year)}<br>n={reports_per_year[year]}" for year in pivot.columns]
                 
                 # Create heatmap using plotly
                 fig = go.Figure()
@@ -1667,7 +1667,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 # Add heatmap
                 heatmap = go.Heatmap(
                     z=pivot.values,
-                    x=math.floor(year_labels),
+                    x=year_labels,
                     y=theme_display_df['clean_name'],
                     colorscale=[
                         [0, '#f7fbff'],      # Lightest blue (almost white) for zero values
