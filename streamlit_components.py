@@ -2120,7 +2120,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             top_areas = area_counts.index.tolist()
             
             # Format area names for better display
-            formatted_areas = [improved_truncate_text(area, max_length=40) for area in area_counts.index]
+            formatted_areas = [improved_truncate_text(area, max_length=50) for area in area_counts.index]
             
             # Create a mapping for display names
             area_display_map = dict(zip(area_counts.index, formatted_areas))
