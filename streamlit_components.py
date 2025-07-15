@@ -2611,7 +2611,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             )
             
             # Display the co-occurrence heatmap with a unique key
-            st.plotly_chart(fig_cooccur, use_container_width=True, key="cooccurrence_heatmap")
+            fig.update_layout(width=700, height=500)
+            st.plotly_chart(fig_cooccur, use_container_width=False, key="cooccurrence_heatmap")
         
         # Show detailed data table
         with st.expander("View Detailed Data"):
