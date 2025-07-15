@@ -2551,7 +2551,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             st.dataframe(
                 display_co_occurrence,
                 use_container_width=True,
-                height=400,
+                height=600,
                 key="co_occurrence_table"
             )
             
