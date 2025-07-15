@@ -2579,7 +2579,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 plot_bgcolor="rgba(0,0,0,0)",
                 xaxis=dict(
                     side="bottom",
-                    tickangle=120,
+                    tickangle=90,
                     automargin=True
                 ),
                 yaxis=dict(
