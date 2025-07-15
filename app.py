@@ -304,11 +304,11 @@ def main():
             ### Complete Analysis Pipeline:
             
             1. **(Step 1) 🔍 Scrape Reports**: Start by collecting PFD reports from the UK Judiciary website
-            2. **(2) 📂 Scraped File Preparation**: Process and merge your scraped reports
-            3. **(3) 📊 Scraped File Analysis**: Visualise and analyse basic report patterns
-            4. **(4) 📝 Topic Analysis & Summaries**: Generate basic themes from report content
-            5. **(5) 🔬 Concept Annotation**: Conduct advanced theme analysis with AI
-            6. **(6) 📈 Theme Analysis Dashboard**: Explore comprehensive theme visualisations
+            2. **(Step 2) 📂 Scraped File Preparation**: Process and merge your scraped reports
+            3. **(Step 3) 📊 Scraped File Analysis**: Visualise and analyse basic report patterns
+            4. **(Step 4) 📝 Topic Analysis & Summaries**: Generate basic themes from report content
+            5. **(Step 5) 🔬 Concept Annotation**: Conduct advanced theme analysis with AI
+            6. **(Step 6) 📈 Theme Analysis Dashboard**: Explore comprehensive theme visualisations
             
             Select each numbered tab in sequence to move through the complete analysis pipeline.
             
