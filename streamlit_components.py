@@ -1664,6 +1664,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 # Create heatmap using plotly
                 fig = go.Figure()
                 
+                print(count_pivot.values)
                 # Add heatmap
                 heatmap = go.Heatmap(
                     z=pivot.values,
@@ -1686,8 +1687,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         outlinewidth=1
                     ),
                     hoverongaps=False,
-                    #text=count_pivot.values,  # This will show the count in the hover
-                    text = [str(y) for y in count_pivot.values],
+                    text=count_pivot.values,  # This will show the count in the hover
+                    
                     hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{text}<extra></extra>'
                 )
                 
