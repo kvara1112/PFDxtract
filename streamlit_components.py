@@ -6,6 +6,7 @@ import io
 import zipfile
 import random
 import string
+import math
 from datetime import datetime
 from typing import Dict, List, Optional
 from openpyxl.utils import get_column_letter
@@ -1705,7 +1706,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                             fig.add_annotation(
                                 x=j,
                                 y=i,
-                                text=f"({count})",
+                                text=f"({math.floor(count)})",
                                 font=dict(size=9, color=text_color),
                                 showarrow=False,
                                 xanchor="center",
