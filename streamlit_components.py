@@ -1994,7 +1994,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             
             # Improve layout
             fig.update_layout(
-                xaxis_title="Year <br>",
+                xaxis_title="Year <br> Key:",
                 yaxis_title="Number of Occurrences",
                 xaxis=dict(
                     type='category',  # Force categorical x-axis
