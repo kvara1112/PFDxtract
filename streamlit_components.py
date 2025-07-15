@@ -1384,6 +1384,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     
     # Coroner area filter - MODIFIED: Multi-select instead of single select
     areas = sorted(results_df["coroner_area"].dropna().unique().tolist())
+    print(areas)
     area_options = ["All Areas"] + areas
     # Default to "All Areas" if no specific selection
     area_filter_type = st.sidebar.radio("Coroner Area Filter Type", ["All Areas", "Select Specific Areas"])
@@ -1970,7 +1971,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Filter for top themes only - get top themes by total count
             all_theme_counts = filtered_df["Theme"].value_counts()
             top_themes = all_theme_counts.head(top_n_themes).index.tolist()
-            print(top_themes)
+           
             year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
             
             # Create a mapping dictionary for formatted theme names
