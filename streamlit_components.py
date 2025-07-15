@@ -1970,7 +1970,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Filter for top themes only - get top themes by total count
             all_theme_counts = filtered_df["Theme"].value_counts()
             top_themes = all_theme_counts.head(top_n_themes).index.tolist()
-            
+            print(top_themes)
             year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
             
             # Create a mapping dictionary for formatted theme names
