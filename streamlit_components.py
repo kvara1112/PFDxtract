@@ -2551,7 +2551,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             st.dataframe(
                 display_co_occurrence,
                 use_container_width=True,
-                height=600,
+                height=400,
                 key="co_occurrence_table"
             )
             
@@ -2573,7 +2573,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             )
             
             fig_cooccur.update_layout(
-                margin=dict(l=200, r=80, b=220, t=80),
+                margin=dict(l=400, r=80, b=220, t=80),
                 font=dict(color="white"),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
