@@ -1686,8 +1686,9 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         outlinewidth=1
                     ),
                     hoverongaps=False,
-                    text=count_pivot.values.asint(),  # This will show the count in the hover
-                    hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{text}<extra></extra>'
+                    textx=count_pivot.values,  # This will show the count in the hover
+                
+                    hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{textx}<extra></extra>'
                 )
                 
                 fig.add_trace(heatmap)
