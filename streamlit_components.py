@@ -2074,8 +2074,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 xaxis=dict(
                     type='category',  # Force categorical x-axis
                     tickmode="array",
-                    tickvals=year_order_str,
-                    ticktext=year_order_str,
+                    tickvals=year_order_int,
+                    ticktext=year_order_int,
                 ),
                 margin=dict(l=250, r=50, t=80, b=50),  # Increased left margin for theme labels
                 font=dict(color="white"),
