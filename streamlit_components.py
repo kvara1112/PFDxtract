@@ -2041,7 +2041,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Convert to a normalized heatmap (percentage)
             # Calculate the total themes per year
             year_theme_totals = pivot_df.sum(axis=0)
-            normalized_pivot = pivot_df.div(year_theme_totals, axis=1) * 100
+            normalized_pivot = math.floor(pivot_df.div(year_theme_totals, axis=1)) * 100
             
             # Format the theme names for better display
             formatted_themes = [improved_truncate_text(theme, max_length=40) for theme in normalized_pivot.index]
