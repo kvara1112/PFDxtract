@@ -1999,8 +1999,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 xaxis=dict(
                     type='category',  # Force categorical x-axis
                     tickmode="array",
-                    tickvals=sorted(year_theme_counts['year_str'].unique()),
-                    ticktext=sorted(year_theme_counts['year_str'].unique()),
+                    tickvals=sorted(year_theme_counts['year_int'].unique()),
+                    ticktext=sorted(year_theme_counts['year_int'].unique()),
                 ),
                 # Move legend below the chart for more horizontal space and prevent overlap
                 legend=dict(
