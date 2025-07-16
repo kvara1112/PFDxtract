@@ -2541,7 +2541,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 index=[theme_display_map[theme] for theme in top_themes],
                 columns=[theme_display_map[theme] for theme in top_themes]
             )
-            print(top_themes)
+            
             # Keep original for CSV export
             co_occurrence_df = pd.DataFrame(
                 co_occurrence_matrix,
