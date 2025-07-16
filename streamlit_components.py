@@ -2486,18 +2486,23 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
 
             # Insert download button and script before </body>
             html = html.replace(
-                "<head>",
+                "</head>",
                 """
-                <head>
                 <style>
-                    bosy {
+                    body {
                         margin:0;
                         padding:0;
                         backgrounf-color: #02182B;
                 }
+                #mynetwork {
+                    border: none !important;
+                    margin: 0;
+                    padding: 0;
+                }
             <\style>
+            <\head>
             """
-            )
+        )
             html = html.replace(
                 "</body>",
                 """
