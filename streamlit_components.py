@@ -2522,7 +2522,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 showarrow = False,
                 align = "left",
                 text = legend_text,
-                font = dict(colour="white"),
+                font = dict(color="white"),
                 bordercolor = "white",
                 borderwidth = 1,
                 bgcolor="rgba(0,0,0,0.6)"
