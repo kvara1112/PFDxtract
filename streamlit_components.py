@@ -19,7 +19,7 @@ import networkx as nx
 import numpy as np
 import streamlit as st
 from pyvis.network import Network
-import streamlit_components.v1 as components
+import streamlit.components.v1 as components
 # Import our modules
 from core_utils import (
     process_scraped_data, 
