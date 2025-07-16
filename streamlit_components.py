@@ -2505,7 +2505,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     ),
                     showlegend=False,
                     hovermode='closest',
-                    margin=dict(b=20, l=5, r=150, t=40),##changed 5 to 150
+                    margin=dict(b=20, l=5, r=200, t=40),##changed 5 to 150
                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                     width=800,
@@ -2517,7 +2517,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             fig_network.add_annotation(##added
                 xref="paper", 
                 yref = "paper",
-                x = 1.02, 
+                x = 0.95, 
                 y = 1,
                 showarrow = False,
                 align = "left",
