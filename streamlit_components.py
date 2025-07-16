@@ -2436,7 +2436,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 size = degree * 10 +20
                 display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=20)
 
-                neighbors = list(G.neighboors(node))
+                neighbors = list(G.neighbors(node))
                 connections = [f"{theme_display_map[neighbor]}(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
                 title = f"{theme_display_map[node]}<br>Connections: {len(connections)}<br>".join(connections)
                 net.add_node(
