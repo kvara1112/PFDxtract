@@ -2415,7 +2415,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         
         # Add nodes (themes) with formatted display names
         for theme in top_theme_corr.columns:
-            G.add_node(theme, display_name=theme_display_map[theme])
+            G.add_node(theme, display_name=theme)
         
         # Add edges (correlations above threshold)
         for i, theme1 in enumerate(top_theme_corr.columns):
