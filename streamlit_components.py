@@ -18,7 +18,8 @@ import plotly.graph_objects as go
 import networkx as nx
 import numpy as np
 import streamlit as st
-
+from pyvis.network import Network
+import streamlit_components.v1 as components
 # Import our modules
 from core_utils import (
     process_scraped_data, 
@@ -2428,6 +2429,56 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         if len(G.edges()) == 0:
             st.warning(f"No connections found with correlation threshold of {corr_threshold}. Try lowering the threshold.")
         else:
+            #Pyvis network
+            net = Network(height="800px", widht = "100%", bgcolor ="#222222", font_color="white")##added
+            for node in G.nodes():
+                degree = len(list(G.neighbors(node)))
+                size = degree * 10 +20
+                display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=20)
+
+                neighbors = list(G.neighboors(node))
+                connections = [f"{theme_display_map[neighbor]}(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
+                title = f"{theme_display_map[node]}<br>Connections: {len(connections)}<br>".join(connections)
+                net.add_node(
+                    node,
+                    label=display_name,
+                    title=title,
+                    size=size,
+                    color="skyblue"
+                )
+            for edges  in G.edges(data=True):
+                weight = edge[2]['weight']
+                net.add_edge(
+                    edge[0], edge[1],
+                    value=weight,
+                    title=f"r={weight:.2f}",
+                    color=f"rgba(150,150,150,{weight})"
+                )
+            net.toggle_physics(True)
+            net.set_options("""
+            var options = {
+                "edges": {
+                    "color": {
+                    "inherit": false
+                    },
+                    "smooth": false
+                },
+                "nodes": {
+                    "borderWidth": 1,
+                    "shape": "dot"
+                },
+                "physics": {
+                    "barnesHut": {
+                        "gravitationalConstant": -8000,
+                        "springLength": 250
+                    },
+                    "minVelocity": 0.75
+                }
+            }
+                """)
+            net.save_graph("network.html")
+            components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=True)
+            """
             # Calculate positions using the Fruchterman-Reingold force-directed algorithm
             pos = nx.spring_layout(G, seed=42)  # For reproducibility
             
@@ -2515,7 +2566,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             
             # Display the network graph with a unique key
             st.plotly_chart(fig_network, key="theme_network_graph")
-        
+            """
             # Create a co-occurrence frequency table
             st.subheader("Theme Co-occurrence Table")
             
