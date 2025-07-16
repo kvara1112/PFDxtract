@@ -2456,7 +2456,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             node_text = []
             node_size = []
             node_hover = []
-            
+            node_numbers = {}
+            keyNumber = 1
             for node in G.nodes():
                 x, y = pos[node]
                 node_x.append(x)
@@ -2465,7 +2466,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 # Use formatted name for display
                 display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=20)
                 node_text.append(display_name)
-                
+                node_numbers.update({keyNumber:display_name})
+                keyNumber += 1
                 # Calculate node size based on number of connections
                 size = len(list(G.neighbors(node))) * 10 + 20
                 node_size.append(size)
@@ -2475,7 +2477,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 connections = [f"{theme_display_map[neighbor]} (r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
                 connection_text = "<br>".join(connections)
                 node_hover.append(f"{theme_display_map[node]}<br>Connections: {len(connections)}<br>{connection_text}")
-            
+            print(node_numbers)
             node_trace = go.Scatter(
                 x=node_x, y=node_y,
                 mode='markers+text',
