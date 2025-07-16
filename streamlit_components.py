@@ -2512,7 +2512,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Load into Streamlit
             components.html(html, height=880, scrolling=True)
 
-            #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=True)
+            #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=False)
             """
             # Calculate positions using the Fruchterman-Reingold force-directed algorithm
             pos = nx.spring_layout(G, seed=42)  # For reproducibility
