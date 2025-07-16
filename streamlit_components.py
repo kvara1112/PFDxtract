@@ -2280,10 +2280,10 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         radialaxis=dict(
                             visible=True,
                             range=[0, max(radar_data["Percentage"]) * 1.1],
-                            tickfont=dict(color="white")
+                            tickfont=dict(color="black")
                         ),
                         angularaxis=dict(
-                            tickfont=dict(color="black")
+                            tickfont=dict(color="white")
                         )
                     ),
                     showlegend=True,
