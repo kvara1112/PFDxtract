@@ -1,0 +1,127 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        
+            <script src="lib/bindings/utils.js"></script>
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/dist/vis-network.min.css" integrity="sha512-WgxfT5LWjfszlPHXRmBWHkV2eceiWTOBvrKCNbdgDYTHrT2AeLCGbF4sZlZw3UMN3WtL0tGUoIAKsu8mllg/XA==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/vis-network/9.1.2/dist/vis-network.min.js" integrity="sha512-LnvoEWDFrqGHlHmDD2101OrLcbsfkrzoSpvtSQtxK3RMnRV0eOkhhBN2dXHKRrUU8p2DGRTk35n4O8nWSVe1mQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+            
+        
+<center>
+<h1></h1>
+</center>
+
+<!-- <link rel="stylesheet" href="../node_modules/vis/dist/vis.min.css" type="text/css" />
+<script type="text/javascript" src="../node_modules/vis/dist/vis.js"> </script>-->
+        <link
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/css/bootstrap.min.css"
+          rel="stylesheet"
+          integrity="sha384-eOJMYsd53ii+scO/bJGFsiCZc+5NDVN2yr8+0RDqr0Ql0h+rP48ckxlpbzKgwra6"
+          crossorigin="anonymous"
+        />
+        <script
+          src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"
+          integrity="sha384-JEW9xMcG8R+pH31jmWH6WWP0WintQrMb4s7ZOdauHnUtxwoG2vI5DkLtS3qm9Ekf"
+          crossorigin="anonymous"
+        ></script>
+
+
+        <center>
+          <h1></h1>
+        </center>
+        <style type="text/css">
+
+             #mynetwork {
+                 width: 100%;
+                 height: 800px;
+                 background-color: #02182B;
+                 border: 1px solid lightgray;
+                 position: relative;
+                 float: left;
+             }
+
+             
+
+             
+
+             
+        </style>
+    </head>
+
+
+    <body>
+        <div class="card" style="width: 100%">
+            
+            
+            <div id="mynetwork" class="card-body"></div>
+        </div>
+
+        
+        
+
+        <script type="text/javascript">
+
+              // initialize global variables.
+              var edges;
+              var nodes;
+              var allNodes;
+              var allEdges;
+              var nodeColors;
+              var originalNodes;
+              var network;
+              var container;
+              var options, data;
+              var filter = {
+                  item : '',
+                  property : '',
+                  value : []
+              };
+
+              
+
+              
+
+              // This method is responsible for drawing the graph, returns the drawn network
+              function drawGraph() {
+                  var container = document.getElementById('mynetwork');
+
+                  
+
+                  // parsing and collecting nodes and edges from the python
+                  nodes = new vis.DataSet([{"color": "skyblue", "font": {"color": "white"}, "id": "Medication safety", "label": "Medication safety", "shape": "dot", "size": 50, "title": "Medication safety\nConnections:3\nInternal - Time of day (e.g., night\u003cbr\u003eworking or day of the week)\n(r=0.39)\nCommunication\n(r=0.43)\nJobs/Task - Risk assessment\n(r=0.38)"}, {"color": "skyblue", "font": {"color": "white"}, "id": "Fragmented care", "label": "Fragmented care", "shape": "dot", "size": 50, "title": "Fragmented care\nConnections:3\nInadequate maternity care\n(r=0.90)\nJobs/Task - Care planning\n(r=0.84)\nCare quality and access issues\n(r=0.47)"}, {"color": "skyblue", "font": {"color": "white"}, "id": "Internal - Time of day (e.g., night working or day of the week)", "label": "Internal - Time of\u003cbr\u003eday (e.g., night...", "shape": "dot", "size": 60, "title": "Internal - Time of day (e.g., night\u003cbr\u003eworking or day of the week)\nConnections:4\nMedication safety\n(r=0.39)\nCommunication\n(r=0.76)\nOrganisation - National and/or local\u003cbr\u003eguidance\n(r=0.33)\nJobs/Task - Risk assessment\n(r=0.83)"}, {"color": "skyblue", "font": {"color": "white"}, "id": "Communication", "label": "Communication", "shape": "dot", "size": 60, "title": "Communication\nConnections:4\nMedication safety\n(r=0.43)\nInternal - Time of day (e.g., night\u003cbr\u003eworking or day of the week)\n(r=0.76)\nOrganisation - National and/or local\u003cbr\u003eguidance\n(r=0.36)\nJobs/Task - Risk assessment\n(r=0.79)"}, {"color": "skyblue", "font": {"color": "white"}, "id": "Inadequate maternity care", "label": "Inadequate\u003cbr\u003ematernity care", "shape": "dot", "size": 40, "title": "Inadequate maternity care\nConnections:2\nFragmented care\n(r=0.90)\nJobs/Task - Care planning\n(r=0.93)"}, {"color": "skyblue", "font": {"color": "white"}, "id": "Organisation - National and/or local guidance", "label": "Organisation -\u003cbr\u003eNational and/or...", "shape": "dot", "size": 40, "title": "Organisation - National and/or local\u003cbr\u003eguidance\nConnections:2\nInternal - Time of day (e.g., night\u003cbr\u003eworking or day of the week)\n(r=0.33)\nCommunication\n(r=0.36)"}, {"color": "skyblue", "font": {"color": "white"}, "id": "Jobs/Task - Risk assessment", "label": "Jobs/Task - Risk\u003cbr\u003eassessment", "shape": "dot", "size": 50, "title": "Jobs/Task - Risk assessment\nConnections:3\nMedication safety\n(r=0.38)\nInternal - Time of day (e.g., night\u003cbr\u003eworking or day of the week)\n(r=0.83)\nCommunication\n(r=0.79)"}, {"color": "skyblue", "font": {"color": "white"}, "id": "Jobs/Task - Care planning", "label": "Jobs/Task - Care\u003cbr\u003eplanning", "shape": "dot", "size": 40, "title": "Jobs/Task - Care planning\nConnections:2\nFragmented care\n(r=0.84)\nInadequate maternity care\n(r=0.93)"}, {"color": "skyblue", "font": {"color": "white"}, "id": "Consent/agency", "label": "Consent/agency", "shape": "dot", "size": 20, "title": "Consent/agency\nConnections:0\n"}, {"color": "skyblue", "font": {"color": "white"}, "id": "Care quality and access issues", "label": "Care quality and\u003cbr\u003eaccess issues", "shape": "dot", "size": 30, "title": "Care quality and access issues\nConnections:1\nFragmented care\n(r=0.47)"}]);
+                  edges = new vis.DataSet([{"color": "rgba(150,150,150,0.3942307692307692)", "from": "Medication safety", "label": "r=0.39", "title": "r=0.39", "to": "Internal - Time of day (e.g., night working or day of the week)", "value": 0.3942307692307692}, {"color": "rgba(150,150,150,0.4345240946267409)", "from": "Medication safety", "label": "r=0.43", "title": "r=0.43", "to": "Communication", "value": 0.4345240946267409}, {"color": "rgba(150,150,150,0.37634930049971144)", "from": "Medication safety", "label": "r=0.38", "title": "r=0.38", "to": "Jobs/Task - Risk assessment", "value": 0.37634930049971144}, {"color": "rgba(150,150,150,0.9009374626955587)", "from": "Fragmented care", "label": "r=0.90", "title": "r=0.90", "to": "Inadequate maternity care", "value": 0.9009374626955587}, {"color": "rgba(150,150,150,0.8390957231764805)", "from": "Fragmented care", "label": "r=0.84", "title": "r=0.84", "to": "Jobs/Task - Care planning", "value": 0.8390957231764805}, {"color": "rgba(150,150,150,0.4736096117120769)", "from": "Fragmented care", "label": "r=0.47", "title": "r=0.47", "to": "Care quality and access issues", "value": 0.4736096117120769}, {"color": "rgba(150,150,150,0.7555891201009431)", "from": "Internal - Time of day (e.g., night working or day of the week)", "label": "r=0.76", "title": "r=0.76", "to": "Communication", "value": 0.7555891201009431}, {"color": "rgba(150,150,150,0.3323604212205244)", "from": "Internal - Time of day (e.g., night working or day of the week)", "label": "r=0.33", "title": "r=0.33", "to": "Organisation - National and/or local guidance", "value": 0.3323604212205244}, {"color": "rgba(150,150,150,0.8284572264246892)", "from": "Internal - Time of day (e.g., night working or day of the week)", "label": "r=0.83", "title": "r=0.83", "to": "Jobs/Task - Risk assessment", "value": 0.8284572264246892}, {"color": "rgba(150,150,150,0.3619904402925107)", "from": "Communication", "label": "r=0.36", "title": "r=0.36", "to": "Organisation - National and/or local guidance", "value": 0.3619904402925107}, {"color": "rgba(150,150,150,0.7890164512138453)", "from": "Communication", "label": "r=0.79", "title": "r=0.79", "to": "Jobs/Task - Risk assessment", "value": 0.7890164512138453}, {"color": "rgba(150,150,150,0.9313584548542903)", "from": "Inadequate maternity care", "label": "r=0.93", "title": "r=0.93", "to": "Jobs/Task - Care planning", "value": 0.9313584548542903}]);
+
+                  nodeColors = {};
+                  allNodes = nodes.get({ returnType: "Object" });
+                  for (nodeId in allNodes) {
+                    nodeColors[nodeId] = allNodes[nodeId].color;
+                  }
+                  allEdges = edges.get({ returnType: "Object" });
+                  // adding nodes and edges to the graph
+                  data = {nodes: nodes, edges: edges};
+
+                  var options = {"edges": {"color": {"inherit": false}, "smooth": false}, "nodes": {"borderWidth": 1, "shape": "dot"}, "physics": {"barnesHut": {"gravitationalConstant": -8000, "springLength": 250}, "minVelocity": 0.75}};
+
+                  
+
+
+                  
+
+                  network = new vis.Network(container, data, options);
+
+                  
+
+                  
+
+                  
+
+
+                  
+
+                  return network;
+
+              }
+              drawGraph();
+        </script>
+    </body>
+</html>
