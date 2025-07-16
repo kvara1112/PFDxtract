@@ -2335,7 +2335,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         top_theme_corr = theme_corr.loc[top_themes, top_themes]
         
         # Create a mapping dictionary for theme display names
-        theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
+        theme_display_map = {theme: improved_truncate_text(theme, max_length=80) for theme in top_themes}
         
         # Format column and index labels
         formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
@@ -2415,7 +2415,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         
         # Add nodes (themes) with formatted display names
         for theme in top_theme_corr.columns:
-            G.add_node(theme, display_name=theme)
+            G.add_node(theme, display_name=theme_display_map[theme])
         
         # Add edges (correlations above threshold)
         for i, theme1 in enumerate(top_theme_corr.columns):
