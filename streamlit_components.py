@@ -2493,6 +2493,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 hovertext=node_hover,
                 textfont=dict(color="white")
             )
+            legend_text = "<br>".join([f"{key}: {topic}" for key, topic in node_numbers.items()])##added
             
             # Create the figure
             fig_network = go.Figure(
@@ -2504,7 +2505,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     ),
                     showlegend=False,
                     hovermode='closest',
-                    margin=dict(b=20, l=5, r=5, t=40),
+                    margin=dict(b=20, l=5, r=150, t=40),##changed 5 to 150
                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                     width=800,
@@ -2513,7 +2514,19 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     plot_bgcolor="rgba(0,0,0,0)"
                 )
             )
-            
+            fig_network.add_annotation(##added
+                xref="paper", 
+                yref = "paper",
+                x = 1.02, 
+                y = 1,
+                showarrow = False,
+                align = "left",
+                text = legend_text,
+                font = dict(colour="white"),
+                bordercolor = "white",
+                borderwidth = 1,
+                bgcolor="rgba(0,0,0,0.6)"
+                                                    )
             # Display the network graph with a unique key
             st.plotly_chart(fig_network, key="theme_network_graph")
         
