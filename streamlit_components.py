@@ -2430,7 +2430,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             st.warning(f"No connections found with correlation threshold of {corr_threshold}. Try lowering the threshold.")
         else:
             #Pyvis network
-            net = Network(height="800px", width = "100%", bgcolor ="#222222", font_color="white")##added
+            net = Network(height="800px", width = "100%", font_color="white")##added
             for node in G.nodes():
                 degree = len(list(G.neighbors(node)))
                 size = degree * 10 +20
@@ -2438,7 +2438,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
 
                 neighbors = list(G.neighbors(node))
                 connections = [f"{theme_display_map[neighbor]}(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
-                title = f"{theme_display_map[node]}<br>Connections: {len(connections)}<br>".join(connections)
+                title = f"{theme_display_map[node]} Connections: {len(connections)} ".join(connections)
                 net.add_node(
                     node,
                     label=display_name,
