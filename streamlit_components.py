@@ -2505,7 +2505,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     ),
                     showlegend=False,
                     hovermode='closest',
-                    margin=dict(b=20, l=5, r=200, t=40),##changed 5 to 150
+                    margin=dict(b=20, l=5, r=150, t=40),##changed 5 to 150
                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                     width=800,
@@ -2517,7 +2517,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             fig_network.add_annotation(##added
                 xref="paper", 
                 yref = "paper",
-                x = 0.95, 
+                x = 1.02, 
                 y = 1,
                 showarrow = False,
                 align = "left",
@@ -2525,7 +2525,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 font = dict(color="white"),
                 bordercolor = "white",
                 borderwidth = 1,
-                bgcolor="rgba(0,0,0,0.6)"
+                bgcolor="rgba(0,0,0,0)"
                                                     )
             # Display the network graph with a unique key
             st.plotly_chart(fig_network, key="theme_network_graph")
