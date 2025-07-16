@@ -1384,7 +1384,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
     
     # Coroner area filter - MODIFIED: Multi-select instead of single select
     areas = sorted(results_df["coroner_area"].dropna().unique().tolist())
-    print(areas)
+    
     area_options = ["All Areas"] + areas
     # Default to "All Areas" if no specific selection
     area_filter_type = st.sidebar.radio("Coroner Area Filter Type", ["All Areas", "Select Specific Areas"])
@@ -2287,7 +2287,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         )
                     ),
                     showlegend=True,
-                    legend=dict(font=dict(color="white")),
+                    legend=dict(font=dict(color="black")),
                     title=dict(
                         text="Theme Distribution Radar Chart",
                         font=dict(color="white")
