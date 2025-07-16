@@ -2439,7 +2439,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
 
                 neighbors = list(G.neighbors(node))
                 connections = [f"{theme_display_map[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
-                title = f"{theme_display_map[node]}\nConnections:{len(connections)}\n".join(connections)
+                connection_text = "\n".join(connections)
+                title = f"{theme_display_map[node]}\nConnections:{len(connections)}\n{connection_text}"
                 net.add_node(
                     node,
                     label=display_name,
