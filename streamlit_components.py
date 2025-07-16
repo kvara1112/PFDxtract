@@ -2283,11 +2283,11 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                             tickfont=dict(color="white")
                         ),
                         angularaxis=dict(
-                            tickfont=dict(color="white")
+                            tickfont=dict(color="black")
                         )
                     ),
                     showlegend=True,
-                    legend=dict(font=dict(color="black")),
+                    legend=dict(font=dict(color="white")),
                     title=dict(
                         text="Theme Distribution Radar Chart",
                         font=dict(color="white")
