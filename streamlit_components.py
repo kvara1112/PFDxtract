@@ -2485,24 +2485,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 html = f.read()
 
             # Insert download button and script before </body>
-            html = html.replace(
-                "</head>",
-                """
-                <style>
-                    body {
-                        margin:0;
-                        padding:0;
-                        backgrounf-color: #02182B;
-                }
-                #mynetwork {
-                    border: none !important;
-                    margin: 0;
-                    padding: 0;
-                }
-            <\style>
-            <\head>
-            """
-        )
+            
             html = html.replace(
                 "</body>",
                 """
@@ -2529,7 +2512,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Load into Streamlit
             components.html(html, height=850, scrolling=True)
 
-            #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=True)
+            components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=True)
             """
             # Calculate positions using the Fruchterman-Reingold force-directed algorithm
             pos = nx.spring_layout(G, seed=42)  # For reproducibility
