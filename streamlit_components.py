@@ -2453,7 +2453,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     edge[0], edge[1],
                     value=weight,
                     title=f"r={weight:.2f}",
-                    label=f"{correlation:.2f}",
+                    label=f"r={weight:.2f}",
                     color=f"rgba(150,150,150,{weight})"
                 )
             net.toggle_physics(True)
