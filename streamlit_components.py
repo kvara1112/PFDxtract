@@ -2415,7 +2415,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         
         # Add nodes (themes) with formatted display names
         for theme in top_theme_corr.columns:
-            G.add_node(theme, display_name=theme_display_map[theme])
+            
+            G.add_node(theme, display_name=theme)
         
         # Add edges (correlations above threshold)
         for i, theme1 in enumerate(top_theme_corr.columns):
@@ -2513,95 +2514,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             components.html(html, height=880, scrolling=True)
 
             #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=False)
-            """
-            # Calculate positions using the Fruchterman-Reingold force-directed algorithm
-            pos = nx.spring_layout(G, seed=42)  # For reproducibility
             
-            # Create a network visualization
-            edge_trace = []
-            
-            # Add edges with width proportional to correlation
-            for edge in G.edges():
-                x0, y0 = pos[edge[0]]
-                x1, y1 = pos[edge[1]]
-                weight = G[edge[0]][edge[1]]['weight']
-                
-                edge_trace.append(
-                    go.Scatter(
-                        x=[x0, x1, None],
-                        y=[y0, y1, None],
-                        line=dict(width=weight*5, color=f'rgba(150,150,150,{weight})'),
-                        hoverinfo='none',
-                        mode='lines'
-                    )
-                )
-            
-            # Add nodes
-            node_x = []
-            node_y = []
-            node_text = []
-            node_size = []
-            node_hover = []
-            
-            for node in G.nodes():
-                x, y = pos[node]
-                node_x.append(x)
-                node_y.append(y)
-                
-                # Use formatted name for display
-                display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=20)
-                node_text.append(display_name)
-                
-                # Calculate node size based on number of connections
-                size = len(list(G.neighbors(node))) * 10 + 20
-                node_size.append(size)
-                
-                # Create node text for hover
-                neighbors = list(G.neighbors(node))
-                connections = [f"{theme_display_map[neighbor]} (r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
-                connection_text = "<br>".join(connections)
-                node_hover.append(f"{theme_display_map[node]}<br>Connections: {len(connections)}<br>{connection_text}")
-            
-            
-            node_trace = go.Scatter(
-                x=node_x, y=node_y,
-                mode='markers+text',
-                text=node_text,
-                textposition="top center",
-                marker=dict(
-                    size=node_size,
-                    color='skyblue',
-                    line=dict(width=1, color='white')
-                ),
-                hoverinfo='text',
-                hovertext=node_hover,
-                textfont=dict(color="white")
-            )
-            
-            
-            # Create the figure
-            fig_network = go.Figure(
-                data=edge_trace + [node_trace],
-                layout=go.Layout(
-                    title=dict(
-                        text=f'Theme Connection Network (r ≥ {corr_threshold})',
-                        font=dict(color="white")
-                    ),
-                    showlegend=False,
-                    hovermode='closest',
-                    margin=dict(b=20, l=5, r=5, t=40),
-                    xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                    yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                    width=800,
-                    height=800,
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)"
-                )
-            )
-            
-            # Display the network graph with a unique key
-            st.plotly_chart(fig_network, key="theme_network_graph")
-            """
             # Create a co-occurrence frequency table
             st.subheader("Theme Co-occurrence Table")
             
