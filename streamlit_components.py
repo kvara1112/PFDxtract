@@ -2477,7 +2477,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 connections = [f"{theme_display_map[neighbor]} (r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
                 connection_text = "<br>".join(connections)
                 node_hover.append(f"{theme_display_map[node]}<br>Connections: {len(connections)}<br>{connection_text}")
-            print(node_numbers)
+            
             keylabels = list(node_numbers.keys())## added
             node_trace = go.Scatter(
                 x=node_x, y=node_y,
