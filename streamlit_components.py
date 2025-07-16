@@ -2480,7 +2480,51 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             }
                 """)
             net.save_graph("network.html")
-            components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=True)
+            # Inject PNG download button and html2canvas script into the HTML
+            with open("network.html", "r", encoding="utf-8") as f:
+                html = f.read()
+
+            # Insert download button and script before </body>
+            html = html.replace(
+                "<head>",
+                """
+                <head>
+                <style>
+                    bosy {
+                        margin:0;
+                        padding:0;
+                        backgrounf-color: #02182B;
+                }
+            <\style>
+            """
+            )
+            html = html.replace(
+                "</body>",
+                """
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="downloadPNG()" style="padding: 10px 20px; font-size: 16px;">Download PNG</button>
+                </div>
+
+                <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+                <script>
+                function downloadPNG() {
+                    const container = document.getElementById("mynetwork");
+                    html2canvas(container).then(canvas => {
+                        const link = document.createElement("a");
+                        link.download = "network_graph.png";
+                        link.href = canvas.toDataURL();
+                        link.click();
+                    });
+                }
+                </script>
+                </body>
+                """
+            )
+
+            # Load into Streamlit
+            components.html(html, height=850, scrolling=True)
+
+            #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=True)
             """
             # Calculate positions using the Fruchterman-Reingold force-directed algorithm
             pos = nx.spring_layout(G, seed=42)  # For reproducibility
