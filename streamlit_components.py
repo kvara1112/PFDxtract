@@ -2424,6 +2424,14 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     correlation = top_theme_corr.loc[theme1, theme2]
                     if correlation >= corr_threshold:
                         G.add_edge(theme1, theme2, weight=correlation)
+                        net.add_edge(
+                            theme1,
+                            theme2,
+                            value = correlation,
+                            title=f"r={correlation:.2f}",
+                            label=f"{correlation:.2f}",   # ← shows r on the line!
+                            font={"align": "middle"}
+                        )
         
         # Check if we have any edges
         if len(G.edges()) == 0:
