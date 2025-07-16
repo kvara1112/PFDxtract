@@ -2417,7 +2417,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         for theme in top_theme_corr.columns:
             
             G.add_node(theme, display_name=theme)
-        
+            print(theme)
         # Add edges (correlations above threshold)
         for i, theme1 in enumerate(top_theme_corr.columns):
             for j, theme2 in enumerate(top_theme_corr.columns):
