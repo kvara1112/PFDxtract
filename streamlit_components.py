@@ -2417,7 +2417,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         for theme in top_theme_corr.columns:
             
             G.add_node(theme, display_name=theme)
-            print(theme)
+            
         # Add edges (correlations above threshold)
         for i, theme1 in enumerate(top_theme_corr.columns):
             for j, theme2 in enumerate(top_theme_corr.columns):
@@ -2436,7 +2436,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             for node in G.nodes():
                 degree = len(list(G.neighbors(node)))
                 size = degree * 10 +20
-                display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=20)
+                display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=40)
 
                 neighbors = list(G.neighbors(node))
                 connections = [f"{theme_display_map[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
