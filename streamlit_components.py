@@ -2446,7 +2446,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     size=size,
                     color="skyblue"
                 )
-            for edges  in G.edges(data=True):
+            for edge in G.edges(data=True):
                 weight = edge[2]['weight']
                 net.add_edge(
                     edge[0], edge[1],
