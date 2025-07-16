@@ -2481,22 +2481,63 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 """)
             net.save_graph("network.html")
             # Inject PNG download button and html2canvas script into the HTML
+            
+            # Read and clean HTML
             with open("network.html", "r", encoding="utf-8") as f:
                 html = f.read()
 
-            # Insert download button and script before </body>
-            
+            # Inject padding-removal CSS ONLY for graph
             html = html.replace(
-                "</body>",
+                "</head>",
                 """
-                <div style="text-align: center; margin-top: 20px;">
-                    <button onclick="downloadPNG()" style="padding: 10px 20px; font-size: 16px;">Download PNG</button>
-                </div>
+                <style>
+                    html, body {
+                        margin: 0;
+                        padding: 0;
+                        background-color: #02182B;
+                        height: 100%;
+                        overflow: hidden;
+                    }
+                    #mynetwork {
+                        width: 100% !important;
+                        height: 100% !important;
+                        border: none !important;
+                    }
+                </style>
+                </head>
+                """
+            )
 
-                <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-                <script>
+            # Remove previous in-body button/script
+            html = html.replace("Download PNG", "")  # quick clean if leftover
+            components.html(html, height=850, scrolling=False)
+            
+            st.markdown("### ")
+            st.markdown("---")
+            st.markdown("#### Save Network Graph as PNG")
+
+            # Run this if you still want a download inside Streamlit
+            with open("network.html", "r", encoding="utf-8") as f:
+                html_content = f.read()
+
+            if "html2canvas.min.js" not in html_content:
+                html_content = html_content.replace(
+                    "</body>",
+                    """
+                    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+                    </body>
+                    """
+                )
+
+            # Add only button & script to Streamlit
+            components.html("""
+            <div style="text-align: center;">
+                <button onclick="downloadPNG()" style="padding: 10px 20px; font-size: 16px;">Download PNG</button>
+            </div>
+
+            <script>
                 function downloadPNG() {
-                    const container = document.getElementById("mynetwork");
+                    const container = parent.document.querySelector('iframe').contentWindow.document.getElementById("mynetwork");
                     html2canvas(container).then(canvas => {
                         const link = document.createElement("a");
                         link.download = "network_graph.png";
@@ -2504,13 +2545,9 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         link.click();
                     });
                 }
-                </script>
-                </body>
-                """
-            )
+            </script>
+            """, height=100)
 
-            # Load into Streamlit
-            components.html(html, height=880, scrolling=True)
 
             #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=False)
             """
