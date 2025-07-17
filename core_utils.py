@@ -15,7 +15,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 import math
-
+import plotly.express as px
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
     level=logging.INFO,
@@ -1069,13 +1069,18 @@ def save_dashboard_images_as_zip(filtered_df):
                 
                 # Convert year to string for categorical plotting
                 year_theme_counts['year_str'] = year_theme_counts['year'].astype(str)
-                
+                plotly_colors = px.colors.qualitative.Plotly
+                theme_color_map = {
+                    theme_display_map[theme]: plotly_colors[i % len(plotly_colors)]
+                    for i, theme in enumerate(top_themes)
+                }
                 # Create line chart for theme trends
                 fig = px.line(
                     year_theme_counts,
                     x="year_str",
                     y="Count",
                     color="Display_Theme",
+                    color_discrete_map=theme_color_map,
                     markers=True,
                     title="Theme Trends Over Time",
                     labels={"year_str": "Year", "Count": "Number of Occurrences", "Display_Theme": "Theme"}
