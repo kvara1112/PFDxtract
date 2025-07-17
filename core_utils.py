@@ -1382,9 +1382,9 @@ def save_dashboard_images_as_zip(filtered_df):
                                 node_size.append(size)
                                 connection_text = "\n".join([
                                     f"{theme_display_map[neighbor]} (r={G[node][neighbor]['weight']:.2f})"
-                                    for neighbor in neighbors
+                                    for neighbor in neighbours
                                 ])
-                                label = f"{theme_display_map[node]}<br>Connections: {len(neighbors)}<br>{connection_text}"
+                                label = f"{theme_display_map[node]}<br>Connections: {len(neighbours)}<br>{connection_text}"
                                 node_text.append(label)
                             node_trace = go.Scatter(
                                 x=node_x, 
