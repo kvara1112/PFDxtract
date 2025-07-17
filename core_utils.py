@@ -1387,7 +1387,18 @@ def save_dashboard_images_as_zip(filtered_df):
                                 ])
                                 label = f"{theme_display_map[node]}<br>Connections: {len(neighbours)}<br>{connection_text}"
                                 node_text.append(label)
-                            
+                            node_trace = go.Scatter(
+                                x=node_x, 
+                                y=node_y,
+                                mode='markers+text',
+                                text=node_text,
+                                textposition="top center",
+                                marker=dict(
+                                    size=node_size,
+                                    color='lightblue',
+                                    line=dict(width=1, color = 'white')
+                                )
+                            )
                             
                             # Create figure
                             fig = go.Figure(
