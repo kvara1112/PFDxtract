@@ -21,7 +21,7 @@ from pyvis.network import Network
 import streamlit.components.v1 as components
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.Chrome import ChromeDriverManager
+from webdriver_manager.chrome import ChromeDriverManager
 import time
 import os
 
