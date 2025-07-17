@@ -2341,7 +2341,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         theme_display_map2 = {theme: improved_truncate_text(theme, max_length=100) for theme in top_themes}
         # Format column and index labels
         formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
-        print(formatted_themes)
+        
         # Create the correlation matrix visualization
         fig_corr_matrix = px.imshow(
             top_theme_corr,
