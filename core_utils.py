@@ -25,9 +25,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 import time
 import os
 
-options = Options
-options.headless = True
-driver = webdriver.Chrome(ChromeDriverManager().install, options=options)
+
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
     level=logging.INFO,
