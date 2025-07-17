@@ -809,7 +809,6 @@ def save_dashboard_images_as_zip(filtered_df):
     # Create a zipfile
     with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
         # Helper function to save a figure to the zip
-        add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
         def add_figure_to_zip(fig, filename):
             nonlocal image_count
             try:
@@ -863,7 +862,27 @@ def save_dashboard_images_as_zip(filtered_df):
             except Exception as e:
                 logging.error(f"Error saving {filename}: {str(e)}")
                 return False
-        
+        def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png"):
+            # Setup headless browser for taking a screenshot
+            optionsx = Options()
+            optionsx.headless = True
+            optionsx.add_argument("--window-size=1200,800")
+
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service = service, options=optionsx)
+
+            # Open the saved HTML Pyvis graph
+            driver.get("file://" + os.path.abspath(html_path))
+            time.sleep(3)  # Wait for the graph to render
+
+            # Take a screenshot of the graph
+            driver.save_screenshot(png_name)
+            driver.quit()
+
+            # Add both the HTML and the PNG to the existing ZIP
+            with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
+                zf.write(html_path, arcname=os.path.basename(html_path))
+                zf.write(png_name, arcname=os.path.basename(png_name))
         # === TAB 1: FRAMEWORK HEATMAP ===
         try:
             # Framework distribution chart
@@ -1526,6 +1545,8 @@ def save_dashboard_images_as_zip(filtered_df):
                 )
                 
                 add_figure_to_zip(fig, f"theme_cooccurrence_matrix_{timestamp}.png")
+                add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
+
         except Exception as e:
             logging.error(f"Error creating correlation analysis charts: {str(e)}")
     
