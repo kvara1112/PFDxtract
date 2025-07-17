@@ -1251,7 +1251,9 @@ def save_dashboard_images_as_zip(filtered_df):
                             paper_bgcolor="#0c1f30",  # Dark blue outer background
                             plot_bgcolor="#0c1f30",   # Match the paper background
                             legend=dict(
-                                font=dict(color="black")  # Ensures legend text stays visible
+                                font=dict(color="black"),  # Ensures legend text stays visible
+                                bgcolor = "white",
+
                             ),
                             title=dict(
                                 text="Theme Distribution Radar Chart",
