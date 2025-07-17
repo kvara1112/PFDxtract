@@ -1255,7 +1255,7 @@ def save_dashboard_images_as_zip(filtered_df):
                             ),
                             title=dict(
                                 text="Theme Distribution Radar Chart",
-                                font=dict(color="white")
+                                font=dict(color="black")
                             ),
                             showlegend=True
                         )
