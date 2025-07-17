@@ -1250,14 +1250,15 @@ def save_dashboard_images_as_zip(filtered_df):
                             ),
                             paper_bgcolor="#0c1f30",  # Dark blue outer background
                             plot_bgcolor="#0c1f30",   # Match the paper background
+                            showlegend=True,
                             legend=dict(
                                 font=dict(color="white")  # Ensures legend text stays visible
                             ),
                             title=dict(
                                 text="Theme Distribution Radar Chart",
-                                font=dict(color="black")
-                            ),
-                            showlegend=True
+                                font=dict(color="white")
+                            )
+                            
                         )
 
                         
