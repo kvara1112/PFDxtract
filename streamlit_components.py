@@ -2335,8 +2335,10 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         top_theme_corr = theme_corr.loc[top_themes, top_themes]
         
         # Create a mapping dictionary for theme display names
+        # for titles to split on two lines
         theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
-        
+        # for whole titles- Theme connection network and theme cooccurence table
+        theme_display_map2 = {theme: improved_truncate_text(theme, max_length=100) for theme in top_themes}
         # Format column and index labels
         formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
         print(formatted_themes)
@@ -2439,7 +2441,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=100)
 
                 neighbors = list(G.neighbors(node))
-                connections = [f"{theme_display_map[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
+                connections = [f"{theme_display_map2[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
                 connection_text = "\n".join(connections)
                 title = f"{theme_display_map[node]}\nConnections:{len(connections)}\n{connection_text}"
                 net.add_node(
@@ -2538,8 +2540,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Create a formatted DataFrame for display in the UI
             display_co_occurrence = pd.DataFrame(
                 co_occurrence_matrix,
-                index=[theme_display_map[theme] for theme in top_themes],
-                columns=[theme_display_map[theme] for theme in top_themes]
+                index=[theme_display_map2[theme] for theme in top_themes],
+                columns=[theme_display_map2[theme] for theme in top_themes]
             )
             
             # Keep original for CSV export
