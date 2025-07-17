@@ -21,6 +21,7 @@ from pyvis.network import Network
 import streamlit.components.v1 as components
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 import time
 import os
@@ -759,7 +760,9 @@ def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_na
     optionsx = Options()
     optionsx.headless = True
     optionsx.add_argument("--window-size=1200,800")
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=optionsx)
+
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service = service, options=optionsx)
 
     # Open the saved HTML Pyvis graph
     driver.get("file://" + os.path.abspath(html_path))
