@@ -2399,7 +2399,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         st.plotly_chart(fig_corr_matrix, use_container_width=True, key="theme_correlation_matrix")
         
         # Network graph of correlations
-        st.subheader("Theme Connection Network (THIS WILL BE IMPROVED)")
+        st.subheader("Theme Connection Network")
         
         # Correlation threshold slider
         corr_threshold = st.slider(
