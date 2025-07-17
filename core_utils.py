@@ -1409,7 +1409,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                     plot_bgcolor='white',
                                     font=dict(color='black'),  # Ensure text is readable
                                     showlegend=False,
-                                    hoverinfo='skip',
+                                    hovermode='skip',
                                     margin=dict(b=20, l=5, r=5, t=80),
                                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
