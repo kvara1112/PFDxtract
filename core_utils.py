@@ -1324,6 +1324,7 @@ def save_dashboard_images_as_zip(filtered_df):
                     
                     add_figure_to_zip(fig, f"theme_correlation_matrix_{timestamp}.png")
                     
+                    
                     # Create network graph
                     # Try different thresholds until we get a reasonable number of edges
                     for threshold in [0.6, 0.5, 0.4, 0.3, 0.2]:
@@ -1404,15 +1405,33 @@ def save_dashboard_images_as_zip(filtered_df):
                                 data=edge_traces + [node_trace],
                                 layout=go.Layout(
                                     title=f'Theme Connection Network (r ≥ {threshold})',
+                                    paper_bgcolor='white',     # White background
+                                    plot_bgcolor='white',
+                                    font=dict(color='black'),  # Ensure text is readable
                                     showlegend=False,
                                     hovermode='closest',
                                     margin=dict(b=20, l=5, r=5, t=80),
                                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                                    font = dict(color ='white')
+                                    width=800,
+                                    height=800
                                 )
                             )
-                            
+                            line=dict(width=weight * 6, color=f'rgba(100,100,100,{weight})')  # Adjust weight multiplier
+                            node_trace = go.Scatter(
+                                x=node_x, 
+                                y=node_y,
+                                mode='markers+text',
+                                text=node_text,
+                                textposition="top center",
+                                textfont=dict(color='black'),
+                                marker=dict(
+                                    size=node_size,
+                                    color='skyblue',
+                                    line=dict(width=1, color='black')  # Black border for contrast
+                                )
+                            )
+
                             add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
                             break  # We found a good threshold, no need to try lower ones
                 
