@@ -1362,7 +1362,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                         x=[x0, x1, None],
                                         y=[y0, y1, None],
                                         line=dict(width=weight*3, color=f'rgba(150,150,150,{weight})'),
-                                        hoverinfo='none',
+                                        hoverinfo='skip',
                                         mode='lines'
                                     )
                                 )
@@ -1387,18 +1387,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                 ])
                                 label = f"{theme_display_map[node]}<br>Connections: {len(neighbours)}<br>{connection_text}"
                                 node_text.append(label)
-                            node_trace = go.Scatter(
-                                x=node_x, 
-                                y=node_y,
-                                mode='markers+text',
-                                text=node_text,
-                                textposition="top center",
-                                marker=dict(
-                                    size=node_size,
-                                    color='lightblue',
-                                    line=dict(width=1, color = 'white')
-                                )
-                            )
+                            
                             
                             # Create figure
                             fig = go.Figure(
@@ -1409,7 +1398,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                     plot_bgcolor='white',
                                     font=dict(color='black'),  # Ensure text is readable
                                     showlegend=False,
-                                    hovermode='closest',
+                                    hoverinfo='skip',
                                     margin=dict(b=20, l=5, r=5, t=80),
                                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
