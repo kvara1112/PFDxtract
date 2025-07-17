@@ -2676,7 +2676,6 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             try:
                 # Get the zip file and image count
                 images_zip, image_count = save_dashboard_images_as_zip(filtered_df)
-                add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
 
                 # Update button text to show number of images
                 st.download_button(
