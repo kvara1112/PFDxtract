@@ -1331,7 +1331,7 @@ def save_dashboard_images_as_zip(filtered_df):
                         
                         # Add nodes
                         for theme in available_themes:
-                            G.add_node(theme, display_name=theme_display_map[theme])
+                            G.add_node(theme, display_name=theme)
                         
                         # Add edges
                         edge_count = 0
@@ -1360,7 +1360,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                     go.Scatter(
                                         x=[x0, x1, None],
                                         y=[y0, y1, None],
-                                        line=dict(width=weight*3, color=f'rgba(100,100,100,{weight})'),
+                                        line=dict(width=weight*3, color=f'rgba(150,150,150,{weight})'),
                                         hoverinfo='none',
                                         mode='lines'
                                     )
@@ -1377,9 +1377,15 @@ def save_dashboard_images_as_zip(filtered_df):
                                 node_x.append(x)
                                 node_y.append(y)
                                 node_text.append(theme_display_map[node])
+                                neighbours = list(G.neighbors(node))
                                 size = len(list(G.neighbors(node))) * 10 + 20
                                 node_size.append(size)
-                            
+                                connection_text = "\n".join([
+                                    f"{theme_display_map[neighbor]} (r={G[node][neighbor]['weight']:.2f})"
+                                    for neighbor in neighbors
+                                ])
+                                label = f"{theme_display_map[node]}<br>Connections: {len(neighbors)}<br>{connection_text}"
+                                node_text.append(label)
                             node_trace = go.Scatter(
                                 x=node_x, 
                                 y=node_y,
@@ -1389,7 +1395,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                 marker=dict(
                                     size=node_size,
                                     color='lightblue',
-                                    line=dict(width=1)
+                                    line=dict(width=1, color = 'white')
                                 )
                             )
                             
@@ -1403,8 +1409,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                     margin=dict(b=20, l=5, r=5, t=80),
                                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-                                    width=800,
-                                    height=800
+                                    font = dict(color ='white')
                                 )
                             )
                             
