@@ -1209,20 +1209,20 @@ def save_dashboard_images_as_zip(filtered_df):
                     if len(radar_data) > 0:
                         # Create radar chart
                         fig = go.Figure()
-                        
+                        colors = px.colors.qualitative.Plotly
                         # Add traces for each area
                         for i, area in enumerate(radar_areas):
                             area_data = radar_data[radar_data["Coroner Area"] == area]
                             # Sort by theme to ensure consistency
                             area_data = area_data.set_index("Theme").reindex(top_themes[:6]).reset_index()
-                            color = px.colors.qualitative.Plotly
+                            colorx = colors[i % len(colors)]
                             fig.add_trace(go.Scatterpolar(
                                 r=area_data["Percentage"],
                                 theta=area_data["Display_Theme"],
                                 fill="toself",
                                 name=area_display_map.get(area, area),
-                                line = dict(color=color),
-                                fillcolor=color,
+                                line = dict(color=colorx),
+                                fillcolor=colorx,
                                 opacity=0.5
                             ))
 
