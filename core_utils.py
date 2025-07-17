@@ -1209,7 +1209,7 @@ def save_dashboard_images_as_zip(filtered_df):
                     if len(radar_data) > 0:
                         # Create radar chart
                         fig = go.Figure()
-                        colors = px.colors.qualitative.Plotly
+                        
                         # Add traces for each area
                         for i, area in enumerate(radar_areas):
                             area_data = radar_data[radar_data["Coroner Area"] == area]
@@ -1250,15 +1250,14 @@ def save_dashboard_images_as_zip(filtered_df):
                             ),
                             paper_bgcolor="#0c1f30",  # Dark blue outer background
                             plot_bgcolor="#0c1f30",   # Match the paper background
-                            showlegend=True,
                             legend=dict(
-                                font=dict(color="white")  # Ensures legend text stays visible
+                                font=dict(color="black")  # Ensures legend text stays visible
                             ),
                             title=dict(
                                 text="Theme Distribution Radar Chart",
                                 font=dict(color="white")
-                            )
-                            
+                            ),
+                            showlegend=True
                         )
 
                         
