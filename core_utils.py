@@ -17,8 +17,16 @@ from openpyxl.utils import get_column_letter
 import math
 import plotly.express as px
 import plotly.graph_objects as go
+from pyvis.network import Network
+import streamlit.components.v1 as components
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.Chrome import ChromeDriverManager
+import time
+import os
 
-
+options = Optionsoptions.headless = True
+driver = webdriver.Chrome(ChromeDriverManager().install, options=options)
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
     level=logging.INFO,
@@ -781,6 +789,7 @@ def save_dashboard_images_as_zip(filtered_df):
     # Create a zipfile
     with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
         # Helper function to save a figure to the zip
+        add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
         def add_figure_to_zip(fig, filename):
             nonlocal image_count
             try:
@@ -1324,10 +1333,80 @@ def save_dashboard_images_as_zip(filtered_df):
                     
                     add_figure_to_zip(fig, f"theme_correlation_matrix_{timestamp}.png")
                     
-                    
                     # Create network graph
                     # Try different thresholds until we get a reasonable number of edges
                     for threshold in [0.6, 0.5, 0.4, 0.3, 0.2]:
+                        G = nx.Graph()
+                        # Add nodes (themes) with formatted display names
+                        for theme in top_theme_corr.columns:
+                            
+                            G.add_node(theme, display_name=theme)
+                            
+                        # Add edges (correlations above threshold)
+                                        
+                        for i, theme1 in enumerate(available_themes):
+                            for j, theme2 in enumerate(available_themes):
+                                if i < j:  # Only process each pair once
+                                    correlation = top_theme_corr.loc[theme1, theme2]
+                                    if correlation >= threshold:
+                                        G.add_edge(theme1, theme2, weight=correlation)
+                                        edge_count += 1
+                        # Check if we have any edges
+                        if len(G.edges()) == 0:
+                            logging.error(f"Error creating network, no connections")
+                        else:
+                            #Pyvis network
+                            net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")##added
+                            for node in G.nodes():
+                                degree = len(list(G.neighbors(node)))
+                                size = degree * 10 +20
+                                display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=100)
+
+                                #neighbors = list(G.neighbors(node))
+                                #connections = [f"{theme_display_map[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
+                                #connection_text = "\n".join(connections)
+                                #title = f"{theme_display_map[node]}\nConnections:{len(connections)}\n{connection_text}"
+                                net.add_node(
+                                    node,
+                                    label=display_name,
+                                    #title=title,
+                                    size=size,
+                                    color="skyblue"
+                                )
+                            for edge in G.edges(data=True):
+                                weight = edge[2]['weight']
+                                net.add_edge(
+                                    edge[0], edge[1],
+                                    value=weight,
+                                    title=f"r={weight:.2f}",
+                                    label=f"r={weight:.2f}",
+                                    color=f"rgba(150,150,150,{weight})"
+                                )
+                            
+                            net.save_graph("network.html")
+
+                            def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png"):
+                                # Setup headless browser for taking a screenshot
+                                options = Options()
+                                options.headless = True
+                                options.add_argument("--window-size=1200,800")
+                                driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+
+                                # Open the saved HTML Pyvis graph
+                                driver.get("file://" + os.path.abspath(html_path))
+                                time.sleep(3)  # Wait for the graph to render
+
+                                # Take a screenshot of the graph
+                                driver.save_screenshot(png_name)
+                                driver.quit()
+
+                                # Add both the HTML and the PNG to the existing ZIP
+                                with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
+                                    zf.write(html_path, arcname=os.path.basename(html_path))
+                                    zf.write(png_name, arcname=os.path.basename(png_name))
+
+                            
+                        """
                         G = nx.Graph()
                         
                         # Add nodes
@@ -1361,8 +1440,8 @@ def save_dashboard_images_as_zip(filtered_df):
                                     go.Scatter(
                                         x=[x0, x1, None],
                                         y=[y0, y1, None],
-                                        line=dict(width=weight*3, color=f'rgba(150,150,150,{weight})'),
-                                        hoverinfo='skip',
+                                        line=dict(width=weight*3, color=f'rgba(100,100,100,{weight})'),
+                                        hoverinfo='none',
                                         mode='lines'
                                     )
                                 )
@@ -1378,15 +1457,9 @@ def save_dashboard_images_as_zip(filtered_df):
                                 node_x.append(x)
                                 node_y.append(y)
                                 node_text.append(theme_display_map[node])
-                                neighbours = list(G.neighbors(node))
                                 size = len(list(G.neighbors(node))) * 10 + 20
                                 node_size.append(size)
-                                connection_text = "\n".join([
-                                    f"{theme_display_map[neighbor]} (r={G[node][neighbor]['weight']:.2f})"
-                                    for neighbor in neighbours
-                                ])
-                                label = f"{theme_display_map[node]}<br>Connections: {len(neighbours)}<br>{connection_text}"
-                                node_text.append(label)
+                            
                             node_trace = go.Scatter(
                                 x=node_x, 
                                 y=node_y,
@@ -1396,7 +1469,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                 marker=dict(
                                     size=node_size,
                                     color='lightblue',
-                                    line=dict(width=1, color = 'white')
+                                    line=dict(width=1)
                                 )
                             )
                             
@@ -1405,35 +1478,18 @@ def save_dashboard_images_as_zip(filtered_df):
                                 data=edge_traces + [node_trace],
                                 layout=go.Layout(
                                     title=f'Theme Connection Network (r ≥ {threshold})',
-                                    paper_bgcolor='white',     # White background
-                                    plot_bgcolor='white',
-                                    font=dict(color='black'),  # Ensure text is readable
                                     showlegend=False,
-                                    hovermode='skip',
+                                    hovermode='closest',
                                     margin=dict(b=20, l=5, r=5, t=80),
                                     xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                                     yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
                                     width=800,
                                     height=800
                                 )
-                            )
-                            line=dict(width=weight * 6, color=f'rgba(100,100,100,{weight})')  # Adjust weight multiplier
-                            node_trace = go.Scatter(
-                                x=node_x, 
-                                y=node_y,
-                                mode='markers+text',
-                                text=node_text,
-                                textposition="top center",
-                                textfont=dict(color='black'),
-                                marker=dict(
-                                    size=node_size,
-                                    color='skyblue',
-                                    line=dict(width=1, color='black')  # Black border for contrast
-                                )
-                            )
-
-                            add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
-                            break  # We found a good threshold, no need to try lower ones
+                            )"""
+                            
+                        add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
+                        break  # We found a good threshold, no need to try lower ones
                 
                 # Create co-occurrence matrix
                 co_occurrence_matrix = np.zeros((len(available_themes), len(available_themes)))
