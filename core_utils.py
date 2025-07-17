@@ -756,10 +756,10 @@ def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> st
 
 def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png"):
     # Setup headless browser for taking a screenshot
-    options = Options()
-    options.headless = True
-    options.add_argument("--window-size=1200,800")
-    driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
+    optionsx = Options()
+    optionsx.headless = True
+    optionsx.add_argument("--window-size=1200,800")
+    driver = webdriver.Chrome(ChromeDriverManager().install(), options=optionsx)
 
     # Open the saved HTML Pyvis graph
     driver.get("file://" + os.path.abspath(html_path))
