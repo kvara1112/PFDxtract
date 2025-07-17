@@ -759,7 +759,7 @@ def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_na
     options = Options()
     options.headless = True
     options.add_argument("--window-size=1200,800")
-    driver = webdriver.Chrome(executable_path = ChromeDriverManager().install(), options=options)
+    driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
 
     # Open the saved HTML Pyvis graph
     driver.get("file://" + os.path.abspath(html_path))
