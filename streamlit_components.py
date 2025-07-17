@@ -20,6 +20,7 @@ import numpy as np
 import streamlit as st
 from pyvis.network import Network
 import streamlit.components.v1 as components
+import zipfile
 # Import our modules
 from core_utils import (
     process_scraped_data, 
@@ -28,6 +29,8 @@ from core_utils import (
     export_to_excel,
     filter_by_categories,
     save_dashboard_images_as_zip,
+    add_pyvis_graph_to_existing_zip
+
 )
 from web_scraping import (
     get_pfd_categories,
@@ -2673,7 +2676,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             try:
                 # Get the zip file and image count
                 images_zip, image_count = save_dashboard_images_as_zip(filtered_df)
-                
+                add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
+
                 # Update button text to show number of images
                 st.download_button(
                     f"📥 Download {image_count} Visualizations (ZIP)",

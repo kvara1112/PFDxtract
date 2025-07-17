@@ -1424,7 +1424,6 @@ def save_dashboard_images_as_zip(filtered_df):
                             
                             net.save_graph("network.html")
                         
-                        add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
                         #add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
                         break  # We found a good threshold, no need to try lower ones
                 
