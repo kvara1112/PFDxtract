@@ -754,7 +754,25 @@ def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> st
 
     return json.dumps(results, indent=2)
 
+def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png"):
+    # Setup headless browser for taking a screenshot
+    options = Options()
+    options.headless = True
+    options.add_argument("--window-size=1200,800")
+    driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
 
+    # Open the saved HTML Pyvis graph
+    driver.get("file://" + os.path.abspath(html_path))
+    time.sleep(3)  # Wait for the graph to render
+
+    # Take a screenshot of the graph
+    driver.save_screenshot(png_name)
+    driver.quit()
+
+    # Add both the HTML and the PNG to the existing ZIP
+    with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.write(html_path, arcname=os.path.basename(html_path))
+        zf.write(png_name, arcname=os.path.basename(png_name))
 def save_dashboard_images_as_zip(filtered_df):
     """
     Save all dashboard visualizations as images and package them into a zip file.
@@ -1384,25 +1402,7 @@ def save_dashboard_images_as_zip(filtered_df):
                             
                             net.save_graph("network.html")
 
-                            def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png"):
-                                # Setup headless browser for taking a screenshot
-                                options = Options()
-                                options.headless = True
-                                options.add_argument("--window-size=1200,800")
-                                driver = webdriver.Chrome(ChromeDriverManager().install(), options=options)
-
-                                # Open the saved HTML Pyvis graph
-                                driver.get("file://" + os.path.abspath(html_path))
-                                time.sleep(3)  # Wait for the graph to render
-
-                                # Take a screenshot of the graph
-                                driver.save_screenshot(png_name)
-                                driver.quit()
-
-                                # Add both the HTML and the PNG to the existing ZIP
-                                with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
-                                    zf.write(html_path, arcname=os.path.basename(html_path))
-                                    zf.write(png_name, arcname=os.path.basename(png_name))
+                            
 
                             
                         """
