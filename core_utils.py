@@ -1382,7 +1382,7 @@ def save_dashboard_images_as_zip(filtered_df):
                             G.add_node(theme, display_name=theme)
                             
                         # Add edges (correlations above threshold)
-                                        
+                        edge_count = 0      
                         for i, theme1 in enumerate(available_themes):
                             for j, theme2 in enumerate(available_themes):
                                 if i < j:  # Only process each pair once
