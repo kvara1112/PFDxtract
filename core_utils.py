@@ -1209,7 +1209,7 @@ def save_dashboard_images_as_zip(filtered_df):
                     if len(radar_data) > 0:
                         # Create radar chart
                         fig = go.Figure()
-                        
+                        colors = px.colors.qualitative.Plotly
                         # Add traces for each area
                         for i, area in enumerate(radar_areas):
                             area_data = radar_data[radar_data["Coroner Area"] == area]
