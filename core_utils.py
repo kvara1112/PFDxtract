@@ -16,6 +16,9 @@ from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
 import math
 import plotly.express as px
+import plotly.graph_objects as go
+
+
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
     level=logging.INFO,
@@ -1201,13 +1204,14 @@ def save_dashboard_images_as_zip(filtered_df):
                         (area_theme_df["Coroner Area"].isin(radar_areas)) & 
                         (area_theme_df["Theme"].isin(top_themes[:6]))  # Limit to 6 themes for readability
                     ]
+                    colors = px.colors.qualitative.Plotly
                     
                     if len(radar_data) > 0:
                         # Create radar chart
                         fig = go.Figure()
                         
                         # Add traces for each area
-                        for area in radar_areas:
+                        for i, area in enumerate(radar_areas):
                             area_data = radar_data[radar_data["Coroner Area"] == area]
                             # Sort by theme to ensure consistency
                             area_data = area_data.set_index("Theme").reindex(top_themes[:6]).reset_index()
@@ -1216,7 +1220,10 @@ def save_dashboard_images_as_zip(filtered_df):
                                 r=area_data["Percentage"],
                                 theta=area_data["Display_Theme"],
                                 fill="toself",
-                                name=area_display_map.get(area, area)
+                                name=area_display_map.get(area, area),
+                                line = dict(color=color),
+                                fillcolor=color,
+                                opacity=0.5
                             ))
 
                         #
