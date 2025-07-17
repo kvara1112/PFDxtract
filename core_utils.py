@@ -14,6 +14,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils.dataframe import dataframe_to_rows
 from openpyxl.utils import get_column_letter
+import math
 
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
@@ -972,7 +973,7 @@ def save_dashboard_images_as_zip(filtered_df):
                     theme_display_df = pd.DataFrame(theme_display_data)
                     
                     # Add year count labels
-                    year_labels = [f"{year}\nn={reports_per_year[year]}" for year in pivot.columns]
+                    year_labels = [f"{math.floor(year)}\nn={reports_per_year[year]}" for year in pivot.columns]
                     
                     # Create heatmap for export
                     fig = px.imshow(
