@@ -2357,7 +2357,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             "Internal": "lightcyan",
             "Person": "palegreen",
             "External": "beige",
-            "Other": "plum"
+            "Other": "honeydew"
         }
         fig_corr_matrix = px.imshow(
             top_theme_corr,
@@ -2480,19 +2480,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     color=f"rgba(150,150,150,{weight})"
                 )
 
-            legend_offset = -2000
-            for idx, (group, node_color) in enumerate(group_colours.items()):
-                net.add_node(
-                    f"legend_{group}",
-                    label = group,
-                    colour = node_color,
-                    shape = "box",
-                    size = 20,
-                    x = legend_offset,
-                    y = idx * 100 + legend_offset,
-                    physics = False,
-                    fixed = True
-                )
+            
             net.toggle_physics(True)
             net.set_options("""
             var options = {
@@ -2516,13 +2504,31 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             }
                 """)
             net.save_graph("network.html")
+
+            legend_html = """
+            <div style="position:absolute; top:10px; right:10px; background-color:white; border:1px solid #ccc; padding:10px; border-radius:8px;">
+                <b>Legend</b><br>
+                <div style="color:lightpink;">■ Jobs/Task</div>
+                <div style="color:lightcoral;">■ Organisation</div>
+                <div style="color:lightcyan;">■ Internal</div>
+                <div style="color:palegreen;">■ Person</div>
+                <div style="color:beige;">■ External</div>
+                <div style="color:beige;">■ Other</div>
+            </div>
+
+            """
             # Inject PNG download button and html2canvas script into the HTML
             with open("network.html", "r", encoding="utf-8") as f:
                 html = f.read()
 
             # Insert download button and script before </body>
-            
-            html = html.replace(
+            final_html = html.replace("<body>", f"<body>{legend_html}")
+
+           
+            with open("network_with_legend.html", "w", encoding="utf-8") as f:
+                f.write(final_html)
+                
+            final_html = final_html.replace(
                 "</body>",
                 """
                 <div style="text-align: center; margin-top: 20px;">
@@ -2546,7 +2552,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             )
 
             # Load into Streamlit
-            components.html(html, height=880, scrolling=True)
+            components.html(final_html, height=880, scrolling=True)
 
             #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=False)
             
