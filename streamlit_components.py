@@ -1540,7 +1540,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     height=max(500, len(theme_counts) * 30),
                     color_discrete_map={
                         "I-SIRch": "orange",
-                        "House of Commons": "royalblue",
+                        "Black Maternal Health": "royalblue",
                         "Extended Analysis": "firebrick"
                     }
                 )
