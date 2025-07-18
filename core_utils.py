@@ -809,8 +809,6 @@ def save_dashboard_images_as_zip(filtered_df):
     # Create a zipfile
     with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
         # Helper function to save a figure to the zip
-        add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
-
         def add_figure_to_zip(fig, filename):
             nonlocal image_count
             try:
@@ -881,10 +879,19 @@ def save_dashboard_images_as_zip(filtered_df):
             driver.save_screenshot(png_name)
             driver.quit()
 
+            with open("network_graph.png", "rb") as f:
+                img_bytes = f.read()
+
+            if img_bytes and len(img_bytes) > 0:
+                zip_file.writestr("network_graph", img_bytes)
+                logging.info(f"Successfully added network_graph to zip")
+            else:
+                logging.warning(f"No image bytes generated for network_graph")
+
             # Add both the HTML and the PNG to the existing ZIP
-            with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
-                zf.write(html_path, arcname=os.path.basename(html_path))
-                zf.write(png_name, arcname=os.path.basename(png_name))
+            #with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
+                #zf.write(html_path, arcname=os.path.basename(html_path))
+                #zf.write(png_name, arcname=os.path.basename(png_name))
         # === TAB 1: FRAMEWORK HEATMAP ===
         try:
             # Framework distribution chart
@@ -1425,7 +1432,8 @@ def save_dashboard_images_as_zip(filtered_df):
                                 )
                             
                             net.save_graph("network.html")
-                        
+                            add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
+
                         #add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
                         break  # We found a good threshold, no need to try lower ones
                 
