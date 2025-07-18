@@ -1456,9 +1456,9 @@ def save_dashboard_images_as_zip(filtered_df):
                                 },
                                 "physics": {
                                     "barnesHut": {
-                                    "gravitationalConstant": -9000,
+                                    "gravitationalConstant": -4000,
                                     "springLength": 100,
-                                    "springConstant": 0.02
+                                    "springConstant": 0.08
                                     },
                                     "minVelocity": 0.75,
                                     "solver": "barnesHut"
