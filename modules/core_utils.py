@@ -8,7 +8,7 @@ import nltk # type: ignore
 from typing import Union
 import urllib3
 from sklearn.feature_extraction.text import TfidfVectorizer
-from vectorizer_utils import BM25Vectorizer, WeightedTfidfVectorizer
+from .vectorizer_utils import BM25Vectorizer, WeightedTfidfVectorizer
 import io
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
@@ -755,7 +755,7 @@ def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> st
 
     return json.dumps(results, indent=2)
 
-def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png"):
+def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="outputs/network.html", png_name="network_graph.png"):
     # Setup headless browser for taking a screenshot
     optionsx = Options()
     optionsx.headless = True
@@ -863,7 +863,7 @@ def save_dashboard_images_as_zip(filtered_df):
             except Exception as e:
                 logging.error(f"Error saving {filename}: {str(e)}")
                 return False
-        def add_pyvis_graph_to_existing_zip(html_path="network.html", png_name="network_graph.png"):
+        def add_pyvis_graph_to_existing_zip(html_path="outputs/network.html", png_name="network_graph.png"):
             # Setup headless browser for taking a screenshot
             optionsx = Options()
             optionsx.headless = True
@@ -1467,7 +1467,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                 }
                                 """)
                             
-                            net.save_graph("network.html")
+                            net.save_graph("outputs/network.html")
                             legend_html = """
                                 <div style="position:absolute; 
                                     top:10px; 
@@ -1491,7 +1491,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                 </div>
 
                                 """
-                            with open("network.html", "r", encoding="utf-8") as f:
+                            with open("outputs/network.html", "r", encoding="utf-8") as f:
                                 html = f.read()
 
                             # Insert download button and script before </body>

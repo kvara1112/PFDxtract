@@ -1,6 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: false
----
-when making alterations, if possible do not create new code, look to port over and use  code from [app.py](mdc:app.py) instead

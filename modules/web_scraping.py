@@ -18,7 +18,7 @@ import time
 import urllib3
 import requests
 
-from core_utils import (
+from .core_utils import (
     clean_text, 
     extract_metadata, 
     process_scraped_data
@@ -144,7 +144,7 @@ def extract_pdf_text(pdf_path: str) -> str:
         logging.error(f"Error extracting PDF text from {pdf_path}: {e}")
         return ""
 
-def download_pdf(pdf_url: str, save_dir: str = "pdfs") -> Optional[str]:
+def download_pdf(pdf_url: str, save_dir: str = "outputs") -> Optional[str]:
     """
     Download PDF from URL and return local path
     
@@ -443,7 +443,7 @@ def get_report_content(url: str) -> Optional[Dict]:
         return None
     
 def save_pdf(
-    pdf_url: str, base_dir: str = "pdfs"
+    pdf_url: str, base_dir: str = "outputs"
 ) -> Tuple[Optional[str], Optional[str]]:
     """Download and save PDF, return local path and filename"""
     try:
@@ -828,7 +828,7 @@ def cleanup_old_pdfs(max_age_hours: int = 24) -> None:
         max_age_hours: Maximum age of files to keep (in hours)
     """
     try:
-        pdf_dir = "pdfs"
+        pdf_dir = "outputs"
         if not os.path.exists(pdf_dir):
             return
         
