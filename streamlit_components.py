@@ -298,10 +298,13 @@ def handle_error(error):
     with st.expander("Error Details"):
         st.code(str(error))
     logging.error(f"Application error: {error}", exc_info=True)
+def upload_PFD_reports():
+    pass
+
 
 def render_scraping_tab():
     """Render the scraping tab with batch saving options and date filters"""
-    st.subheader("Scrape PFD Reports")
+    
 
     # Initialize default values if not in session state
     if "init_done" not in st.session_state:

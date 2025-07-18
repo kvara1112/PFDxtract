@@ -25,6 +25,7 @@ from streamlit_components import (
     validate_data_state,
     handle_no_data_state,
     handle_error,
+    upload_PFD_reports,
     render_scraping_tab,
     render_bert_file_merger,
     render_bert_analysis_tab,
@@ -350,6 +351,19 @@ def main():
                 Handling Large Result Sets: For extensive search results, use the 'Start page' and 'End page' number inputs to download reports in manageable batches.
                 """
             )
+            st.subheader("Scrape PFD Reports")
+            st.markdown(
+                """
+                Upload your own PFD reports or filter and search below
+
+
+                Upload PFD reports
+                """
+            )
+            upload_PFD_reports()
+            st.markdown("""
+                Scrape filtered PFD reports 
+                        """)
             render_scraping_tab()
         
         elif current_tab == "(2)📂 Scraped File Preparation":
