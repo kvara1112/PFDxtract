@@ -759,7 +759,7 @@ def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_na
     # Setup headless browser for taking a screenshot
     optionsx = Options()
     optionsx.headless = True
-    optionsx.add_argument("--window-size=1200,1500")
+    optionsx.add_argument("--window-size=2000,2000")
 
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service = service, options=optionsx)
@@ -767,7 +767,7 @@ def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_na
     # Open the saved HTML Pyvis graph
     driver.get("file://" + os.path.abspath(html_path))
     time.sleep(3)  # Wait for the graph to render
-    driver.execute_script("document.body.style.zoom='80%'")
+    
     # Take a screenshot of the graph
     driver.save_screenshot(png_name)
 
