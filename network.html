@@ -88,7 +88,7 @@
                   
 
                   // parsing and collecting nodes and edges from the python
-                  nodes = new vis.DataSet([{"color": "skyblue", "font": {"color": "white"}, "id": "Medication safety", "label": "Medication safety", "shape": "dot", "size": 20}, {"color": "skyblue", "font": {"color": "white"}, "id": "Fragmented care", "label": "Fragmented care", "shape": "dot", "size": 40}, {"color": "skyblue", "font": {"color": "white"}, "id": "Internal - Time of day (e.g., night working or day of the week)", "label": "Internal - Time of day (e.g., night working or day of the week)", "shape": "dot", "size": 40}, {"color": "skyblue", "font": {"color": "white"}, "id": "Communication", "label": "Communication", "shape": "dot", "size": 40}, {"color": "skyblue", "font": {"color": "white"}, "id": "Inadequate maternity care", "label": "Inadequate maternity care", "shape": "dot", "size": 40}, {"color": "skyblue", "font": {"color": "white"}, "id": "Organisation - National and/or local guidance", "label": "Organisation - National and/or local guidance", "shape": "dot", "size": 20}, {"color": "skyblue", "font": {"color": "white"}, "id": "Jobs/Task - Risk assessment", "label": "Jobs/Task - Risk assessment", "shape": "dot", "size": 40}, {"color": "skyblue", "font": {"color": "white"}, "id": "Jobs/Task - Care planning", "label": "Jobs/Task - Care planning", "shape": "dot", "size": 40}, {"color": "skyblue", "font": {"color": "white"}, "id": "Consent/agency", "label": "Consent/agency", "shape": "dot", "size": 20}, {"color": "skyblue", "font": {"color": "white"}, "id": "Care quality and access issues", "label": "Care quality and access issues", "shape": "dot", "size": 20}]);
+                  nodes = new vis.DataSet([{"color": "mediumseagreen", "font": {"color": "white"}, "id": "Medication safety", "label": "Medication safety", "shape": "dot", "size": 20}, {"color": "mediumseagreen", "font": {"color": "white"}, "id": "Fragmented care", "label": "Fragmented care", "shape": "dot", "size": 40}, {"color": "steelblue", "font": {"color": "white"}, "id": "Internal - Time of day (e.g., night working or day of the week)", "label": "Internal - Time of day (e.g., night working or day of the week)", "shape": "dot", "size": 40}, {"color": "mediumseagreen", "font": {"color": "white"}, "id": "Communication", "label": "Communication", "shape": "dot", "size": 40}, {"color": "mediumseagreen", "font": {"color": "white"}, "id": "Inadequate maternity care", "label": "Inadequate maternity care", "shape": "dot", "size": 40}, {"color": "lightcoral", "font": {"color": "white"}, "id": "Organisation - National and/or local guidance", "label": "Organisation - National and/or local guidance", "shape": "dot", "size": 20}, {"color": "lightpink", "font": {"color": "white"}, "id": "Jobs/Task - Risk assessment", "label": "Jobs/Task - Risk assessment", "shape": "dot", "size": 40}, {"color": "lightpink", "font": {"color": "white"}, "id": "Jobs/Task - Care planning", "label": "Jobs/Task - Care planning", "shape": "dot", "size": 40}, {"color": "mediumseagreen", "font": {"color": "white"}, "id": "Consent/agency", "label": "Consent/agency", "shape": "dot", "size": 20}, {"color": "mediumseagreen", "font": {"color": "white"}, "id": "Care quality and access issues", "label": "Care quality and access issues", "shape": "dot", "size": 20}]);
                   edges = new vis.DataSet([{"color": "rgba(150,150,150,0.9009374626955587)", "from": "Fragmented care", "label": "r=0.90", "title": "r=0.90", "to": "Inadequate maternity care", "value": 0.9009374626955587}, {"color": "rgba(150,150,150,0.8390957231764805)", "from": "Fragmented care", "label": "r=0.84", "title": "r=0.84", "to": "Jobs/Task - Care planning", "value": 0.8390957231764805}, {"color": "rgba(150,150,150,0.7555891201009431)", "from": "Internal - Time of day (e.g., night working or day of the week)", "label": "r=0.76", "title": "r=0.76", "to": "Communication", "value": 0.7555891201009431}, {"color": "rgba(150,150,150,0.8284572264246892)", "from": "Internal - Time of day (e.g., night working or day of the week)", "label": "r=0.83", "title": "r=0.83", "to": "Jobs/Task - Risk assessment", "value": 0.8284572264246892}, {"color": "rgba(150,150,150,0.7890164512138453)", "from": "Communication", "label": "r=0.79", "title": "r=0.79", "to": "Jobs/Task - Risk assessment", "value": 0.7890164512138453}, {"color": "rgba(150,150,150,0.9313584548542903)", "from": "Inadequate maternity care", "label": "r=0.93", "title": "r=0.93", "to": "Jobs/Task - Care planning", "value": 0.9313584548542903}]);
 
                   nodeColors = {};
@@ -100,35 +100,7 @@
                   // adding nodes and edges to the graph
                   data = {nodes: nodes, edges: edges};
 
-                  var options = {
-    "configure": {
-        "enabled": false
-    },
-    "edges": {
-        "color": {
-            "inherit": true
-        },
-        "smooth": {
-            "enabled": true,
-            "type": "dynamic"
-        }
-    },
-    "interaction": {
-        "dragNodes": true,
-        "hideEdgesOnDrag": false,
-        "hideNodesOnDrag": false
-    },
-    "physics": {
-        "enabled": true,
-        "stabilization": {
-            "enabled": true,
-            "fit": true,
-            "iterations": 1000,
-            "onlyDynamicEdges": false,
-            "updateInterval": 50
-        }
-    }
-};
+                  var options = {"nodes": {"borderWidth": 1, "shape": "dot"}, "edges": {"color": {"inherit": false}, "smooth": false}, "physics": {"barnesHut": {"gravitationalConstant": -4000, "springLength": 100, "springConstant": 0.08}, "minVelocity": 0.75, "solver": "barnesHut"}};
 
                   
 
