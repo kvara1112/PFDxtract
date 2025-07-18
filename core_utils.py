@@ -1481,7 +1481,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                     z-index: 9999;
                                     box-shadow: 2px 2px 10px rgba(0,0,0,0,1);
                                 ">
-                                    <b>Legend</b><br>
+                                    <b>Categories</b><br>
                                     <div style="color:lightpink;">■ </div><div style = "color:black;">Jobs/Task</div>
                                     <div style="color:lightcoral;">■ </div><div style = "color:black;"> Organisation</div>
                                     <div style="color:steelblue;">■ </div><div style = "color:black;">Internal</div>
