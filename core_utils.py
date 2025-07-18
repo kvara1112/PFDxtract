@@ -1426,7 +1426,30 @@ def save_dashboard_images_as_zip(filtered_df):
                                     label=f"r={weight:.2f}",
                                     color=f"rgba(150,150,150,{weight})"
                                 )
-                            
+                            net.set_options("""
+                                var options = {
+                                "nodes": {
+                                    "borderWidth": 1,
+                                    "shape": "dot"
+                                },
+                                "edges": {
+                                    "color": {
+                                    "inherit": false
+                                    },
+                                    "smooth": false
+                                },
+                                "physics": {
+                                    "barnesHut": {
+                                    "gravitationalConstant": -12000,
+                                    "springLength": 300,
+                                    "springConstant": 0.02
+                                    },
+                                    "minVelocity": 0.75,
+                                    "solver": "barnesHut"
+                                }
+                                }
+                                """)
+
                             net.save_graph("network.html")
                             add_pyvis_graph_to_existing_zip(html_path="network.html", png_name="network_graph.png")
 
