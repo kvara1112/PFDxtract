@@ -2357,7 +2357,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             "Internal": "steelblue",
             "Person": "palegreen",
             "External": "darkorchid",
-            "Other": "darkgoldenrod"
+            "Other": "mediumseagreen"
         }
         fig_corr_matrix = px.imshow(
             top_theme_corr,
@@ -2524,7 +2524,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 <div style="color:steelblue;">■ </div><div style = "color:black;">Internal</div>
                 <div style="color:palegreen;">■ </div><div style = "color:black;">Person</div>
                 <div style="color:darkorchid;">■ </div><div style = "color:black;">External</div>
-                <div style="color:darkgoldenrod;">■ </div><div style = "color:black;"> Other</div>
+                <div style="color:mediumseagreen;">■ </div><div style = "color:black;"> Other</div>
             </div>
 
             """
