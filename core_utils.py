@@ -862,7 +862,7 @@ def save_dashboard_images_as_zip(filtered_df):
             except Exception as e:
                 logging.error(f"Error saving {filename}: {str(e)}")
                 return False
-        def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png"):
+        def add_pyvis_graph_to_existing_zip(html_path="network.html", png_name="network_graph.png"):
             # Setup headless browser for taking a screenshot
             optionsx = Options()
             optionsx.headless = True
@@ -888,10 +888,6 @@ def save_dashboard_images_as_zip(filtered_df):
             else:
                 logging.warning(f"No image bytes generated for network_graph")
 
-            # Add both the HTML and the PNG to the existing ZIP
-            #with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
-                #zf.write(html_path, arcname=os.path.basename(html_path))
-                #zf.write(png_name, arcname=os.path.basename(png_name))
         # === TAB 1: FRAMEWORK HEATMAP ===
         try:
             # Framework distribution chart
@@ -1432,7 +1428,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                 )
                             
                             net.save_graph("network.html")
-                            add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
+                            add_pyvis_graph_to_existing_zip(html_path="network.html", png_name="network_graph.png")
 
                         #add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
                         break  # We found a good threshold, no need to try lower ones
