@@ -299,6 +299,9 @@ def handle_error(error):
         st.code(str(error))
     logging.error(f"Application error: {error}", exc_info=True)
 def upload_PFD_reports():
+    uploaded_reports = st.file_uploader(
+        "Upload csv"
+    )
     pass
 
 
@@ -2522,7 +2525,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 z-index: 9999;
                 box-shadow: 2px 2px 10px rgba(0,0,0,0,1);
             ">
-                <b>Legend</b><br>
+                <b>Categories</b><br>
                 <div style="color:lightpink;">■ </div><div style = "color:black;">Jobs/Task</div>
                 <div style="color:lightcoral;">■ </div><div style = "color:black;"> Organisation</div>
                 <div style="color:steelblue;">■ </div><div style = "color:black;">Internal</div>
