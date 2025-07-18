@@ -883,7 +883,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 img_bytes = f.read()
 
             if img_bytes and len(img_bytes) > 0:
-                zip_file.writestr("network_graph", img_bytes)
+                zip_file.writestr("network_graph.png", img_bytes)
                 logging.info(f"Successfully added network_graph to zip")
             else:
                 logging.warning(f"No image bytes generated for network_graph")
