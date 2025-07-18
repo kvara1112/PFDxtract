@@ -799,7 +799,6 @@ def save_dashboard_images_as_zip(filtered_df):
     
     # Create a buffer for the zip file
     zip_buffer = io.BytesIO()
-    add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
 
     # Create a timestamp for the filenames
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -810,6 +809,8 @@ def save_dashboard_images_as_zip(filtered_df):
     # Create a zipfile
     with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
         # Helper function to save a figure to the zip
+        add_pyvis_graph_to_existing_zip(zip_buffer, html_path="network.html", png_name="network_graph.png")
+
         def add_figure_to_zip(fig, filename):
             nonlocal image_count
             try:
