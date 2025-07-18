@@ -2349,7 +2349,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 return theme.split("-")[0].strip()
             else:
                 return "Other"
-        # Create the correlation matrix visualization
+        
         group_map = {theme: extract_category(theme) for theme in top_themes}
         group_colours = {
             "Jobs/Task": "lightpink",
@@ -2359,6 +2359,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             "External": "darkorchid",
             "Other": "mediumseagreen"
         }
+        # Create the correlation matrix visualization
         fig_corr_matrix = px.imshow(
             top_theme_corr,
             color_continuous_scale=px.colors.diverging.RdBu_r,  # Red-Blue diverging colorscale

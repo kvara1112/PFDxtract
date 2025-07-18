@@ -1376,7 +1376,15 @@ def save_dashboard_images_as_zip(filtered_df):
                     )
                     
                     add_figure_to_zip(fig, f"theme_correlation_matrix_{timestamp}.png")
-                    
+                    group_map = {theme: extract_category(theme) for theme in top_themes}
+                    group_colours = {
+                        "Jobs/Task": "lightpink",
+                        "Organisation": "lightcoral",
+                        "Internal": "steelblue",
+                        "Person": "palegreen",
+                        "External": "darkorchid",
+                        "Other": "mediumseagreen"
+                    }
                     # Create network graph
                     # Try different thresholds until we get a reasonable number of edges
                     for threshold in [0.6, 0.5, 0.4, 0.3, 0.2]:
@@ -1410,12 +1418,21 @@ def save_dashboard_images_as_zip(filtered_df):
                                 #connections = [f"{theme_display_map[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
                                 #connection_text = "\n".join(connections)
                                 #title = f"{theme_display_map[node]}\nConnections:{len(connections)}\n{connection_text}"
+                                group = group_map.get(node, "Other")
+                                node_color = group_colours.get(group, "gray")
+                                net.add_node(
+                                    node,
+                                    label=display_name,
+                                    title=title,
+                                    size=size,
+                                    color= node_color
+                                )
                                 net.add_node(
                                     node,
                                     label=display_name,
                                     #title=title,
                                     size=size,
-                                    color="skyblue"
+                                    color=node_color
                                 )
                             for edge in G.edges(data=True):
                                 weight = edge[2]['weight']
@@ -1449,9 +1466,42 @@ def save_dashboard_images_as_zip(filtered_df):
                                 }
                                 }
                                 """)
-
+                            
                             net.save_graph("network.html")
-                            add_pyvis_graph_to_existing_zip(html_path="network.html", png_name="network_graph.png")
+                            legend_html = """
+                                <div style="position:absolute; 
+                                    top:10px; 
+                                    right:10px; 
+                                    background-color:white; 
+                                    font-color: Black;
+                                    border:1px solid #ccc; 
+                                    padding:10px; 
+                                    border-radius:8px;
+                                    font-size : 14px;
+                                    z-index: 9999;
+                                    box-shadow: 2px 2px 10px rgba(0,0,0,0,1);
+                                ">
+                                    <b>Legend</b><br>
+                                    <div style="color:lightpink;">■ </div><div style = "color:black;">Jobs/Task</div>
+                                    <div style="color:lightcoral;">■ </div><div style = "color:black;"> Organisation</div>
+                                    <div style="color:steelblue;">■ </div><div style = "color:black;">Internal</div>
+                                    <div style="color:palegreen;">■ </div><div style = "color:black;">Person</div>
+                                    <div style="color:darkorchid;">■ </div><div style = "color:black;">External</div>
+                                    <div style="color:mediumseagreen;">■ </div><div style = "color:black;"> Other</div>
+                                </div>
+
+                                """
+                            with open("network.html", "r", encoding="utf-8") as f:
+                                html = f.read()
+
+                            # Insert download button and script before </body>
+                            final_html = html.replace("<body>", f"<body>{legend_html}")
+
+                        
+                            with open("network_with_legend.html", "w", encoding="utf-8") as f:
+                                f.write(final_html)
+                                
+                            add_pyvis_graph_to_existing_zip(html_path="network_with_legend.html", png_name="network_graph.png")
 
                         #add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
                         break  # We found a good threshold, no need to try lower ones
