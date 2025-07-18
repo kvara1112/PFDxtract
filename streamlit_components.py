@@ -2509,15 +2509,16 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             <div style="position:fixed; 
                 top:20px; 
                 right:20px; 
-                background-color:white; 
-                border:1px solid #ccc; 
-                padding:10px; 
-                border-radius:8px;
-                font-size : 14px;
+                background-color:#111; 
+                color: white;
+                border:2px solid #ccc; 
+                padding:16px; 
+                border-radius:10px;
+                font-size : 16px;
                 z-index: 9999;
                 box-shadow: 2px 2px 10px rgba(0,0,0,0,1);
             ">
-                <b>Legend</b><br>
+                <b style="font-size:18px;>Legend</b><br><br>
                 <div style="color:lightpink;">■ Jobs/Task</div>
                 <div style="color:lightcoral;">■ Organisation</div>
                 <div style="color:lightcyan;">■ Internal</div>
