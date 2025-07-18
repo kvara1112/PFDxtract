@@ -2506,7 +2506,17 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             net.save_graph("network.html")
 
             legend_html = """
-            <div style="position:absolute; top:10px; right:10px; background-color:white; border:1px solid #ccc; padding:10px; border-radius:8px;">
+            <div style="position:fixed; 
+                top:20px; 
+                right:20px; 
+                background-color:white; 
+                border:1px solid #ccc; 
+                padding:10px; 
+                border-radius:8px;
+                font-size : 14px;
+                z-index: 9999;
+                box-shadow: 2px 2px 10px rgba(0,0,0,0,1);
+            ">
                 <b>Legend</b><br>
                 <div style="color:lightpink;">■ Jobs/Task</div>
                 <div style="color:lightcoral;">■ Organisation</div>
