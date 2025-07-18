@@ -2506,25 +2506,25 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             net.save_graph("network.html")
 
             legend_html = """
-            <div style="position:fixed; 
-                top:20px; 
-                right:20px; 
-                background-color:#111; 
-                color: white;
-                border:2px solid #ccc; 
-                padding:16px; 
-                border-radius:10px;
-                font-size : 16px;
+            <div style="position:absolute; 
+                top:10px; 
+                right:10px; 
+                background-color:white; 
+                font-color: Black;
+                border:1px solid #ccc; 
+                padding:10px; 
+                border-radius:8px;
+                font-size : 14px;
                 z-index: 9999;
                 box-shadow: 2px 2px 10px rgba(0,0,0,0,1);
             ">
-                <b style="font-size:18px;>Legend</b><br><br>
-                <div style="color:lightpink;">■ Jobs/Task</div>
-                <div style="color:lightcoral;">■ Organisation</div>
-                <div style="color:lightcyan;">■ Internal</div>
-                <div style="color:palegreen;">■ Person</div>
-                <div style="color:beige;">■ External</div>
-                <div style="color:beige;">■ Other</div>
+                <b>Legend</b><br>
+                <div style="color:lightpink;">■ </div><div style = "color:black;">Jobs/Task</div>
+                <div style="color:lightcoral;">■ </div><div style = "color:black;"> Organisation</div>
+                <div style="color:lightcyan;">■ </div><div style = "color:black;">Internal</div>
+                <div style="color:palegreen;">■ </div><div style = "color:black;">Person</div>
+                <div style="color:beige;">■ </div><div style = "color:black;">External</div>
+                <div style="color:honeydew;">■ </div><div style = "color:black;"> Other</div>
             </div>
 
             """
