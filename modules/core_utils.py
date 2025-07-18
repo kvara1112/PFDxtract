@@ -755,7 +755,48 @@ def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> st
 
     return json.dumps(results, indent=2)
 
-def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="outputs/network.html", png_name="network_graph.png"):
+
+
+def add_pyvis_graph_to_existing_zip(html_path="outputs/network.html", png_name="network_graph.png"):
+    try:
+        from selenium import webdriver
+        from selenium.webdriver.chrome.options import Options
+        from selenium.webdriver.chrome.service import Service
+        
+        # Setup headless browser for cloud environment
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--no-sandbox")
+        options.add_argument("--disable-dev-shm-usage")
+        options.add_argument("--disable-gpu")
+        options.add_argument("--window-size=1200,800")
+        options.add_argument("--remote-debugging-port=9222")
+        
+        # Try to use chromium-driver directly
+        try:
+            driver = webdriver.Chrome(options=options)
+        except Exception:
+            # If Chrome driver fails, skip the screenshot
+            st.warning("Unable to generate network graph screenshot in cloud environment")
+            return
+        
+        # Rest of your screenshot code...
+        driver.get("file://" + os.path.abspath(html_path))
+        time.sleep(3)
+        driver.save_screenshot(png_name)
+        driver.quit()
+        
+        # Add to zip
+        with open(png_name, "rb") as f:
+            img_bytes = f.read()
+        if img_bytes:
+            zip_file.writestr("network_graph.png", img_bytes)
+            
+    except Exception as e:
+        st.warning(f"Network graph screenshot not available: {str(e)}")
+        return
+
+def add_pyvis_graph_to_existing_zip2(zip_buffer, html_path="outputs/network.html", png_name="network_graph.png"):
     # Setup headless browser for taking a screenshot
     optionsx = Options()
     optionsx.headless = True
