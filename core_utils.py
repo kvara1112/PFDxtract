@@ -1376,7 +1376,12 @@ def save_dashboard_images_as_zip(filtered_df):
                     )
                     
                     add_figure_to_zip(fig, f"theme_correlation_matrix_{timestamp}.png")
-                    group_map = {theme: extract_category(theme) for theme in top_themes}
+                    def extract_category(theme):
+                        if "-" in theme:
+                            return theme.split("-")[0].strip()
+                        else:
+                            return "Other"
+                    group_map = {theme: extract_category(theme) for theme in top_theme_corr.columns}
                     group_colours = {
                         "Jobs/Task": "lightpink",
                         "Organisation": "lightcoral",
@@ -1420,13 +1425,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                 #title = f"{theme_display_map[node]}\nConnections:{len(connections)}\n{connection_text}"
                                 group = group_map.get(node, "Other")
                                 node_color = group_colours.get(group, "gray")
-                                net.add_node(
-                                    node,
-                                    label=display_name,
-                                    title=title,
-                                    size=size,
-                                    color= node_color
-                                )
+                                
                                 net.add_node(
                                     node,
                                     label=display_name,
