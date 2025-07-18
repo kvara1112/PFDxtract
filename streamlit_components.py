@@ -2354,7 +2354,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         group_colours = {
             "Jobs/Task": "lightpink",
             "Organisation": "lightcoral",
-            "Internal": "skyblue",
+            "Internal": "steelblue",
             "Person": "palegreen",
             "External": "darkorchid",
             "Other": "darkgoldenrod"
@@ -2521,7 +2521,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 <b>Legend</b><br>
                 <div style="color:lightpink;">■ </div><div style = "color:black;">Jobs/Task</div>
                 <div style="color:lightcoral;">■ </div><div style = "color:black;"> Organisation</div>
-                <div style="color:lightcyan;">■ </div><div style = "color:black;">Internal</div>
+                <div style="color:steelblue;">■ </div><div style = "color:black;">Internal</div>
                 <div style="color:palegreen;">■ </div><div style = "color:black;">Person</div>
                 <div style="color:darkorchid;">■ </div><div style = "color:black;">External</div>
                 <div style="color:darkgoldenrod;">■ </div><div style = "color:black;"> Other</div>
