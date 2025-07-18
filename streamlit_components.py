@@ -2354,10 +2354,10 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         group_colours = {
             "Jobs/Task": "lightpink",
             "Organisation": "lightcoral",
-            "Internal": "lightcyan",
+            "Internal": "skyblue",
             "Person": "palegreen",
-            "External": "beige",
-            "Other": "honeydew"
+            "External": "lightred",
+            "Other": "darkgoldenrod"
         }
         fig_corr_matrix = px.imshow(
             top_theme_corr,
