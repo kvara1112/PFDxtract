@@ -1540,7 +1540,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     height=max(500, len(theme_counts) * 30),
                     color_discrete_map={
                         "I-SIRch": "orange",
-                        "Black Maternal Health": "royalblue",
+                        "House of Commons": "royalblue",
                         "Extended Analysis": "firebrick"
                     }
                 )
@@ -2344,8 +2344,21 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         theme_display_map2 = {theme: improved_truncate_text(theme, max_length=100) for theme in top_themes}
         # Format column and index labels
         formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
-        
+        def extract_category(theme):
+            if "-" in theme:
+                return theme.split("-")[0].strip()
+            else:
+                return "Other"
         # Create the correlation matrix visualization
+        group_map = {theme: extract_category(theme) for theme in top_themes}
+        group_colours = {
+            "Jobs/Task": "lightpink",
+            "Organisation": "lightcoral",
+            "Internal": "lightcyan",
+            "Person": "palegreen",
+            "External": "beige",
+            "Other": "plum"
+        }
         fig_corr_matrix = px.imshow(
             top_theme_corr,
             color_continuous_scale=px.colors.diverging.RdBu_r,  # Red-Blue diverging colorscale
@@ -2447,12 +2460,15 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 connections = [f"{theme_display_map2[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
                 connection_text = "\n".join(connections)
                 title = f"{theme_display_map[node]}\nConnections:{len(connections)}\n{connection_text}"
+                
+                group = group_map.get(node, "Other")
+                node_color = group_colours.get(group, "gray")
                 net.add_node(
                     node,
                     label=display_name,
                     title=title,
                     size=size,
-                    color="skyblue"
+                    color= node_color
                 )
             for edge in G.edges(data=True):
                 weight = edge[2]['weight']
@@ -2462,6 +2478,20 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     title=f"r={weight:.2f}",
                     label=f"r={weight:.2f}",
                     color=f"rgba(150,150,150,{weight})"
+                )
+
+            legend_offset = -2000
+            for idx, (group, node_color) in enumerate(group_colours.items()):
+                net.add_node(
+                    f"legend_{group}",
+                    label = group,
+                    colour = node_color,
+                    shape = "box",
+                    size = 20,
+                    x = legend_offset,
+                    y = idx * 100 + legend_offset,
+                    physics = False,
+                    fixed = True
                 )
             net.toggle_physics(True)
             net.set_options("""
