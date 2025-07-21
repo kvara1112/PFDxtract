@@ -2505,7 +2505,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "enabled": true,
                     "barnesHut": {
                         "gravitationalConstant": -11000,
-                        "springLength": 400
+                        "centralGravity": 0.3,
+                        "springLength": 200
                     },
                     "minVelocity": 0.75
                 }
