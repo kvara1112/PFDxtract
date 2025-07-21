@@ -2463,7 +2463,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             radius = 400
             other_nodes = [n for n in G.nodes() if n != central_node]
             angle_step = (2*math.pi) / len(other_nodes)
-            positions = {central_node: (0,0)}
+            positions = {central_node: (400,400)}
 
             for i, node in enumerate(sorted(other_nodes)):
                 angle = i*angle_step
@@ -2554,7 +2554,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 // Wait for the network to load and stabilize
                 network.once('afterDrawing', function () {
                     network.moveTo({
-                    position: {x: 400, y: 400},
+                    position: {x: 0, y: 0},
                     scale: 1.2,
                     animation: true
                     });
