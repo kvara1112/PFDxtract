@@ -2488,7 +2488,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 )
 
             
-            
+            #net.toggle_physics(True)
             net.set_options("""
             var options = {
                 "edges": {
@@ -2514,12 +2514,11 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         "iterations": 300,
                         "updateInterval": 25
                     },
-
+                    "enabled": true
                 }
             }
                 """)
             
-
             net.save_graph("outputs/network.html")
 
             legend_html = """
