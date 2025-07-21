@@ -2493,7 +2493,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             var options = {
                 "physics": {
                 "enabled": false
-                }
+                },
                 "edges": {
                     "color": {
                     "inherit": false
