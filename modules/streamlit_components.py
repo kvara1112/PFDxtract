@@ -2488,7 +2488,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 )
 
             
-            net.toggle_physics(True)
+            #net.toggle_physics(True)
             net.set_options("""
             var options = {
                 "edges": {
@@ -2504,7 +2504,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 "physics": {
                     "enabled": true,
                     "barnesHut": {
-                        "gravitationalConstant": -11000,
+                        "gravitationalConstant": -2000,
                         "centralGravity": 0.3,
                         "springLength": 200
                     },
