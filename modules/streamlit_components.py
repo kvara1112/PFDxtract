@@ -2523,8 +2523,13 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 // Wait for stabilization
                 network.once('stabilizationIterationsDone', function () {
                     network.setOptions({ physics: false });
-                    network.getPositions();
                 });
+                network.on("dragEnd", function (params) {
+                if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                const position = network.getPositions([nodeId])[nodeId];
+                nodes.update({ id: nodeId, fixed: { x: true, y: true }, x: position.x, y: position.y });
+                }
                 </script>
                 """
             net.save_graph("outputs/network.html")
