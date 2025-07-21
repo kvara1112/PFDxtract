@@ -2511,7 +2511,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "minVelocity": 0.1,
                     "stabilization": {
                         "enabled": true,
-                        "iterations": 250,
+                        "iterations": 150,
                         "updateInterval": 25
                     },
                     "enabled": true
