@@ -2511,7 +2511,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "minVelocity": 0.1,
                     "stabilization": {
                         "enabled": true,
-                        "iterations": 400,
+                        "iterations": 50,
                         "updateInterval": 25
                     }
                 }
@@ -2532,7 +2532,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     network.body.nodes[nodeId].position = { x: position.x, y: position.y };
                 }
                 });
-                
+
                 </script>
                 """
             net.save_graph("outputs/network.html")
