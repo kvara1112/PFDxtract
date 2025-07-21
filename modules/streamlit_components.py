@@ -2491,9 +2491,6 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             net.toggle_physics(True)
             net.set_options("""
             var options = {
-                "physics": {
-                "enabled": false
-                },
                 "edges": {
                     "color": {
                     "inherit": false
@@ -2505,7 +2502,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "shape": "dot"
                 },
                 "physics": {
-                
+                    "enables":true,
                     "barnesHut": {
                         "gravitationalConstant": -3000,
                         "springLength": 500,
