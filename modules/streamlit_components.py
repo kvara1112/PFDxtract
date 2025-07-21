@@ -2554,7 +2554,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 // Wait for the network to load and stabilize
                 network.once('afterDrawing', function () {
                     network.moveTo({
-                    position: {x: 0, y: 0},
+                    position: {x: 400, y: 400},
                     scale: 1.2,
                     animation: true
                     });
