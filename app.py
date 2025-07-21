@@ -18,7 +18,7 @@ st.set_page_config(
 )
 
 # Import our custom modules
-from streamlit_components import (
+from modules.streamlit_components import (
     initialize_session_state,
     check_app_password,
     render_footer,
@@ -32,8 +32,8 @@ from streamlit_components import (
     render_theme_analysis_dashboard
 )
 
-from vectorizer_models import render_topic_summary_tab
-from visualization import (
+from modules.vectorizer_models import render_topic_summary_tab
+from modules.visualization import (
     plot_timeline,
     plot_monthly_distribution,
     plot_yearly_comparison,
@@ -42,7 +42,7 @@ from visualization import (
     analyze_data_quality
 )
 
-from core_utils import (
+from modules.core_utils import (
     filter_by_categories,
     is_response_document,
     export_to_excel
@@ -68,7 +68,7 @@ def render_analysis_tab(data=None):
     if uploaded_file is not None:
         try:
             import pandas as pd
-            from core_utils import process_scraped_data
+            from modules.core_utils import process_scraped_data
             
             if uploaded_file.name.endswith('.csv'):
                 data = pd.read_csv(uploaded_file)

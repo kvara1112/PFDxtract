@@ -22,7 +22,7 @@ from pyvis.network import Network
 import streamlit.components.v1 as components
 import zipfile
 # Import our modules
-from core_utils import (
+from .core_utils import (
     process_scraped_data, 
     clean_text_for_modeling, 
     export_topic_results,
@@ -32,15 +32,15 @@ from core_utils import (
     add_pyvis_graph_to_existing_zip
 
 )
-from web_scraping import (
+from .web_scraping import (
     get_pfd_categories,
     scrape_pfd_reports,
     get_total_pages,
     construct_search_url,
 )
-from vectorizer_models import get_vectorizer
-from bert_analysis import BERTResultsAnalyzer, ThemeAnalyzer
-from visualization import (
+from .vectorizer_models import get_vectorizer
+from .bert_analysis import BERTResultsAnalyzer, ThemeAnalyzer
+from .visualization import (
     plot_category_distribution,
     plot_coroner_areas,
     plot_timeline,
@@ -50,7 +50,7 @@ from visualization import (
     improved_truncate_text,
     analyze_data_quality
 )
-from file_prep import ( 
+from .file_prep import ( 
     render_filter_data_tab,
     show_export_options
 )
@@ -99,7 +99,7 @@ def initialize_session_state():
     # Perform PDF cleanup if not done
     if not st.session_state.get("cleanup_done", False):
         try:
-            pdf_dir = "pdfs"
+            pdf_dir = "outputs"
             os.makedirs(pdf_dir, exist_ok=True)
             current_time = time.time()
             cleanup_count = 0
@@ -155,7 +155,7 @@ def initialize_session_state2():
     # Perform PDF cleanup if not done
     if not st.session_state.cleanup_done:
         try:
-            pdf_dir = "pdfs"
+            pdf_dir = "outputs"
             os.makedirs(pdf_dir, exist_ok=True)
 
             current_time = time.time()
@@ -2510,7 +2510,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 }
             }
                 """)
-            net.save_graph("network.html")
+            net.save_graph("outputs/network.html")
 
             legend_html = """
             <div style="position:absolute; 
@@ -2536,7 +2536,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
 
             """
             # Inject PNG download button and html2canvas script into the HTML
-            with open("network.html", "r", encoding="utf-8") as f:
+            with open("outputs/network.html", "r", encoding="utf-8") as f:
                 html = f.read()
 
             # Insert download button and script before </body>

@@ -30,7 +30,7 @@ except (ImportError, OSError) as e:
 
 
 # Import our core utilities
-from core_utils import (
+from .core_utils import (
     export_to_excel, 
     extract_concern_text, 
     format_date_uk,

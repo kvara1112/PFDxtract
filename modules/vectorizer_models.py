@@ -23,7 +23,7 @@ from nltk.tokenize import word_tokenize
 from nltk.corpus import stopwords
 
 # Import vectorizer utilities from separate module
-from vectorizer_utils import (
+from .vectorizer_utils import (
     WeightedTfidfVectorizer,
     BM25Vectorizer,
     get_vectorizer,
@@ -31,7 +31,7 @@ from vectorizer_utils import (
 )
 
 # Import our core utilities
-from core_utils import (
+from .core_utils import (
     clean_text_for_modeling,
     initialize_nltk,
     perform_advanced_keyword_search,

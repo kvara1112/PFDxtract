@@ -8,7 +8,7 @@ import re
 import random
 import string
 from datetime import datetime
-from core_utils import (
+from .core_utils import (
     perform_advanced_keyword_search,
     export_to_excel,
 )

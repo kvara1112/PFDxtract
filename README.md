@@ -1,16 +1,18 @@
 # UK Judiciary PFD Reports Analysis v Private
 
-A Streamlit application for scraping and analyzing Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
+A Streamlit application for scraping and analysing Prevention of Future Deaths (PFD) reports from the UK Judiciary website.
 
 ## Features
 
-- Scrape PFD reports with customizable filters
+- Scrape PFD reports with customisable filters
 - Download reports in CSV or Excel format
 - Download associated PDFs
-- Interactive data analysis and visualization
-- Topic modeling of report content
+- Interactive data analysis and visualisation
+- Topic modelling of report content
 - Timeline analysis
 - Category distribution analysis
+- Advanced AI-powered thematic analysis with BERT
+- Network visualisation of report relationships
 
 ## Installation
 
@@ -22,8 +24,8 @@ cd uk-judiciary-pfd-analysis
 
 2. Create a virtual environment and activate it:
 ```bash
-python -m venv venv
-source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
+python -m venv streamlit_env
+source streamlit_env/bin/activate  # On Windows, use `streamlit_env\Scripts\activate`
 ```
 
 3. Install Python dependencies:
@@ -31,10 +33,21 @@ source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 pip install -r requirements.txt
 ```
 
-4. Install system dependencies (Ubuntu/Debian):
-```bash
-sudo apt-get update
-sudo apt-get install $(cat packages.txt)
+4. Download required NLP models (run in Python terminal):
+```python
+import nltk
+import spacy
+
+# Download NLTK data
+nltk.download('punkt')
+nltk.download('stopwords')
+nltk.download('averaged_perceptron_tagger')
+
+# Download Spacy model (small English model for efficiency)
+try:
+    spacy.cli.download("en_core_web_sm")
+except:
+    pass  # Skip if already installed
 ```
 
 ## Usage
@@ -49,14 +62,22 @@ The application will be available at `http://localhost:8501`
 ## Project Structure
 
 ```
-project_root/
-├── app.py                 # Main application file
-├── analysis_tab.py        # Analysis functionality
-├── topic_modeling_tab.py  # Topic modeling functionality
-├── requirements.txt       # Python package requirements
-├── packages.txt          # System package requirements
-├── __init__.py           # Package initialization
-└── pdfs/                 # Created automatically for PDF storage
+PFDxtract/
+├── app.py                    # Main application entry point
+├── modules/                  # Core application modules
+│   ├── __init__.py          # Package initialisation
+│   ├── streamlit_components.py  # UI components and main tabs
+│   ├── web_scraping.py      # Web scraping functionality
+│   ├── core_utils.py        # Core utility functions
+│   ├── file_prep.py         # File preparation and merging
+│   ├── visualization.py     # Data visualisation functions
+│   ├── vectorizer_models.py # Topic modelling functionality
+│   ├── vectorizer_utils.py  # Vectorisation utilities
+│   └── bert_analysis.py     # BERT-based theme analysis
+├── outputs/                  # Generated files (PDFs, HTML, etc.)
+├── archive/                  # Unused/old files
+├── requirements.txt          # Python package requirements
+└── README.md                # This file
 ```
 
 ## Contributing
