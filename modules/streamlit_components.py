@@ -2513,8 +2513,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         "enabled": true,
                         "iterations": 150,
                         "updateInterval": 25
-                    },
-                    "enabled": true
+                    }
                 }
             }
                 """)
