@@ -2463,7 +2463,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             radius = 400
             other_nodes = [n for n in G.nodes() if n != central_node]
             angle_step = (2*math.pi) / len(other_nodes)
-            positions = {central_node: (400,400)}
+            positions = {central_node: (0,0)}
 
             for i, node in enumerate(sorted(other_nodes)):
                 angle = i*angle_step
@@ -2493,7 +2493,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     color= node_color,
                     x=x,
                     y=y,
-                    physics = False
+                    physics = False,
+                    fixed={"x": True, "y": True}
                 )
             for edge in G.edges(data=True):
                 weight = edge[2]['weight']
@@ -2551,16 +2552,19 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             
             net.html += """
                 <script type="text/javascript">
-                // Wait for the network to load and stabilize
-                network.once('afterDrawing', function () {
+                setTimeout(function () {
                     network.moveTo({
                     position: {x: 0, y: 0},
                     scale: 1.2,
-                    animation: true
+                    animation: {
+                        duration: 1000,
+                        easingFunction: "easeInOutQuad"
+                    }
                     });
-                });
+                }, 500);  // Wait 0.5 seconds before centering
                 </script>
                 """
+
 
             net.save_graph("outputs/network.html")
 
