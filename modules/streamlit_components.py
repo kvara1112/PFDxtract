@@ -2502,7 +2502,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "shape": "dot"
                 },
                 "physics": {
-                
+                    "enabled":true,
                     "barnesHut": {
                         "gravitationalConstant": -3000,
                         "springLength": 500,
@@ -2511,13 +2511,15 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "minVelocity": 0.1,
                     "stabilization": {
                         "enabled": true,
-                        "iterations": 250,
+                        "iterations": 300,
                         "updateInterval": 25
                     },
                     "enabled": true
                 }
             }
                 """)
+            net.toggle_physics(False)
+
             net.save_graph("outputs/network.html")
 
             legend_html = """
