@@ -2494,7 +2494,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 "edges": {
                     "color": {"inherit": false},
                 "font": {
-                    "size": 16,
+                    "size": 15,
                     "strokeWidth": 2,
                     "align": "middle"
                 },
@@ -2506,7 +2506,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 "nodes": {
                     "borderWidth": 1,
                     "shape": "dot",
-                    "font": {"size": 23, "strokeWidth": 2},
+                    "font": {"size": 19, "strokeWidth": 2},
                     "scaling": {"min": 20, "max": 50}
                 },
                 "physics": {
