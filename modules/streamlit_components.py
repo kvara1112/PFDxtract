@@ -2517,7 +2517,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 }
             }
                 """)
-            net.toggle_physics(False)
+            #net.toggle_physics(False)
 
             net.save_graph("outputs/network.html")
 
