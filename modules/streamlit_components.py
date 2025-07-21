@@ -2506,7 +2506,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "barnesHut": {
                         "gravitationalConstant": -3000,
                         "springLength": 500,
-                        "springConstant": 0.001
+                        "springConstant": 0.0001
                     },
                     "minVelocity": 0.1,
                     "stabilization": {
@@ -2526,7 +2526,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         network.setOptions({ physics: false });
                     });
 
-                    // Optional: Fix node positions after drag to prevent spring back
+                    
                     network.on("dragEnd", function (params) {
                         if (params.nodes.length > 0) {
                             const nodeId = params.nodes[0];
