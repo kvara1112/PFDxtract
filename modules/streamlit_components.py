@@ -2523,7 +2523,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 // Wait for stabilization
                 network.once('stabilizationIterationsDone', function () {
                     network.setOptions({ physics: false });
-                    
+                    network.getPositions();
                 });
                 </script>
                 """
