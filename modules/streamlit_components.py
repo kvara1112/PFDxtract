@@ -2464,6 +2464,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             other_nodes = [n for n in G.nodes() if n != central_node]
             angle_step = (2*math.pi) / len(other_nodes)
             positions = {central_node: (0,0)}
+            net.add(central_node,...,x=0,y=0,physics=False)
 
             for i, node in enumerate(sorted(other_nodes)):
                 angle = i*angle_step
@@ -2533,7 +2534,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "enabled": false,
                     "barnesHut": {
                         "gravitationalConstant": -4000,
-                        "springLength": 410,
+                        "springLength": 390,
                         "springConstant": 0.03,
                         "centralGravity": 0.1,
                         "damping": 0.1,
@@ -2549,7 +2550,19 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             }
                 """)
             
-            
+            net.html += """
+                <script type="text/javascript">
+                // Wait for the network to load and stabilize
+                network.once('afterDrawing', function () {
+                    network.moveTo({
+                    position: {x: 0, y: 0},
+                    scale: 1.2,
+                    animation: true
+                    });
+                });
+                </script>
+                """
+
             net.save_graph("outputs/network.html")
 
             legend_html = """
