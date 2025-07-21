@@ -1414,25 +1414,44 @@ def save_dashboard_images_as_zip(filtered_df):
                             logging.error(f"Error creating network, no connections")
                         else:
                             #Pyvis network
-                            net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")##added
+                            net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")
+                            central_node = max(G.degree, key=lambda x: x[1])[0]
+
+                            radius = 310
+                            other_nodes = [n for n in G.nodes() if n != central_node]
+                            angle_step = (2*math.pi) / len(other_nodes)
+                            positions = {central_node: (400,400)}
+
+                            for i, node in enumerate(sorted(other_nodes)):
+                                angle = i*angle_step
+                                centre_x, centre_y = positions[central_node]
+                                x = centre_x + radius * math.cos(angle)
+                                y = centre_y + radius *math.sin(angle)
+                                positions[node] = (x,y)
+
                             for node in G.nodes():
                                 degree = len(list(G.neighbors(node)))
-                                size = degree * 10 +20
+                                size = degree * 8 + 6
                                 display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=100)
 
-                                #neighbors = list(G.neighbors(node))
-                                #connections = [f"{theme_display_map[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
-                                #connection_text = "\n".join(connections)
-                                #title = f"{theme_display_map[node]}\nConnections:{len(connections)}\n{connection_text}"
+                                neighbors = list(G.neighbors(node))
+                                connections = [f"{theme_display_map2[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
+                                connection_text = "\n".join(connections)
+                                title = f"{theme_display_map[node]}\nConnections:{len(connections)}\n{connection_text}"
+                                
                                 group = group_map.get(node, "Other")
                                 node_color = group_colours.get(group, "gray")
-                                
+                                x, y = positions[node]
+
                                 net.add_node(
                                     node,
                                     label=display_name,
-                                    #title=title,
+                                    title=title,
                                     size=size,
-                                    color=node_color
+                                    color= node_color,
+                                    x=x,
+                                    y=y,
+                                    physics = False
                                 )
                             for edge in G.edges(data=True):
                                 weight = edge[2]['weight']
@@ -1443,30 +1462,47 @@ def save_dashboard_images_as_zip(filtered_df):
                                     label=f"r={weight:.2f}",
                                     color=f"rgba(150,150,150,{weight})"
                                 )
+                        
+                            
                             net.set_options("""
-                                var options = {
+                            var options = {
+                                "edges": {
+                                    "color": {"inherit": false},
+                                "font": {
+                                    "size": 15,
+                                    "strokeWidth": 2,
+                                    "align": "middle"
+                                },
+                                "smooth": {
+                                    "type": "continuous",
+                                    "roundness": 0.2
+                                }
+                                },
                                 "nodes": {
                                     "borderWidth": 1,
-                                    "shape": "dot"
-                                },
-                                "edges": {
-                                    "color": {
-                                    "inherit": false
-                                    },
-                                    "smooth": false
+                                    "shape": "dot",
+                                    "font": {"size": 19},
+                                    "scaling": {"min": 20, "max": 50}
                                 },
                                 "physics": {
+                                    "enabled": false,
                                     "barnesHut": {
-                                    "gravitationalConstant": -4000,
-                                    "springLength": 100,
-                                    "springConstant": 0.08
+                                        "gravitationalConstant": -4000,
+                                        "springLength": 390,
+                                        "springConstant": 0.03,
+                                        "centralGravity": 0.1,
+                                        "damping": 0.1,
+                                        "avoidOverlap": 1
                                     },
                                     "minVelocity": 0.75,
-                                    "solver": "barnesHut"
+                                    "stabilization": {
+                                        "enabled": true,
+                                        "iterations": 1000,
+                                        "updateInterval": 25
+                                    }
                                 }
-                                }
+                            }
                                 """)
-                            
                             net.save_graph("outputs/network.html")
                             legend_html = """
                                 <div style="position:absolute; 
