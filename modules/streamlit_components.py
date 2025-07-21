@@ -2488,7 +2488,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 )
 
             
-            net.toggle_physics(True)
+            
             net.set_options("""
             var options = {
                 "edges": {
@@ -2496,8 +2496,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 "font": {
                     "size": 18,
                     "strokeWidth": 2,
-                    "align": "middle",
-                    "background": "rgba(255, 255, 255, 0.8)"
+                    "align": "middle"
                 },
                 "smooth": {
                     "type": "continuous",
@@ -2510,7 +2509,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "scaling": {"min": 20, "max": 50}
                 },
                 "physics": {
-                    "enables":false,
+                    "enabled":false,
                     "barnesHut": {
                         "gravitationalConstant": -4000,
                         "springLength": 250,
