@@ -2503,8 +2503,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 },
                 "physics": {
                     "barnesHut": {
-                        "gravitationalConstant": -11000,
-                        "springLength": 500
+                        "gravitationalConstant": -10000,
+                        "springLength": 800
                     },
                     "minVelocity": 0.75
                 }
