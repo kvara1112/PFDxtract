@@ -2550,18 +2550,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             }
                 """)
             
-            net.html += """
-                <script type="text/javascript">
-                // Wait for the network to load and stabilize
-                network.once('afterDrawing', function () {
-                    network.moveTo({
-                    position: {x: 0, y: 0},
-                    scale: 1.2,
-                    animation: true
-                    });
-                });
-                </script>
-                """
+            
 
             net.save_graph("outputs/network.html")
 
