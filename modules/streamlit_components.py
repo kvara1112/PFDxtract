@@ -2488,7 +2488,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 )
 
             
-            #net.toggle_physics(True)
+            
             net.set_options("""
             var options = {
                 "edges": {
@@ -2511,30 +2511,15 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "minVelocity": 0.1,
                     "stabilization": {
                         "enabled": true,
-                        "iterations": 50,
+                        "iterations": 300,
                         "updateInterval": 25
-                    }
+                    },
+
                 }
             }
                 """)
-            #net.toggle_physics(False)
-            net.html += """
-                <script type="text/javascript">
-                // Wait for stabilization
-                network.once('stabilizationIterationsDone', function () {
-                    network.setOptions({ physics: false });
-                });
-                network.on("dragEnd", function (params) {
-                if (params.nodes.length > 0) {
-                    const nodeId = params.nodes[0];
-                    const position = network.getPositions([nodeId])[nodeId];
-                    network.body.nodes[nodeId].options.fixed = { x: true, y: true };
-                    network.body.nodes[nodeId].position = { x: position.x, y: position.y };
-                }
-                });
+            
 
-                </script>
-                """
             net.save_graph("outputs/network.html")
 
             legend_html = """
