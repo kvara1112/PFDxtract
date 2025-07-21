@@ -2460,7 +2460,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")##added
             central_node = max(G.degree, key=lambda x: x[1])[0]
 
-            radius = 300
+            radius = 310
             other_nodes = [n for n in G.nodes() if n != central_node]
             angle_step = (2*math.pi) / len(other_nodes)
             positions = {central_node: (400,400)}
@@ -2527,7 +2527,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 "nodes": {
                     "borderWidth": 1,
                     "shape": "dot",
-                    "font": {"size": 19, "strokeWidth": 2},
+                    "font": {"size": 19},
                     "scaling": {"min": 20, "max": 50}
                 },
                 "physics": {
