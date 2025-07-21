@@ -2460,7 +2460,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")##added
             for node in G.nodes():
                 degree = len(list(G.neighbors(node)))
-                size = degree * 10 +20
+                size = degree * 10 +10
                 display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=100)
 
                 neighbors = list(G.neighbors(node))
@@ -2492,51 +2492,44 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             net.set_options("""
             var options = {
                 "edges": {
-                    "color": {
-                    "inherit": false
-                    },
-                    "smooth": false
+                    "color": {"inherit": false},
+                "font": {
+                    "size": 18,
+                    "strokeWidth": 2,
+                    "align": "middle",
+                    "background": "rgba(255, 255, 255, 0.8)"
+                },
+                "smooth": {
+                    "type": "continuous",
+                    "roundness": 0.2
+                }
                 },
                 "nodes": {
                     "borderWidth": 1,
-                    "shape": "dot"
+                    "shape": "dot",
+                    "scaling": {"min": 20, "max": 50}
                 },
                 "physics": {
                     "enables":false,
                     "barnesHut": {
-                        "gravitationalConstant": -3000,
-                        "springLength": 500,
-                        "springConstant": 0.001
+                        "gravitationalConstant": -4000,
+                        "springLength": 250,
+                        "springConstant": 0.03,
+                        "centralGravity": 0.1,
+                        "damping": 0.1,
+                        "avoidOverlap": 1
                     },
-                    "minVelocity": 0.1,
+                    "minVelocity": 0.75,
                     "stabilization": {
                         "enabled": true,
-                        "iterations": 150,
+                        "iterations": 1000,
                         "updateInterval": 25
                     }
                 }
             }
                 """)
             
-            net.html += """
-                <script type="text/javascript">
-                    // Wait for stabilization to be done, then turn off physics
-                    network.once('stabilizationIterationsDone', function () {
-                        network.setOptions({ physics: false });
-                    });
-
-                    
-                    network.on("dragEnd", function (params) {
-                        if (params.nodes.length > 0) {
-                            const nodeId = params.nodes[0];
-                            const position = network.getPositions([nodeId])[nodeId];
-                            // Set node as fixed after dragging to prevent further movement
-                            network.body.nodes[nodeId].options.fixed = { x: true, y: true };
-                            network.body.nodes[nodeId].position = { x: position.x, y: position.y };
-                        }
-                    });
-                </script>
-            """
+            
             net.save_graph("outputs/network.html")
 
             legend_html = """
