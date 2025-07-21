@@ -2488,9 +2488,12 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 )
 
             
-            #net.toggle_physics(True)
+            net.toggle_physics(True)
             net.set_options("""
             var options = {
+                "physics": {
+                "enabled": false
+                }
                 "edges": {
                     "color": {
                     "inherit": false
@@ -2502,7 +2505,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "shape": "dot"
                 },
                 "physics": {
-                    "enabled":true,
+                
                     "barnesHut": {
                         "gravitationalConstant": -3000,
                         "springLength": 500,
@@ -2511,14 +2514,13 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "minVelocity": 0.1,
                     "stabilization": {
                         "enabled": true,
-                        "iterations": 300,
+                        "iterations": 250,
                         "updateInterval": 25
                     },
                     "enabled": true
                 }
             }
                 """)
-            
             net.save_graph("outputs/network.html")
 
             legend_html = """
