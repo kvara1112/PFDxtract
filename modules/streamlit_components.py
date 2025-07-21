@@ -2458,6 +2458,31 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         else:
             #Pyvis network
             net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")##added
+            
+            for edge in G.edges(data=True):
+                weight = edge[2]['weight']
+                net.add_edge(
+                    edge[0], edge[1],
+                    value=weight,
+                    title=f"r={weight:.2f}",
+                    label=f"r={weight:.2f}",
+                    color=f"rgba(150,150,150,{weight})"
+                )
+
+            
+            central_node = max(G.degree, key=lambda x: x[1])[0]
+
+            radius = 400
+            other_nodes = [n for n in G.nodes() if n != central_node]
+            angle_step = (2*math.pi) / len(other_nodes)
+            positions = {central_node: (0,0)}
+
+            for i, node in enumerate(sorted(other_nodes)):
+                angle = i*angle_step
+                x = radius * math.cos(angle)
+                y = radius *math.sin(angle)
+                positions[node] = (x,y)
+
             for node in G.nodes():
                 degree = len(list(G.neighbors(node)))
                 size = degree * 8 + 6
@@ -2470,25 +2495,18 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 
                 group = group_map.get(node, "Other")
                 node_color = group_colours.get(group, "gray")
+                x, y = positions[node]
+
                 net.add_node(
                     node,
                     label=display_name,
                     title=title,
                     size=size,
-                    color= node_color
+                    color= node_color,
+                    x=x,
+                    y=y,
+                    physics = False
                 )
-            for edge in G.edges(data=True):
-                weight = edge[2]['weight']
-                net.add_edge(
-                    edge[0], edge[1],
-                    value=weight,
-                    title=f"r={weight:.2f}",
-                    label=f"r={weight:.2f}",
-                    color=f"rgba(150,150,150,{weight})"
-                )
-
-            
-            
             net.set_options("""
             var options = {
                 "edges": {
@@ -2510,7 +2528,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "scaling": {"min": 20, "max": 50}
                 },
                 "physics": {
-                    "enabled":true,
+                    "enabled": false,
                     "barnesHut": {
                         "gravitationalConstant": -4000,
                         "springLength": 400,
@@ -2529,30 +2547,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             }
                 """)
             
-            net.html += """
-            <script type="text/javascript">
-                network.once('stabilizationIterationsDone', function () {
-                    // Disable physics after stabilization
-                    network.setOptions({ physics: false });
-
-                    // Fix all node positions to prevent movement
-                    var allNodes = nodes.get();
-                    allNodes.forEach(function(node) {
-                        var pos = network.getPositions([node.id])[node.id];
-                        nodes.update({ id: node.id, x: pos.x, y: pos.y, fixed: { x: true, y: true } });
-                    });
-                });
-
-                // Optional: Allow dragging single nodes and refixing them
-                network.on("dragEnd", function (params) {
-                    if (params.nodes.length > 0) {
-                        const nodeId = params.nodes[0];
-                        const pos = network.getPositions([nodeId])[nodeId];
-                        nodes.update({ id: nodeId, x: pos.x, y: pos.y, fixed: { x: true, y: true } });
-                    }
-                });
-            </script>
-            """
+            
             net.save_graph("outputs/network.html")
 
             legend_html = """
