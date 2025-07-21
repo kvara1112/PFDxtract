@@ -2470,7 +2470,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 x = radius * math.cos(angle)
                 y = radius *math.sin(angle)
                 positions[node] = (x,y)
-                
+
             for node in G.nodes():
                 degree = len(list(G.neighbors(node)))
                 size = degree * 8 + 6
@@ -2533,7 +2533,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "enabled": false,
                     "barnesHut": {
                         "gravitationalConstant": -4000,
-                        "springLength": 400,
+                        "springLength": 450,
                         "springConstant": 0.03,
                         "centralGravity": 0.1,
                         "damping": 0.1,
