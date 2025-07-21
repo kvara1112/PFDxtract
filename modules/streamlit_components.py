@@ -2488,7 +2488,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 )
 
             
-            #net.toggle_physics(True)
+            net.toggle_physics(True)
             net.set_options("""
             var options = {
                 "edges": {
@@ -2499,15 +2499,26 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 },
                 "nodes": {
                     "borderWidth": 1,
-                    "shape": "dot"
+                    "shape": "dot",
+                    "physics": false,
+                    "fixed": {
+                        "x": false,
+                        "y": false
+                    }
                 },
                 "physics": {
                 
                     "barnesHut": {
-                        "gravitationalConstant": -10000,
-                        "springLength": 400
+                        "gravitationalConstant": -5000,
+                        "springLength": 500,
+                        "sprinconstant": 0.001
                     },
-                    "minVelocity": 0.75
+                    "minVelocity": 0.1,
+                    "stabilization": {
+                        "enabled": true,
+                        "iterations": 200,
+                        "updateInterval": 25
+                    }
                 }
             }
                 """)
