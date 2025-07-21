@@ -2499,26 +2499,22 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 },
                 "nodes": {
                     "borderWidth": 1,
-                    "shape": "dot",
-                    "physics": false,
-                    "fixed": {
-                        "x": false,
-                        "y": false
-                    }
+                    "shape": "dot"
                 },
                 "physics": {
                 
                     "barnesHut": {
                         "gravitationalConstant": -3000,
                         "springLength": 500,
-                        "sprinconstant": 0.001
+                        "springConstant": 0.001
                     },
                     "minVelocity": 0.1,
                     "stabilization": {
                         "enabled": true,
                         "iterations": 250,
                         "updateInterval": 25
-                    }
+                    },
+                    "enabled": true
                 }
             }
                 """)
