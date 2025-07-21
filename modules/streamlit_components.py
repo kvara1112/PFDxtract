@@ -2530,12 +2530,29 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 """)
             
             net.html += """
-                <script type="text/javascript">
-                    network.once('stabilizationIterationsDone', function () {
-                        network.setOptions({ physics: false });
+            <script type="text/javascript">
+                network.once('stabilizationIterationsDone', function () {
+                    // Disable physics after stabilization
+                    network.setOptions({ physics: false });
+
+                    // Fix all node positions to prevent movement
+                    var allNodes = nodes.get();
+                    allNodes.forEach(function(node) {
+                        var pos = network.getPositions([node.id])[node.id];
+                        nodes.update({ id: node.id, x: pos.x, y: pos.y, fixed: { x: true, y: true } });
                     });
-                </script>
-                """
+                });
+
+                // Optional: Allow dragging single nodes and refixing them
+                network.on("dragEnd", function (params) {
+                    if (params.nodes.length > 0) {
+                        const nodeId = params.nodes[0];
+                        const pos = network.getPositions([nodeId])[nodeId];
+                        nodes.update({ id: nodeId, x: pos.x, y: pos.y, fixed: { x: true, y: true } });
+                    }
+                });
+            </script>
+            """
             net.save_graph("outputs/network.html")
 
             legend_html = """
