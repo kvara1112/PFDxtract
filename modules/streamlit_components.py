@@ -2458,18 +2458,6 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         else:
             #Pyvis network
             net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")##added
-            
-            for edge in G.edges(data=True):
-                weight = edge[2]['weight']
-                net.add_edge(
-                    edge[0], edge[1],
-                    value=weight,
-                    title=f"r={weight:.2f}",
-                    label=f"r={weight:.2f}",
-                    color=f"rgba(150,150,150,{weight})"
-                )
-
-            
             central_node = max(G.degree, key=lambda x: x[1])[0]
 
             radius = 400
@@ -2482,7 +2470,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 x = radius * math.cos(angle)
                 y = radius *math.sin(angle)
                 positions[node] = (x,y)
-
+                
             for node in G.nodes():
                 degree = len(list(G.neighbors(node)))
                 size = degree * 8 + 6
@@ -2507,6 +2495,20 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     y=y,
                     physics = False
                 )
+            for edge in G.edges(data=True):
+                weight = edge[2]['weight']
+                net.add_edge(
+                    edge[0], edge[1],
+                    value=weight,
+                    title=f"r={weight:.2f}",
+                    label=f"r={weight:.2f}",
+                    color=f"rgba(150,150,150,{weight})"
+                )
+            
+            
+            
+
+            
             net.set_options("""
             var options = {
                 "edges": {
