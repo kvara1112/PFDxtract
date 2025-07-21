@@ -2495,8 +2495,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "color": {"inherit": false},
                 "font": {
                     "size": 18,
-                    "strokeWidth": 2,
-                    "align": "middle"
+                    "strokeWidth": 2
                 },
                 "smooth": {
                     "type": "continuous",
@@ -2512,7 +2511,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "enabled":false,
                     "barnesHut": {
                         "gravitationalConstant": -4000,
-                        "springLength": 300,
+                        "springLength": 400,
                         "springConstant": 0.01,
                         "centralGravity": 0.1,
                         "damping": 0.1,
