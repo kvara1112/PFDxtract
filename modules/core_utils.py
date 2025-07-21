@@ -1353,7 +1353,8 @@ def save_dashboard_images_as_zip(filtered_df):
                     
                     # Create a mapping dictionary for theme display names
                     theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in available_themes}
-                    
+                    theme_display_map2 = {theme: improved_truncate_text(theme, max_length=100) for theme in top_themes}
+
                     # Format column and index labels
                     formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
                     
