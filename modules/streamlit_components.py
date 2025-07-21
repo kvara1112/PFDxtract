@@ -2502,7 +2502,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "shape": "dot"
                 },
                 "physics": {
-                    "enables":true,
+                    "enables":false,
                     "barnesHut": {
                         "gravitationalConstant": -3000,
                         "springLength": 500,
