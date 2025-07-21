@@ -2511,7 +2511,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "minVelocity": 0.1,
                     "stabilization": {
                         "enabled": true,
-                        "iterations": 300,
+                        "iterations": 400,
                         "updateInterval": 25
                     }
                 }
@@ -2526,10 +2526,13 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 });
                 network.on("dragEnd", function (params) {
                 if (params.nodes.length > 0) {
-                const nodeId = params.nodes[0];
-                const position = network.getPositions([nodeId])[nodeId];
-                nodes.update({ id: nodeId, fixed: { x: true, y: true }, x: position.x, y: position.y });
+                    const nodeId = params.nodes[0];
+                    const position = network.getPositions([nodeId])[nodeId];
+                    network.body.nodes[nodeId].options.fixed = { x: true, y: true };
+                    network.body.nodes[nodeId].position = { x: position.x, y: position.y };
                 }
+                });
+                
                 </script>
                 """
             net.save_graph("outputs/network.html")
