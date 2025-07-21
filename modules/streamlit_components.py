@@ -2366,7 +2366,6 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             "Other": "mediumseagreen"
         }
         # Create the correlation matrix visualization
-        print(top_theme_corr)
         fig_corr_matrix = px.imshow(
             top_theme_corr,
             color_continuous_scale=px.colors.diverging.RdBu_r,  # Red-Blue diverging colorscale
