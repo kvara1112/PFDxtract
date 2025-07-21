@@ -2518,7 +2518,15 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             }
                 """)
             #net.toggle_physics(False)
-
+            net.html += """
+                <script type="text/javascript">
+                // Wait for stabilization
+                network.once('stabilizationIterationsDone', function () {
+                    network.setOptions({ physics: false });
+                    
+                });
+                </script>
+                """
             net.save_graph("outputs/network.html")
 
             legend_html = """
