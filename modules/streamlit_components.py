@@ -2460,7 +2460,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")##added
             for node in G.nodes():
                 degree = len(list(G.neighbors(node)))
-                size = degree * 10 + 6
+                size = degree * 8 + 6
                 display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=100)
 
                 neighbors = list(G.neighbors(node))
@@ -2510,7 +2510,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "scaling": {"min": 20, "max": 50}
                 },
                 "physics": {
-                    "enabled":false,
+                    "enabled":true,
                     "barnesHut": {
                         "gravitationalConstant": -4000,
                         "springLength": 400,
@@ -2529,7 +2529,13 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             }
                 """)
             
-            
+            net.html += """
+                <script type="text/javascript">
+                    network.once('stabilizationIterationsDone', function () {
+                        network.setOptions({ physics: false });
+                    });
+                </script>
+                """
             net.save_graph("outputs/network.html")
 
             legend_html = """
