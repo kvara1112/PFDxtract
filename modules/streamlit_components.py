@@ -2518,6 +2518,26 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 }
             }
                 """)
+            
+            net.html += """
+                <script type="text/javascript">
+                    // Wait for stabilization to be done, then turn off physics
+                    network.once('stabilizationIterationsDone', function () {
+                        network.setOptions({ physics: false });
+                    });
+
+                    // Optional: Fix node positions after drag to prevent spring back
+                    network.on("dragEnd", function (params) {
+                        if (params.nodes.length > 0) {
+                            const nodeId = params.nodes[0];
+                            const position = network.getPositions([nodeId])[nodeId];
+                            // Set node as fixed after dragging to prevent further movement
+                            network.body.nodes[nodeId].options.fixed = { x: true, y: true };
+                            network.body.nodes[nodeId].position = { x: position.x, y: position.y };
+                        }
+                    });
+                </script>
+            """
             net.save_graph("outputs/network.html")
 
             legend_html = """
