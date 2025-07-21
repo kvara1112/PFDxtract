@@ -2508,7 +2508,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                         "centralGravity": 0.3,
                         "springLength": 400
                     },
-                    "minVelocity": 0.35
+                    
                 }
             }
                 """)
