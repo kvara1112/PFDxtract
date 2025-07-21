@@ -2460,7 +2460,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")##added
             for node in G.nodes():
                 degree = len(list(G.neighbors(node)))
-                size = degree * 10 +10
+                size = degree * 10 
                 display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=100)
 
                 neighbors = list(G.neighbors(node))
@@ -2494,8 +2494,9 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 "edges": {
                     "color": {"inherit": false},
                 "font": {
-                    "size": 18,
-                    "strokeWidth": 2
+                    "size": 16,
+                    "strokeWidth": 2,
+                    "align": "middle"
                 },
                 "smooth": {
                     "type": "continuous",
@@ -2505,6 +2506,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 "nodes": {
                     "borderWidth": 1,
                     "shape": "dot",
+                    "font": {"size": 23, "strokeWidth": 2},
                     "scaling": {"min": 20, "max": 50}
                 },
                 "physics": {
@@ -2512,7 +2514,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "barnesHut": {
                         "gravitationalConstant": -4000,
                         "springLength": 400,
-                        "springConstant": 0.01,
+                        "springConstant": 0.03,
                         "centralGravity": 0.1,
                         "damping": 0.1,
                         "avoidOverlap": 1
