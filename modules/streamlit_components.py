@@ -2464,7 +2464,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             other_nodes = [n for n in G.nodes() if n != central_node]
             angle_step = (2*math.pi) / len(other_nodes)
             positions = {central_node: (0,0)}
-            net.add(central_node,...,x=0,y=0,physics=False)
+            net.add_node(central_node,...,x=0,y=0,physics=False)
 
             for i, node in enumerate(sorted(other_nodes)):
                 angle = i*angle_step
