@@ -2512,8 +2512,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     "enabled":false,
                     "barnesHut": {
                         "gravitationalConstant": -4000,
-                        "springLength": 250,
-                        "springConstant": 0.03,
+                        "springLength": 300,
+                        "springConstant": 0.01,
                         "centralGravity": 0.1,
                         "damping": 0.1,
                         "avoidOverlap": 1
