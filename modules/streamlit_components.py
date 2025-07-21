@@ -2467,8 +2467,9 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
 
             for i, node in enumerate(sorted(other_nodes)):
                 angle = i*angle_step
-                x = radius * math.cos(angle)
-                y = radius *math.sin(angle)
+                centre_x, centre_y = positions[central_node]
+                x = centre_x + radius * math.cos(angle)
+                y = centre_y + radius *math.sin(angle)
                 positions[node] = (x,y)
 
             for node in G.nodes():
