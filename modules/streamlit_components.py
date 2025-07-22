@@ -313,7 +313,7 @@ def upload_PFD_reports():
     
 
 def process_uploaded_pfd(uploaded_file)-> dict:
-    temp_filename = f"temp_{uuid.uuid().hex}.pdf"
+    temp_filename = f"temp_{uuid.uuid4().hex}.pdf"
     with open(temp_filename, "wb") as f:
         f.write(uploaded_file.read())
 
