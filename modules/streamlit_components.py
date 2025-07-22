@@ -639,7 +639,7 @@ def render_scraping_tab():
 
             if reports:
                 # Process the data
-                if st.session_state_get("include_uploaded") and st.session_state.get("uploaded_reports"):
+                if st.session_state.get("include_uploaded") and st.session_state.get("uploaded_reports"):
                     reports.extend(st.session_state.uploaded_reports)
                 df = pd.DataFrame(reports)
                 df = process_scraped_data(df)
