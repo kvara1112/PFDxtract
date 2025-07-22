@@ -28,8 +28,7 @@ from .core_utils import (
     export_topic_results,
     export_to_excel,
     filter_by_categories,
-    save_dashboard_images_as_zip,
-    add_pyvis_graph_to_existing_zip
+    save_dashboard_images_as_zip
 
 )
 from .web_scraping import (
