@@ -307,6 +307,8 @@ def upload_PFD_reports():
         report_data = process_uploaded_pfd(uploaded_reports)
         df = pd.DataFrame([report_data])
         st.dataframe(df)
+        st.session_state["uploaded)report"] = report_data
+        st.success("PDF uploaded successfully")
         return report_data
     else:
         logging.error("Uploaded report non compatible")
@@ -529,7 +531,7 @@ def render_scraping_tab():
         # Page settings AFTER filter search
         row3_col1, row3_col2 = st.columns(2)
         row4_col1, row4_col2 = st.columns(2)
-
+        row5_col1 = st.columns(1)
         # Page range row - MOVED to after filter search
         with row3_col1:
             start_page = st.number_input(
@@ -558,6 +560,7 @@ def render_scraping_tab():
                 help="Automatically save results in batches as they are scraped",
             )
 
+
         with row4_col2:
             batch_size = st.number_input(
                 "Pages per batch: (ideally set to 5)",
@@ -575,6 +578,10 @@ def render_scraping_tab():
         with button_col2:
             stop_scraping = st.form_submit_button("Stop Scraping")
 
+        with row5_col1:
+            include_uploaded = st.checkbox(
+                "Include uploaded report in analysis")
+            st.session_state.include_uploaded = include_uploaded
     # Handle stop scraping
     if stop_scraping:
         st.session_state.stop_scraping = True
@@ -630,6 +637,8 @@ def render_scraping_tab():
 
             if reports:
                 # Process the data
+                if st.session_get("include_uploaded") and st.session_state.get("uploaded_reports"):
+                    reports.extend(st.session_state.uploaded_reports)
                 df = pd.DataFrame(reports)
                 df = process_scraped_data(df)
 
