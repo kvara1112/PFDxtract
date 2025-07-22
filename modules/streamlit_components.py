@@ -40,7 +40,7 @@ from .web_scraping import (
     scrape_pfd_reports,
     get_total_pages,
     construct_search_url,
-    get_webpage_content
+    get_report_content
 )
 from .vectorizer_models import get_vectorizer
 from .bert_analysis import BERTResultsAnalyzer, ThemeAnalyzer
@@ -342,7 +342,7 @@ def process_uploaded_pfd(uploaded_file):
         judiciary_url = "Manual upload no link found"
     # Build the result dictionary
 
-    web_content = get_webpage_content(judiciary_url)
+    web_content = get_report_content(judiciary_url)
     if web_content:
         content = web_content
     else:

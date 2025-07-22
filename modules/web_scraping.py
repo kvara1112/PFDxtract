@@ -115,17 +115,6 @@ def construct_search_url(
 
     return url
 
-def get_webpage_content(url):
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, "html.parser")
-        content = soup.get_text(separator=" ", strip=True)
-        return content
-    except Exception as e:
-        logging.error(f"Failed to fetch web content from {url}: {e}")
-        return None
 
 def extract_pdf_text(pdf_path: str) -> str:
     """
