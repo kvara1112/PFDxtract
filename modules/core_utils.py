@@ -756,15 +756,7 @@ def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> st
 
     return json.dumps(results, indent=2)
 
-async def take_screenshot_withpyppeteer(html_path, output_png):
-    abs_path = f"file://{os.path.abspath(html_path)}"
-    browser = await launch(headless=True, executable_path="C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")
-    page = await browser.newPage()
-    await page.setViewport({'width': 2000, 'height': 2000})
-    await page.goto(abs_path)
-    await asyncio.sleep(2)  # wait for rendering
-    await page.screenshot({'path': output_png})
-    await browser.close()
+
 
 def save_dashboard_images_as_zip(filtered_df):
     """
@@ -854,7 +846,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 return False
             
         
-        def add_pyvis_graph_to_existing_zip(htmlFile, text_file):
+        def add_pyvis_graph_to_existing_zip(htmlFile, text_file, image_count):
             zip_file.write(htmlFile, arcname = "network_graph.html")
             zip_file.write(text_file, arcname="README.txt")
             image_count += 1
