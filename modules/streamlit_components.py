@@ -307,7 +307,7 @@ def upload_PFD_reports():
         report_data = process_uploaded_pfd(uploaded_reports)
         df = pd.DataFrame([report_data])
         st.dataframe(df)
-        st.session_state["uploaded)report"] = report_data
+        st.session_state["uploaded report"] = report_data
         st.success("PDF uploaded successfully")
         return report_data
     else:
@@ -531,7 +531,7 @@ def render_scraping_tab():
         # Page settings AFTER filter search
         row3_col1, row3_col2 = st.columns(2)
         row4_col1, row4_col2 = st.columns(2)
-        row5_col1 = st.columns(1)
+        row5 = st.columns(1)
         # Page range row - MOVED to after filter search
         with row3_col1:
             start_page = st.number_input(
@@ -570,6 +570,9 @@ def render_scraping_tab():
                 key="batch_size",
                 help="Number of pages to process before saving a batch",
             )
+        with row5:
+            include_uploaded = st.checkbox("Include uploaded report(s) in analysis")
+            st.session_state.include_uploaded = include_uploaded
 
         # Action buttons in a row
         button_col1, button_col2 = st.columns(2)
