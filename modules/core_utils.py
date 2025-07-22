@@ -27,7 +27,6 @@ import time
 import os
 import zipfile
 import asyncio
-import pyppeteer
 from pyppeteer import launch
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
@@ -757,32 +756,41 @@ def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> st
 
     return json.dumps(results, indent=2)
 
+async def take_screenshit_withpyppeteer(html_path, output_png):
+            abs_path = f"file://{os.path.abspath(html_path)}"
+            browser = await launch(headless=True, args=["--no-sandbox"])
+            page = await browser.newPage()
+            await page.setViewport({'width': 2000, 'height': 2000})
+            await page.goto(abs_path)
+            await asyncio.sleep(2)  # wait for rendering
+            await page.screenshot({'path': output_png})
+            await browser.close()
 
-def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="outputs/network.html", png_name="network_graph.png"):
-    # Setup headless browser for taking a screenshot
-    optionsx = Options()
-    #optionsx.headless = True
-    optionsx.add_argument("--headless=new")
-    optionsx.add_argument("--no-sandbox")
-    optionsx.add_argument("--disable-dev-shm-usage")
-    optionsx.add_argument("--window-size=2000,2000")
+# def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="outputs/network.html", png_name="network_graph.png"):
+#     # Setup headless browser for taking a screenshot
+#     optionsx = Options()
+#     #optionsx.headless = True
+#     optionsx.add_argument("--headless=new")
+#     optionsx.add_argument("--no-sandbox")
+#     optionsx.add_argument("--disable-dev-shm-usage")
+#     optionsx.add_argument("--window-size=2000,2000")
 
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service = service, options=optionsx)
+#     service = Service(ChromeDriverManager().install())
+#     driver = webdriver.Chrome(service = service, options=optionsx)
 
-    # Open the saved HTML Pyvis graph
-    driver.get("file://" + os.path.abspath(html_path))
-    time.sleep(3)  # Wait for the graph to render
+#     # Open the saved HTML Pyvis graph
+#     driver.get("file://" + os.path.abspath(html_path))
+#     time.sleep(3)  # Wait for the graph to render
     
-    # Take a screenshot of the graph
-    driver.save_screenshot(png_name)
+#     # Take a screenshot of the graph
+#     driver.save_screenshot(png_name)
 
-    driver.quit()
+#     driver.quit()
 
-    # Add both the HTML and the PNG to the existing ZIP
-    with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
-        zf.write(html_path, arcname=os.path.basename(html_path))
-        zf.write(png_name, arcname=os.path.basename(png_name))
+#     # Add both the HTML and the PNG to the existing ZIP
+#     with zipfile.ZipFile(zip_buffer, mode="a", compression=zipfile.ZIP_DEFLATED) as zf:
+#         zf.write(html_path, arcname=os.path.basename(html_path))
+#         zf.write(png_name, arcname=os.path.basename(png_name))
 def save_dashboard_images_as_zip(filtered_df):
     """
     Save all dashboard visualizations as images and package them into a zip file.
@@ -870,15 +878,7 @@ def save_dashboard_images_as_zip(filtered_df):
                 logging.error(f"Error saving {filename}: {str(e)}")
                 return False
             
-        async def take_screenshit_withpyppeteer(html_path, output_png):
-            abs_path = f"file://{os.path.abspath(html_path)}"
-            browser = await launch(headless=True)
-            page = await browser.newPage()
-            await page.setViewport({'width': 2000, 'height': 2000})
-            await page.goto(abs_path)
-            await asyncio.sleep(2)  # wait for rendering
-            await page.screenshot({'path': output_png})
-            await browser.close()
+        
 
         def add_pyvis_graph_to_existing_zip(html_path="outputs/network.html", png_name="network_graph.png"):
             # Setup headless browser for taking a screenshot
