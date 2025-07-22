@@ -27,6 +27,8 @@ import time
 import os
 import zipfile
 import asyncio
+import pyppeteer
+pyppeteer.install()
 from pyppeteer import launch
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
