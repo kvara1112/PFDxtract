@@ -1508,7 +1508,7 @@ def save_dashboard_images_as_zip(filtered_df):
                             with open("network_with_legend.html", "w", encoding="utf-8") as f:
                                 f.write(final_html)
                             net.save_graph("outputs/network_with_legend.html")
-                            with  open("README.txt", "W", encoding="utf-8") as f:
+                            with  open("README.txt", "w", encoding="utf-8") as f:
                                 f.write("""
                                 Theme Correlation network
                                 
