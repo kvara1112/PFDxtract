@@ -306,7 +306,7 @@ def upload_PFD_reports():
     if uploaded_reports is not None:
         report_data = process_uploaded_pfd(uploaded_reports)
         df = pd.DataFrame([report_data])
-        st.dataFrame(df)
+        st.dataframe(df)
         return report_data
     else:
         logging.error("Uploaded report non compatible")
