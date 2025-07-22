@@ -336,7 +336,7 @@ def process_uploaded_pfd(uploaded_file):
     if case_id:
         name_part= title.split("-Prevention")[0]
         slug = slugify(name_part)
-        judiciary_url = f"https://www.judiciary.uk/prevention-of-future-deaths-reports/{slug}-prevention-of-future-death-report/"
+        judiciary_url = f"https://www.judiciary.uk/prevention-of-future-death-reports/{slug}-prevention-of-future-deaths-report/"
     else:
         judiciary_url = "Manual upload no link found"
     # Build the result dictionary
