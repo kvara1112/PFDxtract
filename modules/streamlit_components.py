@@ -307,7 +307,10 @@ def upload_PFD_reports():
         report_data = process_uploaded_pfd(uploaded_reports)
         df = pd.DataFrame([report_data])
         st.dataFrame(df)
-    return report_data
+        return report_data
+    else:
+        logging.error("Uploaded report non compatible")
+    
 
 def process_uploaded_pfd(uploaded_file)-> dict:
     temp_filename = f"temp_{uuid.uuid().hex}.pdf"
