@@ -363,10 +363,31 @@ def upload_PFD_reports():
         df = pd.DataFrame(st.session_state.uploaded_reports_data)
         st.dataframe(df)
 
-    # Clear button
-    if st.button("Clear all uploaded reports"):
-        st.session_state.uploaded_reports_data = []
-        st.success("Cleared all uploaded reports.")
+        col1, col2 = st.columns(2)
+        # Clear button
+        with col1:
+            if st.button("Clear all uploaded reports"):
+                st.session_state.uploaded_reports_data = []
+                st.success("Cleared all uploaded reports.")
+        with col2:
+            if st.button("Process uploaded reports"):
+                if len(st.session_state.uploaded_reports_data) < 5:
+                    st.warning("Please upload at least 5 reports to proceed.")
+                else:
+                    st.success("Processing uploaded reports...")
+                    df = process_scraped_data(df)
+                    # Store in session state
+                    st.session_state.scraped_data = df
+                    st.session_state.data_source = "scraped"
+                    st.session_state.current_data = df
+                    st.session_state.current_data = pd.DataFrame(st.session_state.uploaded_reports_data)
+                    st.session_state.data_source = "uploaded"
+                    # Optional: rerun or navigate
+                    st.rerun()
+    else:
+        st.info("No reports uploaded yet.")
+
+    
 
 
 
@@ -676,9 +697,9 @@ def render_scraping_tab():
 
             if reports:
                 # Process the data
-                if st.session_state.get("include_uploaded") and st.session_state.get("uploaded_reports"):
+                if st.session_state.get("include_uploaded") and st.session_state.get("uploaded_reports_data"):
                     print("HELLO INSIDE STATEMENT")
-                    uploaded = st.session_state.get("uploaded_reports", [])
+                    uploaded = st.session_state.get("uploaded_reports_data", [])
                     if uploaded:
                         st.success("Uploaded reports retrieved")
                         reports.extend(uploaded)
