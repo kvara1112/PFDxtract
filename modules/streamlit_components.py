@@ -350,15 +350,16 @@ def process_uploaded_pfd(uploaded_file):
         logging.warning("could not fetch content from constructed url")
         content = full_text
 
-    path = "outputs\{uploaded_file.name}"
+    pdf_path = web_content["content"]
+    pdf_type = web_content["pdf_types"]
     result = {
         "Title": title,
         "URL": judiciary_url,  # You can modify this if needed
         "Content": content,
         "PDF_1_Name": uploaded_file.name,
         "PDF_1_Content": pdf_content,
-        "PDF_1_Path": path,
-        "PDF_1_Type": "report",
+        "PDF_1_Path": pdf_path,
+        "PDF_1_Type": pdf_type,
     }
 
     return result
