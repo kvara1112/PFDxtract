@@ -346,11 +346,16 @@ def process_uploaded_pfd(uploaded_file):
     if web_content:
         content = web_content["content"]
         pdf_content = web_content["pdf_contents"]
+        pdf_path = web_content["pdf_paths"]
+        pdf_type = web_content["pdf_types"]
     else:
         logging.warning("could not fetch content from constructed url")
         content = full_text
+        pdf_content = full_text
+        pdf_path = None
+        pdf_type = "report"
 
-    pdf_path = web_content["content"]
+    pdf_path = web_content["pdf_paths"]
     pdf_type = web_content["pdf_types"]
     result = {
         "Title": title,
