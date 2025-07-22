@@ -2,6 +2,7 @@ import pandas as pd
 import logging
 import time
 import os
+import re
 import io
 import zipfile
 import random
@@ -303,6 +304,9 @@ def handle_error(error):
 
 logging.basicConfig(level=logging.INFO)
 
+def slugify(text):
+    return re.sub(r'[^a-z0-9\-]','',text.lower.replace("","-").replace("_","-"))
+
 def process_uploaded_pfd(uploaded_file):
     # Generate a temporary filename
     temp_filename = f"temp_{uuid.uuid4().hex}.pdf"
@@ -320,10 +324,20 @@ def process_uploaded_pfd(uploaded_file):
     # Determine the PDF type based on content
     pdf_type = "Response" if "response to" in full_text.lower() else "Report"
 
+    title = uploaded_file.name.replace(".pdf","")
+    case_id_match = re.search(r"\d{4}-\d{4}", title)
+    case_id = case_id_match.group(0) if case_id_match else None
+
+    if case_id:
+        name_part= title.split("-Prevention")[0]
+        slug = slugify(name_part)
+        judiciary_url = f"https://www.judiciary.uk/prevention-of-future-deaths-reports/{slug}-{case_id}/"
+    else:
+        judiciary_url = "Manual upload no link found"
     # Build the result dictionary
     result = {
-        "Title": uploaded_file.name.replace(".pdf", ""),
-        "URL": "Uploaded manually",  # You can modify this if needed
+        "Title": title,
+        "URL": judiciary_url,  # You can modify this if needed
         "Content": full_text,
         "PDF_1_Name": uploaded_file.name,
         "PDF_1_Content": full_text,
