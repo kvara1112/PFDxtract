@@ -40,6 +40,7 @@ from .web_scraping import (
     scrape_pfd_reports,
     get_total_pages,
     construct_search_url,
+    get_webpage_content
 )
 from .vectorizer_models import get_vectorizer
 from .bert_analysis import BERTResultsAnalyzer, ThemeAnalyzer
@@ -340,14 +341,23 @@ def process_uploaded_pfd(uploaded_file):
     else:
         judiciary_url = "Manual upload no link found"
     # Build the result dictionary
+
+    web_content = get_webpage_content(judiciary_url)
+    if web_content:
+        content = web_content
+    else:
+        logging.warning("could not fetch content from constructed url")
+        content = full_text
+
+    path = "outputs\{uploaded_file.name}"
     result = {
         "Title": title,
         "URL": judiciary_url,  # You can modify this if needed
-        "Content": full_text,
+        "Content": content,
         "PDF_1_Name": uploaded_file.name,
         "PDF_1_Content": full_text,
-        "PDF_1_Path": temp_filename,
-        "PDF_1_Type": pdf_type,
+        "PDF_1_Path": path,
+        "PDF_1_Type": "report",
     }
 
     return result
