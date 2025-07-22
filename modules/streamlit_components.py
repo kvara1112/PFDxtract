@@ -531,7 +531,7 @@ def render_scraping_tab():
         # Page settings AFTER filter search
         row3_col1, row3_col2 = st.columns(2)
         row4_col1, row4_col2 = st.columns(2)
-        row5 = st.columns(1)
+        
         # Page range row - MOVED to after filter search
         with row3_col1:
             start_page = st.number_input(
@@ -570,8 +570,10 @@ def render_scraping_tab():
                 key="batch_size",
                 help="Number of pages to process before saving a batch",
             )
-        with row5:
-            include_uploaded = st.checkbox("Include uploaded report(s) in analysis")
+        row5_col1, row5_col2 = st.columns(2)
+        with row5_col1:
+            include_uploaded = st.checkbox("Include uploaded report(s) in analysis", 
+                            help = "Include your uploaded PFD reports")
             st.session_state.include_uploaded = include_uploaded
 
         # Action buttons in a row

@@ -349,7 +349,7 @@ def main():
                 - Export options in CSV and Excel formats
 
                 Handling Large Result Sets: For extensive search results, use the 'Start page' and 'End page' number inputs to download reports in manageable batches.
-                Upload your own PFD reports or filter and search for PFD reports
+                Upload your own PFD reports and filter and search for PFD reports
                 """
             )
             st.subheader("Scrape PFD Reports")
