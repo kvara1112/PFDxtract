@@ -871,7 +871,7 @@ def save_dashboard_images_as_zip(filtered_df):
             
         async def take_screenshit_withpyppeteer(html_path, output_png):
             abs_path = f"file://{os.path.abspath(html_path)}"
-            browser = await launch(headless=True, args=["--no-sandbox"])
+            browser = await launch(headless=True)
             page = await browser.newPage()
             await page.setViewport({'width': 2000, 'height': 2000})
             await page.goto(abs_path)
