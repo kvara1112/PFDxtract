@@ -340,16 +340,21 @@ def upload_PFD_reports():
     uploaded_report = st.file_uploader("Upload a PDF report", type="pdf")
 
     if uploaded_report is not None:
-        logging.info(f"Received file: {uploaded_report.name}")
 
-        report_data = process_uploaded_pfd(uploaded_report)
-
-        if report_data:
-            st.session_state.uploaded_reports_data.append(report_data)
-            st.success(f"{uploaded_report.name} uploaded and processed successfully.")
+        already_uploaded = any(file_data["PDF_1_Name"] == uploaded_report.name for file_data in st.session_state.uploaded_reports_data)
+        
+        if already_uploaded:
+            st.warning(f"The file '{uploaded_report.name}' has already been uploaded.")
         else:
-            logging.error("Uploaded report not compatible (processing returned None)")
-            st.error("Failed to process the uploaded report.")
+            logging.info(f"Received file: {uploaded_report.name}")
+            report_data = process_uploaded_pfd(uploaded_report)
+
+            if report_data:
+                st.session_state.uploaded_reports_data.append(report_data)
+                st.success(f"{uploaded_report.name} uploaded and processed successfully.")
+            else:
+                logging.error("Uploaded report not compatible (processing returned None)")
+                st.error("Failed to process the uploaded report.")
     else:
         logging.info("No file uploaded yet.")
 
@@ -674,6 +679,7 @@ def render_scraping_tab():
                 if st.session_state.get("include_uploaded") and st.session_state.get("uploaded_reports"):
                     uploaded = st.session_state.get("uploaded_reports", [])
                     if uploaded:
+                        st.success("Uploaded reports retrieved")
                         reports.extend(uploaded)
                 df = pd.DataFrame(reports)
                 df = process_scraped_data(df)
