@@ -323,6 +323,7 @@ def process_uploaded_pfd(uploaded_file):
 
     # Determine the PDF type based on content
     pdf_type = "Response" if "response to" in full_text.lower() else "Report"
+    print("Type of uploaded_file.name:", type(uploaded_file.name))
 
     title = uploaded_file.name.replace(".pdf","")
     case_id_match = re.search(r"\d{4}-\d{4}", title)
