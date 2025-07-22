@@ -305,7 +305,11 @@ def handle_error(error):
 logging.basicConfig(level=logging.INFO)
 
 def slugify(text):
-    return re.sub(r'[^a-z0-9\-]','',text.lower().replace("","-").replace("_","-"))
+    text = text.lower()
+    text = re.sub(r'[^\w\s-]', '', text)          
+    text = re.sub(r'[\s_]+', '-', text)           
+    text = re.sub(r'-{2,}', '-', text)            
+    return text.strip('-')
 
 def process_uploaded_pfd(uploaded_file):
     # Generate a temporary filename
