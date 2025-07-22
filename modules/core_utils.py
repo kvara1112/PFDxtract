@@ -756,7 +756,7 @@ def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> st
 
     return json.dumps(results, indent=2)
 
-async def take_screenshit_withpyppeteer(html_path, output_png):
+async def take_screenshot_withpyppeteer(html_path, output_png):
     abs_path = f"file://{os.path.abspath(html_path)}"
     browser = await launch(headless=True, executable_path="C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")
     page = await browser.newPage()
@@ -854,34 +854,11 @@ def save_dashboard_images_as_zip(filtered_df):
                 return False
             
         
-
-        def add_pyvis_graph_to_existing_zip(html_path="outputs/network.html", png_name="network_graph.png"):
-            # Setup headless browser for taking a screenshot
-            #optionsx = Options()
-            #optionsx.headless = True
-            #optionsx.add_argument("--window-size=1200,800")
-
-            #service = Service(ChromeDriverManager().install())
-            #driver = webdriver.Chrome(service = service, options=optionsx)
-
-            # Open the saved HTML Pyvis graph
-            #driver.get("file://" + os.path.abspath(html_path))
-            #time.sleep(3)  # Wait for the graph to render
-
-            # Take a screenshot of the graph
-            #driver.save_screenshot(png_name)
-            #driver.quit()
-
-            asyncio.run(take_screenshit_withpyppeteer(html_path, png_name))
-            with open("network_graph.png", "rb") as f:
-                img_bytes = f.read()
-
-            if img_bytes and len(img_bytes) > 0:
-                zip_file.writestr("network_graph.png", img_bytes)
-                logging.info(f"Successfully added network_graph to zip")
-            else:
-                logging.warning(f"No image bytes generated for network_graph")
-
+        def add_pyvis_graph_to_existing_zip(htmlFile, text_file):
+            zip_file.write(htmlFile, arcname = "network_graph.html")
+            zip_file.write(text_file, arcname="README.txt")
+            image_count += 1
+            logging.info(f"Successfully added {htmlFile} to zip")
         # === TAB 1: FRAMEWORK HEATMAP ===
         try:
             # Framework distribution chart
@@ -1497,7 +1474,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                 }
                             }
                                 """)
-                            net.save_graph("outputs/network.html")
+                            
                             legend_html = """
                                 <div style="position:absolute; 
                                     top:10px; 
@@ -1530,8 +1507,16 @@ def save_dashboard_images_as_zip(filtered_df):
                         
                             with open("network_with_legend.html", "w", encoding="utf-8") as f:
                                 f.write(final_html)
+                            net.save_graph("outputs/network_with_legend.html")
+                            with  open("README.txt", "W", encoding="utf-8") as f:
+                                f.write("""
+                                Theme Correlation network
                                 
-                            add_pyvis_graph_to_existing_zip(html_path="network_with_legend.html", png_name="network_graph.png")
+                                - Open network_graph.html in any web browser
+                                - You can explore the network interactively
+                                - To download as PNG, click the Download PNG button at the bottom of the graph
+                                """)
+                            add_pyvis_graph_to_existing_zip(html_path="network_with_legend.html", textfile = "README.txt" )
 
                         #add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
                         break  # We found a good threshold, no need to try lower ones
