@@ -24,6 +24,7 @@ import zipfile
 import fitz
 import os
 import uuid
+import logging
 # Import our modules
 from .core_utils import (
     process_scraped_data, 
@@ -317,33 +318,44 @@ def upload_PFD_reports():
             st.error("could not extract data from pdf")
     else:
         logging.error("Uploaded report not compatible (None)")
-        st.error("No file uploaded or file is not compatible")
+        st.error("No file uploaded yet or file is not compatible")
 
     
+logging.basicConfig(level=logging.INFO)
+def process_uploaded_pfd(uploaded_file):
+    # Replace this with your actual PDF processing logic
+    return {"filename": uploaded_file.name, "summary": "Some extracted data"}
 
-def process_uploaded_pfd(uploaded_file)-> dict:
-    temp_filename = f"temp_{uuid.uuid4().hex}.pdf"
-    with open(temp_filename, "wb") as f:
-        f.write(uploaded_file.read())
 
-    doc = fitz.open(temp_filename)
-    full_text=""
-    for page in doc:
-        full_text +=page.get_text()
+if "uploaded_reports_data" not in st.session_state:
+    st.session_state.uploaded_reports_data = []
 
-    pdf_type = "Response" if "response to" in full_text.lower() else "Report"
 
-    # Build the result dict in the same format
-    result = {
-        "Title": uploaded_file.name.replace(".pdf", ""),
-        "URL": "Uploaded manually",
-        "Content": full_text,
-        "PDF_1_Name": uploaded_file.name,
-        "PDF_1_Content": full_text,
-        "PDF_1_Path": temp_filename,
-        "PDF_1_Type": pdf_type,
-    }
-    return result
+uploaded_report = st.file_uploader("Upload a PDF report", type="pdf")
+
+if uploaded_report is not None:
+    logging.info(f"Received file: {uploaded_report.name}")
+
+    report_data = process_uploaded_pfd(uploaded_report)
+
+    if report_data:
+        st.session_state.uploaded_reports_data.append(report_data)
+        st.success(f"{uploaded_report.name} uploaded and processed successfully.")
+    else:
+        logging.error("Uploaded report not compatible (processing returned None)")
+        st.error("Failed to process the uploaded report.")
+else:
+    logging.info("No file uploaded yet.")
+
+
+if st.session_state.uploaded_reports_data:
+    df = pd.DataFrame(st.session_state.uploaded_reports_data)
+    st.dataframe(df)
+
+
+if st.button("Clear all uploaded reports"):
+    st.session_state.uploaded_reports_data = []
+    st.success("Cleared all uploaded reports.")
 
 
 def render_scraping_tab():
@@ -579,9 +591,14 @@ def render_scraping_tab():
             )
         row5_col1, row5_col2 = st.columns(2)
         with row5_col1:
-            include_uploaded = st.checkbox("Include uploaded report(s) in analysis", 
-                            help = "Include your uploaded PFD reports")
-            st.session_state.include_uploaded = include_uploaded
+            # Initialize if it doesn't exist yet
+            if "include_uploaded" not in st.session_state:
+                st.session_state.include_uploaded = False
+
+            # Bind the checkbox directly to the session state key
+            st.checkbox("Include uploaded report(s) in analysis", 
+                        key="include_uploaded", 
+                        help="Include your uploaded PFD reports")
 
         # Action buttons in a row
         button_col1, button_col2 = st.columns(2)
@@ -647,7 +664,9 @@ def render_scraping_tab():
             if reports:
                 # Process the data
                 if st.session_state.get("include_uploaded") and st.session_state.get("uploaded_reports"):
-                    reports.extend(st.session_state.uploaded_reports)
+                    uploaded = st.session_state.get("uploaded_reports", [])
+                    if uploaded:
+                        reports.extend(uploaded)
                 df = pd.DataFrame(reports)
                 df = process_scraped_data(df)
 
