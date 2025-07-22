@@ -305,13 +305,20 @@ def upload_PFD_reports():
     )
     if uploaded_reports is not None:
         report_data = process_uploaded_pfd(uploaded_reports)
-        df = pd.DataFrame([report_data])
-        st.dataframe(df)
-        st.session_state["uploaded report"] = report_data
-        st.success("PDF uploaded successfully")
-        return report_data
+        
+        if report_data:
+            df = pd.DataFrame([report_data])
+            st.dataframe(df)
+            st.session_state["uploaded_report"] = report_data
+            st.success("PDF uploaded successfully")
+            return report_data
+        else:
+            logging.error("PDF processing returned no data")
+            st.error("could not extract data from pdf")
     else:
-        logging.error("Uploaded report non compatible")
+        logging.error("Uploaded report not compatible (None)")
+        st.error("No file uploaded or file is not compatible")
+
     
 
 def process_uploaded_pfd(uploaded_file)-> dict:
