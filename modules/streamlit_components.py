@@ -21,6 +21,9 @@ import streamlit as st
 from pyvis.network import Network
 import streamlit.components.v1 as components
 import zipfile
+import fitz
+import os
+import uuid
 # Import our modules
 from .core_utils import (
     process_scraped_data, 
@@ -298,9 +301,37 @@ def handle_error(error):
     logging.error(f"Application error: {error}", exc_info=True)
 def upload_PFD_reports():
     uploaded_reports = st.file_uploader(
-        "Upload csv"
+        "Upload report as pdf", type=["pdf"]
     )
-    pass
+    if uploaded_reports is not None:
+        report_data = process_uploaded_pfd(uploaded_reports)
+        df = pd.DataFrame([report_data])
+        st.dataFrame(df)
+    return report_data
+
+def process_uploaded_pfd(uploaded_file)-> dict:
+    temp_filename = f"temp_{uuid.uuid().hex}.pdf"
+    with open(temp_filename, "wb") as f:
+        f.write(uploaded_file.read())
+
+    doc = fitz.open(temp_filename)
+    full_text=""
+    for page in doc:
+        full_text +=page.get_text()
+
+    pdf_type = "Response" if "response to" in full_text.lower() else "Report"
+
+    # Build the result dict in the same format
+    result = {
+        "Title": uploaded_file.name.replace(".pdf", ""),
+        "URL": "Uploaded manually",
+        "Content": full_text,
+        "PDF_1_Name": uploaded_file.name,
+        "PDF_1_Content": full_text,
+        "PDF_1_Path": temp_filename,
+        "PDF_1_Type": pdf_type,
+    }
+    return result
 
 
 def render_scraping_tab():
