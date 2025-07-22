@@ -344,7 +344,7 @@ def process_uploaded_pfd(uploaded_file):
 
     web_content = get_report_content(judiciary_url)
     if web_content:
-        content = web_content
+        content = web_content["content"]
     else:
         logging.warning("could not fetch content from constructed url")
         content = full_text
