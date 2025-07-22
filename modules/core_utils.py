@@ -1508,7 +1508,7 @@ def save_dashboard_images_as_zip(filtered_df):
                                 - You can explore the network interactively
                                 - To download as PNG, click the Download PNG button at the bottom of the graph
                                 """)
-                            add_pyvis_graph_to_existing_zip("network_with_legend.html","README.txt" )
+                            add_pyvis_graph_to_existing_zip("network_with_legend.html","README.txt", image_count )
 
                         #add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
                         break  # We found a good threshold, no need to try lower ones
