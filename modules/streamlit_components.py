@@ -345,6 +345,7 @@ def process_uploaded_pfd(uploaded_file):
     web_content = get_report_content(judiciary_url)
     if web_content:
         content = web_content["content"]
+        pdf_content = web_content["pdf_contents"]
     else:
         logging.warning("could not fetch content from constructed url")
         content = full_text
@@ -355,7 +356,7 @@ def process_uploaded_pfd(uploaded_file):
         "URL": judiciary_url,  # You can modify this if needed
         "Content": content,
         "PDF_1_Name": uploaded_file.name,
-        "PDF_1_Content": full_text,
+        "PDF_1_Content": pdf_content,
         "PDF_1_Path": path,
         "PDF_1_Type": "report",
     }
