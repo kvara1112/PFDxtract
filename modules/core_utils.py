@@ -19,14 +19,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 from pyvis.network import Network
 import streamlit.components.v1 as components
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
+#from selenium import webdriver
+#from selenium.webdriver.chrome.options import Options
+#from selenium.webdriver.chrome.service import Service
+#from webdriver_manager.chrome import ChromeDriverManager
 import time
 import os
 import zipfile
-
+import asyncio
+from pyppeteer import launch
 # Configure logging (can be centralized in the main app file later)
 logging.basicConfig(
     level=logging.INFO,
@@ -867,23 +868,35 @@ def save_dashboard_images_as_zip(filtered_df):
             except Exception as e:
                 logging.error(f"Error saving {filename}: {str(e)}")
                 return False
+            
+        async def take_screenshit_withpyppeteer(html_path, output_png):
+            abs_path = f"file://{os.path.abspath(html_path)}"
+            browser = await launch(headless=True, args=["--no-sandbox"])
+            page = await browser.newPage()
+            await page.setViewport({'width': 2000, 'height': 2000})
+            await page.goto(abs_path)
+            await asyncio.sleep(2)  # wait for rendering
+            await page.screenshot({'path': output_png})
+            await browser.close()
+
         def add_pyvis_graph_to_existing_zip(html_path="outputs/network.html", png_name="network_graph.png"):
             # Setup headless browser for taking a screenshot
-            optionsx = Options()
-            optionsx.headless = True
-            optionsx.add_argument("--window-size=1200,800")
+            #optionsx = Options()
+            #optionsx.headless = True
+            #optionsx.add_argument("--window-size=1200,800")
 
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service = service, options=optionsx)
+            #service = Service(ChromeDriverManager().install())
+            #driver = webdriver.Chrome(service = service, options=optionsx)
 
             # Open the saved HTML Pyvis graph
-            driver.get("file://" + os.path.abspath(html_path))
-            time.sleep(3)  # Wait for the graph to render
+            #driver.get("file://" + os.path.abspath(html_path))
+            #time.sleep(3)  # Wait for the graph to render
 
             # Take a screenshot of the graph
-            driver.save_screenshot(png_name)
-            driver.quit()
+            #driver.save_screenshot(png_name)
+            #driver.quit()
 
+            asyncio.run(take_screenshit_withpyppeteer(html_path, png_name))
             with open("network_graph.png", "rb") as f:
                 img_bytes = f.read()
 
