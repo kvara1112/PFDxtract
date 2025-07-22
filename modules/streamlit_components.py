@@ -344,7 +344,7 @@ def upload_PFD_reports():
         already_uploaded = any(file_data["PDF_1_Name"] == uploaded_report.name for file_data in st.session_state.uploaded_reports_data)
         
         if already_uploaded:
-            st.warning(f"The file '{uploaded_report.name}' has already been uploaded.")
+            logging.error(f"The file '{uploaded_report.name}' has already been uploaded.")
         else:
             logging.info(f"Received file: {uploaded_report.name}")
             report_data = process_uploaded_pfd(uploaded_report)
@@ -677,6 +677,7 @@ def render_scraping_tab():
             if reports:
                 # Process the data
                 if st.session_state.get("include_uploaded") and st.session_state.get("uploaded_reports"):
+                    print("HELLO INSIDE STATEMENT")
                     uploaded = st.session_state.get("uploaded_reports", [])
                     if uploaded:
                         st.success("Uploaded reports retrieved")
