@@ -1495,6 +1495,7 @@ def save_dashboard_images_as_zip(filtered_df):
 
                             # Insert download button and script before </body>
                             final_html = html.replace("<body>", f"<body>{legend_html}")
+                            net.save_graph("outputs/network_with_legend.html")
 
                         
                             with open("network_with_legend.html", "w", encoding="utf-8") as f:
@@ -1522,7 +1523,6 @@ def save_dashboard_images_as_zip(filtered_df):
                                 </body>
                                 """
                             )
-                            net.save_graph("outputs/network_with_legend.html")
                             with  open("README.txt", "w", encoding="utf-8") as f:
                                 f.write("""
                                 Theme Correlation network
@@ -1531,6 +1531,9 @@ def save_dashboard_images_as_zip(filtered_df):
                                 - You can explore the network interactively
                                 - To download as PNG, click the Download PNG button at the bottom of the graph
                                 """)
+
+                            with open("network_with_legend.html", "w", encoding="utf-8") as f:
+                                f.write(final_html)
                             add_pyvis_graph_to_existing_zip("network_with_legend.html","README.txt", image_count )
 
                         #add_figure_to_zip(fig, f"theme_network_{timestamp}.png")
