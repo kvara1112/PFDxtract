@@ -300,62 +300,45 @@ def handle_error(error):
     with st.expander("Error Details"):
         st.code(str(error))
     logging.error(f"Application error: {error}", exc_info=True)
-def upload_PFD_reports():
-    uploaded_reports = st.file_uploader(
-        "Upload report as pdf", type=["pdf"]
-    )
-    if uploaded_reports is not None:
-        report_data = process_uploaded_pfd(uploaded_reports)
-        
-        if report_data:
-            df = pd.DataFrame([report_data])
-            st.dataframe(df)
-            st.session_state["uploaded_report"] = report_data
-            st.success("PDF uploaded successfully")
-            return report_data
-        else:
-            logging.error("PDF processing returned no data")
-            st.error("could not extract data from pdf")
-    else:
-        logging.error("Uploaded report not compatible (None)")
-        st.error("No file uploaded yet or file is not compatible")
 
-    
 logging.basicConfig(level=logging.INFO)
+
 def process_uploaded_pfd(uploaded_file):
     # Replace this with your actual PDF processing logic
     return {"filename": uploaded_file.name, "summary": "Some extracted data"}
 
+def upload_PFD_reports():
 
-if "uploaded_reports_data" not in st.session_state:
-    st.session_state.uploaded_reports_data = []
+    if "uploaded_reports_data" not in st.session_state:
+        st.session_state.uploaded_reports_data = []
 
+    uploaded_report = st.file_uploader("Upload a PDF report", type="pdf")
 
-uploaded_report = st.file_uploader("Upload a PDF report", type="pdf")
+    if uploaded_report is not None:
+        logging.info(f"Received file: {uploaded_report.name}")
 
-if uploaded_report is not None:
-    logging.info(f"Received file: {uploaded_report.name}")
+        report_data = process_uploaded_pfd(uploaded_report)
 
-    report_data = process_uploaded_pfd(uploaded_report)
-
-    if report_data:
-        st.session_state.uploaded_reports_data.append(report_data)
-        st.success(f"{uploaded_report.name} uploaded and processed successfully.")
+        if report_data:
+            st.session_state.uploaded_reports_data.append(report_data)
+            st.success(f"{uploaded_report.name} uploaded and processed successfully.")
+        else:
+            logging.error("Uploaded report not compatible (processing returned None)")
+            st.error("Failed to process the uploaded report.")
     else:
-        logging.error("Uploaded report not compatible (processing returned None)")
-        st.error("Failed to process the uploaded report.")
-else:
-    logging.info("No file uploaded yet.")
+        logging.info("No file uploaded yet.")
+
+    # Show uploaded reports
+    if st.session_state.uploaded_reports_data:
+        df = pd.DataFrame(st.session_state.uploaded_reports_data)
+        st.dataframe(df)
+
+    # Clear button
+    if st.button("Clear all uploaded reports"):
+        st.session_state.uploaded_reports_data = []
+        st.success("Cleared all uploaded reports.")
 
 
-if st.session_state.uploaded_reports_data:
-    df = pd.DataFrame(st.session_state.uploaded_reports_data)
-    st.dataframe(df)
-
-
-if st.button("Clear all uploaded reports"):
-    st.session_state.uploaded_reports_data = []
-    st.success("Cleared all uploaded reports.")
 
 
 def render_scraping_tab():
