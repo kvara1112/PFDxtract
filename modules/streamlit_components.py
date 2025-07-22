@@ -304,9 +304,34 @@ def handle_error(error):
 logging.basicConfig(level=logging.INFO)
 
 def process_uploaded_pfd(uploaded_file):
-    # Replace this with your actual PDF processing logic
-    return {"filename": uploaded_file.name, "summary": "Some extracted data"}
+    # Generate a temporary filename
+    temp_filename = f"temp_{uuid.uuid4().hex}.pdf"
+    
+    # Save the uploaded file temporarily
+    with open(temp_filename, "wb") as f:
+        f.write(uploaded_file.read())
 
+    # Open the PDF and extract text
+    doc = fitz.open(temp_filename)
+    full_text = ""
+    for page in doc:
+        full_text += page.get_text()
+
+    # Determine the PDF type based on content
+    pdf_type = "Response" if "response to" in full_text.lower() else "Report"
+
+    # Build the result dictionary
+    result = {
+        "Title": uploaded_file.name.replace(".pdf", ""),
+        "URL": "Uploaded manually",  # You can modify this if needed
+        "Content": full_text,
+        "PDF_1_Name": uploaded_file.name,
+        "PDF_1_Content": full_text,
+        "PDF_1_Path": temp_filename,
+        "PDF_1_Type": pdf_type,
+    }
+
+    return result
 def upload_PFD_reports():
 
     if "uploaded_reports_data" not in st.session_state:
