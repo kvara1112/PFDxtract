@@ -759,7 +759,10 @@ def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> st
 def add_pyvis_graph_to_existing_zip(zip_buffer, html_path="outputs/network.html", png_name="network_graph.png"):
     # Setup headless browser for taking a screenshot
     optionsx = Options()
-    optionsx.headless = True
+    #optionsx.headless = True
+    optionsx.add_argument("--headless=new")
+    optionsx.add_argument("--no-sandbox")
+    optionsx.add_argument("--disable-dev-shm-usage")
     optionsx.add_argument("--window-size=2000,2000")
 
     service = Service(ChromeDriverManager().install())
