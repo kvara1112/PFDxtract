@@ -370,7 +370,7 @@ def process_uploaded_pfd(uploaded_file):
         df = process_scraped_data(df)
     else:
         logging.warning("could not fetch content from constructed url")
-
+    return reports[0]
 def upload_PFD_reports():
 
     if "uploaded_reports_data" not in st.session_state:
@@ -399,14 +399,16 @@ def upload_PFD_reports():
 
     # Show uploaded reports
     if st.session_state.uploaded_reports_data:
-        df = pd.DataFrame(st.session_state.uploaded_reports_data)
-        st.dataframe(df)
+        uploaded_filenames = [file_data.get("PDF_1_Name", "Unknown") for file_data in st.session_state.uploaded_reports_data]
+        st.markdown("**Uploaded Reports:**")
+        st.write(uploaded_filenames)
 
         col1, col2 = st.columns(2)
         # Clear button
         with col1:
             if st.button("Clear all uploaded reports"):
                 st.session_state.uploaded_reports_data = []
+                st.session_state.processed = False
                 st.success("Cleared all uploaded reports.")
         with col2:
             if st.button("Process uploaded reports"):
@@ -414,15 +416,17 @@ def upload_PFD_reports():
                     st.warning("Please upload at least 5 reports to proceed.")
                 else:
                     st.success("Processing uploaded reports...")
+                    df = pd.DataFrame(st.session_state.uploaded_Reports_data)
                     df = process_scraped_data(df)
-                    # Store in session state
-                    st.session_state.processed = True
                     st.session_state.current_data = df
                     st.session_state.data_source = "uploaded"
-                    # Optional: rerun or navigate
-        if st.session_state.get("processed") and "current_data" in st.session_state:
-            st.markdown("### Processed Data Ready")
-            show_export_options(st.session_state.current_data, prefix="uploaded")
+                    st.session_state.processed = True
+
+                    
+    if st.session_state.get("processed") and "current_data" in st.session_state:
+        st.markdown("### Processed Data Ready")
+        st.dataframe(st.session_state.current_data)
+        show_export_options(st.session_state.current_data, prefix="uploaded")
     else:
         st.info("No reports uploaded yet.")
 
