@@ -390,7 +390,7 @@ def upload_PFD_reports():
         st.session_state.show_clear_success = False
     
 
-    uploaded_reports = st.file_uploader("Upload each report individually", type="pdf", accept_multiple_files=True, key=st.session_state.file_uploader_key)
+    uploaded_reports = st.file_uploader("Upload PFD reports", type="pdf", accept_multiple_files=True, key=st.session_state.file_uploader_key)
 
     # Show clear success message if flag is set
     if st.session_state.show_clear_success:
@@ -440,6 +440,7 @@ def upload_PFD_reports():
                 else:
                     st.success("Processing uploaded reports...")
                     all_uploaded_reports = []
+                    
                     for file in st.session_state.uploaded_reports_files:
                         report_data = process_uploaded_pfd(file)
                         if report_data:
@@ -453,6 +454,7 @@ def upload_PFD_reports():
                         st.session_state.current_data = df
                         st.session_state.data_source = "uploaded"
                         st.session_state.processed = True
+                    
 
         # if st.session_state.upload_message:
         #     st.markdown("### Upload Summary")
