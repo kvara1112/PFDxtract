@@ -386,9 +386,16 @@ def upload_PFD_reports():
         st.session_state.current_data = None
     if "upload_message" not in st.session_state:
         st.session_state.upload_message = []
+    if "show_clear_success" not in st.session_state:
+        st.session_state.show_clear_success = False
     
 
     uploaded_report = st.file_uploader("Upload each report individually", type="pdf", key=st.session_state.file_uploader_key)
+
+    # Show clear success message if flag is set
+    if st.session_state.show_clear_success:
+        st.success("Cleared all uploaded reports.")
+        st.session_state.show_clear_success = False
 
     if uploaded_report is not None:
         if uploaded_report.name != st.session_state.just_uploaded_filename:
@@ -399,7 +406,6 @@ def upload_PFD_reports():
             if not already_uploaded:
                 st.session_state.uploaded_reports_files.append(uploaded_report)
                 st.session_state.just_uploaded_filename = uploaded_report.name
-                st.success(f"{uploaded_report.name} uploaded.")
                 st.session_state.upload_message.append(f"{uploaded_report.name} uploaded.")
             else:
                 st.warning(f"'{uploaded_report.name}' has already been uploaded.")
@@ -424,7 +430,8 @@ def upload_PFD_reports():
                 st.session_state.upload_message = []  # Reset upload message
                 st.session_state.just_uploaded_filename = None                
                 st.session_state.file_uploader_key += 1 # to clear the uploader 
-                st.success("Cleared all uploaded reports.")
+                st.session_state.show_clear_success = True  # Set flag to show message after rerun
+                st.rerun()
                               
         with col2:
             if st.button("Process uploaded reports"):
