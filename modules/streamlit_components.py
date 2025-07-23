@@ -409,7 +409,7 @@ def upload_PFD_reports():
                 st.session_state.uploaded_reports_files = []
                 #st.session_state.uploaded_reports_data = []
                 st.session_state.current_data = None
-                st.session_state.upload_message = None  # Reset upload message
+                st.session_state.upload_message = []  # Reset upload message
 
                 st.session_state.processed = False
                 st.success("Cleared all uploaded reports.")
