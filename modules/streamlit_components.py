@@ -408,7 +408,10 @@ def upload_PFD_reports():
                 st.session_state.current_data = None
                 st.session_state.processed = False
                 st.success("Cleared all uploaded reports.")
-                st.markdown("")  
+                st.session_state.uploaded_reports_files = []  # Ensure session is cleared
+                # Hide the markdown
+                st.experimental_rerun()  # Rerun the app to clear the UI
+                  
         with col2:
             if st.button("Process uploaded reports"):
                 if len(st.session_state.uploaded_reports_files) < 5:
