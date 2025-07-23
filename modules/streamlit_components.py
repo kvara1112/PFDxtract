@@ -373,7 +373,7 @@ def process_uploaded_pfd(uploaded_file):
 
 def upload_PFD_reports():
 
-    if "uploaded_reports_data" not in st.session_state:
+    if "uploaded_reports_files" not in st.session_state:
         st.session_state.uploaded_reports_files = []
     if "processed" not in st.session_state:
         st.session_state.processed = False
@@ -386,12 +386,12 @@ def upload_PFD_reports():
             f.name == uploaded_report.name
             for f in st.session_state.uploaded_reports_files
         )
-        if already_uploaded:
-            st.warning(f"The file '{uploaded_report.name}' has already been uploaded.")
-        else:
+        if not already_uploaded:
             st.session_state.uploaded_reports_files.append(uploaded_report)
             st.success(f"{uploaded_report.name} uploaded.")
-            st.session_state.processed = False
+        else:
+            st.warning(f"'{uploaded_report.name}' has already been uploaded.")
+
 
     # Show uploaded reports
     if st.session_state.uploaded_reports_files:
