@@ -388,7 +388,7 @@ def upload_PFD_reports():
         st.session_state.upload_message = []
     
 
-    uploaded_reports = st.file_uploader("Upload each report individually", type="pdf",accept_multiple_files=True, key=st.session_state.file_uploader_key)
+    uploaded_reports = st.file_uploader("Upload PFD reports", type="pdf",accept_multiple_files=True, key=st.session_state.file_uploader_key)
 
     if uploaded_reports is not None:
         for uploaded_report in uploaded_reports:
@@ -428,8 +428,6 @@ def upload_PFD_reports():
                               
         with col2:
             if st.button("Process uploaded reports"):
-                st.session_state.file_uploader_key += 1 # to clear the uploader 
-
                 if len(st.session_state.uploaded_reports_files) < 5:
                     st.warning("Please upload at least 5 reports to proceed.")
                 else:
@@ -458,6 +456,8 @@ def upload_PFD_reports():
         st.markdown("### Processed Data Ready")
         st.dataframe(st.session_state.current_data)
         show_export_options(st.session_state.current_data, prefix="uploaded")
+        st.session_state.upload_message = []  # Reset upload message
+
     
 
 
