@@ -372,6 +372,9 @@ def process_uploaded_pfd(uploaded_file):
     return reports[0]
 
 def upload_PFD_reports():
+    # At top of upload_PFD_reports
+    if "file_uploader_key" not in st.session_state:
+        st.session_state.file_uploader_key = 0
 
     if "uploaded_reports_files" not in st.session_state:
         st.session_state.uploaded_reports_files = []
@@ -383,7 +386,8 @@ def upload_PFD_reports():
         st.session_state.current_data = None
     if "upload_message" not in st.session_state:
         st.session_state.upload_message = []
-    uploaded_report = st.file_uploader("Upload each report individually", type="pdf")
+
+    uploaded_report = st.file_uploader("Upload each report individually", type="pdf", key=st.session_state.file_uploader_key)
 
     if uploaded_report is not None:
         if uploaded_report.name != st.session_state.just_uploaded_filename:
@@ -419,6 +423,7 @@ def upload_PFD_reports():
                 st.session_state.upload_message = []  # Reset upload message
                 st.session_state.just_uploaded_filename = None
                 st.session_state.uploaded_reports_files = []  # Ensure session is cleared
+                st.session_state.file_uploader_key += 1 # to clear the uploader 
                 st.success("Cleared all uploaded reports.")
                               
         with col2:
