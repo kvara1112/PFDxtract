@@ -387,7 +387,7 @@ def upload_PFD_reports():
     if "upload_message" not in st.session_state:
         st.session_state.upload_message = []
     if "clear_requested" not in st.session_state:
-        st.session_state.clear_requested = False
+        st.session_state["clear_requested"] = False
 
     uploaded_report = st.file_uploader("Upload each report individually", type="pdf", key=st.session_state.file_uploader_key)
 
@@ -418,8 +418,8 @@ def upload_PFD_reports():
         # Clear button
         with col1:
             if st.button("Clear all uploaded reports"):
-                st.session_state.clear_requested = True
-            if st.session_state_clear_requested:
+                st.session_state["clear_requested"] = True
+            if "clear_requested" not in st.session_state:
                 st.session_state.uploaded_reports_files = []
                 #st.session_state.uploaded_reports_data = []
                 st.session_state.current_data = None
@@ -429,7 +429,7 @@ def upload_PFD_reports():
                 st.session_state.uploaded_reports_files = []  # Ensure session is cleared
                 st.session_state.file_uploader_key += 1 # to clear the uploader 
                 
-                st.session_state.clear_requested = False
+                st.session_state["clear_reuqested"] = False
                 st.success("Cleared all uploaded reports.")
                               
         with col2:
