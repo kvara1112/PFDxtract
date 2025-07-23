@@ -380,7 +380,7 @@ def upload_PFD_reports():
     if "current_data" not in st.session_state:
         st.session_state.current_data = None
     if "upload_message" not in st.session_state:
-        st.session_state.upload_message = None
+        st.session_state.upload_message = []
     uploaded_report = st.file_uploader("Upload each report individually", type="pdf")
 
     if uploaded_report is not None:
@@ -391,15 +391,14 @@ def upload_PFD_reports():
         if not already_uploaded:
             st.session_state.uploaded_reports_files.append(uploaded_report)
             st.success(f"{uploaded_report.name} uploaded.")
-            st.session_state.upload_message = f"{uploaded_report.name} uploaded."
-
+            st.session_state.upload_message.append(f"{uploaded_report.name} uploaded.")
         else:
-            st.session_state.upload_message = f"'{uploaded_report.name}' has already been uploaded."
+            st.warning(f"'{uploaded_report.name}' has already been uploaded.")
 
 
     # Show uploaded reports
-    if st.session_state.upload_message:
-        st.success(st.session_state.upload_message)
+    for msg in st.session_state.upload_messages:
+        st.success(msg)
     if st.session_state.uploaded_reports_files:
         
 
