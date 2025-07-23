@@ -439,9 +439,9 @@ def upload_PFD_reports():
                         st.session_state.data_source = "uploaded"
                         st.session_state.processed = True
 
-        if st.session_state.upload_messages:
+        if st.session_state.upload_message:
             st.markdown("### Upload Summary")
-            for msg in st.session_state.upload_messages:
+            for msg in st.session_state.upload_message:
                 st.success(msg)
          
     if st.session_state.get("processed") and st.session_state.current_data is not None:
