@@ -404,7 +404,10 @@ def upload_PFD_reports():
     # for msg in st.session_state.upload_message:
     #     st.success(msg)
     if st.session_state.uploaded_reports_files:
-        
+        if st.session_state.upload_message:
+            st.markdown("### Upload Summary")
+            for msg in st.session_state.upload_message:
+                st.success(msg)
         col1, col2 = st.columns(2)
         # Clear button
         with col1:
@@ -439,10 +442,10 @@ def upload_PFD_reports():
                         st.session_state.data_source = "uploaded"
                         st.session_state.processed = True
 
-        if st.session_state.upload_message:
-            st.markdown("### Upload Summary")
-            for msg in st.session_state.upload_message:
-                st.success(msg)
+        # if st.session_state.upload_message:
+        #     st.markdown("### Upload Summary")
+        #     for msg in st.session_state.upload_message:
+        #         st.success(msg)
          
     if st.session_state.get("processed") and st.session_state.current_data is not None:
         st.markdown("### Processed Data Ready")
