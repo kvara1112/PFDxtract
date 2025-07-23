@@ -366,7 +366,7 @@ def process_uploaded_pfd(uploaded_file):
             report[f"PDF_{i}_Type"] = pdf_type
         reports.append(report)
     if reports:
-        st.success("Process Successfull")
+        logging.info("Process Successfull")
     else:
         logging.warning("could not fetch content from constructed url")
     return reports[0]
