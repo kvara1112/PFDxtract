@@ -375,7 +375,8 @@ def upload_PFD_reports():
 
     if "uploaded_reports_data" not in st.session_state:
         st.session_state.uploaded_reports_data = []
-
+    if "processed" not in st.session_state:
+        st.session_state.processed = False
     uploaded_report = st.file_uploader("Upload each report individually", type="pdf")
 
     if uploaded_report is not None:
@@ -386,14 +387,14 @@ def upload_PFD_reports():
             logging.error(f"The file '{uploaded_report.name}' has already been uploaded.")
         else:
             logging.info(f"Received file: {uploaded_report.name}")
-            report_data = process_uploaded_pfd(uploaded_report)
+            # report_data = process_uploaded_pfd(uploaded_report)
 
-            if report_data:
-                st.session_state.uploaded_reports_data.append(report_data)
-                st.success(f"{uploaded_report.name} uploaded and processed successfully.")
-            else:
-                logging.error("Uploaded report not compatible (processing returned None)")
-                st.error("Failed to process the uploaded report.")
+            # if report_data:
+            #     st.session_state.uploaded_reports_data.append(report_data)
+            #     st.success(f"{uploaded_report.name} uploaded and processed successfully.")
+            # else:
+            #     logging.error("Uploaded report not compatible (processing returned None)")
+            #     st.error("Failed to process the uploaded report.")
     else:
         logging.info("No file uploaded yet.")
 
