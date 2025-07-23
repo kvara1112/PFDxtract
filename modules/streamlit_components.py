@@ -413,13 +413,13 @@ def upload_PFD_reports():
                     st.success("Processing uploaded reports...")
                     df = process_scraped_data(df)
                     # Store in session state
-                    st.session_state.scraped_data = df
-                    st.session_state.data_source = "scraped"
+                    st.session_state.processed = True
                     st.session_state.current_data = df
-                    st.session_state.current_data = pd.DataFrame(st.session_state.uploaded_reports_data)
                     st.session_state.data_source = "uploaded"
                     # Optional: rerun or navigate
-                    st.rerun()
+        if st.session_state.get("processed") and "current_data" in st.session_state:
+            st.markdown("### Processed Data Ready")
+            show_export_options(st.session_state.current_data, prefix="uploaded")
     else:
         st.info("No reports uploaded yet.")
 
@@ -660,15 +660,15 @@ def render_scraping_tab():
                 help="Number of pages to process before saving a batch",
             )
         row5_col1, row5_col2 = st.columns(2)
-        with row5_col1:
-            # Initialize if it doesn't exist yet
-            if "include_uploaded" not in st.session_state:
-                st.session_state.include_uploaded = False
+        # with row5_col1:
+        #     # Initialize if it doesn't exist yet
+        #     if "include_uploaded" not in st.session_state:
+        #         st.session_state.include_uploaded = False
 
-            # Bind the checkbox directly to the session state key
-            st.checkbox("Include uploaded report(s) in analysis", 
-                        key="include_uploaded", 
-                        help="Include your uploaded PFD reports")
+        #     # Bind the checkbox directly to the session state key
+        #     st.checkbox("Include uploaded report(s) in analysis", 
+        #                 key="include_uploaded", 
+        #                 help="Include your uploaded PFD reports")
 
         # Action buttons in a row
         button_col1, button_col2 = st.columns(2)
@@ -733,12 +733,12 @@ def render_scraping_tab():
 
             if reports:
                 # Process the data
-                if st.session_state.get("include_uploaded") and st.session_state.get("uploaded_reports_data"):
-                    print("HELLO INSIDE STATEMENT")
-                    uploaded = st.session_state.get("uploaded_reports_data", [])
-                    if uploaded:
-                        st.success("Uploaded reports retrieved")
-                        reports.extend(uploaded)
+                # if st.session_state.get("include_uploaded") and st.session_state.get("uploaded_reports_data"):
+                #     print("HELLO INSIDE STATEMENT")
+                #     uploaded = st.session_state.get("uploaded_reports_data", [])
+                #     if uploaded:
+                #         st.success("Uploaded reports retrieved")
+                #         reports.extend(uploaded)
                 df = pd.DataFrame(reports)
                 df = process_scraped_data(df)
 

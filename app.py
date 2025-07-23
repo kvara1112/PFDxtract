@@ -349,20 +349,14 @@ def main():
                 - Export options in CSV and Excel formats
 
                 Handling Large Result Sets: For extensive search results, use the 'Start page' and 'End page' number inputs to download reports in manageable batches.
-                Upload your own PFD reports and filter and search for PFD reports
+                Upload your own PFD reports of filter and search for PFD reports
                 """
             )
-            st.subheader("Scrape PFD Reports")
-            st.markdown(
-                """
-
-                Upload PFD reports
-                """
-            )
+            st.subheader("Upload PFD Reports")
             upload_PFD_reports()
-            st.markdown("""
-                Scrape filtered PFD reports 
-                        """)
+
+            st.subheader("Scrape PFD Reports")
+            
             render_scraping_tab()
         
         elif current_tab == "(2)📂 Scraped File Preparation":
