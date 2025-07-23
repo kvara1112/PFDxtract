@@ -401,7 +401,6 @@ def upload_PFD_reports():
         st.success(msg)
     if st.session_state.uploaded_reports_files:
         
-
         col1, col2 = st.columns(2)
         # Clear button
         with col1:
