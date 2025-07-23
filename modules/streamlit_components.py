@@ -374,25 +374,30 @@ def process_uploaded_pfd(uploaded_file):
 def upload_PFD_reports():
 
     if "uploaded_reports_data" not in st.session_state:
-        st.session_state.uploaded_reports_data = []
+        st.session_state.uploaded_reports_files = []
     if "processed" not in st.session_state:
         st.session_state.processed = False
+    if "current_data" not in st.session_state:
+        st.session_state.current_data = None
     uploaded_report = st.file_uploader("Upload each report individually", type="pdf")
 
     if uploaded_report is not None:
 
         already_uploaded = any(file_data["PDF_1_Name"] == uploaded_report.name for file_data in st.session_state.uploaded_reports_data)
-        
+        already_uploaded = any(
+            f.name == uploaded_report.name
+            for f in st.session_state.uploaded_reports_files
+        )
         if already_uploaded:
-            logging.error(f"The file '{uploaded_report.name}' has already been uploaded.")
+            st.warning(f"The file '{uploaded_report.name}' has already been uploaded.")
         else:
-            logging.info(f"Received file: {uploaded_report.name}")
-    else:
-        logging.info("No file uploaded yet.")
+            st.session_state.uploaded_reports_files.append(uploaded_report)
+            st.success(f"{uploaded_report.name} uploaded.")
+            st.session_state.processed = False
 
     # Show uploaded reports
-    if st.session_state.uploaded_reports_data:
-        uploaded_filenames = [file_data.get("PDF_1_Name", "Unknown") for file_data in st.session_state.uploaded_reports_data]
+    if st.session_state.uploaded_reports_files:
+        uploaded_filenames =[f.name for f in st.session_state.uploaded_reports_files]
         st.markdown("**Uploaded Reports:**")
         st.write(uploaded_filenames)
 
@@ -400,39 +405,35 @@ def upload_PFD_reports():
         # Clear button
         with col1:
             if st.button("Clear all uploaded reports"):
+                st.session_state.uploaded_reports_files = []
                 st.session_state.uploaded_reports_data = []
                 st.session_state.processed = False
                 st.success("Cleared all uploaded reports.")
         with col2:
             if st.button("Process uploaded reports"):
-                if len(st.session_state.uploaded_reports_data) < 5:
+                if len(st.session_state.uploaded_reports_files) < 5:
                     st.warning("Please upload at least 5 reports to proceed.")
                 else:
                     st.success("Processing uploaded reports...")
                     all_uploaded_reports = []
-                    for i in range(len(st.session_state.uploaded_reports_data)):
-                        report_data = process_uploaded_pfd(uploaded_report)
+                    for file in st.session_state.uploaded_reports_files:
+                        report_data = process_uploaded_pfd(file)
                         if report_data:
-                            st.session_state.uploaded_reports_data.append(report_data)
-                            st.success(f"{uploaded_report.name} uploaded and processed successfully.")
                             all_uploaded_reports.append(report_data)
                         else:
-                            logging.error("Uploaded report not compatible (processing returned None)")
                             st.error("Failed to process the uploaded report.")
                     if all_uploaded_reports:
                         df = pd.DataFrame(all_uploaded_reports)
+                        df = process_scraped_data(df)
                         st.session_state.current_data = df
                         st.session_state.data_source = "uploaded"
                         st.session_state.processed = True
 
                     
-    if st.session_state.get("processed") and "current_data" in st.session_state:
+    if st.session_state.get("processed") and st.session_state.current_data is not None:
         st.markdown("### Processed Data Ready")
         st.dataframe(st.session_state.current_data)
         show_export_options(st.session_state.current_data, prefix="uploaded")
-    else:
-        st.info("No reports uploaded yet.")
-
     
 
 
