@@ -382,8 +382,6 @@ def upload_PFD_reports():
     uploaded_report = st.file_uploader("Upload each report individually", type="pdf")
 
     if uploaded_report is not None:
-
-        already_uploaded = any(file_data["PDF_1_Name"] == uploaded_report.name for file_data in st.session_state.uploaded_reports_data)
         already_uploaded = any(
             f.name == uploaded_report.name
             for f in st.session_state.uploaded_reports_files
@@ -406,7 +404,7 @@ def upload_PFD_reports():
         with col1:
             if st.button("Clear all uploaded reports"):
                 st.session_state.uploaded_reports_files = []
-                st.session_state.uploaded_reports_data = []
+                #st.session_state.uploaded_reports_data = []
                 st.session_state.processed = False
                 st.success("Cleared all uploaded reports.")
         with col2:
