@@ -341,33 +341,36 @@ def process_uploaded_pfd(uploaded_file):
     else:
         judiciary_url = "Manual upload no link found"
     # Build the result dictionary
-
+    reports = []
     web_content = get_report_content(judiciary_url)
     if web_content:
-        content = web_content["content"]
-        pdf_content = web_content["pdf_contents"]
-        pdf_path = web_content["pdf_paths"]
-        pdf_type = web_content["pdf_types"]
+        report = {
+            "Title": title,
+            "URL": judiciary_url,
+            "Content": web_content["content"],
+        }
+
+        # Add PDF details with type classification
+        for i, (name, content, path, pdf_type) in enumerate(
+            zip(
+                web_content["pdf_names"],
+                web_content["pdf_contents"],
+                web_content["pdf_paths"],
+                web_content["pdf_types"],
+            ),
+            1,
+        ):
+            report[f"PDF_{i}_Name"] = name
+            report[f"PDF_{i}_Content"] = content
+            report[f"PDF_{i}_Path"] = path
+            report[f"PDF_{i}_Type"] = pdf_type
+        reports.append(report)
+    if reports:
+        df = pd.DataFrame(web_content)
+        df = process_scraped_data(df)
     else:
         logging.warning("could not fetch content from constructed url")
-        content = full_text
-        pdf_content = full_text
-        pdf_path = None
-        pdf_type = "report"
 
-    pdf_path = web_content["pdf_paths"]
-    pdf_type = web_content["pdf_types"]
-    result = {
-        "Title": title,
-        "URL": judiciary_url,  # You can modify this if needed
-        "Content": content,
-        "PDF_1_Name": uploaded_file.name,
-        "PDF_1_Content": pdf_content,
-        "PDF_1_Path": pdf_path,
-        "PDF_1_Type": pdf_type,
-    }
-
-    return result
 def upload_PFD_reports():
 
     if "uploaded_reports_data" not in st.session_state:
