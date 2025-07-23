@@ -375,6 +375,8 @@ def upload_PFD_reports():
 
     if "uploaded_reports_files" not in st.session_state:
         st.session_state.uploaded_reports_files = []
+    if "just_uploaded_filename" not in st.session_state:
+        st.session_state.just_uploaded_filename = None
     if "processed" not in st.session_state:
         st.session_state.processed = False
     if "current_data" not in st.session_state:
@@ -384,16 +386,18 @@ def upload_PFD_reports():
     uploaded_report = st.file_uploader("Upload each report individually", type="pdf")
 
     if uploaded_report is not None:
-        already_uploaded = any(
-            f.name == uploaded_report.name
-            for f in st.session_state.uploaded_reports_files
-        )
-        if not already_uploaded:
-            st.session_state.uploaded_reports_files.append(uploaded_report)
-            st.success(f"{uploaded_report.name} uploaded.")
-            st.session_state.upload_message.append(f"{uploaded_report.name} uploaded.")
-        else:
-            st.warning(f"'{uploaded_report.name}' has already been uploaded.")
+        if uploaded_report.name != st.session_state.just_uploaded_filename:
+            already_uploaded = any(
+                f.name == uploaded_report.name
+                for f in st.session_state.uploaded_reports_files
+            )
+            if not already_uploaded:
+                st.session_state.uploaded_reports_files.append(uploaded_report)
+                st.session_state.just_uploaded_filename = uploaded_report.name
+                st.success(f"{uploaded_report.name} uploaded.")
+                st.session_state.upload_message.append(f"{uploaded_report.name} uploaded.")
+            else:
+                st.warning(f"'{uploaded_report.name}' has already been uploaded.")
 
 
     # Show uploaded reports
@@ -410,6 +414,7 @@ def upload_PFD_reports():
                 st.session_state.current_data = None
                 st.session_state.processed = False
                 st.session_state.upload_message = []  # Reset upload message
+                st.session_state.just_uploaded_filename = None
                 st.session_state.uploaded_reports_files = []  # Ensure session is cleared
                 st.success("Cleared all uploaded reports.")
                               
