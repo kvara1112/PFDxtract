@@ -390,15 +390,15 @@ def upload_PFD_reports():
         st.session_state.show_clear_success = False
     
 
-    uploaded_report = st.file_uploader("Upload each report individually", type="pdf", key=st.session_state.file_uploader_key)
+    uploaded_reports = st.file_uploader("Upload each report individually", type="pdf", key=st.session_state.file_uploader_key)
 
     # Show clear success message if flag is set
     if st.session_state.show_clear_success:
         st.success("Cleared all uploaded reports.")
         st.session_state.show_clear_success = False
 
-    if uploaded_report is not None:
-        if uploaded_report.name != st.session_state.just_uploaded_filename:
+    if uploaded_reports is not None:
+        for uploaded_report in uploaded_reports:
             already_uploaded = any(
                 f.name == uploaded_report.name
                 for f in st.session_state.uploaded_reports_files
