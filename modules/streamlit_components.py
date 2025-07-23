@@ -423,6 +423,7 @@ def upload_PFD_reports():
                     if all_uploaded_reports:
                         df = pd.DataFrame(all_uploaded_reports)
                         df = process_scraped_data(df)
+                        df.index = range(1, len(df) + 1)
                         st.session_state.current_data = df
                         st.session_state.data_source = "uploaded"
                         st.session_state.processed = True

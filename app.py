@@ -366,7 +366,7 @@ def main():
                 This tool merges multiple scraped files into a single dataset. It prepares the data for steps (3) - (5).
                 
                 - Run this step even if you only have one scraped file. This step extracts the year and applies other processing.
-                - Combine data from multiple CSV or Excel files (files starting with pfd_reports_scraped_reportID_)
+                - Combine data from multiple CSV or Excel files (files starting with pfd_reports_scraped/uploaded_reportID_)
                 - Extract missing concerns from PDF content and fill empty Content fields
                 - Extract year information from date fields
                 - Remove duplicate records
