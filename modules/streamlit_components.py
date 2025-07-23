@@ -427,8 +427,8 @@ def upload_PFD_reports():
                 st.session_state.upload_message = []  # Reset upload message
                 st.session_state.just_uploaded_filename = None
                 st.session_state.uploaded_reports_files = []  # Ensure session is cleared
-                st.session_state.file_uploader_key += 1 # to clear the uploader 
                 st.session_state["clear_requested"] = False
+                st.session_state.file_uploader_key += 1 # to clear the uploader 
                 st.success("Cleared all uploaded reports.")
                               
         with col2:
