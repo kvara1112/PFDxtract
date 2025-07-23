@@ -388,9 +388,9 @@ def upload_PFD_reports():
         st.session_state.upload_message = []
     
 
-    uploaded_report = st.file_uploader("Upload each report individually", type="pdf",accept_multiple_files=True, key=st.session_state.file_uploader_key)
+    uploaded_reports = st.file_uploader("Upload each report individually", type="pdf",accept_multiple_files=True, key=st.session_state.file_uploader_key)
 
-    if uploaded_report is not None:
+    if uploaded_reports is not None:
         for uploaded_report in uploaded_reports:
             already_uploaded = any(
                 f.name == uploaded_report.name
