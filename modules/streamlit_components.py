@@ -397,7 +397,7 @@ def upload_PFD_reports():
 
 
     # Show uploaded reports
-    for msg in st.session_state.upload_messages:
+    for msg in st.session_state.upload_message:
         st.success(msg)
     if st.session_state.uploaded_reports_files:
         
