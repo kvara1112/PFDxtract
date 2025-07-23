@@ -378,8 +378,6 @@ def upload_PFD_reports():
 
     if "uploaded_reports_files" not in st.session_state:
         st.session_state.uploaded_reports_files = []
-    if "just_uploaded_filename" not in st.session_state:
-        st.session_state.just_uploaded_filename = None
     if "processed" not in st.session_state:
         st.session_state.processed = False
     if "current_data" not in st.session_state:
@@ -388,6 +386,8 @@ def upload_PFD_reports():
         st.session_state.upload_message = []
     if "show_clear_success" not in st.session_state:
         st.session_state.show_clear_success = False
+    if "last_widget_signatures" not in st.session_state:
+        st.session_state.last_widget_signatures = set()
     
 
     uploaded_reports = st.file_uploader("Upload PFD reports", type="pdf", accept_multiple_files=True, key=st.session_state.file_uploader_key)
@@ -398,17 +398,60 @@ def upload_PFD_reports():
         st.session_state.show_clear_success = False
 
     if uploaded_reports is not None:
+        # Get current widget file signatures
+        current_signatures = set((f.name, f.size) for f in uploaded_reports)
+        previous_signatures = st.session_state.last_widget_signatures
+        
+        # Check for duplicates within current batch (same file selected multiple times)
+        current_file_list = [(f.name, f.size) for f in uploaded_reports]  # List (allows duplicates)
+        current_file_counts = {}
+        for file_sig in current_file_list:
+            current_file_counts[file_sig] = current_file_counts.get(file_sig, 0) + 1
+        
+        # Detect if there are duplicates within the current batch
+        batch_has_duplicates = any(count > 1 for count in current_file_counts.values())
+        
+        # Detect widget reset (user cleared widget and re-uploaded files)
+        widget_reset = (len(current_signatures) > 0 and 
+                       len(current_signatures) < len(previous_signatures) and 
+                       current_signatures.issubset(previous_signatures))
+        
+        if widget_reset:
+            # Widget was reset - treat all current files as potentially new uploads
+            new_signatures = current_signatures
+        elif batch_has_duplicates:
+            # Batch contains duplicates - only process new files AND files that are duplicated within batch
+            truly_new_files = current_signatures - previous_signatures
+            duplicated_in_batch = {file_sig for file_sig, count in current_file_counts.items() if count > 1}
+            new_signatures = truly_new_files | duplicated_in_batch
+        else:
+            # Normal case - only process truly new files (not in previous widget state)
+            new_signatures = current_signatures - previous_signatures
+        
+        # Update widget state tracking
+        st.session_state.last_widget_signatures = current_signatures
+        
+        # Track what we've processed in this cycle to avoid duplicate warnings
+        processed_in_this_cycle = set()
+        
+        # Only process files that are new to this widget state
         for uploaded_report in uploaded_reports:
-            already_uploaded = any(
-                f.name == uploaded_report.name
-                for f in st.session_state.uploaded_reports_files
-            )
-            if not already_uploaded:
-                st.session_state.uploaded_reports_files.append(uploaded_report)
-                st.session_state.just_uploaded_filename = uploaded_report.name
-                st.session_state.upload_message.append(f"{uploaded_report.name} uploaded.")
-            else:
-                st.warning(f"'{uploaded_report.name}' has already been uploaded.")
+            file_sig = (uploaded_report.name, uploaded_report.size)
+            if file_sig in new_signatures and file_sig not in processed_in_this_cycle:
+                # This is a truly new file - check if it's a duplicate
+                already_uploaded = any(
+                    f.name == uploaded_report.name
+                    for f in st.session_state.uploaded_reports_files
+                )
+                
+                if not already_uploaded:
+                    st.session_state.uploaded_reports_files.append(uploaded_report)
+                    st.session_state.upload_message.append(f"{uploaded_report.name} uploaded.")
+                else:
+                    st.warning(f"**Duplicate file detected:** '{uploaded_report.name}' has already been uploaded. Please remove the duplicate from the upload list above to clear this warning. Note: Even if you proceed with processing, duplicates will automatically be ignored.")
+                
+                # Mark as processed in this cycle
+                processed_in_this_cycle.add(file_sig)
 
 
     # # Show uploaded reports
@@ -428,7 +471,7 @@ def upload_PFD_reports():
                 st.session_state.current_data = None
                 st.session_state.processed = False
                 st.session_state.upload_message = []  # Reset upload message
-                st.session_state.just_uploaded_filename = None                
+                st.session_state.last_widget_signatures = set()  # Reset widget state tracking
                 st.session_state.file_uploader_key += 1 # to clear the uploader 
                 st.session_state.show_clear_success = True  # Set flag to show message after rerun
                 st.rerun()
