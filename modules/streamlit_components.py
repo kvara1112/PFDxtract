@@ -400,9 +400,9 @@ def upload_PFD_reports():
                 st.warning(f"'{uploaded_report.name}' has already been uploaded.")
 
 
-    # Show uploaded reports
-    for msg in st.session_state.upload_message:
-        st.success(msg)
+    # # Show uploaded reports
+    # for msg in st.session_state.upload_message:
+    #     st.success(msg)
     if st.session_state.uploaded_reports_files:
         
         col1, col2 = st.columns(2)
@@ -439,12 +439,17 @@ def upload_PFD_reports():
                         st.session_state.data_source = "uploaded"
                         st.session_state.processed = True
 
-                    
+        if st.session_state.upload_messages:
+            st.markdown("### Upload Summary")
+            for msg in st.session_state.upload_messages:
+                st.success(msg)
+         
     if st.session_state.get("processed") and st.session_state.current_data is not None:
         st.markdown("### Processed Data Ready")
         st.dataframe(st.session_state.current_data)
         show_export_options(st.session_state.current_data, prefix="uploaded")
     
+
 
 
 
