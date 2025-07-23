@@ -376,7 +376,7 @@ def upload_PFD_reports():
     if "uploaded_reports_data" not in st.session_state:
         st.session_state.uploaded_reports_data = []
 
-    uploaded_report = st.file_uploader("Upload a PDF report", type="pdf")
+    uploaded_report = st.file_uploader("Upload each report individually", type="pdf")
 
     if uploaded_report is not None:
 
