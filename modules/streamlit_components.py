@@ -428,6 +428,8 @@ def upload_PFD_reports():
                               
         with col2:
             if st.button("Process uploaded reports"):
+                st.session_state.file_uploader_key += 1 # to clear the uploader 
+
                 if len(st.session_state.uploaded_reports_files) < 5:
                     st.warning("Please upload at least 5 reports to proceed.")
                 else:
