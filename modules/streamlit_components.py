@@ -366,11 +366,11 @@ def process_uploaded_pfd(uploaded_file):
             report[f"PDF_{i}_Type"] = pdf_type
         reports.append(report)
     if reports:
-        df = pd.DataFrame(web_content)
-        df = process_scraped_data(df)
+        st.success("Process Successfull")
     else:
         logging.warning("could not fetch content from constructed url")
     return reports[0]
+
 def upload_PFD_reports():
 
     if "uploaded_reports_data" not in st.session_state:
@@ -387,14 +387,6 @@ def upload_PFD_reports():
             logging.error(f"The file '{uploaded_report.name}' has already been uploaded.")
         else:
             logging.info(f"Received file: {uploaded_report.name}")
-            # report_data = process_uploaded_pfd(uploaded_report)
-
-            # if report_data:
-            #     st.session_state.uploaded_reports_data.append(report_data)
-            #     st.success(f"{uploaded_report.name} uploaded and processed successfully.")
-            # else:
-            #     logging.error("Uploaded report not compatible (processing returned None)")
-            #     st.error("Failed to process the uploaded report.")
     else:
         logging.info("No file uploaded yet.")
 
@@ -417,11 +409,21 @@ def upload_PFD_reports():
                     st.warning("Please upload at least 5 reports to proceed.")
                 else:
                     st.success("Processing uploaded reports...")
-                    df = pd.DataFrame(st.session_state.uploaded_Reports_data)
-                    df = process_scraped_data(df)
-                    st.session_state.current_data = df
-                    st.session_state.data_source = "uploaded"
-                    st.session_state.processed = True
+                    all_uploaded_reports = []
+                    for i in range(len(st.session_state.uploaded_reports_data)):
+                        report_data = process_uploaded_pfd(uploaded_report)
+                        if report_data:
+                            st.session_state.uploaded_reports_data.append(report_data)
+                            st.success(f"{uploaded_report.name} uploaded and processed successfully.")
+                            all_uploaded_reports.append(report_data)
+                        else:
+                            logging.error("Uploaded report not compatible (processing returned None)")
+                            st.error("Failed to process the uploaded report.")
+                    if all_uploaded_reports:
+                        df = pd.DataFrame(all_uploaded_reports)
+                        st.session_state.current_data = df
+                        st.session_state.data_source = "uploaded"
+                        st.session_state.processed = True
 
                     
     if st.session_state.get("processed") and "current_data" in st.session_state:
