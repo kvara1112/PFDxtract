@@ -445,10 +445,10 @@ def upload_PFD_reports():
         st.session_state.uploaded_reports_files = []
     if "processed" not in st.session_state:
         st.session_state.processed = False
+    if "processing" not in st.session_state:
+        st.session_state.processing = False
     if "current_data" not in st.session_state:
         st.session_state.current_data = None
-    if "upload_message" not in st.session_state:
-        st.session_state.upload_message = []
     if "show_clear_success" not in st.session_state:
         st.session_state.show_clear_success = False
     if "last_widget_signatures" not in st.session_state:
@@ -459,16 +459,19 @@ def upload_PFD_reports():
         st.session_state.processing_results = []
     
 
-    uploaded_reports = st.file_uploader(
-        "Upload PFD reports", 
-        type="pdf", 
-        accept_multiple_files=True, 
-        key=st.session_state.file_uploader_key,
-        help="We'll try to find the full report online, or analyze your uploaded file directly"
-    )
-    
-    # Add helpful context without being prescriptive
-    st.info("💡 **How it works**: Upload your PFD reports and we'll automatically find the complete online records when possible, including any official responses.", icon="ℹ️")
+    # Hide upload interface during processing
+    if not st.session_state.get("processing", False):
+        uploaded_reports = st.file_uploader(
+            "Upload PFD reports", 
+            type="pdf", 
+            accept_multiple_files=True, 
+            key=st.session_state.file_uploader_key,
+            help="We'll try to find the full report online, or analyze your uploaded file directly"
+        )
+        
+    else:
+        # Currently processing - hide upload interface
+        uploaded_reports = None
 
     # Show clear success message if flag is set
     if st.session_state.show_clear_success:
@@ -524,77 +527,105 @@ def upload_PFD_reports():
                 
                 if not already_uploaded:
                     st.session_state.uploaded_reports_files.append(uploaded_report)
-                    st.session_state.upload_message.append(f"{uploaded_report.name} uploaded.")
-                else:
-                    st.warning(f"**Duplicate file detected:** '{uploaded_report.name}' has already been uploaded. Please remove the duplicate from the upload list above to clear this warning. Note: Even if you proceed with processing, duplicates will automatically be ignored.")
+                # Duplicate files are silently ignored (handled gracefully)
                 
                 # Mark as processed in this cycle
                 processed_in_this_cycle.add(file_sig)
 
 
-    # # Show uploaded reports
-    # for msg in st.session_state.upload_message:
-    #     st.success(msg)
-    if st.session_state.uploaded_reports_files:
-        if st.session_state.upload_message:
-            st.markdown("### Upload Summary")
-            for msg in st.session_state.upload_message:
-                st.success(msg)
+    # Show buttons using the same approach as upload box
+    if st.session_state.uploaded_reports_files and not st.session_state.get("processing", False):
         col1, col2 = st.columns(2)
         # Clear button
         with col1:
             if st.button("Clear all uploaded reports"):
-                st.session_state.uploaded_reports_files = []
-                #st.session_state.uploaded_reports_data = []
-                st.session_state.current_data = None
-                st.session_state.processed = False
-                st.session_state.upload_message = []  # Reset upload message
-                st.session_state.last_widget_signatures = set()  # Reset widget state tracking
-                st.session_state.file_uploader_key += 1 # to clear the uploader 
-                st.session_state.show_clear_success = True  # Set flag to show message after rerun
-                st.rerun()
+                # Safety check - don't allow clearing during processing
+                if not st.session_state.get("processing", False):
+                    st.session_state.uploaded_reports_files = []
+                    #st.session_state.uploaded_reports_data = []
+                    st.session_state.current_data = None
+                    st.session_state.processed = False
+                    st.session_state.processing = False
+                    st.session_state.last_widget_signatures = set()  # Reset widget state tracking
+                    st.session_state.file_uploader_key += 1 # to clear the uploader 
+                    st.session_state.show_clear_success = True  # Set flag to show message after rerun
+                    st.rerun()
                               
         with col2:
             if st.button("Process uploaded reports"):
-                if len(st.session_state.uploaded_reports_files) < 5:
-                    st.warning("Please upload at least 5 reports to proceed.")
-                else:
-                    st.success("Processing uploaded reports...")
-                    st.session_state.processing_results = []
-                    
-                    # Process each file and collect results
-                    for file in st.session_state.uploaded_reports_files:
-                        result = process_uploaded_pfd(file)
-                        st.session_state.processing_results.append(result)
-                    
-                    # Separate successful and retry-needed results
-                    successful_reports = []
-                    retry_needed = []
-                    
-                    for result in st.session_state.processing_results:
-                        if result["status"] == "success":
-                            successful_reports.append(result["data"])
-                        elif result["status"] == "retry_needed":
-                            retry_needed.append(result)
-                    
-                    # Process successful reports immediately
-                    if successful_reports:
-                        df = pd.DataFrame(successful_reports)
-                        df = process_scraped_data(df)
-                        df.index = range(1, len(df) + 1)
-                        st.session_state.current_data = df
-                        st.session_state.data_source = "uploaded"
-                        
-                        if not retry_needed:  # Only mark as fully processed if no retries needed
-                            st.session_state.processed = True
-                    
-                    # Store retry-needed files for interactive handling
-                    st.session_state.retry_files = {i: result for i, result in enumerate(retry_needed)}
+                # Safety check - don't allow processing if already processing
+                if not st.session_state.get("processing", False):
+                    if len(st.session_state.uploaded_reports_files) < 5:
+                        st.warning("Please upload at least 5 reports to proceed.")
+                    else:
+                        # Immediately start processing and set state
+                        st.session_state.processing = True
+                        st.rerun()  # This will hide the UI and show processing state
+
+    # Show processing state 
+    if st.session_state.get("processing", False):
+        # Currently processing - show progress and do the actual processing
+        if "processing_results" not in st.session_state or not st.session_state.processing_results:
+            # First time entering processing state - do the processing
+            st.session_state.processing_results = []
+            total_files = len(st.session_state.uploaded_reports_files)
+            
+            # Create a placeholder for the progress message
+            progress_placeholder = st.empty()
+            progress_placeholder.info(f"Processing uploaded reports (0/{total_files})")
+            
+            # Process each file and collect results
+            for i, file in enumerate(st.session_state.uploaded_reports_files, 1):
+                progress_placeholder.info(f"Processing uploaded reports ({i}/{total_files})")
+                result = process_uploaded_pfd(file)
+                st.session_state.processing_results.append(result)
+            
+            # Update to completion message
+            progress_placeholder.success(f"✅ Processed {total_files} files successfully!")
+            
+            # Separate successful and retry-needed results
+            successful_reports = []
+            retry_needed = []
+            
+            for result in st.session_state.processing_results:
+                if result["status"] == "success":
+                    successful_reports.append(result["data"])
+                elif result["status"] == "retry_needed":
+                    retry_needed.append(result)
+            
+            # Process successful reports immediately
+            if successful_reports:
+                df = pd.DataFrame(successful_reports)
+                df = process_scraped_data(df)
+                df.index = range(1, len(df) + 1)
+                st.session_state.current_data = df
+                st.session_state.data_source = "uploaded"
+                
+                if not retry_needed:  # Only mark as fully processed if no retries needed
+                    st.session_state.processed = True
+                    st.session_state.processing = False
+            
+            # Store retry-needed files for interactive handling
+            st.session_state.retry_files = {i: result for i, result in enumerate(retry_needed)}
+        else:
+            # Processing already done, just show current progress status
+            st.info(f"⚙️ **Processing completed!** Processed {len(st.session_state.processing_results)} files.")
+        
+        if st.button("🔄 Start New Analysis", type="secondary"):
+            # Reset all state to start fresh
+            st.session_state.uploaded_reports_files = []
+            st.session_state.current_data = None
+            st.session_state.processed = False
+            st.session_state.processing = False
+            st.session_state.processing_results = []
+            st.session_state.retry_files = {}
+            st.session_state.last_widget_signatures = set()
+            st.session_state.file_uploader_key += 1
+            st.rerun()
     
     # Handle retry-needed files with interactive UI
     if st.session_state.retry_files:
         st.markdown("### 🔍 Files Needing Attention")
-        st.info("Some files couldn't be found online. Please choose how to handle each one:")
         
         files_to_remove = []  # Track which files to remove from retry list
         additional_reports = []  # Track additional successful reports
@@ -615,6 +646,10 @@ def upload_PFD_reports():
                     )
                     if st.button("🔄 Retry Search", key=f"retry_btn_{retry_id}"):
                         if new_name.strip():
+                            # Show progress feedback for retry search
+                            retry_progress = st.empty()
+                            retry_progress.info(f"🔍 Searching for '{new_name.strip()}'...")
+                            
                             # Create a temporary file-like object for retry
                             class TempFileObj:
                                 def __init__(self, name, temp_path):
@@ -631,10 +666,10 @@ def upload_PFD_reports():
                             if retry_result["status"] == "success":
                                 additional_reports.append(retry_result["data"])
                                 files_to_remove.append(retry_id)
-                                st.success(f"✅ Found online record for '{new_name}'!")
+                                retry_progress.success(f"✅ Found online record for '{new_name.strip()}'!")
                                 # Don't rerun immediately - let the processing complete below
                             else:
-                                st.error(f"Still no results found for '{new_name}'. Try a different name or use local file.")
+                                retry_progress.error(f"❌ No results found for '{new_name.strip()}'. Try a different name or use local file.")
                         else:
                             st.error("Please enter a name to search for.")
                 
@@ -683,20 +718,15 @@ def upload_PFD_reports():
             # Mark as fully processed if no more retries needed
             if not st.session_state.retry_files:
                 st.session_state.processed = True
+                st.session_state.processing = False
             
             # Rerun to update the UI and show processed data
             st.rerun()
 
-        # if st.session_state.upload_message:
-        #     st.markdown("### Upload Summary")
-        #     for msg in st.session_state.upload_message:
-        #         st.success(msg)
-         
     if st.session_state.get("processed") and st.session_state.current_data is not None:
         st.markdown("### Processed Data Ready")
         st.dataframe(st.session_state.current_data)
         show_export_options(st.session_state.current_data, prefix="uploaded")
-        st.session_state.upload_message = []  # Reset upload message
 
     
 
