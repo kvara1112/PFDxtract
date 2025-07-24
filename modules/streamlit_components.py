@@ -312,7 +312,48 @@ def slugify(text):
     text = re.sub(r'-{2,}', '-', text)            
     return text.strip('-')
 
-def process_uploaded_pfd(uploaded_file):
+def parse_filename_for_slug(filename: str) -> str:
+    """
+    Extract a name slug from various PFD filename formats.
+    Handles both official formats and common variations gracefully.
+    """
+    # Remove .pdf extension
+    name = os.path.splitext(filename)[0]
+    
+    # Strategy 1: Official format - capture everything before "Prevention"
+    official_match = re.search(r'^(.*?)(?:-?prevention-of-future-deaths?-report.*)$', name, re.IGNORECASE)
+    if official_match and official_match.group(1):
+        return slugify(official_match.group(1))
+    
+    # Strategy 2: Look for common stop patterns that indicate where the name ends
+    stop_patterns = [
+        r'\bPREVENTION\b',
+        r'\bREGULATION\b', 
+        r'\bACTION\b',
+        r'\bFUTURE\b',
+        r'\bDEATHS?\b',
+        r'\bREPORT\b',
+        r'\d{4}-\d{4}',  # YYYY-NNNN pattern
+        r'\d{4}'         # Just year
+    ]
+    
+    # Find the earliest match of any stop pattern
+    earliest_match = len(name)
+    for pattern in stop_patterns:
+        match = re.search(pattern, name, re.IGNORECASE)
+        if match:
+            earliest_match = min(earliest_match, match.start())
+    
+    # Extract name part before the stop pattern
+    if earliest_match < len(name):
+        name_part = name[:earliest_match].strip()
+        if name_part:  # Make sure we got something meaningful
+            return slugify(name_part)
+    
+    # Strategy 3: Fallback - use the full filename (cleaned)
+    return slugify(name)
+
+def process_uploaded_pfd(uploaded_file, override_name=None):
     # Generate a temporary filename
     temp_filename = f"temp_{uuid.uuid4().hex}.pdf"
     
@@ -328,22 +369,24 @@ def process_uploaded_pfd(uploaded_file):
 
     # Determine the PDF type based on content
     pdf_type = "Response" if "response to" in full_text.lower() else "Report"
-    print("Type of uploaded_file.name:", type(uploaded_file.name))
-
+    
     title = uploaded_file.name.replace(".pdf","")
-    case_id_match = re.search(r"\d{4}-\d{4}", title)
-    case_id = case_id_match.group(0) if case_id_match else None
-
-    if case_id:
-        name_part= title.split("-Prevention")[0]
-        slug = slugify(name_part)
-        judiciary_url = f"https://www.judiciary.uk/prevention-of-future-death-reports/{slug}-prevention-of-future-deaths-report/"
+    
+    # Use override name if provided, otherwise use smart filename parsing
+    if override_name:
+        slug = slugify(override_name)
+        extracted_name = override_name
     else:
-        judiciary_url = "Manual upload no link found"
-    # Build the result dictionary
-    reports = []
-    web_content = get_report_content(judiciary_url)
+        slug = parse_filename_for_slug(uploaded_file.name)
+        extracted_name = slug.replace('-', ' ').title()
+    
+    judiciary_url = f"https://www.judiciary.uk/prevention-of-future-death-reports/{slug}/"
+    
+    # Try to get web content (suppress HTTP errors during processing)
+    web_content = get_report_content(judiciary_url, show_errors=False)
+    
     if web_content:
+        # SUCCESS: Found online content
         report = {
             "Title": title,
             "URL": judiciary_url,
@@ -351,7 +394,7 @@ def process_uploaded_pfd(uploaded_file):
         }
 
         # Add PDF details with type classification
-        for i, (name, content, path, pdf_type) in enumerate(
+        for i, (name, content, path, pdf_type_web) in enumerate(
             zip(
                 web_content["pdf_names"],
                 web_content["pdf_contents"],
@@ -363,13 +406,35 @@ def process_uploaded_pfd(uploaded_file):
             report[f"PDF_{i}_Name"] = name
             report[f"PDF_{i}_Content"] = content
             report[f"PDF_{i}_Path"] = path
-            report[f"PDF_{i}_Type"] = pdf_type
-        reports.append(report)
-    if reports:
-        logging.info("Process Successfull")
+            report[f"PDF_{i}_Type"] = pdf_type_web
+        
+        logging.info(f"Successfully found online content for: {extracted_name}")
+        return {"status": "success", "data": report}
+    
     else:
-        logging.warning("could not fetch content from constructed url")
-    return reports[0]
+        # FAILED: No online content found - return retry info
+        logging.warning(f"No online content found for: {extracted_name}")
+        return {
+            "status": "retry_needed",
+            "extracted_name": extracted_name,
+            "filename": uploaded_file.name,
+            "local_content": full_text,
+            "pdf_type": pdf_type,
+            "temp_filename": temp_filename,
+            "title": title
+        }
+
+def create_local_report(retry_info):
+    """Create a report using only local PDF content when web scraping fails"""
+    return {
+        "Title": retry_info["title"],
+        "URL": "Local File Only",
+        "Content": retry_info["local_content"],
+        "PDF_1_Name": retry_info["filename"],
+        "PDF_1_Content": retry_info["local_content"],
+        "PDF_1_Path": retry_info["temp_filename"],
+        "PDF_1_Type": retry_info["pdf_type"]
+    }
 
 def upload_PFD_reports():
     # At top of upload_PFD_reports
@@ -388,9 +453,22 @@ def upload_PFD_reports():
         st.session_state.show_clear_success = False
     if "last_widget_signatures" not in st.session_state:
         st.session_state.last_widget_signatures = set()
+    if "retry_files" not in st.session_state:
+        st.session_state.retry_files = {}
+    if "processing_results" not in st.session_state:
+        st.session_state.processing_results = []
     
 
-    uploaded_reports = st.file_uploader("Upload PFD reports", type="pdf", accept_multiple_files=True, key=st.session_state.file_uploader_key)
+    uploaded_reports = st.file_uploader(
+        "Upload PFD reports", 
+        type="pdf", 
+        accept_multiple_files=True, 
+        key=st.session_state.file_uploader_key,
+        help="We'll try to find the full report online, or analyze your uploaded file directly"
+    )
+    
+    # Add helpful context without being prescriptive
+    st.info("💡 **How it works**: Upload your PFD reports and we'll automatically find the complete online records when possible, including any official responses.", icon="ℹ️")
 
     # Show clear success message if flag is set
     if st.session_state.show_clear_success:
@@ -482,22 +560,132 @@ def upload_PFD_reports():
                     st.warning("Please upload at least 5 reports to proceed.")
                 else:
                     st.success("Processing uploaded reports...")
-                    all_uploaded_reports = []
+                    st.session_state.processing_results = []
                     
+                    # Process each file and collect results
                     for file in st.session_state.uploaded_reports_files:
-                        report_data = process_uploaded_pfd(file)
-                        if report_data:
-                            all_uploaded_reports.append(report_data)
-                        else:
-                            st.error("Failed to process the uploaded report.")
-                    if all_uploaded_reports:
-                        df = pd.DataFrame(all_uploaded_reports)
+                        result = process_uploaded_pfd(file)
+                        st.session_state.processing_results.append(result)
+                    
+                    # Separate successful and retry-needed results
+                    successful_reports = []
+                    retry_needed = []
+                    
+                    for result in st.session_state.processing_results:
+                        if result["status"] == "success":
+                            successful_reports.append(result["data"])
+                        elif result["status"] == "retry_needed":
+                            retry_needed.append(result)
+                    
+                    # Process successful reports immediately
+                    if successful_reports:
+                        df = pd.DataFrame(successful_reports)
                         df = process_scraped_data(df)
                         df.index = range(1, len(df) + 1)
                         st.session_state.current_data = df
                         st.session_state.data_source = "uploaded"
-                        st.session_state.processed = True
+                        
+                        if not retry_needed:  # Only mark as fully processed if no retries needed
+                            st.session_state.processed = True
                     
+                    # Store retry-needed files for interactive handling
+                    st.session_state.retry_files = {i: result for i, result in enumerate(retry_needed)}
+    
+    # Handle retry-needed files with interactive UI
+    if st.session_state.retry_files:
+        st.markdown("### 🔍 Files Needing Attention")
+        st.info("Some files couldn't be found online. Please choose how to handle each one:")
+        
+        files_to_remove = []  # Track which files to remove from retry list
+        additional_reports = []  # Track additional successful reports
+        
+        for retry_id, retry_info in st.session_state.retry_files.items():
+            with st.expander(f"📄 {retry_info['filename']}", expanded=True):
+                st.warning(f"Search for **'{retry_info['extracted_name']}'** found no online results.")
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.write("**Try Different Name:**")
+                    new_name = st.text_input(
+                        "Enter corrected name:", 
+                        key=f"retry_name_{retry_id}",
+                        placeholder="First Last",
+                        help="Try just first and last name"
+                    )
+                    if st.button("🔄 Retry Search", key=f"retry_btn_{retry_id}"):
+                        if new_name.strip():
+                            # Create a temporary file-like object for retry
+                            class TempFileObj:
+                                def __init__(self, name, temp_path):
+                                    self.name = name
+                                    self.temp_path = temp_path
+                                def read(self):
+                                    with open(self.temp_path, 'rb') as f:
+                                        return f.read()
+                            
+                            temp_file_obj = TempFileObj(retry_info['filename'], retry_info['temp_filename'])
+                            
+                            retry_result = process_uploaded_pfd(temp_file_obj, override_name=new_name.strip())
+                            
+                            if retry_result["status"] == "success":
+                                additional_reports.append(retry_result["data"])
+                                files_to_remove.append(retry_id)
+                                st.success(f"✅ Found online record for '{new_name}'!")
+                                # Don't rerun immediately - let the processing complete below
+                            else:
+                                st.error(f"Still no results found for '{new_name}'. Try a different name or use local file.")
+                        else:
+                            st.error("Please enter a name to search for.")
+                
+                with col2:
+                    st.write("**Use Local File:**")
+                    st.write("Analyze the uploaded PDF content directly")
+                    if st.button("📄 Use Local Content", key=f"local_btn_{retry_id}"):
+                        local_report = create_local_report(retry_info)
+                        additional_reports.append(local_report)
+                        files_to_remove.append(retry_id)
+                        st.info("✅ Using local file content for analysis.")
+                        # Don't rerun immediately - let the processing complete below
+                
+                with col3:
+                    st.write("**Skip File:**")
+                    st.write("Exclude this file from processing")
+                    if st.button("⏭️ Skip This File", key=f"skip_btn_{retry_id}"):
+                        files_to_remove.append(retry_id)
+                        st.info("✅ File skipped.")
+                        # Don't rerun immediately - let the processing complete below
+        
+        # Process any additional reports and remove handled files
+        if additional_reports or files_to_remove:
+            # Add new reports to existing data
+            if additional_reports:
+                if st.session_state.current_data is not None:
+                    # Combine with existing data
+                    new_df = pd.DataFrame(additional_reports)
+                    new_df = process_scraped_data(new_df)
+                    combined_df = pd.concat([st.session_state.current_data, new_df], ignore_index=True)
+                    combined_df.index = range(1, len(combined_df) + 1)
+                    st.session_state.current_data = combined_df
+                else:
+                    # First reports
+                    df = pd.DataFrame(additional_reports)
+                    df = process_scraped_data(df)
+                    df.index = range(1, len(df) + 1)
+                    st.session_state.current_data = df
+                    st.session_state.data_source = "uploaded"
+            
+            # Remove handled files from retry list
+            for retry_id in files_to_remove:
+                if retry_id in st.session_state.retry_files:
+                    del st.session_state.retry_files[retry_id]
+            
+            # Mark as fully processed if no more retries needed
+            if not st.session_state.retry_files:
+                st.session_state.processed = True
+            
+            # Rerun to update the UI and show processed data
+            st.rerun()
 
         # if st.session_state.upload_message:
         #     st.markdown("### Upload Summary")

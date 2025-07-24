@@ -374,11 +374,11 @@ def scrape_page(url: str) -> List[Dict]:
         logging.error(f"Error fetching page {url}: {e}")
         return []
 
-def get_report_content(url: str) -> Optional[Dict]:
+def get_report_content(url: str, show_errors: bool = True) -> Optional[Dict]:
     """Get full content from report page with improved PDF and response handling"""
     try:
         logging.info(f"Fetching content from: {url}")
-        response = make_request(url)
+        response = make_request(url, show_errors=show_errors)
         if not response:
             return None
 
@@ -535,7 +535,7 @@ def get_total_pages(url: str) -> Tuple[int, int]:
         return 0, 0
 
 def make_request(
-    url: str, retries: int = 3, delay: int = 2
+    url: str, retries: int = 3, delay: int = 2, show_errors: bool = True
 ) -> Optional[requests.Response]:
     """Make HTTP request with retries and delay"""
     for attempt in range(retries):
@@ -546,7 +546,8 @@ def make_request(
             return response
         except Exception as e:
             if attempt == retries - 1:
-                st.error(f"Request failed: {str(e)}")
+                if show_errors:
+                    st.error(f"Request failed: {str(e)}")
                 raise e
             time.sleep(delay * (attempt + 1))
     return None
