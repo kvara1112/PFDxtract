@@ -535,7 +535,7 @@ def upload_PFD_reports():
 
     # Show buttons using the same approach as upload box
     if st.session_state.uploaded_reports_files and not st.session_state.get("processing", False):
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3 = st.columns(2)
         # Clear button
         with col1:
             if st.button("Clear all uploaded reports"):
@@ -561,18 +561,7 @@ def upload_PFD_reports():
                         # Immediately start processing and set state
                         st.session_state.processing = True
                         st.rerun()  # This will hide the UI and show processing state
-        with col3:
-            if st.session_state.get("processed", False):
-                if st.button("🔄 Start New Analysis", type="secondary"):
-                    # Reset session state
-                    keys_to_clear = [
-                        "uploaded_reports_files", "current_data", "processed", "processing",
-                        "processing_results", "retry_files", "last_widget_signatures"
-                    ]
-                    for key in keys_to_clear:
-                        st.session_state.pop(key, None)
-                    st.session_state.file_uploader_key = st.session_state.get("file_uploader_key", 0) + 1
-                    st.rerun()
+
     # Show processing state 
     if st.session_state.get("processing", False):
         # Currently processing - show progress and do the actual processing
