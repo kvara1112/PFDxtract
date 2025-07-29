@@ -539,18 +539,19 @@ def upload_PFD_reports():
         col1, col2 = st.columns(2)
         # Clear button
         with col1:
-            if st.button("Clear all uploaded reports"):
-                # Safety check - don't allow clearing during processing
-                if not st.session_state.get("processing", False):
-                    st.session_state.uploaded_reports_files = []
-                    #st.session_state.uploaded_reports_data = []
-                    st.session_state.current_data = None
-                    st.session_state.processed = False
-                    st.session_state.processing = False
-                    st.session_state.last_widget_signatures = set()  # Reset widget state tracking
-                    st.session_state.file_uploader_key += 1 # to clear the uploader 
-                    st.session_state.show_clear_success = True  # Set flag to show message after rerun
-                    st.rerun()
+            if not st.session_state.get("processing", False) and not st.session_state.get("starting_processing", False):
+                if st.button("Clear all uploaded reports"):
+                    # Safety check - don't allow clearing during processing
+                    if not st.session_state.get("processing", False):
+                        st.session_state.uploaded_reports_files = []
+                        #st.session_state.uploaded_reports_data = []
+                        st.session_state.current_data = None
+                        st.session_state.processed = False
+                        st.session_state.processing = False
+                        st.session_state.last_widget_signatures = set()  # Reset widget state tracking
+                        st.session_state.file_uploader_key += 1 # to clear the uploader 
+                        st.session_state.show_clear_success = True  # Set flag to show message after rerun
+                        st.rerun()
                               
         with col2:
             if st.button("Process uploaded reports"):
