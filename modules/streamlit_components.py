@@ -717,6 +717,7 @@ def upload_PFD_reports():
         st.markdown("### Processed Data Ready")
         st.dataframe(st.session_state.current_data)
         show_export_options(st.session_state.current_data, prefix="uploaded")
+        st.markdown("### Begin a New Upload")
         if st.button("🔄 Start New Analysis", type="secondary"):
             # Reset all state to start fresh
             st.session_state.uploaded_reports_files = []
