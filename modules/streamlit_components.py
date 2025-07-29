@@ -457,8 +457,7 @@ def upload_PFD_reports():
         st.session_state.retry_files = {}
     if "processing_results" not in st.session_state:
         st.session_state.processing_results = []
-    if "starting_processing" not in st.session_state:
-        st.session_state.starting_processing = False
+    
 
     # Hide upload interface during processing
     if not st.session_state.get("processing", False):
@@ -535,23 +534,22 @@ def upload_PFD_reports():
 
 
     # Show buttons using the same approach as upload box
-    if st.session_state.uploaded_reports_files and not st.session_state.get("processing", False) and not st.session_state.get("starting_processing",False):
+    if st.session_state.uploaded_reports_files and not st.session_state.get("processing", False):
         col1, col2 = st.columns(2)
         # Clear button
         with col1:
-            if not st.session_state.get("processing", False) and not st.session_state.get("starting_processing", False):
-                if st.button("Clear all uploaded reports"):
-                    # Safety check - don't allow clearing during processing
-                    if not st.session_state.get("processing", False):
-                        st.session_state.uploaded_reports_files = []
-                        #st.session_state.uploaded_reports_data = []
-                        st.session_state.current_data = None
-                        st.session_state.processed = False
-                        st.session_state.processing = False
-                        st.session_state.last_widget_signatures = set()  # Reset widget state tracking
-                        st.session_state.file_uploader_key += 1 # to clear the uploader 
-                        st.session_state.show_clear_success = True  # Set flag to show message after rerun
-                        st.rerun()
+            if st.button("Clear all uploaded reports"):
+                # Safety check - don't allow clearing during processing
+                if not st.session_state.get("processing", False):
+                    st.session_state.uploaded_reports_files = []
+                    #st.session_state.uploaded_reports_data = []
+                    st.session_state.current_data = None
+                    st.session_state.processed = False
+                    st.session_state.processing = False
+                    st.session_state.last_widget_signatures = set()  # Reset widget state tracking
+                    st.session_state.file_uploader_key += 1 # to clear the uploader 
+                    st.session_state.show_clear_success = True  # Set flag to show message after rerun
+                    st.rerun()
                               
         with col2:
             if st.button("Process uploaded reports"):
@@ -561,7 +559,6 @@ def upload_PFD_reports():
                         st.warning("Please upload at least 5 reports to proceed.")
                     else:
                         # Immediately start processing and set state
-                        st.session_state.starting_processing = True
                         st.session_state.processing = True
                         st.rerun()  # This will hide the UI and show processing state
         
@@ -569,7 +566,6 @@ def upload_PFD_reports():
     if st.session_state.get("processing", False):
         # Currently processing - show progress and do the actual processing
         if "processing_results" not in st.session_state or not st.session_state.processing_results:
-            st.session_state.starting_processing = False
             # First time entering processing state - do the processing
             st.session_state.processing_results = []
             total_files = len(st.session_state.uploaded_reports_files)
