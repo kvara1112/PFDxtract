@@ -611,31 +611,7 @@ def upload_PFD_reports():
             # Processing already done, just show current progress status
             st.info(f"⚙️ **Processing completed!** Processed {len(st.session_state.processing_results)} files.")
         
-        if st.button("🔄 Start New Analysis", type="secondary"):
-            # Clear all session state keys relevant to uploads and processing
-            keys_to_clear = [
-                "uploaded_reports_files", "current_data", "processed", "processing",
-                "processing_results", "retry_files", "last_widget_signatures"
-            ]
-            for key in keys_to_clear:
-                if key in st.session_state:
-                    del st.session_state[key]
-            
-            # Force reinitialization of the uploader by using a new key
-            st.session_state.file_uploader_key = st.session_state.get("file_uploader_key", 0) + 1
-            
-            st.rerun()
-            """
-            # Reset all state to start fresh
-            st.session_state.uploaded_reports_files = []
-            st.session_state.current_data = None
-            st.session_state.processed = False
-            st.session_state.processing = False
-            st.session_state.processing_results = []
-            st.session_state.retry_files = {}
-            st.session_state.last_widget_signatures = set()
-            st.session_state.file_uploader_key += 1
-            st.rerun()"""
+        
     
     # Handle retry-needed files with interactive UI
     if st.session_state.retry_files:
@@ -749,6 +725,17 @@ def upload_PFD_reports():
         st.session_state.retry_files = {}
         st.session_state.last_widget_signatures = set()
         st.session_state.file_uploader_key += 1
+        if st.button("🔄 Start New Analysis", type="secondary"):
+            # Reset all state to start fresh
+            st.session_state.uploaded_reports_files = []
+            st.session_state.current_data = None
+            st.session_state.processed = False
+            st.session_state.processing = False
+            st.session_state.processing_results = []
+            st.session_state.retry_files = {}
+            st.session_state.last_widget_signatures = set()
+            st.session_state.file_uploader_key += 1
+            st.rerun()
 
     
 
