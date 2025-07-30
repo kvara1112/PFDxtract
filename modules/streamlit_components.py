@@ -534,6 +534,8 @@ def upload_PFD_reports():
 
 
     # Show buttons using the same approach as upload box
+    st.write("Processing state:", st.session_state.processing)
+
     if st.session_state.uploaded_reports_files and not st.session_state.get("processing", False):
         
         col1, col2 = st.columns(2)
@@ -567,8 +569,6 @@ def upload_PFD_reports():
         
     # Show processing state 
     if st.session_state.get("processing", False):
-        st.session_state.processing = True
-
         # Currently processing - show progress and do the actual processing
         if "processing_results" not in st.session_state or not st.session_state.processing_results:
             # First time entering processing state - do the processing
