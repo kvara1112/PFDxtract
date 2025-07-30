@@ -534,6 +534,7 @@ def upload_PFD_reports():
 
 
     # Show buttons using the same approach as upload box
+    st.write("Files:", st.session_state.uploaded_reports_files)
     st.write("Processing state:", st.session_state.processing)
 
     if st.session_state.uploaded_reports_files and not st.session_state.get("processing", False):
@@ -608,7 +609,7 @@ def upload_PFD_reports():
                 
                 if not retry_needed:  # Only mark as fully processed if no retries needed
                     st.session_state.processed = True
-                    st.session_state.processing = False
+                    #st.session_state.processing = False
             
             # Store retry-needed files for interactive handling
             st.session_state.retry_files = {i: result for i, result in enumerate(retry_needed)}
