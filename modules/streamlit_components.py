@@ -567,6 +567,8 @@ def upload_PFD_reports():
         
     # Show processing state 
     if st.session_state.get("processing", False):
+        st.session_state.processing = True
+
         # Currently processing - show progress and do the actual processing
         if "processing_results" not in st.session_state or not st.session_state.processing_results:
             # First time entering processing state - do the processing
