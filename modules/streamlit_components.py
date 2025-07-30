@@ -2933,7 +2933,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 neighbors = list(G.neighbors(node))
                 connections = [f"{theme_display_map2[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
                 connection_text = "\n".join(connections)
-                title = f"{theme_display_map[node]}\nConnections:{len(connections)}\n{connection_text}"
+                title = f"{theme_display_map2[node]}\nConnections:{len(connections)}\n{connection_text}"
                 
                 group = group_map.get(node, "Other")
                 node_color = group_colours.get(group, "gray")
