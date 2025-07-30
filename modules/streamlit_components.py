@@ -534,16 +534,14 @@ def upload_PFD_reports():
 
 
     # Show buttons using the same approach as upload box
-    st.write("Files:", st.session_state.uploaded_reports_files)
-    st.write("Processing state:", st.session_state.processing)
 
-    if st.session_state.uploaded_reports_files and not st.session_state.get("processing", False):
+    if st.session_state.uploaded_reports_files:#  and not st.session_state.get("processing", False):
         
         col1, col2 = st.columns(2)
         # Clear button
         with col1:
             
-            if st.button("Clear all uploaded reports"):
+            if st.button("Clear all uploaded reports", disabled=st.session_state.get("processing", False)):
                 # Safety check - don't allow clearing during processing
                 if not st.session_state.get("processing", False):
                     st.session_state.uploaded_reports_files = []
@@ -563,7 +561,7 @@ def upload_PFD_reports():
                     if len(st.session_state.uploaded_reports_files) < 5:
                         st.warning("Please upload at least 5 reports to proceed.")
                     else:
-                        print("inside")
+                        #print("inside")
                         # Immediately start processing and set state
                         st.session_state.processing = True
                         st.rerun()  # This will hide the UI and show processing state
@@ -609,7 +607,7 @@ def upload_PFD_reports():
                 
                 if not retry_needed:  # Only mark as fully processed if no retries needed
                     st.session_state.processed = True
-                    #st.session_state.processing = False
+                    st.session_state.processing = False
             
             # Store retry-needed files for interactive handling
             st.session_state.retry_files = {i: result for i, result in enumerate(retry_needed)}
