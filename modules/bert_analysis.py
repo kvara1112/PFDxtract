@@ -2360,10 +2360,8 @@ class ThemeAnalyzer:
                 {
                     "name":"Situational- Individual Staff Factors ",
                     "keywords":[
-                        "fatigue",
                         "tiredness",
-                        "stress",
-                        "rushed",
+                        "worker was stressed",
                         "distraction",
                         "inexperience",
                         "unfamiliar with the equipment",
@@ -2371,8 +2369,7 @@ class ThemeAnalyzer:
                         "hadn't had a break",
                         "felt overwhelmed",
                         "preoccupied",
-                        "unwell",
-                        "sick"
+                        "staff were sick"
                     ]
                 },
                 {
@@ -2401,7 +2398,9 @@ class ThemeAnalyzer:
                         "dementia",
                         "aggressive behaviour",
                         "elderly",
-                        "fragile"
+                        "fragile",
+                        "too unwell",
+                        "not suitable"
                     ]
                 },
                 {
@@ -2422,7 +2421,8 @@ class ThemeAnalyzer:
                         "manager was absent",
                         "no senior presence",
                         "limited supervision",
-                        "no supervision"
+                        "no supervision",
+                        "lack of regulation"
                     ]
                 },
                 {
@@ -2436,7 +2436,8 @@ class ThemeAnalyzer:
                         "no clear labelling",
                         "battery was flat",
                         "not restocked",
-                        "missing equipment"
+                        "missing equipment",
+                        "mechanism"
                     ]
                 },
                 {
@@ -2473,7 +2474,14 @@ class ThemeAnalyzer:
                         "too hot",
                         "too cold",
                         "poor lighting",
-                        "poor access to patient"
+                        "poor access to patient",
+                        "dust",
+                        "exposure to",
+                        "unsafe conditions",
+                        "working conditions",
+                        "smoke detector",
+                        "smoky",
+                        "smoke filled"
                     ]
                 },
                 {
@@ -2485,9 +2493,9 @@ class ThemeAnalyzer:
                         "radiology",
                         "pharmacy",
                         "blood bank",
-                        "medical",
+                        "medical departmant",
                         "GP",
-                        "ambulances"
+                        "ambulance"
                     ]
                 },
                 {
@@ -2511,7 +2519,11 @@ class ThemeAnalyzer:
                         "training not standardised",
                         "lack of knowledge",
                         "no formal training",
-                        "training overdue"
+                        "training overdue",
+                        "no risk assessment",
+                        "outside the experience",
+                        "outside their capabilities",
+                        "trained"
                     ]
                 },
                 {
@@ -2546,7 +2558,10 @@ class ThemeAnalyzer:
                         "government organisations",
                         "inteference",
                         "national medical standards",
-                        "emergencey department"
+                        "emergencey department",
+                        "locally",
+                        "nationally"
+                        "regulation"
                     ]
                 },
                 {
@@ -2556,7 +2571,10 @@ class ThemeAnalyzer:
                         "fear of documenting errors",
                         "risk management",
                         "afraid of senior",
-                        "mistakes punishment"
+                        "mistakes punishment",
+                        "no risk assessment",
+                        "safety notices",
+                        "no safety"
                     ]
                 },
                 {
