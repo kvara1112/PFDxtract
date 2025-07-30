@@ -2547,7 +2547,8 @@ class ThemeAnalyzer:
                         "similar drug names",
                         "unclear labelling",
                         "equipment",
-                        "design"
+                        "design",
+                        "mechanism"
                     ]
                 },
                 {
