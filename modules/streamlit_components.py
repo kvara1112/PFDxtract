@@ -458,7 +458,7 @@ def upload_PFD_reports():
     if "processing_results" not in st.session_state:
         st.session_state.processing_results = []
     
-
+    
     # Hide upload interface during processing
     if not st.session_state.get("processing", False):
         uploaded_reports = st.file_uploader(
@@ -535,8 +535,7 @@ def upload_PFD_reports():
 
     # Show buttons using the same approach as upload box
     if st.session_state.uploaded_reports_files and not st.session_state.get("processing", False):
-        st.write("Currently uploaded files:", st.session_state.get("uploaded_reports_files"))
-        st.write("Processing state:", st.session_state.get("processing",False))
+        
         col1, col2 = st.columns(2)
         # Clear button
         with col1:
@@ -561,6 +560,7 @@ def upload_PFD_reports():
                     if len(st.session_state.uploaded_reports_files) < 5:
                         st.warning("Please upload at least 5 reports to proceed.")
                     else:
+                        print("inside")
                         # Immediately start processing and set state
                         st.session_state.processing = True
                         st.rerun()  # This will hide the UI and show processing state
