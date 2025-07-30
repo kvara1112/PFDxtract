@@ -2495,7 +2495,8 @@ class ThemeAnalyzer:
                         "blood bank",
                         "medical departmant",
                         "GP",
-                        "ambulance"
+                        "ambulance was delayed",
+                        "ambulances facilities"
                     ]
                 },
                 {
