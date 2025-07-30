@@ -1404,6 +1404,7 @@ class ThemeAnalyzer:
             "I-SIRch": self._get_isirch_framework(),
             "House of Commons": self._get_house_of_commons_themes(),
             "Extended Analysis": self._get_extended_themes(),
+            "Yorkshire Contributory":self._get_yorkshire_framework(),
         }
 
         # Color mapping for themes
@@ -2342,7 +2343,275 @@ class ThemeAnalyzer:
                 framework_themes[framework_name] = []
 
         return framework_themes, theme_highlights
-
+    def _get_yorkshire_framework(self):
+        """Yorkshire Contributory factors framework themes mapped exactly to the official framework structure"""
+        return [
+                {
+                    "name":"Situational- Team Factors",
+                    "keywords":[
+                        "conflicting team goals",
+                        "poor delegation",
+                        "respect",
+                        "poor feedback",
+                        "team function",
+                        "poor communication"
+                    ]
+                },
+                {
+                    "name":"Situational- Individual Staff Factors ",
+                    "keywords":[
+                        "fatigue",
+                        "tiredness",
+                        "stress",
+                        "rushed",
+                        "distraction",
+                        "inexperience",
+                        "unfamiliar with the equipment",
+                        "new to the role",
+                        "hadn't had a break",
+                        "felt overwhelmed",
+                        "preoccupied",
+                        "unwell",
+                        "sick"
+                    ]
+                },
+                {
+                    "name":"Situational- Task Characteristics",
+                    "keywords":[
+                        "unfamiliar task",
+                        "difficult task",
+                        "monotonous task",
+                        "unclear task",
+                        "multiple steps",
+                        "had to multitask",
+                        "rare procedure"
+                    ]
+                },
+                {
+                    "name":"Situational- Patient Factors",
+                    "keywords":[
+                        "language barrier",
+                        "uncooperative",
+                        "medical history",
+                        "unusual physiology",
+                        "intoxicated",
+                        "high-risk",
+                        "unstable",
+                        "speech impairment",
+                        "dementia",
+                        "aggressive behaviour",
+                        "elderly",
+                        "fragile"
+                    ]
+                },
+                {
+                    "name":"Local Working Conditions- Workload and Staffing Issues",
+                    "keywords":[
+                        "high workload",
+                        "heavy workload",
+                        "insufficient staff",
+                        "staff sickness",
+                        "inexperienced staff"
+                    ]
+                },
+                {
+                    "name":"Local Working Conditions- Supervision and Leadership",
+                    "keywords":[
+                        "inappropriate delegation",
+                        "remote supervision",
+                        "manager was absent",
+                        "no senior presence",
+                        "limited supervision",
+                        "no supervision"
+                    ]
+                },
+                {
+                    "name":"Local Working Conditions- Drugs, Equipment and Supplies",
+                    "keywords":[
+                        "unavailable drugs",
+                        "stock issues",
+                        "faulty equipment",
+                        "poor maintenance",
+                        "no supplies",
+                        "no clear labelling",
+                        "battery was flat",
+                        "not restocked",
+                        "missing equipment"
+                    ]
+                },
+                {
+                    "name":"Local Working Conditions- Lines of Responsibility",
+                    "keywords":[
+                        "assumed task already done",
+                        "no team leader",
+                        "overlap in responsibility",
+                        "not sure who",
+                        "mutlple allocation",
+                        "no allocation"
+                    ]
+                },
+                {
+                    "name":"Local Working Conditions- Management of Staff and Staffing Levels",
+                    "keywords":[
+                        "short-staffed",
+                        "under pressure",
+                        "too busy",
+                        "no time",
+                        "no cover",
+                        "no one available",
+                        "no support",
+                        "poor communication"
+                    ]
+                },
+                {
+                    "name":"Organisational Factors- Physical Environment",
+                    "keywords":[
+                        "poor layout",
+                        "poor visibility",
+                        "lack of space",
+                        "excessive noise",
+                        "too hot",
+                        "too cold",
+                        "poor lighting",
+                        "poor access to patient"
+                    ]
+                },
+                {
+                    "name":"Organisational Factors- Support from other departments",
+                    "keywords":[
+                        "IT support",
+                        "HR",
+                        "clinical services",
+                        "radiology",
+                        "pharmacy",
+                        "blood bank",
+                        "medical",
+                        "GP",
+                        "ambulances"
+                    ]
+                },
+                {
+                    "name":"Organisational Factors- Scheduling and Bed Management",
+                    "keywords":[
+                        "delay in the provision of care",
+                        "difficulties finding a bed",
+                        "ward transfer",
+                        "poor out of hours support",
+                        "no beds available",
+                        "hospital in full capacity",
+                        "discharged to make space"
+                    ]
+                },
+                {
+                    "name":"Organisational Factors- Staff Training and Education",
+                    "keywords":[
+                        "inadequate training",
+                        "less teaching time",
+                        "no regular updates",
+                        "training not standardised",
+                        "lack of knowledge",
+                        "no formal training",
+                        "training overdue"
+                    ]
+                },
+                {
+                    "name":"Organisational Factors- Policies and Procedures",
+                    "keywords":[
+                        "no policy",
+                        "policy not followed",
+                        "unclear procedure",
+                        "lack of guidance",
+                        "inconsitent policies",
+                        "complex procedure",
+                        "conflicting instructions",
+                        "outdated policy"
+                    ]
+                },
+                {
+                    "name":"External Factors- Design of Equipment Supplies and Drugs",
+                    "keywords":[
+                        "complicated equipment design",
+                        "equipment not fit for purpose",
+                        "similar drug names",
+                        "unclear labelling",
+                        "equipment",
+                        "design"
+                    ]
+                },
+                {
+                    "name":"External Factors- National Policies",
+                    "keywords":[
+                        "commisioned resources",
+                        "national screening policy",
+                        "government organisations",
+                        "inteference",
+                        "national medical standards",
+                        "emergencey department"
+                    ]
+                },
+                {
+                    "name":"Communication and Culture- Safety Culture",
+                    "keywords":[
+                        "safety awareness",
+                        "fear of documenting errors",
+                        "risk management",
+                        "afraid of senior",
+                        "mistakes punishment"
+                    ]
+                },
+                {
+                    "name":"Communication and Culture- Verbal and Written Communication",
+                    "keywords":[
+                        "poor communication",
+                        "inappropriate abbreviations",
+                        "handover issues",
+                        "lack of notes",
+                        "unable to read notes",
+                        "legibility",
+                        "notes availability"
+                    ]
+                },
+                {
+                    "name":"Active Failures- Mistakes",
+                    "keywords":[
+                        "wrong decision",
+                        "thought it was okay",
+                        "presumed",
+                        "incorrect interpretation",
+                        "misunderstanding",
+                        "misjudged risk",
+                        "wrong protocol"
+                    ]
+                },
+                {
+                    "name":"Active Failures- Slips and Lapses",
+                    "keywords":[
+                        "wrong medicine",
+                        "wrong syringe",
+                        "wrong option",
+                        "wrong button",
+                        "wrong patient",
+                        "entered incorrect data",
+                        "missed a step",
+                        "forgot",
+                        "overlooked alert"
+                    ]
+                },
+                {
+                    "name":"Active Failures- Violations",
+                    "keywords":[
+                        "didn't follow it",
+                        "done it before",
+                        "skipped a step",
+                        "short on time",
+                        "quicker this way",
+                        "skipping checks",
+                        "skipped double check",
+                        "knew the policy"
+                    ]
+                }
+            ]
+        
     def _get_isirch_framework(self):
         """I-SIRCh framework themes mapped exactly to the official framework structure"""
         return [

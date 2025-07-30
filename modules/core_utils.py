@@ -863,7 +863,8 @@ def save_dashboard_images_as_zip(filtered_df):
                 color_discrete_map={
                     "I-SIRch": "orange",
                     "House of Commons": "royalblue",
-                    "Extended Analysis": "firebrick"
+                    "Extended Analysis": "firebrick",
+                    "Yorkshire Contributory": "green",
                 }
             )
             add_figure_to_zip(fig, f"framework_distribution_{timestamp}.png")
@@ -892,7 +893,8 @@ def save_dashboard_images_as_zip(filtered_df):
                         color_discrete_map={
                             "I-SIRch": "orange",
                             "House of Commons": "royalblue",
-                            "Extended Analysis": "firebrick"
+                            "Extended Analysis": "firebrick",
+                            "Yorkshire Contributory": "green"
                         }
                     )
                     
@@ -967,7 +969,8 @@ def save_dashboard_images_as_zip(filtered_df):
                     framework_colors = {
                         "I-SIRch": "orange",
                         "House of Commons": "royalblue",
-                        "Extended Analysis": "firebrick"
+                        "Extended Analysis": "firebrick",
+                        "Yorkshire Contributory": "green"
                     }
                     
                     # Default colors for any frameworks not specifically mapped

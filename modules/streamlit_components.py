@@ -1099,11 +1099,11 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
     # Safer initialization with validation
     if "selected_frameworks" not in st.session_state:
         # Only include frameworks that actually exist
-        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
         st.session_state.selected_frameworks = default_frameworks
     else:
         # Validate existing selections against available options
-        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"] + list(st.session_state.get("custom_frameworks", {}).keys())
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"] + list(st.session_state.get("custom_frameworks", {}).keys())
         st.session_state.selected_frameworks = [f for f in st.session_state.selected_frameworks if f in available_frameworks]
 
     # File upload section
@@ -1151,7 +1151,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
     
     with frame_col1:
         # Get all available framework options
-        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis"]
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
         if "custom_frameworks" in st.session_state:
             available_frameworks.extend(list(st.session_state.custom_frameworks.keys()))
         
@@ -1326,6 +1326,8 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
                         filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
                     elif framework == "Extended Analysis":
                         filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
+                    elif framework == "Yorkshire Contributory":
+                        filtered_frameworks["Yorkshire Contributory"] = theme_analyzer._get_yorkshire_framework()
                     elif framework in st.session_state.custom_frameworks:
                         # Add custom framework
                         filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
@@ -1996,7 +1998,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                     color_discrete_map={
                         "I-SIRch": "orange",
                         "House of Commons": "royalblue",
-                        "Extended Analysis": "firebrick"
+                        "Extended Analysis": "firebrick",
+                        "Yorkshire Contributory": "green"
                     }
                 )
                 
@@ -2089,7 +2092,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 framework_colors = {
                     "I-SIRch": "orange",
                     "House of Commons": "royalblue",
-                    "Extended Analysis": "firebrick"
+                    "Extended Analysis": "firebrick",
+                    "Yorkshire Contributory":"green"
                 }
                 
                 # Default colors for any frameworks not specifically mapped

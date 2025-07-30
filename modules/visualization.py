@@ -539,6 +539,8 @@ def render_framework_heatmap(filtered_df, top_n_themes=5):
             framework_colors[framework] = "orange"  # Orange for I-SIRch
         elif framework == 'House of Commons':
             framework_colors[framework] = "royalblue"  # Blue for House of Commons
+        elif framework == 'Yorkshire Contributory':
+            framework_colors[framework] = "green"    # Green for Yokrshire Contributory Factors 
         else:
             # Use other colors for other frameworks
             other_colors = ["forestgreen", "purple", "darkred"]
