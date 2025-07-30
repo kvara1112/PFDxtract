@@ -2562,7 +2562,7 @@ class ThemeAnalyzer:
                         "national medical standards",
                         "emergencey department",
                         "locally",
-                        "nationally"
+                        "nationally",
                         "regulation"
                     ]
                 },
