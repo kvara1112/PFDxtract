@@ -532,13 +532,17 @@ def upload_PFD_reports():
                 # Mark as processed in this cycle
                 processed_in_this_cycle.add(file_sig)
 
-
+    uploading = (
+        not st.session_state.get("uploaded_reports_files") or
+        st.session_state.get("processing", False)
+    )
     # Show buttons using the same approach as upload box
     if st.session_state.uploaded_reports_files and not st.session_state.get("processing", False):
         col1, col2 = st.columns(2)
         # Clear button
         with col1:
-            if st.button("Clear all uploaded reports"):
+            clear_disabled = uploading
+            if st.button("Clear all uploaded reports", disabled=clear_disabled):
                 # Safety check - don't allow clearing during processing
                 if not st.session_state.get("processing", False):
                     st.session_state.uploaded_reports_files = []
@@ -552,7 +556,8 @@ def upload_PFD_reports():
                     st.rerun()
                               
         with col2:
-            if st.button("Process uploaded reports"):
+            process_disabled = uploading
+            if st.button("Process uploaded reports", disabled = process_disabled):
                 # Safety check - don't allow processing if already processing
                 if not st.session_state.get("processing", False):
                     if len(st.session_state.uploaded_reports_files) < 5:
