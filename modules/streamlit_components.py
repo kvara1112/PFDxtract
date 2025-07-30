@@ -555,7 +555,7 @@ def upload_PFD_reports():
                     st.rerun()
                               
         with col2:
-            if st.button("Process uploaded reports"):
+            if st.button("Process uploaded reports", disabled=st.session_state.get("processing", False)):
                 # Safety check - don't allow processing if already processing
                 if not st.session_state.get("processing", False):
                     if len(st.session_state.uploaded_reports_files) < 5:
