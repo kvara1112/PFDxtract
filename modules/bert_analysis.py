@@ -2436,7 +2436,8 @@ class ThemeAnalyzer:
                         "battery was flat",
                         "not restocked",
                         "missing equipment",
-                        "mechanism"
+                        "mechanism",
+                        "material"
                     ]
                 },
                 {
@@ -2544,7 +2545,6 @@ class ThemeAnalyzer:
                     "keywords": [
                         "escalation/referral factor",
                         "escalation/referral",
-                        "factor",
                         "including fresh eyes reviews",
                         "specialist referral",
                         "delay in escalation",
@@ -2564,7 +2564,8 @@ class ThemeAnalyzer:
                         "unclear labelling",
                         "equipment",
                         "design",
-                        "mechanism"
+                        "mechanism",
+                        "equipped"
                     ]
                 },
                 {
@@ -2578,7 +2579,7 @@ class ThemeAnalyzer:
                         "emergencey department",
                         "locally",
                         "nationally",
-                        "regulation"
+                        "due to the rules and regulations"
                     ]
                 },
                 {
@@ -2635,7 +2636,8 @@ class ThemeAnalyzer:
                         "skipping checks",
                         "skipped double check",
                         "knew the policy",
-                        "presumed"
+                        "presumed",
+                        "not followed"
                     ]
                 }
                 # {
