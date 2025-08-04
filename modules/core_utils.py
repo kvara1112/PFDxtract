@@ -1532,6 +1532,8 @@ def save_dashboard_images_as_zip(filtered_df):
                                 - Open network_graph.html in any web browser
                                 - You can explore the network interactively
                                 - To download as PNG, click the Download PNG button at the bottom of the graph
+                                        
+                                If no graph is generated then this is because there are no connections at the threshold that was originally set
                                 """)
 
                             with open("network_with_legend.html", "w", encoding="utf-8") as f:
