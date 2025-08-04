@@ -2808,8 +2808,12 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         # Format column and index labels
         formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
         def extract_category(theme: str) ->str:
+            known_categories = ["Jobs/Task", "Organisation", "Internal", "Person", "External", "Human Error", "Communication"]
+
             if "-" in theme:
                 return theme.split("-")[0].strip()
+            elif theme in known_categories:
+                return theme
             else:
                 return "Other"
         
