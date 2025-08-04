@@ -300,7 +300,7 @@ def main():
     
     # Add collapsible help section
     with st.expander("💡 How to Use This Tool"):
-        pdf_url = "https://raw.githubusercontent.com/kvara1112/PFDxtract/main/Usability%20Guide%20PFDxtract.pdf"
+        pdf_url = "https://raw.githubusercontent.com/gcosma/PFDxtract/main/Usability%20Guide%20PFDxtract.pdf"
 
         st.markdown(
             """
