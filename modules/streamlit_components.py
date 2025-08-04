@@ -2804,7 +2804,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         # for titles to split on two lines
         theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
         # for whole titles- Theme connection network and theme cooccurence table
-        theme_display_map2 = {theme: improved_truncate_text(theme, max_length=130) for theme in top_themes}
+        theme_display_map2 = {theme: improved_truncate_text(theme, max_length=220) for theme in top_themes}
         # Format column and index labels
         formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
         def extract_category(theme: str) ->str:
