@@ -2829,7 +2829,15 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             "External Factor":"External",
             "Organisational Factors": "Organisation",
             "Local Working Conditions": "Internal",
-            "Situational":"Jobs/Task"
+            "Situational":"Jobs/Task",
+            "Jobs/Task":"Jobs/Task",
+            "Organisation":"Organisation",
+            "Internal":"Internal",
+            "Person":"Person",
+            "External":"External",
+            "Human Error":"Human Error",
+            "Communication":"Communication",
+            "Other":"Other"
         }
 
         group_map = {theme: group_aliases.get(extract_category(theme), "Other")
