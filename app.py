@@ -307,6 +307,8 @@ def main():
                                         color: white;
                                         padding: 10px 20px;
                                         font-size: 16px;
+                                        border: none;
+                                        border-radius: 8px;
                                         cursor: pointer;">Open Usability Guide 📝</button>
                     </a>
                     """, unsafe_allow_html = True)
