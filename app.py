@@ -303,7 +303,11 @@ def main():
         pdf_url = "https://raw.githubusercontent.com/gcosma/PFDxtract/main/Usability%20Guide%20PFDxtract.pdf"
         st.markdown(f"""
                     <a href = "{pdf_url}" target="_blank">
-                        <button style="padding:10px 20px; font-size:16px">Open Usability Guide 📝</button>
+                        <button style="background-color: #0083B3;
+                                        color: white;
+                                        padding: 10px 20px;
+                                        font-size: 16px;
+                                        cursor: pointer;">Open Usability Guide 📝</button>
                     </a>
                     """, unsafe_allow_html = True)
         st.markdown(
