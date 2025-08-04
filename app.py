@@ -301,7 +301,11 @@ def main():
     # Add collapsible help section
     with st.expander("💡 How to Use This Tool"):
         pdf_url = "https://raw.githubusercontent.com/gcosma/PFDxtract/main/Usability%20Guide%20PFDxtract.pdf"
-
+        st.markdown(f"""
+                    <a href = "{pdf_url}" target="_blank">
+                        <button style="padding:10px 20px; font-size:16px">Open Usability Guide 📝</button>
+                    </a>
+                    """, unsafe_allow_html = True)
         st.markdown(
             """
             ### Complete Analysis Pipeline:
@@ -321,11 +325,7 @@ def main():
             - Use the "Clear All Data" button in the sidebar to reset the application
             """
         )
-        st.markdown(f"""
-                    <a href = "{pdf_url}" target="_blank">
-                        <button style="padding:10px 20px; font-size:16px">Open Usability Guide</button>
-                    </a>
-                    """, unsafe_allow_html = True)
+        
 
     # The radio button selection remains outside the expander
     current_tab = st.radio(
