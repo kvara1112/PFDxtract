@@ -2804,7 +2804,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         # for titles to split on two lines
         theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
         # for whole titles- Theme connection network and theme cooccurence table
-        theme_display_map2 = {theme: improved_truncate_text(theme, max_length=100) for theme in top_themes}
+        theme_display_map2 = {theme: improved_truncate_text(theme, max_length=130) for theme in top_themes}
         # Format column and index labels
         formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
         def extract_category(theme):
@@ -2813,15 +2813,28 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             else:
                 return "Other"
         
-        group_map = {theme: extract_category(theme) for theme in top_themes}
         group_colours = {
             "Jobs/Task": "lightpink",
             "Organisation": "lightcoral",
             "Internal": "steelblue",
             "Person": "palegreen",
             "External": "darkorchid",
+            "Human Error": "orange",
+            "Communication":"brown",
             "Other": "mediumseagreen"
         }
+
+        group_aliases = {
+            "Communication and Culture": "Communication",
+            "External Factor":"External",
+            "Organisational Factors": "Organisation",
+            "Local Working Conditions": "Internal",
+            "Situational":"Jobs/Task"
+        }
+
+        group_map = {theme: group_aliases.get(extract_category(theme), "Other")
+                     for theme in top_themes}
+
         # Create the correlation matrix visualization
         fig_corr_matrix = px.imshow(
             top_theme_corr,
@@ -3030,6 +3043,8 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
                 <div style="color:steelblue;">■ </div><div style = "color:black;">Internal</div>
                 <div style="color:palegreen;">■ </div><div style = "color:black;">Person</div>
                 <div style="color:darkorchid;">■ </div><div style = "color:black;">External</div>
+                <div style="color:orange;">■ </div><div style = "color:black;">Human Error</div>
+                <div style="color:brown;">■ </div><div style = "color:black;">Communication</div>
                 <div style="color:mediumseagreen;">■ </div><div style = "color:black;"> Other</div>
             </div>
 
