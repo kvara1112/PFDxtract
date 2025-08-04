@@ -1342,45 +1342,20 @@ def save_dashboard_images_as_zip(filtered_df):
                     )
                     
                     add_figure_to_zip(fig, f"theme_correlation_matrix_{timestamp}.png")
-                    def extract_category(theme: str) ->str:
-                        known_categories = ["Jobs/Task", "Organisation", "Internal", "Person", "External", "Human Error", "Communication"]
-
+                    def extract_category(theme):
                         if "-" in theme:
                             return theme.split("-")[0].strip()
-                        elif theme in known_categories:
-                            return theme
                         else:
                             return "Other"
-                    
+                    group_map = {theme: extract_category(theme) for theme in top_theme_corr.columns}
                     group_colours = {
                         "Jobs/Task": "lightpink",
                         "Organisation": "lightcoral",
                         "Internal": "steelblue",
                         "Person": "palegreen",
                         "External": "darkorchid",
-                        "Human Error": "orange",
-                        "Communication":"brown",
                         "Other": "mediumseagreen"
                     }
-
-                    group_aliases = {
-                        "Communication and Culture": "Communication",
-                        "External Factor":"External",
-                        "Organisational Factors": "Organisation",
-                        "Local Working Conditions": "Internal",
-                        "Situational":"Jobs/Task",
-                        "Jobs/Task":"Jobs/Task",
-                        "Organisation":"Organisation",
-                        "Internal":"Internal",
-                        "Person":"Person",
-                        "External":"External",
-                        "Human Error":"Human Error",
-                        "Communication":"Communication",
-                        "Other":"Other"
-                    }
-
-                    group_map = {theme: group_aliases.get(extract_category(theme), "Other")
-                                for theme in top_themes}
                     # Create network graph
                     # Try different thresholds until we get a reasonable number of edges
                     for threshold in [0.6, 0.5, 0.4, 0.3, 0.2]:
