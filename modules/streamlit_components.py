@@ -2807,7 +2807,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         theme_display_map2 = {theme: improved_truncate_text(theme, max_length=130) for theme in top_themes}
         # Format column and index labels
         formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
-        def extract_category(theme):
+        def extract_category(theme: str) ->str:
             if "-" in theme:
                 return theme.split("-")[0].strip()
             else:
