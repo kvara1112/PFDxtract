@@ -2352,7 +2352,8 @@ class ThemeAnalyzer:
                         "poor delegation",
                         "poor feedback",
                         "team function",
-                        "poor communication"
+                        "poor communication",
+                        "team"
                     ]
                 },
                 {
@@ -2362,6 +2363,7 @@ class ThemeAnalyzer:
                         "worker was stressed",
                         "distraction",
                         "inexperience",
+                        "training",
                         "unfamiliar with the equipment",
                         "new to the role",
                         "hadn't had a break",
@@ -2379,7 +2381,8 @@ class ThemeAnalyzer:
                         "unclear task",
                         "multiple steps",
                         "had to multitask",
-                        "rare procedure"
+                        "rare procedure",
+                        "job"
                     ]
                 },
                 {
@@ -2397,7 +2400,7 @@ class ThemeAnalyzer:
                         "aggressive behaviour",
                         "elderly",
                         "fragile",
-                        "too unwell",
+                        "unwell",
                         "not suitable"
                     ]
                 },
@@ -2408,7 +2411,8 @@ class ThemeAnalyzer:
                         "heavy workload",
                         "insufficient staff",
                         "staff sickness",
-                        "inexperienced staff"
+                        "inexperienced staff",
+                        "no staff"
                     ]
                 },
                 {
@@ -2420,7 +2424,8 @@ class ThemeAnalyzer:
                         "no senior presence",
                         "limited supervision",
                         "no supervision",
-                        "lack of regulation"
+                        "lack of regulation",
+                        "manager"
                     ]
                 },
                 {
@@ -2455,12 +2460,13 @@ class ThemeAnalyzer:
                     "keywords":[
                         "short-staffed",
                         "under pressure",
-                        "too busy",
+                        "busy",
                         "no time",
                         "no cover",
                         "no one available",
                         "no support",
-                        "poor communication"
+                        "poor communication",
+                        "availability"
                     ]
                 },
                 {
@@ -2494,8 +2500,8 @@ class ThemeAnalyzer:
                         "blood bank",
                         "medical departmant",
                         "GP",
-                        "ambulance was delayed",
-                        "ambulances facilities"
+                        "ambulance",
+                        "facilities"
                     ]
                 },
                 {
@@ -2507,7 +2513,8 @@ class ThemeAnalyzer:
                         "poor out of hours support",
                         "no beds available",
                         "hospital in full capacity",
-                        "discharged to make space"
+                        "discharged to make space",
+                        "hospital bed"
                     ]
                 },
                 {
@@ -2523,7 +2530,8 @@ class ThemeAnalyzer:
                         "no risk assessment",
                         "outside the experience",
                         "outside their capabilities",
-                        "trained"
+                        "trained",
+                        "training"
                     ]
                 },
                 {
@@ -2536,7 +2544,8 @@ class ThemeAnalyzer:
                         "inconsitent policies",
                         "complex procedure",
                         "conflicting instructions",
-                        "outdated policy"
+                        "outdated policy",
+                        "policy"
                     ]
                 },
                 {
@@ -2551,7 +2560,8 @@ class ThemeAnalyzer:
                         "senior input",
                         "interdisciplinary referral",
                         "escalation delay",
-                        "consultant opinion"
+                        "consultant opinion",
+                        "referral"
                     ]
                 },
                 {
