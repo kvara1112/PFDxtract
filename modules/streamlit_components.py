@@ -3109,7 +3109,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             )
 
             # Load into Streamlit
-            components.html(final_html, height=880,width = 1200, scrolling=True)
+            components.html(final_html, height=880,width = 1400, scrolling=True)
 
             #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=False)
             

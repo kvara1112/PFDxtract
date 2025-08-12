@@ -1502,7 +1502,17 @@ def save_dashboard_images_as_zip(filtered_df):
                         
                             with open("network_with_legend.html", "w", encoding="utf-8") as f:
                                 f.write(final_html)
-
+                            final_html = html.replace(
+                                "<body>", 
+                                """<body>
+                                    <style>
+                                        #mynetwork {
+                                            width: 100% !important;
+                                            height: 800px !importnat;
+                                        }
+                                    </style>
+                                    """ +legend_html
+                                        )
                             final_html = final_html.replace(
                                 "</body>",
                                 """
