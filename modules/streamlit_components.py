@@ -3064,6 +3064,9 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             # Inject PNG download button and html2canvas script into the HTML
             with open("outputs/network.html", "r", encoding="utf-8") as f:
                 html = f.read()
+            
+            html = html.replace('width: 600px;', 'width: 100%;')
+            html = html.replace('width:800px;', 'width:100%;')
 
             # Insert download button and script before </body>
             final_html = html.replace("<body>", f"<body>{legend_html}")
