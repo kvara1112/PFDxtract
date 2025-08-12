@@ -3069,7 +3069,17 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             html = html.replace('width:800px;', 'width:100%;')
 
             # Insert download button and script before </body>
-            final_html = html.replace("<body>", f"<body>{legend_html}")
+            final_html = html.replace(
+                "<body>", 
+                """<body>
+                    <style>
+                        #mynetwork {
+                            width: 100% !important;
+                            height: 800px !importnat;
+                        }
+                    </style>
+                    """ +legend_html
+                        )
 
            
             with open("network_with_legend.html", "w", encoding="utf-8") as f:
@@ -3099,7 +3109,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             )
 
             # Load into Streamlit
-            components.html(final_html, height=880, scrolling=True)
+            components.html(final_html, height=880,width = 1200, scrolling=True)
 
             #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=False)
             
