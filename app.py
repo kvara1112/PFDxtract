@@ -322,6 +322,7 @@ def main():
             4. **(Step 4) 📝 Topic Analysis & Summaries**: Generate basic themes from report content
             5. **(Step 5) 🔬 Concept Annotation**: Conduct advanced theme analysis with AI
             6. **(Step 6) 📈 Theme Analysis Dashboard**: Explore comprehensive theme visualisations
+            7. **(Step 7) 📃 Non PFD Analysis**: Analyse reports that are not PFD reports 
             
             Select each numbered tab in sequence to move through the complete analysis pipeline.
             
@@ -343,6 +344,7 @@ def main():
             "(4)📝 Topic Analysis & Summaries", 
             "(5)🔬 Concept Annotation",
             "(6)📈 Theme Analysis Dashboard",
+            "(7)📃 Non-PFD Analyser"
         ],
         label_visibility="collapsed",
         horizontal=True,
@@ -447,7 +449,18 @@ def main():
                 """
             )
             render_theme_analysis_dashboard(st.session_state.current_data)
+        elif current_tab == "(7)📃 Non-PFD Analyser":
+            st.markdown(
+                """
+                Analyse any medical report
 
+                - Upload a folder of your reports
+                - Perform cleaning of the reports
+                - Complete a thematic analysis on the reports
+                - Concept anntoate your reports by framework
+                - Visualise annotations and results
+                """
+            )
         # Sidebar data management
         with st.sidebar:
             st.header("Data Management")
