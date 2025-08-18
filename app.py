@@ -29,7 +29,8 @@ from modules.streamlit_components import (
     render_scraping_tab,
     render_bert_file_merger,
     render_bert_analysis_tab,
-    render_theme_analysis_dashboard
+    render_theme_analysis_dashboard,
+    non_pfd_tab,
 )
 
 from modules.vectorizer_models import render_topic_summary_tab
@@ -461,6 +462,7 @@ def main():
                 - Visualise annotations and results
                 """
             )
+            non_pfd_tab()
         # Sidebar data management
         with st.sidebar:
             st.header("Data Management")

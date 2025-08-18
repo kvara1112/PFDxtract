@@ -3753,3 +3753,8 @@ def render_topic_modeling_tab(data: pd.DataFrame):
             except Exception as e:
                 st.error(f"Error during analysis: {str(e)}")
                 logging.error(f"Topic modeling error: {e}", exc_info=True)
+def non_pfd_tab():
+    analyzer = BERTResultsAnalyzer()
+    upload_tab, process_tab, theme_tab, BERT_tab, analysis_tab = st.tabs([
+        "Upload Files", "Process and Clean Data",
+        "Thematic Analysis", "Concept Annotations","Visual Analysis"])
