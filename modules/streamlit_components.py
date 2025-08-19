@@ -512,20 +512,20 @@ def process_other(uploaded_file):
         
 
         return {
-            "status": "success",
-            "filename":uploaded_file.name,
-            "title": title,
-            "sender_address": sender_address,
-            "addressee": addressee,
-            "content": content
+            "Status": "success",
+            "Filename":uploaded_file.name,
+            "Title": title,
+            "Sender Address": sender_address,
+            "Addressee": addressee,
+            "Content": content
             }
         
     
     except Exception as e:
         return {
-            "status": "failed",
-            "filename": uploaded_file.name,
-            "error": str(e)
+            "Status": "failed",
+            "Filename": uploaded_file.name,
+            "Error": str(e)
         }
 
 def upload_reports(is_PFD):
@@ -734,7 +734,7 @@ def upload_reports(is_PFD):
 
                 progress_placeholder.success(f"✅ Processed {total_files} files successfully!")
                 successful_reports = [r for r in state["processing_results"]]
-                retry_needed = [r for r in state["processing_results"] if r["status"] == "failed"]
+                retry_needed = [r for r in state["processing_results"] if r["Status"] == "failed"]
                 
                 if successful_reports:
                     df = pd.DataFrame(successful_reports)
