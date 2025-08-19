@@ -25,7 +25,7 @@ from modules.streamlit_components import (
     validate_data_state,
     handle_no_data_state,
     handle_error,
-    upload_PFD_reports,
+    upload_reports,
     render_scraping_tab,
     render_bert_file_merger,
     render_bert_analysis_tab,
@@ -369,8 +369,8 @@ def main():
                 """
             )
             st.subheader("Upload PFD Reports")
-            upload_PFD_reports()
-
+            upload_reports(True)
+            
             st.subheader("Scrape PFD Reports")
             
             render_scraping_tab()

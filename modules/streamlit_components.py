@@ -438,8 +438,8 @@ def create_local_report(retry_info):
 
 
 
-def upload_PFD_reports():
-    # At top of upload_PFD_reports
+def upload_reports(is_PFD):
+
     if "file_uploader_key" not in st.session_state:
         st.session_state.file_uploader_key = 0
 
@@ -463,13 +463,22 @@ def upload_PFD_reports():
     
     # Hide upload interface during processing
     if not st.session_state.get("processing", False):
-        uploaded_reports = st.file_uploader(
-            "Upload PFD reports", 
-            type="pdf", 
-            accept_multiple_files=True, 
-            key=st.session_state.file_uploader_key,
-            help="We'll try to find the full report online, or analyze your uploaded file directly"
-        )
+        if is_PFD:
+            uploaded_reports = st.file_uploader(
+                "Upload PFD reports", 
+                type="pdf", 
+                accept_multiple_files=True, 
+                key=st.session_state.file_uploader_key,
+                help="We'll try to find the full report online, or analyze your uploaded file directly"
+            )
+        else:
+            uploaded_reports = st.file_uploader(
+                "Upload your reports", 
+                type="pdf", 
+                accept_multiple_files=True, 
+                key=st.session_state.file_uploader_key,
+                help="We'll try to analyze your uploaded files"
+            )
         
     else:
         # Currently processing - hide upload interface
@@ -569,7 +578,7 @@ def upload_PFD_reports():
                         st.rerun()  # This will hide the UI and show processing state
         
     # Show processing state 
-    if st.session_state.get("processing", False):
+    if st.session_state.get("processing", False) and is_PFD == True:
         # Currently processing - show progress and do the actual processing
         if "processing_results" not in st.session_state or not st.session_state.processing_results:
             # First time entering processing state - do the processing
@@ -616,11 +625,12 @@ def upload_PFD_reports():
         else:
             # Processing already done, just show current progress status
             st.info(f"⚙️ **Processing completed!** Processed {len(st.session_state.processing_results)} files.")
-        
+    else:
+        pass
         
     
     # Handle retry-needed files with interactive UI
-    if st.session_state.retry_files:
+    if st.session_state.retry_files and is_PFD == True:
         st.markdown("### 🔍 Files Needing Attention")
         
         files_to_remove = []  # Track which files to remove from retry list
@@ -3755,6 +3765,7 @@ def render_topic_modeling_tab(data: pd.DataFrame):
             except Exception as e:
                 st.error(f"Error during analysis: {str(e)}")
                 logging.error(f"Topic modeling error: {e}", exc_info=True)
+
 def non_pfd_tab():
     analyzer = BERTResultsAnalyzer()
     upload_tab, process_tab, theme_tab, BERT_tab, analysis_tab = st.tabs([
@@ -3762,8 +3773,4 @@ def non_pfd_tab():
         "Thematic Analysis", "Concept Annotations","Visual Analysis"])
     
     with upload_tab:
-        uploaded_reports = st.file_uploader(
-            "Upload Your Reports",
-            type = "pdf",
-            accept_multiple_files=True
-        )
+        upload_reports(False)
