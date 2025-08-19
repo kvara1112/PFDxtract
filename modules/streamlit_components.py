@@ -3902,4 +3902,4 @@ def non_pfd_tab(currentData):
     with upload_tab:
         upload_reports(False)
     with theme_tab:
-        render_topic_summary_tab(currentData)
+        render_theme_analysis_dashboard(currentData)
