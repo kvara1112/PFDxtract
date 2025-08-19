@@ -453,7 +453,7 @@ def process_other(uploaded_file):
     # Subject
     title = ""
     title_idx = None
-    for i, line in lines[:20]:
+    for i, line in enumerate(lines[:20]):
         if re.match(r"(?i)^(re:|subject:)", line):
             title = line
             title_idx = i
