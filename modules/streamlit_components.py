@@ -561,7 +561,7 @@ def upload_reports(is_PFD):
                 )
                 
                 if not already_uploaded:
-                    state["uploaded_reports_files"].append(uploaded_report)
+                    state["uploaded_files"].append(uploaded_report)
                 # Duplicate files are silently ignored (handled gracefully)
                 
                 # Mark as processed in this cycle
