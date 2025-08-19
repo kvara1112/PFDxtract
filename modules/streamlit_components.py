@@ -854,7 +854,10 @@ def upload_reports(is_PFD):
     if state["processed"] and state["current_data"] is not None:
         st.markdown("### Processed Data Ready")
         st.dataframe(state["current_data"])
-        show_export_options(state["current_data"], prefix="uploaded")
+        if report_key == "PFD":
+            show_export_options(state["current_data"], prefix="uploaded")
+        elif report_key == "Other":
+            show_export_options(state["current_data"], prefix="uploaded_other")
 
         st.markdown("### Begin a New Upload")
         if st.button("🔄 Start New Analysis", type="secondary"):

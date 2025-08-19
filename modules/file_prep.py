@@ -418,7 +418,10 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
         unique_id = f"{timestamp}_{random_suffix}"
-        filename = f"pfd_reports_{prefix}_{timestamp}"
+        if prefix == "uploaded_other":
+            filename = f"other_reports_{timestamp}"
+        else:
+            filename = f"pfd_reports_{prefix}_{timestamp}"
 
         col1, col2 = st.columns(2)
 
