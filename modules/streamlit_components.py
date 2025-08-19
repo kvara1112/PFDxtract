@@ -570,13 +570,13 @@ def upload_reports(is_PFD):
 
     # Show buttons using the same approach as upload box
 
-    if state["uploaded_reports_files"]:#  and not st.session_state.get("processing", False):
+    if state["uploaded_reports_files"]: #  and not st.session_state.get("processing", False):
         
         col1, col2 = st.columns(2)
         # Clear button
         with col1:
             
-            if st.button("Clear all uploaded reports", disabled=st.session_state.get("processing", False)):
+            if st.button("Clear all uploaded reports", disabled=state["processing"]):
                 # Safety check - don't allow clearing during processing
                 if not state["processing"]:
                     state["uploaded_files"] = []
