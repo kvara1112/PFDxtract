@@ -26,6 +26,7 @@ import fitz
 import os
 import uuid
 import logging
+import pdfplumber
 # Import our modules
 from .core_utils import (
     process_scraped_data, 
@@ -436,8 +437,65 @@ def create_local_report(retry_info):
         "PDF_1_Type": retry_info["pdf_type"]
     }
 
+def process_other(uploaded_file):
+    """
+    Extract the subject, content and addressee of the paper
+    """
+    text = ""
+    with pdfplumber.open(uploaded_file) as pdf:
+        for page in pdf.pages:
+            if page.extract_text():
+                text += page.extract_text()+ "\n"
 
+    # split into non-empty lines
+    lines = [line.strip() for line in text.splitlines() if line and line.strip()]
 
+    # Subject
+    title = ""
+    title_idx = None
+    for i, line in lines[:20]:
+        if re.match(r"(?i)^(re:|subject:)", line):
+            title = line
+            title_idx = i
+            break
+
+    # Addressee
+    address_lines = []
+    addressee = ""
+    addressee_idx = None
+
+    for i, line in enumerate(lines[:30]):
+        if re.match(r"(?i)^to[: ]", line):
+            addressee = line.split(":",1)[-1].strip()
+            addressee_idx = i
+            break
+        elif re.match(r"(?i)^dear\b", line):
+            addressee = line
+            addressee_idx = i
+            break
+    
+    # Sender Address/ Company
+    sender_address_lines = []
+    for line in lines[:10]:  # top lines of doc
+        if re.search(r"\d", line) or "," in line or re.search(r"(?i)(inc|corp|company|llc|ltd|trust|agency|service)", line):
+            sender_address_lines.append(line)
+    sender_address = " ".join(sender_address_lines)
+
+    # Content
+    if addressee_idx is not None:
+        content = "\n".join(lines[addressee_idx+1:])
+    elif title_idx is not None:
+        content = "\n".join(lines[title_idx+1:])
+    else:
+        content = "\n".join(lines[1:])
+
+    return {
+        "filename":uploaded_file.name,
+        "title": title,
+        "sender_address": sender_address,
+        "addressee": addressee,
+        "content": content
+    }
 def upload_reports(is_PFD):
     if is_PFD:
         report_key = "PFD"
@@ -607,7 +665,7 @@ def upload_reports(is_PFD):
                 
                 for i, file in enumerate(state["uploaded_files"], 1):
                     progress_placeholder.info(f"Processing {i}/{total_files}")
-                    result = process_uploaded_pfd(file)  # ⬅️ your existing function
+                    result = process_uploaded_pfd(file)  
                     state["processing_results"].append(result)
 
                 progress_placeholder.success(f"✅ Processed {total_files} files successfully!")
@@ -632,7 +690,36 @@ def upload_reports(is_PFD):
                 # Store retry-needed files for interactive handling    
                 state["retry_files"] = {i: r for i, r in enumerate(retry_needed)}
         elif report_key == "Other":
-            pass
+            if not state["processing_results"]:
+                total_files = len(state["uploaded_files"])
+                progress_placeholder = st.empty()
+                
+                for i, file in enumerate(state["uploaded_files"], 1):
+                    progress_placeholder.info(f"Processing {i}/{total_files}")
+                    result = process_other(file)
+                    state["processing_results"].append(result)
+
+                progress_placeholder.success(f"✅ Processed {total_files} files successfully!")
+
+                successful_reports = []
+                retry_needed = []
+                
+                for result in state["processing_results"]:
+                    if result["status"] == "success":
+                        successful_reports.append(result["data"])
+                    elif result["status"] == "retry_needed":
+                        retry_needed.append(result)
+                
+                # Process successful reports immediately
+                if successful_reports:
+                    df = pd.DataFrame(successful_reports)
+                    df.index = range(1, len(df) + 1)
+                    state["current_data"] = df
+                    state["processed"] = not retry_needed
+                    state["processing"] = False if not retry_needed else True
+                # Store retry-needed files for interactive handling    
+                state["retry_files"] = {i: r for i, r in enumerate(retry_needed)}
+
     # Handle retry-needed files
     if state["retry_files"] and report_key == "PFD":
         st.markdown("### 🔍 Files Needing Attention")
@@ -732,6 +819,10 @@ def upload_reports(is_PFD):
             
             # Rerun to update the UI and show processed data
             st.rerun()
+    elif state["retry_files"] and report_key == "Other":
+        st.warning(f"{len(retry_needed)} files failed to process. Please retry.")
+        for r in retry_needed:
+            st.write(r["filename"])
 
     # Final processed data
     if state["processed"] and state["current_data"] is not None:
