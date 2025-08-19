@@ -3897,9 +3897,9 @@ def render_topic_modeling_tab(data: pd.DataFrame):
 def non_pfd_tab(currentData):
     analyzer = BERTResultsAnalyzer()
     upload_tab, theme_tab, BERT_tab, analysis_tab = st.tabs([
-        "Upload Files", "Thematic Analysis", "Concept Annotations","Visual Analysis"])
+        "Upload Files", "Topic Analysis", "Concept Annotations","Visual Analysis"])
     
     with upload_tab:
         upload_reports(False)
     with theme_tab:
-        render_theme_analysis_dashboard(currentData)
+        render_topic_summary_tab(currentData)
