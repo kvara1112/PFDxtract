@@ -640,7 +640,7 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
         st.markdown("---")
 
 
-def render_topic_summary_tab(data: pd.DataFrame = None) -> None:
+def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
     """Topic analysis with weighting schemes and essential controls"""
     st.subheader("Topic Analysis & Summaries")
     
@@ -662,7 +662,10 @@ def render_topic_summary_tab(data: pd.DataFrame = None) -> None:
                 data = pd.read_excel(uploaded_file)
                 
             # Process the data
-            data = process_scraped_data(data)
+            if isPFD:
+                data = process_scraped_data(data)
+            else:
+                data = data 
             
             # Validate that we have the needed content column
             if "Content" not in data.columns:
