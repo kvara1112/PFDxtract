@@ -455,7 +455,7 @@ def process_other(uploaded_file):
         title = ""
         title_idx = None
         for i, line in enumerate(lines[:30]):
-            if re.match(r"(?i)^(re|subject:)", line):
+            if re.match(r"(?i)^(re |subject:)", line):
                 title = line
                 title_idx = i
                 break
@@ -474,7 +474,26 @@ def process_other(uploaded_file):
                 addressee = re.sub(r"(?i)^dear\s+", "", line).rstrip(",;:").strip()
                 addressee_idx = i
                 break
-        
+            elif re.match(r"(?i)^mr[: ]", line):
+                addressee = re.sub(r"(?i)^dear\s+", "", line).rstrip(",;:").strip()
+                addressee_idx = i
+                break
+            elif re.match(r"(?i)^mrs[: ]", line):
+                addressee = re.sub(r"(?i)^dear\s+", "", line).rstrip(",;:").strip()
+                addressee_idx = i
+                break
+            elif re.match(r"(?i)^ms[: ]", line):
+                addressee = re.sub(r"(?i)^dear\s+", "", line).rstrip(",;:").strip()
+                addressee_idx = i
+                break
+            elif re.match(r"(?i)^miss[: ]", line):
+                addressee = re.sub(r"(?i)^dear\s+", "", line).rstrip(",;:").strip()
+                addressee_idx = i
+                break
+            elif re.match(r"(?i)^mx[: ]", line):
+                addressee = re.sub(r"(?i)^dear\s+", "", line).rstrip(",;:").strip()
+                addressee_idx = i
+                break
         # Sender Address/ Company
         sender_address_lines = []
         for line in lines[:10]:  # top lines of doc
