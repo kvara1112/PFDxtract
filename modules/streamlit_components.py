@@ -439,20 +439,11 @@ def create_local_report(retry_info):
 
 
 def upload_reports(is_PFD):
-    if is_PFD == False:
-        if not st.session_state.get("processing", False):
-            st.session_state.uploaded_reports_files = []
-            #st.session_state.uploaded_reports_data = []
-            st.session_state.current_data = None
-            st.session_state.processed = False
-            st.session_state.processing = False
-            st.session_state.last_widget_signatures = set()  # Reset widget state tracking
-            st.session_state.file_uploader_key += 1 # to clear the uploader 
-            st.session_state.show_clear_success = True  # Set flag to show message after rerun
-            st.rerun()
+    
     if "file_uploader_key" not in st.session_state:
         st.session_state.file_uploader_key = 0
-
+    if "file_uploader_key2" not in st.session_state:
+        st.session_state.file_uploader_key2 = 0
     if "uploaded_reports_files" not in st.session_state:
         st.session_state.uploaded_reports_files = []
     if "processed" not in st.session_state:
@@ -486,7 +477,7 @@ def upload_reports(is_PFD):
                 "Upload your reports", 
                 type="pdf", 
                 accept_multiple_files=True, 
-                key=st.session_state.file_uploader_key,
+                key=st.session_state.file_uploader_key2,
                 help="We'll try to analyze your uploaded files"
             )
         
@@ -571,7 +562,10 @@ def upload_reports(is_PFD):
                     st.session_state.processed = False
                     st.session_state.processing = False
                     st.session_state.last_widget_signatures = set()  # Reset widget state tracking
-                    st.session_state.file_uploader_key += 1 # to clear the uploader 
+                    if is_PFD:
+                        st.session_state.file_uploader_key += 1 # to clear the uploader 
+                    else:
+                        st.session_state_file_uploader_key2 += 1 # to clear uploader
                     st.session_state.show_clear_success = True  # Set flag to show message after rerun
                     st.rerun()
                               
@@ -753,7 +747,10 @@ def upload_reports(is_PFD):
             st.session_state.processing_results = []
             st.session_state.retry_files = {}
             st.session_state.last_widget_signatures = set()
-            st.session_state.file_uploader_key += 1
+            if is_PFD:
+                st.session_state.file_uploader_key += 1
+            else:
+                st.session_state.file_uploader_key2 +=1
             st.rerun()
 
     
