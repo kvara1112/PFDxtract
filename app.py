@@ -462,7 +462,7 @@ def main():
                 - Visualise annotations and results
                 """
             )
-            non_pfd_tab()
+            non_pfd_tab(st.session_state.current_data)
         # Sidebar data management
         with st.sidebar:
             st.header("Data Management")
