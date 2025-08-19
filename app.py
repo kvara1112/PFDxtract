@@ -457,7 +457,7 @@ def main():
 
                 - Upload a folder of your reports
                 - Perform cleaning and formatting into one document
-                - Complete a thematic analysis on the reports
+                - Complete a topic analysis on the reports
                 - Concept anntoate your reports by framework
                 - Visualise annotations and results
                 """
