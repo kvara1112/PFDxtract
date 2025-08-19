@@ -436,6 +436,8 @@ def create_local_report(retry_info):
         "PDF_1_Type": retry_info["pdf_type"]
     }
 
+
+
 def upload_PFD_reports():
     # At top of upload_PFD_reports
     if "file_uploader_key" not in st.session_state:
@@ -3758,3 +3760,10 @@ def non_pfd_tab():
     upload_tab, process_tab, theme_tab, BERT_tab, analysis_tab = st.tabs([
         "Upload Files", "Process and Clean Data",
         "Thematic Analysis", "Concept Annotations","Visual Analysis"])
+    
+    with upload_tab:
+        uploaded_reports = st.file_uploader(
+            "Upload Your Reports",
+            type = "pdf",
+            accept_multiple_files=True
+        )

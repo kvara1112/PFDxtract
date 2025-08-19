@@ -30,7 +30,7 @@ from modules.streamlit_components import (
     render_bert_file_merger,
     render_bert_analysis_tab,
     render_theme_analysis_dashboard,
-    non_pfd_tab,
+    non_pfd_tab
 )
 
 from modules.vectorizer_models import render_topic_summary_tab
