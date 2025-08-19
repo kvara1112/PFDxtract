@@ -454,8 +454,8 @@ def process_other(uploaded_file):
         # Subject
         title = ""
         title_idx = None
-        for i, line in enumerate(lines[:20]):
-            if re.match(r"(?i)^(re:|subject:)", line):
+        for i, line in enumerate(lines[:30]):
+            if re.match(r"(?i)^(re|subject:)", line):
                 title = line
                 title_idx = i
                 break
@@ -467,11 +467,11 @@ def process_other(uploaded_file):
 
         for i, line in enumerate(lines[:30]):
             if re.match(r"(?i)^to[: ]", line):
-                addressee = line.split(":",1)[-1].strip()
+                addressee = addressee = re.sub(r"(?i)^to\s+", "", line).rstrip(",;:").strip()
                 addressee_idx = i
                 break
             elif re.match(r"(?i)^dear\b", line):
-                addressee = line
+                addressee = re.sub(r"(?i)^dear\s+", "", line).rstrip(",;:").strip()
                 addressee_idx = i
                 break
         
