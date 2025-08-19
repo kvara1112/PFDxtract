@@ -439,7 +439,17 @@ def create_local_report(retry_info):
 
 
 def upload_reports(is_PFD):
-
+    if is_PFD == False:
+        if not st.session_state.get("processing", False):
+            st.session_state.uploaded_reports_files = []
+            #st.session_state.uploaded_reports_data = []
+            st.session_state.current_data = None
+            st.session_state.processed = False
+            st.session_state.processing = False
+            st.session_state.last_widget_signatures = set()  # Reset widget state tracking
+            st.session_state.file_uploader_key += 1 # to clear the uploader 
+            st.session_state.show_clear_success = True  # Set flag to show message after rerun
+            st.rerun()
     if "file_uploader_key" not in st.session_state:
         st.session_state.file_uploader_key = 0
 
