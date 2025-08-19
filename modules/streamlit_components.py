@@ -43,7 +43,7 @@ from .web_scraping import (
     construct_search_url,
     get_report_content
 )
-from .vectorizer_models import get_vectorizer
+from .vectorizer_models import get_vectorizer, render_topic_summary_tab
 from .bert_analysis import BERTResultsAnalyzer, ThemeAnalyzer
 from .visualization import (
     plot_category_distribution,
@@ -3894,11 +3894,12 @@ def render_topic_modeling_tab(data: pd.DataFrame):
                 st.error(f"Error during analysis: {str(e)}")
                 logging.error(f"Topic modeling error: {e}", exc_info=True)
 
-def non_pfd_tab():
+def non_pfd_tab(currentData):
     analyzer = BERTResultsAnalyzer()
-    upload_tab, process_tab, theme_tab, BERT_tab, analysis_tab = st.tabs([
-        "Upload Files", "Process and Clean Data",
-        "Thematic Analysis", "Concept Annotations","Visual Analysis"])
+    upload_tab, theme_tab, BERT_tab, analysis_tab = st.tabs([
+        "Upload Files", "Thematic Analysis", "Concept Annotations","Visual Analysis"])
     
     with upload_tab:
         upload_reports(False)
+    with theme_tab:
+        render_topic_summary_tab(currentData)
