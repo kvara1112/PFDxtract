@@ -502,12 +502,14 @@ def process_other(uploaded_file):
         sender_address = " ".join(sender_address_lines)
 
         # Content
+        start_idx = 0 
         if addressee_idx is not None:
-            content = "\n".join(lines[addressee_idx+1:])
+            start_idx = addressee_idx + 1
         elif title_idx is not None:
-            content = "\n".join(lines[title_idx+1:])
-        else:
-            content = "\n".join(lines[1:])
+            start_idx = title_idx+1
+        
+        content = "\n".join(lines[start_idx+1:])
+        
 
         return {
             "status": "success",
