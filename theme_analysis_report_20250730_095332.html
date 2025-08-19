@@ -1,0 +1,1472 @@
+
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Theme Analysis Report</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        line-height: 1.6; 
+                        margin: 0;
+                        padding: 20px;
+                        color: #333;
+                        background-color: #f9f9f9;
+                    }
+                    h1 { 
+                        color: #2c3e50; 
+                        border-bottom: 3px solid #3498db; 
+                        padding-bottom: 10px; 
+                        margin-top: 30px;
+                        font-weight: 600;
+                    }
+                    h2 { 
+                        color: #2c3e50; 
+                        margin-top: 30px; 
+                        border-bottom: 2px solid #bdc3c7; 
+                        padding-bottom: 5px; 
+                        font-weight: 600;
+                    }
+                    h3 {
+                        color: #34495e;
+                        font-weight: 600;
+                        margin-top: 20px;
+                    }
+                    .record-container { 
+                        margin-bottom: 40px; 
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 20px;
+                        page-break-after: always; 
+                    }
+                    .highlighted-text { 
+                        margin: 15px 0; 
+                        padding: 15px; 
+                        border-radius: 4px;
+                        border: 1px solid #ddd; 
+                        background-color: #fff; 
+                        line-height: 1.7;
+                    }
+                    .theme-info { margin: 15px 0; }
+                    .theme-info table { 
+                        border-collapse: collapse; 
+                        width: 100%; 
+                        margin-top: 15px;
+                        border-radius: 4px;
+                        overflow: hidden;
+                    }
+                    .theme-info th, .theme-info td { 
+                        border: 1px solid #ddd; 
+                        padding: 12px; 
+                        text-align: left; 
+                    }
+                    .theme-info th { 
+                        background-color: #3498db; 
+                        color: white;
+                        font-weight: 600;
+                    }
+                    .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
+                    .theme-info tr:hover { background-color: #f1f1f1; }
+                    .high-confidence { background-color: #D5F5E3; }  /* Light green */
+                    .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
+                    .low-confidence { background-color: #FADBD8; }   /* Light red */
+                    .report-header {
+                        background-color: #3498db;
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                        border-radius: 8px;
+                        margin-bottom: 30px;
+                    }
+                    .summary-card {
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 20px;
+                        margin-bottom: 30px;
+                        display: flex;
+                        flex-wrap: wrap;
+                        justify-content: space-between;
+                    }
+                    .summary-box {
+                        flex: 1;
+                        min-width: 200px;
+                        padding: 15px;
+                        text-align: center;
+                        border-right: 1px solid #eee;
+                    }
+                    .summary-box:last-child {
+                        border-right: none;
+                    }
+                    .summary-number {
+                        font-size: 36px;
+                        font-weight: bold;
+                        color: #3498db;
+                        margin-bottom: 10px;
+                    }
+                    .summary-label {
+                        font-size: 14px;
+                        color: #7f8c8d;
+                        text-transform: uppercase;
+                    }
+                    .theme-color-box {
+                        display: inline-block;
+                        width: 20px;
+                        height: 20px;
+                        margin-right: 5px;
+                        vertical-align: middle;
+                        border: 1px solid #999;
+                    }
+                    .legend-container {
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 15px;
+                        margin-bottom: 20px;
+                    }
+                    .legend-title {
+                        font-weight: bold;
+                        margin-bottom: 10px;
+                    }
+                    .legend-item {
+                        display: flex;
+                        align-items: center;
+                        margin-bottom: 5px;
+                    }
+                    @media print {
+                        .record-container { page-break-after: always; }
+                        body { background-color: white; }
+                        .record-container, .summary-card { box-shadow: none; }
+                    }
+                    
+                    /* Define theme-specific CSS classes for consistency */
+        
+                    .theme-yorkshire-contributory_organisational-factors--support-from-other-departments {
+                        background-color: #FCE4EC !important;
+                    }
+            
+                    .theme-house-of-commons_fragmented-care {
+                        background-color: #FFECB3 !important;
+                    }
+            
+                    .theme-house-of-commons_consent/agency {
+                        background-color: #FFF8E1 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_situational--individual-staff-factors- {
+                        background-color: #eaeee3 !important;
+                    }
+            
+                    .theme-i-sirch_jobs/task---risk-assessment {
+                        background-color: #E8F5E9 !important;
+                    }
+            
+                    .theme-house-of-commons_guidance-gaps {
+                        background-color: #E1F5FE !important;
+                    }
+            
+                    .theme-i-sirch_internal---availability-eg-operating-theatres {
+                        background-color: #F1F8E9 !important;
+                    }
+            
+                    .theme-i-sirch_person---patient-characteristics-and-performance {
+                        background-color: #f0cdd6 !important;
+                    }
+            
+                    .theme-house-of-commons_communication {
+                        background-color: #FFD580 !important;
+                    }
+            
+                    .theme-i-sirch_organisation---communication-factor---between-staff-and-patient-verbal {
+                        background-color: #D1E7DD !important;
+                    }
+            
+                    .theme-house-of-commons_inadequate-maternity-care {
+                        background-color: #F3E5F5 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_situational--patient-factors {
+                        background-color: #c7b5c1 !important;
+                    }
+            
+                    .theme-i-sirch_organisation---documentation {
+                        background-color: #F8D7DA !important;
+                    }
+            
+                    .theme-house-of-commons_dignity/respect {
+                        background-color: #E8EAF6 !important;
+                    }
+            
+                    .theme-i-sirch_jobs/task---care-planning {
+                        background-color: #e3c6d2 !important;
+                    }
+            
+                    .theme-i-sirch_person---patient-characteristics-and-performance---characteristics---record-of-attendance-eg-failure-to-attend-antenatal-classes {
+                        background-color: #b9ead9 !important;
+                    }
+            
+                    .theme-extended-analysis_resource-allocation {
+                        background-color: #ead8d9 !important;
+                    }
+            
+                    .theme-i-sirch_organisation---team-culture-factor-eg-patient-safety-culture {
+                        background-color: #b6d2e1 !important;
+                    }
+            
+                    .theme-i-sirch_internal---time-of-day-eg-night-working-or-day-of-the-week {
+                        background-color: #ebdfc2 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_situational--team-factors {
+                        background-color: #c1d2c3 !important;
+                    }
+            
+                    .theme-i-sirch_organisation---communication-factor---between-staff {
+                        background-color: #FFFACD !important;
+                    }
+            
+                    .theme-extended-analysis_facility-and-equipment-issues {
+                        background-color: #d1bedd !important;
+                    }
+            
+                    .theme-yorkshire-contributory_external-factors--design-of-equipment-supplies-and-drugs {
+                        background-color: #d1e6c4 !important;
+                    }
+            
+                    .theme-i-sirch_organisation---national-and/or-local-guidance {
+                        background-color: #FFF3CD !important;
+                    }
+            
+                </style>
+            </head>
+            <body>
+                <div class="report-header">
+                    <h1>Theme Analysis Results</h1>
+                    <p>Generated on 30 July 2025, 09:53</p>
+                </div>
+                
+                <div class="summary-card">
+                    <div class="summary-box">
+                        <div class="summary-number">5</div>
+                        <div class="summary-label">Documents Analyzed</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-number">39</div>
+                        <div class="summary-label">Theme Identifications</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-number">4</div>
+                        <div class="summary-label">Frameworks</div>
+                    </div>
+                </div>
+                
+                <!-- Add legend explaining gradients -->
+                <div class="legend-container">
+                    <div class="legend-title">Theme Color Guide</div>
+                    <div>When text contains multiple themes, a gradient background is used to show all applicable themes. Check the tooltip for details.</div>
+                </div>
+            
+                <h2>Framework Summary</h2>
+                <table class="theme-info">
+                    <tr>
+                        <th>Framework</th>
+                        <th>Number of Themes</th>
+                        <th>Number of Documents</th>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>11</td>
+                        <td>4</td>
+                    </tr>
+                
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>6</td>
+                        <td>4</td>
+                    </tr>
+                
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>2</td>
+                        <td>2</td>
+                    </tr>
+                
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>5</td>
+                        <td>5</td>
+                    </tr>
+                
+                </table>
+            <h2>Document Analysis</h2>
+                    <div class="record-container">
+                        <h2>Document: Patricia-Heaviside-Prevention-of-Future-Deaths-Report-2025-0354</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #d1bedd;">
+                                    <td>Extended Analysis</td>
+                                    <td>Facility and Equipment Issues</td>
+                                    <td>High</td>
+                                    <td>0.84</td>
+                                    <td>equipment</td>
+                                    <td><div class="theme-color-box" style="background-color:#d1bedd;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F3E5F5;">
+                                    <td>House of Commons</td>
+                                    <td>Inadequate maternity care</td>
+                                    <td>High</td>
+                                    <td>0.866</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#F3E5F5;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFECB3;">
+                                    <td>House of Commons</td>
+                                    <td>Fragmented care</td>
+                                    <td>High</td>
+                                    <td>0.864</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFECB3;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E1F5FE;">
+                                    <td>House of Commons</td>
+                                    <td>Guidance gaps</td>
+                                    <td>High</td>
+                                    <td>0.863</td>
+                                    <td>information</td>
+                                    <td><div class="theme-color-box" style="background-color:#E1F5FE;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF8E1;">
+                                    <td>House of Commons</td>
+                                    <td>Consent/agency</td>
+                                    <td>High</td>
+                                    <td>0.84</td>
+                                    <td>decisions</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF8E1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFD580;">
+                                    <td>House of Commons</td>
+                                    <td>Communication</td>
+                                    <td>High</td>
+                                    <td>0.834</td>
+                                    <td>concerns</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFD580;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e3c6d2;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Care planning</td>
+                                    <td>High</td>
+                                    <td>0.877</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#e3c6d2;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #b6d2e1;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Team culture factor (e.g., patient safety culture)</td>
+                                    <td>High</td>
+                                    <td>0.869</td>
+                                    <td>team</td>
+                                    <td><div class="theme-color-box" style="background-color:#b6d2e1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #ebdfc2;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                                    <td>High</td>
+                                    <td>0.851</td>
+                                    <td>time</td>
+                                    <td><div class="theme-color-box" style="background-color:#ebdfc2;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFFACD;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Communication factor - Between staff</td>
+                                    <td>High</td>
+                                    <td>0.844</td>
+                                    <td>staff</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFFACD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E8F5E9;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Risk assessment</td>
+                                    <td>High</td>
+                                    <td>0.838</td>
+                                    <td>risk, assessment</td>
+                                    <td><div class="theme-color-box" style="background-color:#E8F5E9;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #d1e6c4;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>External Factors- Design of Equipment Supplies and Drugs</td>
+                                    <td>High</td>
+                                    <td>0.889</td>
+                                    <td>equipment</td>
+                                    <td><div class="theme-color-box" style="background-color:#d1e6c4;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: care + care + care">Date of report: 10/07/2025
+Ref: 2025-0354
+Deceased name: Patricia Heaviside
+Coroners name: Rebecca Sutton
+Coroners Area: County Durham and Darlington
+Category: Care Home Health related deaths
+This report is being sent to: Williams and Spenceley Limited | Howlish Hall Care Home | CQC | Durham County Council
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: 1. [REDACTED], as Sole Director and 75%+ shareholder of Williams and Spenceley Ltd (the company that owns Howlish Hall Care Home), 29 Finkle Street, Bishop Auckland, DL14 7PL 2.</span> <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: care + care + care">Manager of Howlish Hall Care Home ([REDACTED]). 3.CQC 4.</span> <span style="background-color:#E8EAF6; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - Team culture factor (e.g., patient safety culture)
+Keywords: team">Head of the AHS Practice Improvement Team, Durham County Council 1 CORONER I am Rebecca Sutton, assistant coroner, for the coroner area of County Durham and Darlington. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and Regulations 28 and 29 of the Coroners (Investigations) Regulations 2013. [HYPERLINKS] 3 INVESTIGATION and INQUEST On 30 December 2024 an investigation was commenced into the death of Patricia Heaviside, 85.</span> The investigation concluded at the end of the inquest on 9 July 2025. <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: care + care + care">The conclusion of the inquest was that the Deceased died on 26 December 2024 as a consequence of a fall that occurred on 4 October 2024 at Howlish Hall Care Home. 4 CIRCUMSTANCES OF THE DEATH The Deceased had been a resident of Howlish Hall Care Home since February 2023.</span> <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">During her time at Howlish Hall the Deceased suffered a number of falls.</span> In or about August 2023 the home manager received advice from the Community Falls Service, who recommended that a sensor box be placed in the Deceased's bedroom and that the Deceased should use hip protectors, which could be purchased by the Deceased's family. The home did not follow these recommendations and did not inform the family of the option to purchase hip protectors. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication
+Keywords: concerns">Following the family reporting concerns to social services, a social worker attended at the home on 27 September 2024.</span> <span style="background-color:#FFFACD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - Communication factor - Between staff
+Keywords: staff">The home staff assured the social worker that they had a sensor mat that they would place next to the Deceased's bed, but this was not done.</span> On 4 October 2024 the Deceased suffered an unwitnessed fall in her room and sustained a fractured left hip. She underwent surgery to fix the fracture on 6 October 2024. She was discharged back to the home on 11 October 2024. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: concerns + care + care + care">Due to ongoing family concerns the Deceased was moved to a different care home on 3 December 2024.</span> <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication
+Keywords: concerns">Her condition deteriorated and she died as a consequence of the hip fracture on 26 December 2024. 5 CORONER'S CONCERNS During the course of the inquest the evidence revealed matters giving rise to concern.</span> <span style="background-color:#E8F5E9; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Jobs/Task - Risk assessment
+Keywords: risk">In my opinion there is a risk that future deaths could occur unless action is taken.</span> In the circumstances it is my statutory duty to report to you. <span style="background-color:#E8F5E9; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Facility and Equipment Issues + House of Commons_Consent/agency + House of Commons_Fragmented care + House of Commons_Guidance gaps + House of Commons_Inadequate maternity care + I-SIRch_Internal - Time of day (e.g., night working or day of the week) + I-SIRch_Jobs/Task - Care planning + I-SIRch_Jobs/Task - Risk assessment + Yorkshire Contributory_External Factors- Design of Equipment Supplies and Drugs
+Keywords: equipment + decisions + care + information + care + time + care + assessment + equipment">The MATTERS OF CONCERN are as follows. - [BRIEF SUMMARY OF MATTERS OF CONCERN] (1) Despite recommendations for falls prevention equipment being made by the Community Falls Service in August 2023, no falls prevention equipment was put in place by the time of the Deceased's fall in October 2024 (2) Despite the social worker expressing concern about the lack of falls prevention equipment on 27 September 2024, no falls equipment was put in place prior to the Deceased's fall on 4 October 2024. (3) Information about the Community Falls Service recommendations was not passed on to the family, or to social services. (4) On 5 August 2024 (following a fall, but before the more significant fall on 4 October 2024), the Deceased's family were told by the Deputy Manager of Howlish Hall that the owner of Howlish Hall "probably wouldn't want to pay for a sensor mat". (5) I received evidence that, subsequent to the Deceased's death, there had been a reluctance on the part of [REDACTED] (who was believed to be the owner of Howlish Hall Care Home) to provide adequate resources for falls prevention equipment. (6) Despite it being recognised that the Deceased lacked mental capacity to make decisions about where she lived and was unable to keep herself safe, it appears that the home did not make any application for a DoLS assessment for the Deceased.</span> Indeed I received evidence that when a new home manager was appointed at Howlish Hall in January 2025 none of the residents were subject to a DoLS, despite a large number of the residents lacking mental capacity. 6 ACTION SHOULD BE TAKEN In my opinion action should be taken to prevent future deaths and I believe you [AND/OR your organisation] have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 5 September 2025. I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action. Otherwise you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the Chief Coroner and to the following Interested Persons, [REDACTED] and [REDACTED]. I am also under a duty to send the Chief Coroner a copy of your response. The Chief Coroner may publish either or both in a complete or redacted or summary form. He may send a copy of this report to any person who he believes may find it useful or of interest. <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 Rebecca Sutton HMAC County Durham and Darlington 10.07.25</span>
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care</td>
+                        <td>Date of report: 10/07/2025
+Ref: 2025-0354
+Deceased name: Patricia Heaviside
+Coroners name: Rebecca Sutton
+Coroners Area: County Durham and Darlington
+Category: Care Home Health related deaths
+This report is being sent to: Williams and Spenceley Limited | Howlish Hall Care Home | CQC | Durham County Council
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: 1. [REDACTED], as Sole Director and 75%+ shareholder of Williams and Spenceley Ltd (the company that owns Howlish Hall Care Home), 29 Finkle Street, Bishop Auckland, DL14 7PL 2.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care</td>
+                        <td>Manager of Howlish Hall Care Home ([REDACTED]). 3.CQC 4.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - Team culture factor (e.g., patient safety culture)</td>
+                        <td style="background-color: #E8EAF6;">#E8EAF6</td>
+                        <td>team</td>
+                        <td>Head of the AHS Practice Improvement Team, Durham County Council 1 CORONER I am Rebecca Sutton, assistant coroner, for the coroner area of County Durham and Darlington. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and Regulations 28 and 29 of the Coroners (Investigations) Regulations 2013. [HYPERLINKS] 3 INVESTIGATION and INQUEST On 30 December 2024 an investigation was commenced into the death of Patricia Heaviside, 85.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care</td>
+                        <td>The conclusion of the inquest was that the Deceased died on 26 December 2024 as a consequence of a fall that occurred on 4 October 2024 at Howlish Hall Care Home. 4 CIRCUMSTANCES OF THE DEATH The Deceased had been a resident of Howlish Hall Care Home since February 2023.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>During her time at Howlish Hall the Deceased suffered a number of falls.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns</td>
+                        <td>Following the family reporting concerns to social services, a social worker attended at the home on 27 September 2024.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - Communication factor - Between staff</td>
+                        <td style="background-color: #FFFACD;">#FFFACD</td>
+                        <td>staff</td>
+                        <td>The home staff assured the social worker that they had a sensor mat that they would place next to the Deceased's bed, but this was not done.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns + care + care + care</td>
+                        <td>Due to ongoing family concerns the Deceased was moved to a different care home on 3 December 2024.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns</td>
+                        <td>Her condition deteriorated and she died as a consequence of the hip fracture on 26 December 2024. 5 CORONER'S CONCERNS During the course of the inquest the evidence revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Jobs/Task - Risk assessment</td>
+                        <td style="background-color: #E8F5E9;">#E8F5E9</td>
+                        <td>risk</td>
+                        <td>In my opinion there is a risk that future deaths could occur unless action is taken.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Facility and Equipment Issues + House of Commons_Consent/agency + House of Commons_Fragmented care + House of Commons_Guidance gaps + House of Commons_Inadequate maternity care + I-SIRch_Internal - Time of day (e.g., night working or day of the week) + I-SIRch_Jobs/Task - Care planning + I-SIRch_Jobs/Task - Risk assessment + Yorkshire Contributory_External Factors- Design of Equipment Supplies and Drugs</td>
+                        <td style="background-color: #E8F5E9;">#E8F5E9</td>
+                        <td>equipment + decisions + care + information + care + time + care + assessment + equipment</td>
+                        <td>The MATTERS OF CONCERN are as follows. - [BRIEF SUMMARY OF MATTERS OF CONCERN] (1) Despite recommendations for falls prevention equipment being made by the Community Falls Service in August 2023, no falls prevention equipment was put in place by the time of the Deceased's fall in October 2024 (2) Despite the social worker expressing concern about the lack of falls prevention equipment on 27 September 2024, no falls equipment was put in place prior to the Deceased's fall on 4 October 2024. (3) Information about the Community Falls Service recommendations was not passed on to the family, or to social services. (4) On 5 August 2024 (following a fall, but before the more significant fall on 4 October 2024), the Deceased's family were told by the Deputy Manager of Howlish Hall that the owner of Howlish Hall "probably wouldn't want to pay for a sensor mat". (5) I received evidence that, subsequent to the Deceased's death, there had been a reluctance on the part of [REDACTED] (who was believed to be the owner of Howlish Hall Care Home) to provide adequate resources for falls prevention equipment. (6) Despite it being recognised that the Deceased lacked mental capacity to make decisions about where she lived and was unable to keep herself safe, it appears that the home did not make any application for a DoLS assessment for the Deceased.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 Rebecca Sutton HMAC County Durham and Darlington 10.07.25</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+                    <div class="record-container">
+                        <h2>Document: Alfie-Lydon-Prevention-of-Future-Deaths-Report-2025-0358</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #F3E5F5;">
+                                    <td>House of Commons</td>
+                                    <td>Inadequate maternity care</td>
+                                    <td>High</td>
+                                    <td>0.859</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#F3E5F5;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFECB3;">
+                                    <td>House of Commons</td>
+                                    <td>Fragmented care</td>
+                                    <td>High</td>
+                                    <td>0.855</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFECB3;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFD580;">
+                                    <td>House of Commons</td>
+                                    <td>Communication</td>
+                                    <td>High</td>
+                                    <td>0.852</td>
+                                    <td>concerns</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFD580;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #b6d2e1;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Team culture factor (e.g., patient safety culture)</td>
+                                    <td>High</td>
+                                    <td>0.89</td>
+                                    <td>team</td>
+                                    <td><div class="theme-color-box" style="background-color:#b6d2e1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF3CD;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - National and/or local guidance</td>
+                                    <td>High</td>
+                                    <td>0.878</td>
+                                    <td>local, national</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF3CD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e3c6d2;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Care planning</td>
+                                    <td>High</td>
+                                    <td>0.873</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#e3c6d2;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F8D7DA;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Documentation</td>
+                                    <td>High</td>
+                                    <td>0.87</td>
+                                    <td>documentation</td>
+                                    <td><div class="theme-color-box" style="background-color:#F8D7DA;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFFACD;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Communication factor - Between staff</td>
+                                    <td>High</td>
+                                    <td>0.865</td>
+                                    <td>between</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFFACD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #eaeee3;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Situational- Individual Staff Factors </td>
+                                    <td>High</td>
+                                    <td>0.851</td>
+                                    <td>unwell</td>
+                                    <td><div class="theme-color-box" style="background-color:#eaeee3;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: care + care + care">Date of report: 15/07/2025
+Ref: 2025-0358
+Deceased name: Alfie Lydon
+Coroners name: R Brittain
+Coroners Area: Inner London North
+Category: Child Death (from 2015) | Community health care and emergency services related deaths
+This report is being sent to: NHS England | Royal College of Paediatrics and Child Health
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: [REDACTED], Chief Midwifery Officer, NHS England via [REDACTED]; [REDACTED], President, Royal College of Paediatrics and Child Health via [REDACTED] 1 CORONER I am R Brittain, Assistant Coroner for Inner London North. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and regulations 28 and 29 of the Coroners (Investigations) Regulations 2013. 3 INVESTIGATIONS and INQUESTS An investigation into the death of Alfie Lydon (date of birth 28/2/24) was opened on 26/3/24, following his death on 12/3/24.</span> An inquest was opened on 18/4/24 and concluded on 27/6/25. <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_Situational- Individual Staff Factors 
+Keywords: unwell">The conclusion reached was that Alfie died from natural causes. 4 CIRCUMSTANCES OF THE DEATH Alfie was admitted to hospital on 6/3/24 after being found profoundly unwell at home.</span> <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: care + care + care">He was subsequently transferred to another hospital for intensive care support but sadly died on 12/3/24 from a then unknown cause.</span> A post mortem examination demonstrated that he died from the consequences of a viral infection. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication + I-SIRch_Organisation - Team culture factor (e.g., patient safety culture)
+Keywords: concerns + team">Prior to his admission to hospital, concerns had been raised by Alfie's parents to the community midwife team regarding the adequacy of his feeding and increasing lethargy.</span> <span style="background-color:#FFF3CD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - National and/or local guidance + I-SIRch_Organisation - Team culture factor (e.g., patient safety culture)
+Keywords: local + team">On two occasions midwives discussed Alfie with the neonatal team at the local hospital but admission was not felt to be necessary.</span> These discussions were not documented by the hospital doctors who took the calls and, on one occasion, not documented by the midwife who made the call. As such, it was difficult to identify who provided advice to the midwives and the rationale for the decision-making process. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication
+Keywords: concerns">Ultimately, given the overwhelming nature of the infection Alfie suffered from, I concluded that it was not likely earlier admission would have prevented his death. 5 CORONER'S CONCERNS During the course of this inquest the evidence revealed matters giving rise to concern.</span> In my opinion there is a risk that future deaths will occur unless action is taken. In the circumstances it is my statutory duty to report to you. The MATTERS OF CONCERN following the inquest into Alfie's death were as follows: 1. I heard evidence that the vast majority of hospital Trusts do not have processes in place to document external calls from midwives to hospital teams. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: concerns + care + care + care">Concerns were raised that this can result in a lack of continuity and escalation of care, particularly with regards to parental concerns.</span> The hospital Trust involved has taken steps to document such calls now but this is undertaken on paper, which is subsequently uploaded to the hospital records. They plan to implement an electronic solution but not for some time. <span style="background-color:#FFFACD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - Communication factor - Between staff + I-SIRch_Organisation - Documentation
+Keywords: between + documentation">There is a concern that a lack of contemporaneous, accurate and immediately available documentation of discussions between community and hospital teams could result in deaths in future similar circumstances.</span> <span style="background-color:#FFF3CD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - National and/or local guidance
+Keywords: national, local">Given that this is not simply a local issue, this concern warrants raising at a national level. 6 ACTION COULD BE TAKEN In my opinion action could be taken to prevent future deaths and I believe that the addressees have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 9 September 2025.</span> I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action. <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: care + care + care">Otherwise you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the Chief Coroner, the Lydon family, the hospital Trusts, the Department of Health and Social Care and the CQC.</span> I am also under a duty to send the Chief Coroner a copy of your response. The Chief Coroner may publish either or both in a complete or redacted or summary form. She may send a copy of this report to any person who she believes may find it useful or of interest. You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 15 July 2025 Assistant Coroner R Brittain
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care</td>
+                        <td>Date of report: 15/07/2025
+Ref: 2025-0358
+Deceased name: Alfie Lydon
+Coroners name: R Brittain
+Coroners Area: Inner London North
+Category: Child Death (from 2015) | Community health care and emergency services related deaths
+This report is being sent to: NHS England | Royal College of Paediatrics and Child Health
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: [REDACTED], Chief Midwifery Officer, NHS England via [REDACTED]; [REDACTED], President, Royal College of Paediatrics and Child Health via [REDACTED] 1 CORONER I am R Brittain, Assistant Coroner for Inner London North. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and regulations 28 and 29 of the Coroners (Investigations) Regulations 2013. 3 INVESTIGATIONS and INQUESTS An investigation into the death of Alfie Lydon (date of birth 28/2/24) was opened on 26/3/24, following his death on 12/3/24.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>Situational- Individual Staff Factors </td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>unwell</td>
+                        <td>The conclusion reached was that Alfie died from natural causes. 4 CIRCUMSTANCES OF THE DEATH Alfie was admitted to hospital on 6/3/24 after being found profoundly unwell at home.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care</td>
+                        <td>He was subsequently transferred to another hospital for intensive care support but sadly died on 12/3/24 from a then unknown cause.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication + I-SIRch_Organisation - Team culture factor (e.g., patient safety culture)</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns + team</td>
+                        <td>Prior to his admission to hospital, concerns had been raised by Alfie's parents to the community midwife team regarding the adequacy of his feeding and increasing lethargy.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - National and/or local guidance + I-SIRch_Organisation - Team culture factor (e.g., patient safety culture)</td>
+                        <td style="background-color: #FFF3CD;">#FFF3CD</td>
+                        <td>local + team</td>
+                        <td>On two occasions midwives discussed Alfie with the neonatal team at the local hospital but admission was not felt to be necessary.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns</td>
+                        <td>Ultimately, given the overwhelming nature of the infection Alfie suffered from, I concluded that it was not likely earlier admission would have prevented his death. 5 CORONER'S CONCERNS During the course of this inquest the evidence revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns + care + care + care</td>
+                        <td>Concerns were raised that this can result in a lack of continuity and escalation of care, particularly with regards to parental concerns.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - Communication factor - Between staff + I-SIRch_Organisation - Documentation</td>
+                        <td style="background-color: #FFFACD;">#FFFACD</td>
+                        <td>between + documentation</td>
+                        <td>There is a concern that a lack of contemporaneous, accurate and immediately available documentation of discussions between community and hospital teams could result in deaths in future similar circumstances.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - National and/or local guidance</td>
+                        <td style="background-color: #FFF3CD;">#FFF3CD</td>
+                        <td>national, local</td>
+                        <td>Given that this is not simply a local issue, this concern warrants raising at a national level. 6 ACTION COULD BE TAKEN In my opinion action could be taken to prevent future deaths and I believe that the addressees have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 9 September 2025.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care</td>
+                        <td>Otherwise you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the Chief Coroner, the Lydon family, the hospital Trusts, the Department of Health and Social Care and the CQC.</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+                    <div class="record-container">
+                        <h2>Document: Doreen-Swann-Prevention-of-Future-Deaths-Report-2025-0359</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #ead8d9;">
+                                    <td>Extended Analysis</td>
+                                    <td>Resource allocation</td>
+                                    <td>High</td>
+                                    <td>0.832</td>
+                                    <td>resource</td>
+                                    <td><div class="theme-color-box" style="background-color:#ead8d9;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFD580;">
+                                    <td>House of Commons</td>
+                                    <td>Communication</td>
+                                    <td>High</td>
+                                    <td>0.836</td>
+                                    <td>concerns</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFD580;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFECB3;">
+                                    <td>House of Commons</td>
+                                    <td>Fragmented care</td>
+                                    <td>High</td>
+                                    <td>0.836</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFECB3;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F3E5F5;">
+                                    <td>House of Commons</td>
+                                    <td>Inadequate maternity care</td>
+                                    <td>High</td>
+                                    <td>0.833</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#F3E5F5;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #ebdfc2;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                                    <td>High</td>
+                                    <td>0.87</td>
+                                    <td>time</td>
+                                    <td><div class="theme-color-box" style="background-color:#ebdfc2;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e3c6d2;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Care planning</td>
+                                    <td>High</td>
+                                    <td>0.87</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#e3c6d2;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F1F8E9;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Availability (e.g., operating theatres)</td>
+                                    <td>High</td>
+                                    <td>0.864</td>
+                                    <td>availability</td>
+                                    <td><div class="theme-color-box" style="background-color:#F1F8E9;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #D1E7DD;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Communication factor - Between staff and patient (verbal)</td>
+                                    <td>High</td>
+                                    <td>0.83</td>
+                                    <td>patient</td>
+                                    <td><div class="theme-color-box" style="background-color:#D1E7DD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #f0cdd6;">
+                                    <td>I-SIRch</td>
+                                    <td>Person - Patient (characteristics and performance)</td>
+                                    <td>High</td>
+                                    <td>0.823</td>
+                                    <td>patient</td>
+                                    <td><div class="theme-color-box" style="background-color:#f0cdd6;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #c7b5c1;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Situational- Patient Factors</td>
+                                    <td>High</td>
+                                    <td>0.862</td>
+                                    <td>dementia</td>
+                                    <td><div class="theme-color-box" style="background-color:#c7b5c1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FCE4EC;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Organisational Factors- Support from other departments</td>
+                                    <td>High</td>
+                                    <td>0.848</td>
+                                    <td>medical</td>
+                                    <td><div class="theme-color-box" style="background-color:#FCE4EC;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning + Yorkshire Contributory_Organisational Factors- Support from other departments
+Keywords: care + care + care + medical">Date of report: 10/07/2025
+Ref: 2025-0359
+Deceased name: Doreen Swann
+Coroners name: Alison Mutch
+Coroners Area: Manchester South
+Category: Hospital Death (Clinical Procedures and medical management) related deaths
+This report is being sent to: The Department of Health and Social Care | Greater Manchester Integrated Care
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: 1) The Department of Health and Social Care 2) Greater Manchester Integrated Care 1 CORONER I am Alison Mutch, senior coroner, for the coroner area of South Manchester 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and regulations 28 and 29 of the Coroners (Investigations) Regulations 2013 3 INVESTIGATION and INQUEST On 16th January 2025 I commenced an investigation into the death of Doreen Swann.</span> The investigation concluded on the 5 th June 2025 and the conclusion was one of Narrative: Died from the complications of a fall when not being cared for in compliance with her risk assessment . <span style="background-color:#D1E7DD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - Communication factor - Between staff and patient (verbal) + I-SIRch_Person - Patient (characteristics and performance) + Yorkshire Contributory_Organisational Factors- Support from other departments + Yorkshire Contributory_Situational- Patient Factors
+Keywords: patient + patient + medical + dementia">The medical cause of death was 1a) Traumatic brain injury 1b) Fall II) Advanced dementia, frailty, E. coli septicaemia, bronchopneumonia. 4 CIRCUMSTANCES OF THE DEATH Doreen Swann was a patient at Tameside General Hospital who had been medically optimised and was awaiting discharged when she developed a further infection.</span> She was a high falls risk. She fell whilst unobserved and when the bed rails were up when they should not have been. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication
+Keywords: concerns">She suffered a traumatic brain injury and died at Tameside General Hospital on 13th January 2025. 5 CORONER'S CONCERNS During the course of the inquest the evidence revealed matters giving rise to concern.</span> In my opinion there is a risk that future deaths will occur unless action is taken. In the circumstances it is my statutory duty to report to you. <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: care + care + care">The MATTERS OF CONCERN are as follows. - The inquest heard evidence that Doreen Swann was only in hospital at the point of her fall because her discharge had been delayed due to a shortage of a suitable social care placement.</span> <span style="background-color:#E1F5FE; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Resource allocation
+Keywords: resource">The evidence was that nursing/caring for high falls risk patients in an acute setting is challenging and resource intensive.</span> <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: care + care + care">The evidence given to the inquest was that this delayed discharge and the ongoing risk it presents was not an isolated incident at TGH -as an example the evidence given was that there were regularly 30 plus patients with a delayed discharge over 3 weeks due to a lack of social care beds .The evidence indicated that this challenge was not unique to Tameside.</span> The evidence indicated that managing a falls risk and the consequential risk to life is better managed outside an acute setting once the clinical need for a hospital stay has passed. <span style="background-color:#F1F8E9; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Availability (e.g., operating theatres)
+Keywords: availability">Delayed discharges such as Doreen Swann's reduces the availability of beds for other patients and creates a knock-on impact across the hospital particularly in relation to the Emergency Department. 6 ACTION SHOULD BE TAKEN In my opinion action should be taken to prevent future deaths and I believe you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 4 th September 2025 .</span> I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action. Otherwise, you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the Chief Coroner and to the following Interested Persons namely the family and Tameside General Hospital,who may find it useful or of interest. I am also under a duty to send the Chief Coroner a copy of your response. The Chief Coroner may publish either or both in a complete or redacted or summary form. He may send a copy of this report to any person who he believes may find it useful or of interest. <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 Alison Mutch HMC Senior Coroner 10/07/2025</span>
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning + Yorkshire Contributory_Organisational Factors- Support from other departments</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care + medical</td>
+                        <td>Date of report: 10/07/2025
+Ref: 2025-0359
+Deceased name: Doreen Swann
+Coroners name: Alison Mutch
+Coroners Area: Manchester South
+Category: Hospital Death (Clinical Procedures and medical management) related deaths
+This report is being sent to: The Department of Health and Social Care | Greater Manchester Integrated Care
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: 1) The Department of Health and Social Care 2) Greater Manchester Integrated Care 1 CORONER I am Alison Mutch, senior coroner, for the coroner area of South Manchester 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and regulations 28 and 29 of the Coroners (Investigations) Regulations 2013 3 INVESTIGATION and INQUEST On 16th January 2025 I commenced an investigation into the death of Doreen Swann.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - Communication factor - Between staff and patient (verbal) + I-SIRch_Person - Patient (characteristics and performance) + Yorkshire Contributory_Organisational Factors- Support from other departments + Yorkshire Contributory_Situational- Patient Factors</td>
+                        <td style="background-color: #D1E7DD;">#D1E7DD</td>
+                        <td>patient + patient + medical + dementia</td>
+                        <td>The medical cause of death was 1a) Traumatic brain injury 1b) Fall II) Advanced dementia, frailty, E. coli septicaemia, bronchopneumonia. 4 CIRCUMSTANCES OF THE DEATH Doreen Swann was a patient at Tameside General Hospital who had been medically optimised and was awaiting discharged when she developed a further infection.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns</td>
+                        <td>She suffered a traumatic brain injury and died at Tameside General Hospital on 13th January 2025. 5 CORONER'S CONCERNS During the course of the inquest the evidence revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care</td>
+                        <td>The MATTERS OF CONCERN are as follows. - The inquest heard evidence that Doreen Swann was only in hospital at the point of her fall because her discharge had been delayed due to a shortage of a suitable social care placement.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Resource allocation</td>
+                        <td style="background-color: #E1F5FE;">#E1F5FE</td>
+                        <td>resource</td>
+                        <td>The evidence was that nursing/caring for high falls risk patients in an acute setting is challenging and resource intensive.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care</td>
+                        <td>The evidence given to the inquest was that this delayed discharge and the ongoing risk it presents was not an isolated incident at TGH -as an example the evidence given was that there were regularly 30 plus patients with a delayed discharge over 3 weeks due to a lack of social care beds .The evidence indicated that this challenge was not unique to Tameside.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Availability (e.g., operating theatres)</td>
+                        <td style="background-color: #F1F8E9;">#F1F8E9</td>
+                        <td>availability</td>
+                        <td>Delayed discharges such as Doreen Swann's reduces the availability of beds for other patients and creates a knock-on impact across the hospital particularly in relation to the Emergency Department. 6 ACTION SHOULD BE TAKEN In my opinion action should be taken to prevent future deaths and I believe you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 4 th September 2025 .</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 Alison Mutch HMC Senior Coroner 10/07/2025</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+                    <div class="record-container">
+                        <h2>Document: Leonard-Moaven-Prevention-of-Future-Deaths-Report-2025-0360</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #E8EAF6;">
+                                    <td>House of Commons</td>
+                                    <td>Dignity/respect</td>
+                                    <td>High</td>
+                                    <td>0.841</td>
+                                    <td>respect</td>
+                                    <td><div class="theme-color-box" style="background-color:#E8EAF6;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFD580;">
+                                    <td>House of Commons</td>
+                                    <td>Communication</td>
+                                    <td>High</td>
+                                    <td>0.828</td>
+                                    <td>concerns</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFD580;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #ebdfc2;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                                    <td>High</td>
+                                    <td>0.887</td>
+                                    <td>time</td>
+                                    <td><div class="theme-color-box" style="background-color:#ebdfc2;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #b9ead9;">
+                                    <td>I-SIRch</td>
+                                    <td>Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)</td>
+                                    <td>High</td>
+                                    <td>0.865</td>
+                                    <td>attendance</td>
+                                    <td><div class="theme-color-box" style="background-color:#b9ead9;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E8F5E9;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Risk assessment</td>
+                                    <td>High</td>
+                                    <td>0.813</td>
+                                    <td>risk</td>
+                                    <td><div class="theme-color-box" style="background-color:#E8F5E9;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #c1d2c3;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Situational- Team Factors</td>
+                                    <td>High</td>
+                                    <td>0.86</td>
+                                    <td>respect</td>
+                                    <td><div class="theme-color-box" style="background-color:#c1d2c3;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        Date of report: 18/01/2024
+Ref: 2025-0360
+Deceased name: Leonard Moaven
+Coroners name: Mary Hassell
+Coroners Area: Inner North London
+Category: Suicide (from 2015) | Emergency services related deaths (2019 onwards)
+This report is being sent to: London Fire Brigade
+Regulation 28: Prevention of Future Deaths report THIS REPORT IS BEING SENT TO: 1. [REDACTED], Commissioner London Fire Brigade 169 Union Street London SE1 0LL 1 CORONER I am: Coroner ME Hassell Senior Coroner Inner North London St Pancras Coroner's Court Camley Street London N1C 4PP 2 CORONER'S LEGAL POWERS I make this report under the Coroners and Justice Act 2009, paragraph 7, Schedule 5, and The Coroners (Investigations) Regulations 2013, regulations 28 and 29. 3 INVESTIGATION and INQUEST On 8 August 2023, I commenced an investigation into the death of Leonard Moaven, aged 61 years. The investigation concluded at the end of the inquest on 15 January 2024. I made a determination at inquest of death by suicide. Dr Moaven jumped from the roof of his block of flats at 5.33pm on 26 July 2023. He had got onto the roof by using a ladder to reach his attic and, when he got there, punching a hole through the roof tiles. 4 CIRCUMSTANCES OF THE DEATH Before he jumped off the roof, Dr Moaven called the Metropolitan Police Service (MPS), who in turn called the London Fire Brigade (LFB). When police officers tried to negotiate with him, Dr Moaven appeared receptive to the idea of coming down off the roof safely. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication
+Keywords: concerns">Police officers were reluctant to suggest that he return the way he had come, as by now it was raining and they were concerned that he would slip, and so he waited on the roof for firefighters to escort him. 5 CORONER'S CONCERNS During the course of the inquest, the evidence revealed matters giving rise to concern.</span> <span style="background-color:#E8F5E9; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Jobs/Task - Risk assessment
+Keywords: risk">In my opinion, there is a risk that future deaths will occur unless action is taken.</span> In the circumstances, it is my statutory duty to report to you. The MATTERS OF CONCERN are as follows. 1. Dr Moaven rang police at 4.33pm, exactly one hour before he actually jumped off the roof. Police attended immediately and sought firefighter assistance immediately. <span style="background-color:#F8D7DA; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)
+Keywords: attendance">However, they reported to me at inquest that there was some delay in the attendance of LFB. 2.</span> <span style="background-color:#F8D7DA; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)
+Keywords: attendance">Upon attendance, firefighters recognised that their ladders would not reach the roof of the flats and so called for an extended height ladder appliance.</span> This had to travel from further afield and Dr Moaven became more agitated during the wait. It had not arrived at 5.33pm when he jumped. <span style="background-color:#E8EAF6; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Dignity/respect + Yorkshire Contributory_Situational- Team Factors
+Keywords: respect + respect">The police were especially concerned that the extended height ladder appliance had not been requested from the outset, given that the call was in respect of a person on the roof of a block of flats.</span> I did not take evidence from any firefighters at inquest, and so I appreciate that there may be elements of which I am unaware. 6 ACTION SHOULD BE TAKEN In my opinion, action should be taken to prevent future deaths and I believe that you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 18 March 2024. I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action. Otherwise you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the following. 1. [REDACTED], wife of Leonard Moaven 2. [REDACTED], sister of Leonard Moaven 3. HHJ Thomas Teague QC, the Chief Coroner of England & Wales I am also under a duty to send a copy of your response to the Chief Coroner and all interested persons who in my opinion should receive it. I may also send a copy of your response to any other person who I believe may find it useful or of interest. The Chief Coroner may publish either or both in a complete or redacted or summary form. He may send a copy of this report to any person who he believes may find it useful or of interest. <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response. 9 DATE 18.01.24 SIGNED BY SENIOR CORONER ME Hassell</span>
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns</td>
+                        <td>Police officers were reluctant to suggest that he return the way he had come, as by now it was raining and they were concerned that he would slip, and so he waited on the roof for firefighters to escort him. 5 CORONER'S CONCERNS During the course of the inquest, the evidence revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Jobs/Task - Risk assessment</td>
+                        <td style="background-color: #E8F5E9;">#E8F5E9</td>
+                        <td>risk</td>
+                        <td>In my opinion, there is a risk that future deaths will occur unless action is taken.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)</td>
+                        <td style="background-color: #F8D7DA;">#F8D7DA</td>
+                        <td>attendance</td>
+                        <td>However, they reported to me at inquest that there was some delay in the attendance of LFB. 2.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)</td>
+                        <td style="background-color: #F8D7DA;">#F8D7DA</td>
+                        <td>attendance</td>
+                        <td>Upon attendance, firefighters recognised that their ladders would not reach the roof of the flats and so called for an extended height ladder appliance.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Dignity/respect + Yorkshire Contributory_Situational- Team Factors</td>
+                        <td style="background-color: #E8EAF6;">#E8EAF6</td>
+                        <td>respect + respect</td>
+                        <td>The police were especially concerned that the extended height ladder appliance had not been requested from the outset, given that the call was in respect of a person on the roof of a block of flats.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response. 9 DATE 18.01.24 SIGNED BY SENIOR CORONER ME Hassell</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+                    <div class="record-container">
+                        <h2>Document: Samuel-Parkin-Prevention-of-Future-Deaths-Report-2025-0361</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #FCE4EC;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Organisational Factors- Support from other departments</td>
+                                    <td>High</td>
+                                    <td>0.887</td>
+                                    <td>medical</td>
+                                    <td><div class="theme-color-box" style="background-color:#FCE4EC;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FCE4EC; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_Organisational Factors- Support from other departments
+Keywords: medical">Date of report: 18/01/2024
+Ref: 2025-0361
+Deceased name: Samuel Parkin
+Coroners name: Ellie Oakley
+Coroners Area: Inner West London
+Category: Hospital Death (Clinical Procedures and medical management) related deaths | Child Death (from 2015)
+This report is being sent to: NHS England | St George's University Hospitals NHS Foundation Trust</span>
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>Organisational Factors- Support from other departments</td>
+                        <td style="background-color: #FCE4EC;">#FCE4EC</td>
+                        <td>medical</td>
+                        <td>Date of report: 18/01/2024
+Ref: 2025-0361
+Deceased name: Samuel Parkin
+Coroners name: Ellie Oakley
+Coroners Area: Inner West London
+Category: Hospital Death (Clinical Procedures and medical management) related deaths | Child Death (from 2015)
+This report is being sent to: NHS England | St George's University Hospitals NHS Foundation Trust</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+            </body>
+            </html>
+            

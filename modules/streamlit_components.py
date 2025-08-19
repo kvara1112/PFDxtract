@@ -492,14 +492,13 @@ def process_other(uploaded_file):
 
         return {
             "status": "success",
-            "data":{
-                "filename":uploaded_file.name,
-                "title": title,
-                "sender_address": sender_address,
-                "addressee": addressee,
-                "content": content
+            "filename":uploaded_file.name,
+            "title": title,
+            "sender_address": sender_address,
+            "addressee": addressee,
+            "content": content
             }
-        }
+        
     
     except Exception as e:
         return {
