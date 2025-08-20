@@ -553,7 +553,6 @@ def main():
             st.markdown(
                 """
                 <style>
-                /* Dark background overlay */
                 .popup-overlay {
                     position: fixed;
                     top: 0; left: 0;
@@ -561,21 +560,21 @@ def main():
                     background: rgba(0,0,0,0.6);
                     z-index: 1000;
                 }
-                /* Centered popup box */
-                .popup-box {
+                .popup-container {
                     position: fixed;
                     top: 50%; left: 50%;
                     transform: translate(-50%, -50%);
                     background: white;
-                    padding: 20px;
+                    padding: 2rem;
                     border-radius: 12px;
-                    width: 400px;
                     box-shadow: 0px 4px 15px rgba(0,0,0,0.3);
+                    width: 400px;
                     z-index: 1001;
                 }
                 </style>
                 <div class="popup-overlay"></div>
-                <div class="popup-box" id="popup-box"></div>
+                <div class="popup-container">
+                    <h3>📩 Contact Us</h3>
                 """,
                 unsafe_allow_html=True
             )
