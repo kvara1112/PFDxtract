@@ -549,53 +549,53 @@ def main():
                 st.session_state.show_contact = True
             st.caption("For general enquires and collaborations")
 
-            if st.session_state.show_contact:
-                st.markdown(
-                    """
-                    <style>
-                    /* Dark background overlay */
-                    .popup-overlay {
-                        position: fixed;
-                        top: 0; left: 0;
-                        width: 100%; height: 100%;
-                        background: rgba(0,0,0,0.6);
-                        z-index: 1000;
-                    }
-                    /* Centered popup box */
-                    .popup-box {
-                        position: fixed;
-                        top: 50%; left: 50%;
-                        transform: translate(-50%, -50%);
-                        background: white;
-                        padding: 20px;
-                        border-radius: 12px;
-                        width: 400px;
-                        box-shadow: 0px 4px 15px rgba(0,0,0,0.3);
-                        z-index: 1001;
-                    }
-                    </style>
-                    <div class="popup-overlay"></div>
-                    <div class="popup-box" id="popup-box"></div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                with st.container():
-                    st.markdown('<div class="popup-content">', unsafe_allow_html = True)
+        if st.session_state.show_contact:
+            st.markdown(
+                """
+                <style>
+                /* Dark background overlay */
+                .popup-overlay {
+                    position: fixed;
+                    top: 0; left: 0;
+                    width: 100%; height: 100%;
+                    background: rgba(0,0,0,0.6);
+                    z-index: 1000;
+                }
+                /* Centered popup box */
+                .popup-box {
+                    position: fixed;
+                    top: 50%; left: 50%;
+                    transform: translate(-50%, -50%);
+                    background: white;
+                    padding: 20px;
+                    border-radius: 12px;
+                    width: 400px;
+                    box-shadow: 0px 4px 15px rgba(0,0,0,0.3);
+                    z-index: 1001;
+                }
+                </style>
+                <div class="popup-overlay"></div>
+                <div class="popup-box" id="popup-box"></div>
+                """,
+                unsafe_allow_html=True
+            )
+            with st.container():
+                st.markdown('<div class="popup-content">', unsafe_allow_html = True)
 
-                    st.subheader("📩 Contact Us")
-                    name = st.text_input("Your Name", key="contact_name")
-                    email = st.text_input("Your Email", key="contact_email")
-                    message = st.text_area("Message", key="contact_message")
+                st.subheader("📩 Contact Us")
+                name = st.text_input("Your Name", key="contact_name")
+                email = st.text_input("Your Email", key="contact_email")
+                message = st.text_area("Message", key="contact_message")
 
-                    col1, col2 = st.columns(2)
+                col1, col2 = st.columns(2)
 
-                    with col1:
-                        if st.button("Send"):
-                            st.success("✅ Message sent!")
-                            st.session_state.show_contact = False
-                    with col2:
-                        if st.button("Close"):
-                            st.session_state.show_contact = False
+                with col1:
+                    if st.button("Send"):
+                        st.success("✅ Message sent!")
+                        st.session_state.show_contact = False
+                with col2:
+                    if st.button("Close"):
+                        st.session_state.show_contact = False
 
                     
             # Add logout button
