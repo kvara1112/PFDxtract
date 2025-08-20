@@ -553,26 +553,29 @@ def main():
                 st.markdown(
                     """
                     <style>
-                    .popup-background {
+                    /* Dark background overlay */
+                    .popup-overlay {
                         position: fixed;
                         top: 0; left: 0;
                         width: 100%; height: 100%;
                         background: rgba(0,0,0,0.6);
                         z-index: 1000;
                     }
-                    .popup-content {
+                    /* Centered popup box */
+                    .popup-box {
                         position: fixed;
                         top: 50%; left: 50%;
                         transform: translate(-50%, -50%);
                         background: white;
-                        padding: 2rem;
-                        border-radius: 10px;
+                        padding: 20px;
+                        border-radius: 12px;
                         width: 400px;
+                        box-shadow: 0px 4px 15px rgba(0,0,0,0.3);
                         z-index: 1001;
-                        box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
                     }
                     </style>
-                    <div class="popup-background"></div>
+                    <div class="popup-overlay"></div>
+                    <div class="popup-box" id="popup-box"></div>
                     """,
                     unsafe_allow_html=True
                 )
@@ -594,7 +597,7 @@ def main():
                         if st.button("Close"):
                             st.session_state.show_contact = False
 
-                    st.markdown('</div>', unsafe_allow_html=True)
+                    
             # Add logout button
             if st.button("Logout"):
                 st.session_state.authenticated = False
