@@ -9,6 +9,8 @@ import logging
 import time
 from datetime import datetime
 from streamlit_modal import Modal
+import csv
+import os
 # Configure Streamlit page
 st.set_page_config(
     page_title="UK Judiciary PFD Reports Analysis",
@@ -298,6 +300,14 @@ def main():
         This application analyses Prevention of Future Deaths (PFD) reports from the UK Judiciary website to uncover patterns, themes, and insights.
         """
     )
+    ## file for contact enquiries
+    csv_file = "submissions.csv"
+
+    if not os.path.exists(csv_file):
+        with open(csv_file, "w", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow(["Name", "Email", "Message"])
+
     # contact us modal
     modal = Modal("📩 Contact Us", key="contact_modal")
     
@@ -553,25 +563,14 @@ def main():
                 with modal.container():
                     st.caption("For general enquries and collaborations")
                     
-                    st.markdown(
-                        """
-                        <style>
-                        /* Target inputs and textareas inside modals */
-                        [data-baseweb="modal"] input,
-                        [data-baseweb="modal"] textarea {
-                            background-color: white !important;
-                            color: black !important;
-                        }
-                        </style>
-                        """,
-                        unsafe_allow_html=True
-                    )
-                    
                     name = st.text_input("Your Name")
                     email = st.text_input("Your Email")
                     message = st.text_area("Message")
 
                     if st.button("Send"):
+                        with open(csv_file, "a", newline = "", encoding="utf-8") as f:
+                            writer = csv.writer(f)
+                            writer.writerow([name, email, message])
                         st.success("✅ Message sent!")
                         modal.close()
             st.caption("For general enquires and collaborations")
