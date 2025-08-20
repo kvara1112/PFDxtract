@@ -439,7 +439,7 @@ def create_local_report(retry_info):
 
 def process_other(uploaded_file):
     """
-    Extract the subject, content and addressee of the paper
+    Extract the subject, content, date and addressee of the paper
     """
     try:
         text = ""
@@ -460,6 +460,27 @@ def process_other(uploaded_file):
                 title_idx = i
                 break
 
+        
+        # Date
+        date_patterns = [
+            r"Date:\s*(.*)",  
+            r"\b\d{1,2}\s+\w+\s+\d{4}\b",  
+            r"\b\w{3},\s+\d{1,2}\s+\w+\s+\d{4}\b",  
+            r"\b\d{1,2}(?:st|nd|rd|th)?\s+\w+\s+\d{4}\b",  
+            r"\b\w{3},\s+\d{1,2}(?:st|nd|rd|th)?\s+\w+\s+\d{4}\b",
+                ]
+        date_str= "" 
+        date_idx = None
+
+        for i, line in enumerate(lines[:40]):
+            for pattern in date_patterns:
+                match = re.search(pattern, line, re.IGNORECASE)
+                if match:
+                    date_str = match.group(1) if match.groups() else match.group(0)
+                    date_idx = i
+                    break
+            if date_str:
+                break
         # Addressee
         address_lines = []
         addressee = ""
@@ -515,6 +536,7 @@ def process_other(uploaded_file):
             "Status": "success",
             "Filename":uploaded_file.name,
             "Title": title,
+            "Date": date_str,
             "Sender Address": sender_address,
             "Addressee": addressee,
             "Content": content
