@@ -480,7 +480,12 @@ def process_other(uploaded_file):
                     date_idx = i
                     break
             if date_str:
+                date_clean = re.sub(r'(st|nd|rd|th)', '', date_str)
+                date_dt = datetime.strptime(date_clean, "%d %B %Y")
+                formatted_date = date_dt.strftime("%d/%m/%Y")
                 break
+
+        
         # Addressee
         address_lines = []
         addressee = ""
@@ -536,7 +541,7 @@ def process_other(uploaded_file):
             "Status": "success",
             "Filename":uploaded_file.name,
             "Title": title,
-            "date_of_report": date_str,
+            "date_of_report": formatted_date,
             "Sender Address": sender_address,
             "Addressee": addressee,
             "Content": content
