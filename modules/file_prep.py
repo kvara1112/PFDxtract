@@ -431,6 +431,8 @@ def show_export_options(df: pd.DataFrame, prefix: str):
                 # Create export copy with formatted dates
                 df_csv = df.copy()
                 if "date_of_report" in df_csv.columns:
+                    df['date_of_report'] = df['date_of_report'].str.replace(r'(st|nd|rd|th)', '', regex=True)  # remove ordinal suffixes
+                    df['date_of_report'] = pd.to_datetime(df['date_of_report'], errors='coerce')  # convert to datetime
                     df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
 
                 csv = df_csv.to_csv(index=False).encode('utf-8')
