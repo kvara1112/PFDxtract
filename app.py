@@ -8,7 +8,7 @@ import streamlit as st
 import logging
 import time
 from datetime import datetime
-
+from streamlit_modal import Modal
 # Configure Streamlit page
 st.set_page_config(
     page_title="UK Judiciary PFD Reports Analysis",
@@ -288,8 +288,7 @@ def main():
         # Render the footer even when not authenticated
         render_footer()
         return
-    if "show_contact" not in st.session_state:
-        st.session_state.show_contact = False
+    
     # Only show the main app content if authenticated
     st.title("UK Judiciary PFD Reports Analysis")
     
@@ -299,7 +298,8 @@ def main():
         This application analyses Prevention of Future Deaths (PFD) reports from the UK Judiciary website to uncover patterns, themes, and insights.
         """
     )
-    
+    # contact us modal
+    modal = Modal("📩 Contact Us", key="contact_modal")
     # Add collapsible help section
     with st.expander("💡 How to Use This Tool"):
         pdf_url = "https://raw.githubusercontent.com/gcosma/PFDxtract/main/Usability%20Guide%20PFDxtract.pdf"
@@ -546,54 +546,17 @@ def main():
             
             st.header("Find out more" )
             if st.button("Contact us"):
-                st.session_state.show_contact = True
+                modal.open()
+            if modal.is_open():
+                with modal.container():
+                    name = st.text_input("Your Name")
+                    email = st.text_input("Your Email")
+                    message = st.text_area("Message")
+
+                    if st.button("Send"):
+                        st.success("✅ Message sent!")
+                        modal.close()
             st.caption("For general enquires and collaborations")
-
-        if st.session_state.show_contact:
-            st.markdown(
-                """
-                <style>
-                .popup-overlay {
-                    position: fixed;
-                    top: 0; left: 0;
-                    width: 100%; height: 100%;
-                    background: rgba(0,0,0,0.6);
-                    z-index: 1000;
-                }
-                .popup-container {
-                    position: fixed;
-                    top: 50%; left: 50%;
-                    transform: translate(-50%, -50%);
-                    background: white;
-                    padding: 2rem;
-                    border-radius: 12px;
-                    box-shadow: 0px 4px 15px rgba(0,0,0,0.3);
-                    width: 400px;
-                    z-index: 1001;
-                }
-                </style>
-                <div class="popup-overlay"></div>
-                <div class="popup-container">
-                    <h3>📩 Contact Us</h3>
-                """,
-                unsafe_allow_html=True
-            )
-                
-            name = st.text_input("Your Name", key="contact_name")
-            email = st.text_input("Your Email", key="contact_email")
-            message = st.text_area("Message", key="contact_message")
-
-            col1, col2 = st.columns(2)
-
-            with col1:
-                if st.button("Send"):
-                    st.success("✅ Message sent!")
-                    st.session_state.show_contact = False
-            with col2:
-                if st.button("Close"):
-                    st.session_state.show_contact = False
-                    
-            st.markdown("</div>", unsafe_allow_html=True)
                     
             # Add logout button
             if st.button("Logout"):
