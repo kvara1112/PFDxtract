@@ -310,8 +310,9 @@ def main():
             writer.writerow(["Name", "Email", "Message"])
 
     # contact us modal
-    modal = Modal("📩 Contact Us", key="contact_modal")
-    developer_modal = Modal("Enquiries", key="enquries_modal")
+    modal = Modal("📩 Contact Us", key="contact_modal", max_width=800)
+    
+    developer_modal = Modal("Enquiries", key="enquries_modal", max_width=800)
 
     # Add collapsible help section
     with st.expander("💡 How to Use This Tool"):
