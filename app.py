@@ -300,6 +300,19 @@ def main():
     )
     # contact us modal
     modal = Modal("📩 Contact Us", key="contact_modal")
+    st.markdown(
+        """
+        <style>
+        .stTextInput>div>div>input,
+        .stTextArea>div>div>textarea {
+            border-color: white !important;
+            color: black !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
     # Add collapsible help section
     with st.expander("💡 How to Use This Tool"):
         pdf_url = "https://raw.githubusercontent.com/gcosma/PFDxtract/main/Usability%20Guide%20PFDxtract.pdf"
@@ -549,6 +562,7 @@ def main():
                 modal.open()
             if modal.is_open():
                 with modal.container():
+                    st.caption("For general enquries and collaborations")
                     name = st.text_input("Your Name")
                     email = st.text_input("Your Email")
                     message = st.text_area("Message")
