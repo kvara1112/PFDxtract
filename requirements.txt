@@ -54,3 +54,4 @@ matplotlib>=3.8.0
 pyvis>=0.3.2
 webdriver-manager>=4.0.2
 pymupdf>=1.26.3
+streamlit-modal>=1.16.0
