@@ -536,7 +536,7 @@ def process_other(uploaded_file):
             "Status": "success",
             "Filename":uploaded_file.name,
             "Title": title,
-            "Date": date_str,
+            "date_of_report": date_str,
             "Sender Address": sender_address,
             "Addressee": addressee,
             "Content": content
