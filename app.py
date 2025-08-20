@@ -542,10 +542,11 @@ def main():
                 st.rerun()
 
     
+            
+            st.header("Contact" )
             if st.button("Contact us"):
                 pass
-            st.header("General enquires and Collaborations" )
-
+            st.info("For general enquires and collaborations")
             # Add logout button
             if st.button("Logout"):
                 st.session_state.authenticated = False
