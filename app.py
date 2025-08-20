@@ -300,18 +300,7 @@ def main():
     )
     # contact us modal
     modal = Modal("📩 Contact Us", key="contact_modal")
-    st.markdown(
-        """
-        <style>
-        .stTextInput>div>div>input,
-        .stTextArea>div>div>textarea {
-            border-color: white !important;
-            color: black !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True
-    )
+    
 
     # Add collapsible help section
     with st.expander("💡 How to Use This Tool"):
@@ -563,6 +552,21 @@ def main():
             if modal.is_open():
                 with modal.container():
                     st.caption("For general enquries and collaborations")
+                    
+                    st.markdown(
+                        """
+                        <style>
+                        /* Target inputs and textareas inside modals */
+                        [data-baseweb="modal"] input,
+                        [data-baseweb="modal"] textarea {
+                            background-color: white !important;
+                            color: black !important;
+                        }
+                        </style>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    
                     name = st.text_input("Your Name")
                     email = st.text_input("Your Email")
                     message = st.text_area("Message")
