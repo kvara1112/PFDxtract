@@ -543,10 +543,10 @@ def main():
 
     
             
-            st.header("Contact" )
+            st.header("Find out more" )
             if st.button("Contact us"):
                 pass
-            st.info("For general enquires and collaborations")
+            st.caption("For general enquires and collaborations")
             # Add logout button
             if st.button("Logout"):
                 st.session_state.authenticated = False
