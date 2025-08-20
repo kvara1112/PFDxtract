@@ -856,7 +856,7 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
                     report_key = "pfd" if isPFD else "Other"
                     # Store vectorization settings in session state
                     st.session_state[f"{report_key}_vectorizer_type"] = vectorizer_type
-                    st.session_state.update[f"{report_key}_vectorizer_params"] = vectorizer_params
+                    st.session_state[f"{report_key}_vectorizer_params"] = vectorizer_params
 
                     # Perform clustering
                     cluster_results = perform_semantic_clustering(
