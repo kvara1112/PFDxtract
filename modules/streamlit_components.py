@@ -471,7 +471,7 @@ def process_other(uploaded_file):
                 ]
         date_str= "" 
         date_idx = None
-
+        formatted_date = None
         for i, line in enumerate(lines[:40]):
             for pattern in date_patterns:
                 match = re.search(pattern, line, re.IGNORECASE)
@@ -481,10 +481,15 @@ def process_other(uploaded_file):
                     break
             if date_str:
                 date_clean = re.sub(r'(st|nd|rd|th)', '', date_str)
-                date_dt = datetime.strptime(date_clean, "%d %B %Y")
-                formatted_date = date_dt.strftime("%d/%m/%Y")
+                try:
+                    date_dt = datetime.strptime(date_clean, "%d %B %Y")
+                    formatted_date = date_dt.strftime("%d/%m/%Y")
+                except Exception:
+                    # If parsing fails, just use the raw string
+                    formatted_date = date_clean.strip()
                 break
-
+        print("Raw:", date_str)
+        print("formatted_date:", formatted_date)
         
         # Addressee
         address_lines = []
