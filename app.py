@@ -578,24 +578,22 @@ def main():
                 """,
                 unsafe_allow_html=True
             )
-            with st.container():
-                st.markdown('<div class="popup-content">', unsafe_allow_html = True)
+                
+            name = st.text_input("Your Name", key="contact_name")
+            email = st.text_input("Your Email", key="contact_email")
+            message = st.text_area("Message", key="contact_message")
 
-                st.subheader("📩 Contact Us")
-                name = st.text_input("Your Name", key="contact_name")
-                email = st.text_input("Your Email", key="contact_email")
-                message = st.text_area("Message", key="contact_message")
+            col1, col2 = st.columns(2)
 
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    if st.button("Send"):
-                        st.success("✅ Message sent!")
-                        st.session_state.show_contact = False
-                with col2:
-                    if st.button("Close"):
-                        st.session_state.show_contact = False
-
+            with col1:
+                if st.button("Send"):
+                    st.success("✅ Message sent!")
+                    st.session_state.show_contact = False
+            with col2:
+                if st.button("Close"):
+                    st.session_state.show_contact = False
+                    
+            st.markdown("</div>", unsafe_allow_html=True)
                     
             # Add logout button
             if st.button("Logout"):
