@@ -584,19 +584,19 @@ def main():
                 with developer_modal.container():
                     st.caption("View all submitted enquiries")
                     password_input = st.text_input("Enter developer password:", type="password")
-                    if password_input == st.secrets.get("developer_password"):
-                        st.success("✅ Access granted")
-                        # Check if CSV exists
-                        if os.path.exists(csv_file):
-                            df = pd.read_csv(csv_file)
-                            st.subheader("Contact Form Submissions")
-                            st.dataframe(df)  # Display in a table
+                    if st.button("Login"):
+                        if password_input == st.secrets.get("developer_password"):
+                            st.success("✅ Access granted")
+                            # Check if CSV exists
+                            if os.path.exists(csv_file):
+                                df = pd.read_csv(csv_file)
+                                st.subheader("Contact Form Submissions")
+                                st.dataframe(df)  # Display in a table
+                            else:
+                                st.warning("No submissions found yet.")
                         else:
-                            st.warning("No submissions found yet.")
-
-                    else:
-                        if password_input:
-                            st.error("❌ Incorrect password")
+                            if password_input:
+                                st.error("❌ Incorrect password")
             # Add logout button
             if st.button("Logout"):
                 st.session_state.authenticated = False
