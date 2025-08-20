@@ -581,7 +581,7 @@ def main():
             if st.button("View Enquiries"):
                 developer_modal.open()
             if developer_modal.is_open():
-                with developer_modal():
+                with developer_modal.container():
                     st.caption("View all submitted enquiries")
                     password_input = st.text_input("Enter developer password:", type="password")
                     if password_input == st.secrets.get("developer_password"):
