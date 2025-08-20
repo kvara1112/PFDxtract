@@ -544,8 +544,8 @@ def process_other(uploaded_file):
 
         return {
             "Status": "success",
-            "Filename":uploaded_file.name,
-            "Title": title,
+            "Title":uploaded_file.name,
+            "Subject": title,
             "date_of_report": formatted_date,
             "Sender Address": sender_address,
             "Addressee": addressee,
@@ -880,7 +880,7 @@ def upload_reports(is_PFD):
     elif state["retry_files"] and report_key == "Other":
         st.warning(f"{len(retry_needed)} files failed to process. Please retry.")
         for r in retry_needed:
-            st.write(r["Filename"])
+            st.write(r["Subject"])
 
     # Final processed data
     if state["processed"] and state["current_data"] is not None:
