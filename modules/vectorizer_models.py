@@ -738,7 +738,9 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
             date_col1, date_col2 = st.columns(2)
             
             # Only show date selector if date_of_report column exists
-            if "date_of_report" in data.columns and pd.api.types.is_datetime64_any_dtype(data["date_of_report"]):
+            if "date_of_report" in data.columns:  
+                data["date_of_report"] = pd.to_datetime(data["date_of_report"], dayfirst=True, errors="coerce")
+                
                 with date_col1:
                     start_date = st.date_input(
                         "From",
@@ -760,6 +762,8 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
                     (data["date_of_report"].dt.date >= start_date)
                     & (data["date_of_report"].dt.date <= end_date)
                 ]
+                data["date_of_report"] = data["date_of_report"].dt.strftime("%d/%m/%Y")
+        
             else:
                 st.info("No date column found. Date filtering is not available.")
 
