@@ -429,9 +429,28 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         with col1:
             try:
                 # Create export copy with formatted dates
+                # df_csv = df.copy()
+                # if "date_of_report" in df_csv.columns:
+                #     df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
+
+                # csv = df_csv.to_csv(index=False).encode('utf-8')
+                # csv_key = f"download_csv_{prefix}_{unique_id}"
+                # st.download_button(
+                #     "📥 Download Reports (CSV)",
+                #     csv,
+                #     f"{filename}.csv",
+                #     "text/csv",
+                #     key=csv_key
+                # )
                 df_csv = df.copy()
+
                 if "date_of_report" in df_csv.columns:
-                    df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
+                    if pd.api.types.is_datetime64_any_dtype(df_csv["date_of_report"]):
+                        # Column is datetime → format
+                        df_csv["date_of_report"] = df_csv["date_of_report"].dt.strftime("%d/%m/%Y")
+                    else:
+                        # Already a string → leave as is
+                        df_csv["date_of_report"] = df_csv["date_of_report"].astype(str)
 
                 csv = df_csv.to_csv(index=False).encode('utf-8')
                 csv_key = f"download_csv_{prefix}_{unique_id}"
