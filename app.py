@@ -11,6 +11,7 @@ from datetime import datetime
 from streamlit_modal import Modal
 import csv
 import os
+import pandas as pd
 # Configure Streamlit page
 st.set_page_config(
     page_title="UK Judiciary PFD Reports Analysis",
@@ -310,7 +311,7 @@ def main():
 
     # contact us modal
     modal = Modal("📩 Contact Us", key="contact_modal")
-    
+    developer_modal = Modal("Enquiries", key="enquries_modal")
 
     # Add collapsible help section
     with st.expander("💡 How to Use This Tool"):
@@ -563,9 +564,9 @@ def main():
                 with modal.container():
                     st.caption("For general enquries and collaborations")
                     
-                    name = st.text_input("Your Name")
-                    email = st.text_input("Your Email")
-                    message = st.text_area("Message")
+                    name = st.text_input("Name:")
+                    email = st.text_input("Email:")
+                    message = st.text_area("Your Message:")
 
                     if st.button("Send"):
                         with open(csv_file, "a", newline = "", encoding="utf-8") as f:
@@ -574,7 +575,28 @@ def main():
                         st.success("✅ Message sent!")
                         modal.close()
             st.caption("For general enquires and collaborations")
-                    
+
+            # Add option for developer to view enquiries
+            st.header("Developer")
+            if st.button("View Enquiries"):
+                developer_modal.open()
+            if developer_modal.is_open():
+                with developer_modal():
+                    st.caption("View all submitted enquiries")
+                    password_input = st.text_input("Enter developer password:", type="password")
+                    if password_input == st.secrets.get("developer_password"):
+                        st.success("✅ Access granted")
+                        # Check if CSV exists
+                        if os.path.exists(csv_file):
+                            df = pd.read_csv(csv_file)
+                            st.subheader("Contact Form Submissions")
+                            st.dataframe(df)  # Display in a table
+                        else:
+                            st.warning("No submissions found yet.")
+
+                    else:
+                        if password_input:
+                            st.error("❌ Incorrect password")
             # Add logout button
             if st.button("Logout"):
                 st.session_state.authenticated = False
