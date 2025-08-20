@@ -480,7 +480,7 @@ def process_other(uploaded_file):
                     date_idx = i
                     break
             if date_str:
-                date_clean = re.sub(r'(st|nd|rd|th)', '', date_str)
+                date_clean = re.sub(r'(\d{1,2})(st|nd|rd|th)', r'1', date_str)
                 try:
                     date_dt = datetime.strptime(date_clean, "%d %B %Y")
                     formatted_date = date_dt.strftime("%d/%m/%Y")
