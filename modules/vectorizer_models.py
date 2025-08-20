@@ -643,13 +643,14 @@ def render_summary_tab(cluster_results: Dict, original_data: pd.DataFrame) -> No
 def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
     """Topic analysis with weighting schemes and essential controls"""
     st.subheader("Topic Analysis & Summaries")
-    
+    file_key = "uploader_pfd" if isPFD else "uploader_other"
+    data_key = "pfd_data" if isPFD else "other_data"
     # Start with file upload, ignoring any previously loaded data
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file for Topic Analysis",
         type=["csv", "xlsx"],
         help="Upload a preprocessed file containing report content",
-        key="topic_analysis_uploader"
+        key=file_key
     )
 
     # Only proceed with analysis if a file is uploaded
@@ -664,15 +665,16 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
             # Process the data
             if isPFD:
                 data = process_scraped_data(data)
-            else:
-                data = data 
             
+            st.session_state[data_key] = data
+            st.success(f"File loaded successfully with {len(data)} rows.")
+
             # Validate that we have the needed content column
             if "Content" not in data.columns:
                 st.error("The uploaded file does not contain a 'Content' column needed for topic analysis.")
                 return
                 
-            st.success(f"File loaded successfully with {len(data)} rows.")
+            st.success("File loaded successfully with {len(data)} rows.")
             
             # Text Processing options
             st.subheader("Analysis Settings")
@@ -747,6 +749,7 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
                         value=data["date_of_report"].min().date(),
                         min_value=data["date_of_report"].min().date(),
                         max_value=data["date_of_report"].max().date(),
+                        key = f"start_{file_key}"
                     )
 
                 with date_col2:
@@ -755,6 +758,7 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
                         value=data["date_of_report"].max().date(),
                         min_value=data["date_of_report"].min().date(),
                         max_value=data["date_of_report"].max().date(),
+                        key=f"end_{file_key}"
                     )
                 
                 # Apply date filter
@@ -763,7 +767,7 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
                     & (data["date_of_report"].dt.date <= end_date)
                 ]
                 data["date_of_report"] = data["date_of_report"].dt.strftime("%d/%m/%Y")
-        
+                st.session_state[data_key] = data
             else:
                 st.info("No date column found. Date filtering is not available.")
 
@@ -849,9 +853,10 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
                     elif vectorizer_type == "bm25":
                         vectorizer_params.update({"k1": k1, "b": b})
 
+                    report_key = "pfd" if isPFD else "Other"
                     # Store vectorization settings in session state
-                    st.session_state.vectorizer_type = vectorizer_type
-                    st.session_state.update(vectorizer_params)
+                    st.session_state[f"{report_key}_vectorizer_type"] = vectorizer_type
+                    st.session_state.update[f"{report_key}_vectorizer_params"] = vectorizer_params
 
                     # Perform clustering
                     cluster_results = perform_semantic_clustering(
@@ -865,9 +870,10 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
 
                     progress_bar.progress(0.8)
                     status_text.text("Generating summaries...")
-
+                    st.session_state[f"{report_key}_topic_model"] = cluster_results
+                    st.session_state[f"{report_key}_processed_df"] = processed_df
                     # Store results
-                    st.session_state.topic_model = cluster_results
+                    #st.session_state.topic_model = cluster_results
 
                     progress_bar.progress(1.0)
                     status_text.text("Analysis complete!")

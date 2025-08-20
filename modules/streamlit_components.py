@@ -3935,3 +3935,5 @@ def non_pfd_tab(currentData):
         upload_reports(False)
     with theme_tab:
         render_topic_summary_tab(False, currentData)
+    with BERT_tab:
+        render_bert_analysis_tab(currentData)
