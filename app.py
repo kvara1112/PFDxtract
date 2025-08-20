@@ -288,7 +288,8 @@ def main():
         # Render the footer even when not authenticated
         render_footer()
         return
-    
+    if "show_contact" not in st.session_state:
+        st.session_state.show_contact = False
     # Only show the main app content if authenticated
     st.title("UK Judiciary PFD Reports Analysis")
     
@@ -545,8 +546,55 @@ def main():
             
             st.header("Find out more" )
             if st.button("Contact us"):
-                pass
+                st.session_state.show_contact = True
             st.caption("For general enquires and collaborations")
+
+            if st.session_state.show_contact:
+                st.markdown(
+                    """
+                    <style>
+                    .popup-background {
+                        position: fixed;
+                        top: 0; left: 0;
+                        width: 100%; height: 100%;
+                        background: rgba(0,0,0,0.6);
+                        z-index: 1000;
+                    }
+                    .popup-content {
+                        position: fixed;
+                        top: 50%; left: 50%;
+                        transform: translate(-50%, -50%);
+                        background: white;
+                        padding: 2rem;
+                        border-radius: 10px;
+                        width: 400px;
+                        z-index: 1001;
+                        box-shadow: 0px 4px 10px rgba(0,0,0,0.3);
+                    }
+                    </style>
+                    <div class="popup-background"></div>
+                    """,
+                    unsafe_allow_html=True
+                )
+                with st.container():
+                    st.markdown('<div class="popup-content">', unsafe_allow_html = True)
+
+                    st.subheader("📩 Contact Us")
+                    name = st.text_input("Your Name", key="contact_name")
+                    email = st.text_input("Your Email", key="contact_email")
+                    message = st.text_area("Message", key="contact_message")
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        if st.button("Send"):
+                            st.success("✅ Message sent!")
+                            st.session_state.show_contact = False
+                    with col2:
+                        if st.button("Close"):
+                            st.session_state.show_contact = False
+
+                    st.markdown('</div>', unsafe_allow_html=True)
             # Add logout button
             if st.button("Logout"):
                 st.session_state.authenticated = False
