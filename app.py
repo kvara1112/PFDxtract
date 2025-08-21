@@ -586,7 +586,7 @@ def main():
                         if not name or not email or not message:
                             st.error("Please fill in all fields!")
                         else:
-                            timestamp = datetime.now(),strftime("%d-%m-%Y %H:%M:%S")
+                            timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
                             sheet.append_row([timestamp, name, email, message])
                             # with open(csv_file, "a", newline = "", encoding="utf-8") as f:
                             #     writer = csv.writer(f)
