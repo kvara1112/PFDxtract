@@ -302,31 +302,29 @@ def main():
    
 
     st.markdown(
-        """
+            """
+            <h1 style='text-align:center;'>Welcome to the Dashboard</h1>""",
+            unsafe_allow_html = True
+        )
+    button_style = """
             <style>
-            .centered-buttons {
+            div.stButton > button:first-child {
+                background-color: #0084B4;
+                color: black;
+                height: 80px;
+                width: 200px;
+                font-size: 20px;
+                border-radius: 10px;
+            }
+            div.stButton {
                 display: flex;
                 justify-content: center;
-                align-items: center;
-                height: 70vh; /* vertical centering */
-                gap: 40px;
-            }
-            .centered-buttons button {
-                background-color: #0084B4 !important;
-                color: white !important;
-                height: 80px;
-                width: 220px;
-                font-size: 22px;
-                border-radius: 12px;
-                font-weight: bold;
             }
             </style>
-            """,
-            unsafe_allow_html=True
-        )
+        """
+    st.markdown(button_style, unsafe_allow_html=True)
 
     st.markdown("<h1 style='text-align:center;'>Welcome to the Dashboard</h1>", unsafe_allow_html=True)
-    st.markdown("<div class='centered-buttons'>", unsafe_allow_html=True)
     
 
     col1, col2 = st.columns(2)
@@ -342,6 +340,8 @@ def main():
 
     if st.session_state.button_clicked == "page1":
         st.title("UK Judiciary PFD Reports Analysis")
+        if st.button("⬅️ Back to Dashboard"):
+            st.session_state.button_clicked = None
         # Add main description
         st.markdown(
             """
@@ -365,6 +365,7 @@ def main():
                         </a>
                         """, unsafe_allow_html = True)
             st.markdown(
+                
                 """
                 ### Complete Analysis Pipeline:
                 
@@ -595,6 +596,9 @@ def main():
             # Render footer even when an exception occurs
             render_footer()
     elif st.session_state.button_clicked == "page2":
+        st.title("Healthcare Document Analyser")
+        if st.button("⬅️ Back to Dashboard"):
+            st.session_state.button_clicked = None
         st.markdown(
                 """
                 Analyse any medical report
@@ -617,8 +621,7 @@ def main():
                 st.rerun()
 
         
-    if st.button("⬅️ Back to Dashboard"):
-        st.session_state.button_clicked = None
+    
     
 
 if __name__ == "__main__":
