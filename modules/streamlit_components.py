@@ -1550,7 +1550,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 logging.error(f"Annotation analysis error: {e}", exc_info=True)
 
     # Display results if they exist
-    if "bert_results" in st.session_state and st.session_state[bert_results_key].get("results_df") is not None:
+    if bert_results_key in st.session_state and st.session_state[bert_results_key].get("results_df") is not None:
         results_df = st.session_state[bert_results_key]["results_df"]
         
         # Summary stats
