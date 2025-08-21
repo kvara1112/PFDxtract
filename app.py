@@ -313,7 +313,7 @@ def main():
                     color: white;
                     height: 200px;
                     width: 300px;
-                    font-size: 30px;
+                    font-size: 60px;
                     border-radius: 30px;
                     border-color: white
                 }
@@ -578,7 +578,8 @@ def main():
                     st.success("All data cleared successfully")
                     time.sleep(0.5)  # Brief pause to ensure UI updates
                     st.rerun()
-
+                if st.button("Back to Dashboard"):
+                    st.session_state.button_clicked= None
         
                 
                 
@@ -612,7 +613,8 @@ def main():
         non_pfd_tab(st.session_state.current_data)
         with st.sidebar:
             st.header("Data Management")
-
+            if st.button("Back to Dashboard"):
+                st.session_state.button_clicked= None
             # Add logout button
             if st.button("Logout"):
                 st.session_state.authenticated = False
