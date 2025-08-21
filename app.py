@@ -311,10 +311,10 @@ def main():
                 div.stButton > button:first-child {
                     background-color: #0084B4;
                     color: white;
-                    height: 80px;
-                    width: 200px;
+                    height: 10px;
+                    width: 300px;
                     font-size: 30px;
-                    border-radius: 20px;
+                    border-radius: 30px;
                     border-color: white
                 }
                 div.stButton {
@@ -331,10 +331,10 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            st.button("PFD Report", key="page1_btn", on_click=go_to_page, args=("page1",))
+            st.button("Analyse PFD Reports", key="page1_btn", on_click=go_to_page, args=("page1",))
 
         with col2:
-            st.button("Other Healthcare Document", key="page2_btn", on_click=go_to_page, args=("page2",))
+            st.button("Analyse Other Healthcare Documents", key="page2_btn", on_click=go_to_page, args=("page2",))
 
 
     
