@@ -315,11 +315,13 @@ def main():
                     width: 300px;
                     font-size: 60px;
                     border-radius: 30px;
+                    border: 2px solid white;
                     border-color: white
                 }
                 div.stButton {
                     display: flex;
                     justify-content: center;
+                    gap: 40px;
                 }
                 </style>
             """
