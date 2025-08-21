@@ -301,37 +301,48 @@ def main():
     
     if st.session_state.button_clicked is None:
 
+        st.markdown(  
+        """
+        <style>
+        .centered-buttons {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 70vh; /* vertical centering */
+            gap: 40px;
+        }
+        .centered-buttons button {
+            background-color: #0084B4 !important; /* your blue */
+            color: white !important;
+            height: 80px;
+            width: 220px;
+            font-size: 22px;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True)
         st.markdown(
             """
-            <h1 style='text-align:center;'>Welcome to the Dashboard</h1>"""
+            <h1 style='text-align:center;'>Welcome to the Dashboard</h1>""",
+            unsafe_allow_html=True
         )
-        button_style = """
-            <style>
-            div.stButton > button:first-child {
-                background-color: lightblue;
-                color: black;
-                height: 80px;
-                width: 200px;
-                font-size: 20px;
-                border-radius: 10px;
-            }
-            div.stButton {
-                display: flex;
-                justify-content: center;
-            }
-            </style>
-        """
-        st.markdown(button_style, unsafe_allow_html=True)
+        st.markdown("<div class='centered-buttons'>", unsafe_allow_html=True)
+
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("PFD Reports"):
+            if st.button("PFD Reports".capitalize, key="page1_btn"):
                 st.session_state.button_clicked = "page1"
+                st.experimental_rerun()
                 
         with col2:
-            if st.button("Other Healthcare Document"):
+            if st.button("Other Healthcare Document", key="page2_btn"):
                 st.session_state.button_clicked = "page2"
-    
+                st.experimental_rerun()
+
+        st.markdown("</div>", unsafe_allow_html = True)
     else:
         if st.session_state.button_clicked == "page1":
             st.title("UK Judiciary PFD Reports Analysis")
@@ -612,6 +623,7 @@ def main():
         
         if st.button("⬅️ Back to Dashboard"):
             st.session_state.button_clicked = None
+            st.experimental_rerun()
 
 if __name__ == "__main__":
     try:
