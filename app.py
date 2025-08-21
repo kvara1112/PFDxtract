@@ -300,7 +300,7 @@ def main():
         render_footer()
         return
    
-    if st.session_state.button_clicked is None:
+    if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash":
         st.markdown(
                 """
                 <h1 style='text-align:center;'>Welcome to the Dashboard</h1>""",
@@ -580,8 +580,8 @@ def main():
                     st.success("All data cleared successfully")
                     time.sleep(0.5)  # Brief pause to ensure UI updates
                     st.rerun()
-                if st.button("Back to Dashboard"):
-                    st.session_state.button_clicked= None
+                st.button("Back to Dashboard", key="dash_btn", on_click=go_to_page, args=("dash",) )
+                    
         
                 
                 
@@ -615,13 +615,15 @@ def main():
         non_pfd_tab(st.session_state.current_data)
         with st.sidebar:
             st.header("Data Management")
-            if st.button("Back to Dashboard"):
-                st.session_state.button_clicked= None
+            st.button("Back to Dashboard", key="dash_btn", on_click=go_to_page, args=("dash",) )
+
             # Add logout button
             if st.button("Logout"):
                 st.session_state.authenticated = False
                 st.session_state.button_clicked = None
                 st.rerun()
+    
+    
 
         
     
