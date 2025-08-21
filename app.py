@@ -333,7 +333,7 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            if st.button("PFD Reports".capitalize, key="page1_btn"):
+            if st.button("PFD Report", key="page1_btn"):
                 st.session_state.button_clicked = "page1"
                 st.experimental_rerun()
                 
