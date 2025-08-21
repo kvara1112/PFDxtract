@@ -298,9 +298,30 @@ def main():
     if "button_clicked" not in st.session_state:
         st.session_state.button_clicked = None
 
-    st.title("Welcome to the Dashboard")
+    
     if st.session_state.button_clicked is None:
 
+        st.markdown(
+            """
+            <h1 style='text-align:center;'>Welcome to the Dashboard</h1>"""
+        )
+        button_style = """
+            <style>
+            div.stButton > button:first-child {
+                background-color: lightblue;
+                color: black;
+                height: 80px;
+                width: 200px;
+                font-size: 20px;
+                border-radius: 10px;
+            }
+            div.stButton {
+                display: flex;
+                justify-content: center;
+            }
+            </style>
+        """
+        st.markdown(button_style, unsafe_allow_html=True)
         col1, col2 = st.columns(2)
 
         with col1:
@@ -591,7 +612,7 @@ def main():
         
         if st.button("⬅️ Back to Dashboard"):
             st.session_state.button_clicked = None
-            
+
 if __name__ == "__main__":
     try:
         main()
