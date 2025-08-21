@@ -303,7 +303,7 @@ def main():
     if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash":
         st.markdown(
                 """
-                <h1 style='text-align:center;'>Welcome to the Dashboard</h1>""",
+                <h1 style='text-align:center;'>Welcome to the Analyser</h1>""",
                 unsafe_allow_html = True
             )
         button_style = """
