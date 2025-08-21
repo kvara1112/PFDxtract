@@ -299,7 +299,7 @@ def main():
         # Render the footer even when not authenticated
         render_footer()
         return
-   
+    st.title("⚖️")
     if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash":
         st.markdown(
                 """
