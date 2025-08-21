@@ -310,11 +310,11 @@ def main():
             <style>
             div.stButton > button:first-child {
                 background-color: #0084B4;
-                color: black;
+                color: white;
                 height: 80px;
                 width: 200px;
-                font-size: 20px;
-                border-radius: 10px;
+                font-size: 30px;
+                border-radius: 20px;
             }
             div.stButton {
                 display: flex;
@@ -324,7 +324,7 @@ def main():
         """
     st.markdown(button_style, unsafe_allow_html=True)
 
-    st.markdown("<h1 style='text-align:center;'>Welcome to the Dashboard</h1>", unsafe_allow_html=True)
+    
     
 
     col1, col2 = st.columns(2)
