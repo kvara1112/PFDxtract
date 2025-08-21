@@ -122,7 +122,8 @@ def render_analysis_tab(data=None):
             # Date Range
             with st.expander("📅 Date Range", expanded=True):
                 col1, col2 = st.columns(2)
-                with col1:
+                row1, row2 = st.rows(2)
+                with row2, col1:
                     start_date = st.date_input(
                         "From",
                         value=min_date,
@@ -131,7 +132,7 @@ def render_analysis_tab(data=None):
                         key="start_date_filter",
                         format="DD/MM/YYYY"
                     )
-                with col2:
+                with row2, col2:
                     end_date = st.date_input(
                         "To",
                         value=max_date,
