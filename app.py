@@ -122,8 +122,7 @@ def render_analysis_tab(data=None):
             # Date Range
             with st.expander("📅 Date Range", expanded=True):
                 col1, col2 = st.columns(2)
-                row1, row2 = st.rows(2)
-                with row2, col1:
+                with col1:
                     start_date = st.date_input(
                         "From",
                         value=min_date,
@@ -132,7 +131,7 @@ def render_analysis_tab(data=None):
                         key="start_date_filter",
                         format="DD/MM/YYYY"
                     )
-                with row2, col2:
+                with col2:
                     end_date = st.date_input(
                         "To",
                         value=max_date,
@@ -331,12 +330,13 @@ def main():
         
         
 
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.button("Analyse PFD Reports", key="page1_btn", on_click=go_to_page, args=("page1",))
+        col1, col2, col3, col4 = st.columns(2)
+    
 
         with col2:
+            st.button("Analyse PFD Reports", key="page1_btn", on_click=go_to_page, args=("page1",))
+
+        with col3:
             st.button("Analyse Other Healthcare Documents", key="page2_btn", on_click=go_to_page, args=("page2",))
 
 
