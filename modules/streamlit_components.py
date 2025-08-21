@@ -1304,7 +1304,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         "Upload CSV or Excel file for BERT Analysis",
         type=["csv", "xlsx"],
         help="Upload a file with reports for theme analysis",
-        key="{report_key}_bert_file_uploader",
+        key=f"{report_key}_bert_file_uploader",
     )
 
     # If a file is uploaded, process it
@@ -1352,7 +1352,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             options=available_frameworks,
             default=st.session_state[selected_frameworks_key],
             help="Select which conceptual frameworks to use for theme analysis",
-            key=f"framework_select_{reset_counter}"
+            key=f"{report_key}framework_select_{reset_counter}"
         )
     
     with frame_col2:
@@ -1376,7 +1376,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     custom_framework_name = st.text_input(
                         "Custom Framework Name", 
                         f"Custom Framework {len(st.session_state[custom_frameworks_key]) + 1}",
-                        key=f"custom_framework_name_{reset_counter}"
+                        key=f"{report_key}custom_framework_name_{reset_counter}"
                     )
                     
                     # Add button for the custom framework
