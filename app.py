@@ -12,8 +12,8 @@ from streamlit_modal import Modal
 import csv
 import os
 import pandas as pd
-import gspread
-from google.oauth2.service_account import Credentials
+
+import requests
 
 # Configure Streamlit page
 st.set_page_config(
@@ -284,17 +284,8 @@ def render_analysis_tab(data=None):
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         logging.error(f"Analysis error: {e}", exc_info=True)
-#Google sheet setup 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-CREDS_FILE = r"C:\Users\Student\OneDrive - Loughborough University\Healthcare datasets Summer Internship\Streamlit-keys\pfdxtract-aeeca5bf7258.json"
-SHEET_NAME = ["https://www.googleapis.com/auth/spreadsheets"]
 
-creds = Credentials.from_service_account_file(CREDS_FILE, scopes = SCOPES)
-gc = gspread.authorize(creds)
-SPREADSHEET_KEY = "10YYgqwZPF7ox2rusWZMJWVMJ306G_HOeixeEh1fkWK0"
-sheet = gc.open_by_key(SPREADSHEET_KEY).sheet1
-record = sheet.get_all_records()
-print(record)
+
 def main():
     """Updated main application entry point."""
     initialize_session_state()
@@ -314,18 +305,7 @@ def main():
         This application analyses Prevention of Future Deaths (PFD) reports from the UK Judiciary website to uncover patterns, themes, and insights.
         """
     )
-    ## file for contact enquiries
-    csv_file = "submissions.csv"
 
-    if not os.path.exists(csv_file):
-        with open(csv_file, "w", newline="", encoding="utf-8") as f:
-            writer = csv.writer(f)
-            writer.writerow(["Name", "Email", "Message"])
-
-    # contact us modal
-    modal = Modal("📩 Contact Us", key="contact_modal", max_width=800)
-    
-    developer_modal = Modal("Enquiries", key="enquiries_modal", max_width=800)
 
     # Add collapsible help section
     with st.expander("💡 How to Use This Tool"):
@@ -463,7 +443,7 @@ def main():
                 - Download colour highlighted sentences based on theme colours in a html report
                 """
             )
-            render_bert_analysis_tab(st.session_state.current_data)
+            render_bert_analysis_tab(True, st.session_state.current_data)
             
         elif current_tab == "(6)📈 Theme Analysis Dashboard":
             # Add tab-specific description here
@@ -571,53 +551,7 @@ def main():
 
     
             
-            st.header("Find out more" )
-            if st.button("Contact us"):
-                modal.open()
-            if modal.is_open():
-                with modal.container():
-                    st.caption("For general enquiries and collaborations")
-                    
-                    name = st.text_input("Name:")
-                    email = st.text_input("Email:")
-                    message = st.text_area("Your Message:")
-
-                    if st.button("Send"):
-                        if not name or not email or not message:
-                            st.error("Please fill in all fields!")
-                        else:
-                            timestamp = datetime.now().strftime("%d-%m-%Y %H:%M:%S")
-                            sheet.append_row([timestamp, name, email, message])
-                            # with open(csv_file, "a", newline = "", encoding="utf-8") as f:
-                            #     writer = csv.writer(f)
-                            #     writer.writerow([name, email, message])
-                            st.success("✅ Message sent!")
-                            modal.close()
-
-
-            st.caption("For general enquires and collaborations")
-
-            # Add option for developer to view enquiries
-            st.header("Developer")
-            if st.button("View Enquiries"):
-                developer_modal.open()
-            if developer_modal.is_open():
-                with developer_modal.container():
-                    st.caption("View all submitted enquiries")
-                    password_input = st.text_input("Enter developer password:", type="password")
-                    if st.button("Login"):
-                        if password_input == st.secrets.get("developer_password"):
-                            st.success("✅ Access granted")
-                            # Check if CSV exists
-                            if os.path.exists(csv_file):
-                                df = pd.read_csv(csv_file)
-                                st.subheader("Contact Form Submissions")
-                                st.dataframe(df)  # Display in a table
-                            else:
-                                st.warning("No submissions found yet.")
-                        else:
-                            if password_input:
-                                st.error("❌ Incorrect password")
+            
             # Add logout button
             if st.button("Logout"):
                 st.session_state.authenticated = False

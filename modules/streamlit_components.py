@@ -1257,7 +1257,11 @@ def render_bert_file_merger():
     with filter_tab:
         render_filter_data_tab()
 
-def render_bert_analysis_tab(data: pd.DataFrame = None):
+def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
+    if isPFD:
+        report_key = "PFD"
+    else:
+        report_key = "Other"
     """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
     
     # Ensure the bert_results dictionary exists in session state
@@ -1289,7 +1293,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
         "Upload CSV or Excel file for BERT Analysis",
         type=["csv", "xlsx"],
         help="Upload a file with reports for theme analysis",
-        key="bert_file_uploader",
+        key="{report_key}_bert_file_uploader",
     )
 
     # If a file is uploaded, process it
@@ -1346,7 +1350,7 @@ def render_bert_analysis_tab(data: pd.DataFrame = None):
             "Upload Custom Framework",
             type=["json", "txt"],
             help="Upload a JSON file containing custom framework definitions",
-            key=f"custom_framework_uploader_{reset_counter}"
+            key=f"{report_key}_custom_framework_uploader_{reset_counter}"
         )
         
         if custom_framework_file is not None:
@@ -3936,4 +3940,4 @@ def non_pfd_tab(currentData):
     with theme_tab:
         render_topic_summary_tab(False, currentData)
     with BERT_tab:
-        render_bert_analysis_tab(currentData)
+        render_bert_analysis_tab(False, currentData)
