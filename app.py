@@ -287,11 +287,14 @@ def render_analysis_tab(data=None):
 #Google sheet setup 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 CREDS_FILE = r"C:\Users\Student\OneDrive - Loughborough University\Healthcare datasets Summer Internship\Streamlit-keys\pfdxtract-aeeca5bf7258.json"
-SHEET_NAME = "PFDxtract Enquiries"
+SHEET_NAME = ["https://www.googleapis.com/auth/spreadsheets"]
 
 creds = Credentials.from_service_account_file(CREDS_FILE, scopes = SCOPES)
 gc = gspread.authorize(creds)
-sheet = gc.open(SHEET_NAME).sheet1
+SPREADSHEET_KEY = "10YYgqwZPF7ox2rusWZMJWVMJ306G_HOeixeEh1fkWK0"
+sheet = gc.open_by_key(SPREADSHEET_KEY).sheet1
+record = sheet.get_all_records()
+print(record)
 def main():
     """Updated main application entry point."""
     initialize_session_state()
