@@ -1265,26 +1265,37 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
     
     # Ensure the bert_results dictionary exists in session state
-    if "bert_results" not in st.session_state:
-        st.session_state.bert_results = {}
+    bert_results_key = f"{report_key}_bert_results"
+    if bert_results_key not in st.session_state:
+        st.session_state[bert_results_key] = {}
     
     # Track if BERT model is initialized
-    if "bert_initialized" not in st.session_state:
-        st.session_state.bert_initialized = False
+    bert_initialized_key = f"{report_key}_bert_initialised"
+    if bert_initialized_key not in st.session_state:
+        st.session_state[bert_initialized_key] = False
     
     # Initialize custom frameworks dictionary if not present
-    if "custom_frameworks" not in st.session_state:
-        st.session_state.custom_frameworks = {}
+    custom_frameworks_key = f"{report_key}_custom_frameworks"
+    if custom_frameworks_key not in st.session_state:
+        st.session_state[custom_frameworks_key] = {}
         
     # Safer initialization with validation
-    if "selected_frameworks" not in st.session_state:
+    selected_frameworks_key = f"{report_key}_selected_frameworks"
+    if selected_frameworks_key not in st.session_state:
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
+        st.session_state[selected_frameworks_key] = default_frameworks
+    if selected_frameworks_key not in st.session_state:
         # Only include frameworks that actually exist
         default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
-        st.session_state.selected_frameworks = default_frameworks
+        st.session_state[selected_frameworks_key] = default_frameworks
     else:
-        # Validate existing selections against available options
-        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"] + list(st.session_state.get("custom_frameworks", {}).keys())
-        st.session_state.selected_frameworks = [f for f in st.session_state.selected_frameworks if f in available_frameworks]
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"] + list(st.session_state.get(custom_frameworks_key, {}).keys())
+        # Keep only valid frameworks
+        st.session_state[selected_frameworks_key] = [f for f in st.session_state[selected_frameworks_key] if f in available_frameworks]
+        # Optionally add any new frameworks that aren’t in the selection yet
+        for f in available_frameworks:
+            if f not in st.session_state[selected_frameworks_key]:
+                st.session_state[selected_frameworks_key].append(f)
 
     # File upload section
     st.subheader("Upload Data")
@@ -1332,14 +1343,14 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     with frame_col1:
         # Get all available framework options
         available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
-        if "custom_frameworks" in st.session_state:
-            available_frameworks.extend(list(st.session_state.custom_frameworks.keys()))
+        if custom_frameworks_key in st.session_state:
+            available_frameworks.extend(list(st.session_state[custom_frameworks_key].keys()))
         
         # Predefined framework selection - use a unique key
-        st.session_state.selected_frameworks = st.multiselect(
+        st.session_state[selected_frameworks_key] = st.multiselect(
             "Choose Frameworks to Use",
             options=available_frameworks,
-            default=st.session_state.selected_frameworks,
+            default=st.session_state[selected_frameworks_key],
             help="Select which conceptual frameworks to use for theme analysis",
             key=f"framework_select_{reset_counter}"
         )
@@ -1364,22 +1375,22 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     # Framework name input
                     custom_framework_name = st.text_input(
                         "Custom Framework Name", 
-                        f"Custom Framework {len(st.session_state.custom_frameworks) + 1}",
+                        f"Custom Framework {len(st.session_state[custom_frameworks_key]) + 1}",
                         key=f"custom_framework_name_{reset_counter}"
                     )
                     
                     # Add button for the custom framework
                     if st.button("Add Custom Framework", key=f"add_custom_framework_{reset_counter}"):
                         # Check if name already exists
-                        if custom_framework_name in st.session_state.custom_frameworks:
+                        if custom_framework_name in st.session_state[custom_frameworks_key]:
                             st.warning(f"A framework with the name '{custom_framework_name}' already exists. Please choose a different name.")
                         else:
                             # Add to session state
-                            st.session_state.custom_frameworks[custom_framework_name] = custom_framework_data
+                            st.session_state[custom_frameworks_key][custom_framework_name] = custom_framework_data
                             
                             # Add to selected frameworks if not already there
-                            if custom_framework_name not in st.session_state.selected_frameworks:
-                                st.session_state.selected_frameworks.append(custom_framework_name)
+                            if custom_framework_name not in st.session_state[selected_frameworks_key]:
+                                st.session_state[selected_frameworks_key].append(custom_framework_name)
                             
                             st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
                             st.rerun()  # Refresh to update UI
@@ -1392,9 +1403,9 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 logging.error(f"Custom framework error: {e}", exc_info=True)
     
     # Display currently loaded custom frameworks
-    if "custom_frameworks" in st.session_state and st.session_state.custom_frameworks:
+    if custom_frameworks_key in st.session_state and st.session_state[custom_frameworks_key]:
         st.subheader("Loaded Custom Frameworks")
-        for name, framework in st.session_state.custom_frameworks.items():
+        for name, framework in st.session_state[custom_frameworks_key].items():
             with st.expander(f"{name} ({len(framework)} themes)"):
                 # Display the first few themes as an example
                 for i, theme in enumerate(framework[:5]):
@@ -1405,9 +1416,9 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 
                 # Add option to remove this framework
                 if st.button("Remove Framework", key=f"remove_{name}_{reset_counter}"):
-                    del st.session_state.custom_frameworks[name]
-                    if name in st.session_state.selected_frameworks:
-                        st.session_state.selected_frameworks.remove(name)
+                    del st.session_state[custom_frameworks_key][name]
+                    if name in st.session_state[selected_frameworks_key]:
+                        st.session_state[selected_frameworks_key].remove(name)
                     st.success(f"Removed framework '{name}'")
                     st.rerun()  # Refresh to update UI
 
@@ -1488,7 +1499,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     )
                     
                     # Mark as initialized
-                    st.session_state.bert_initialized = True
+                    st.session_state[bert_initialized_key] = True
                 
                 # Set custom configuration
                 theme_analyzer.config[
@@ -1499,7 +1510,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 filtered_frameworks = {}
                 
                 # Add selected built-in frameworks
-                for framework in st.session_state.selected_frameworks:
+                for framework in st.session_state[selected_frameworks_key]:
                     if framework == "I-SIRch":
                         filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
                     elif framework == "House of Commons":
@@ -1508,9 +1519,9 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                         filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
                     elif framework == "Yorkshire Contributory":
                         filtered_frameworks["Yorkshire Contributory"] = theme_analyzer._get_yorkshire_framework()
-                    elif framework in st.session_state.custom_frameworks:
+                    elif framework in st.session_state[custom_frameworks_key]:
                         # Add custom framework
-                        filtered_frameworks[framework] = st.session_state.custom_frameworks[framework]
+                        filtered_frameworks[framework] = st.session_state[custom_frameworks_key][framework]
                 
                 # Set the filtered frameworks
                 theme_analyzer.frameworks = filtered_frameworks
@@ -1529,8 +1540,8 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 )
 
                 # Save results to session state to ensure persistence
-                st.session_state.bert_results["results_df"] = results_df
-                st.session_state.bert_results["highlighted_texts"] = highlighted_texts
+                st.session_state[bert_results_key]["results_df"] = results_df
+                st.session_state[bert_results_key]["highlighted_texts"] = highlighted_texts
 
                 st.success(f"Analysis complete using {len(filtered_frameworks)} frameworks!")
 
@@ -1539,8 +1550,8 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 logging.error(f"Annotation analysis error: {e}", exc_info=True)
 
     # Display results if they exist
-    if "bert_results" in st.session_state and st.session_state.bert_results.get("results_df") is not None:
-        results_df = st.session_state.bert_results["results_df"]
+    if "bert_results" in st.session_state and st.session_state[bert_results_key].get("results_df") is not None:
+        results_df = st.session_state[bert_results_key]["results_df"]
         
         # Summary stats
         st.subheader("Results")
@@ -1615,25 +1626,25 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         
         with col2:
             # Always regenerate HTML report when results are available
-            if "results_df" in st.session_state.bert_results and "highlighted_texts" in st.session_state.bert_results:
+            if "results_df" in st.session_state[bert_results_key] and "highlighted_texts" in st.session_state[bert_results_key]:
                 # Generate fresh HTML report based on current results
                 theme_analyzer = ThemeAnalyzer()
                 
                 # Set custom frameworks if they exist
-                if st.session_state.custom_frameworks:
-                    for name, framework in st.session_state.custom_frameworks.items():
-                        if name in st.session_state.selected_frameworks:
+                if st.session_state[custom_frameworks_key]:
+                    for name, framework in st.session_state[custom_frameworks_key].items():
+                        if name in st.session_state[selected_frameworks_key]:
                             theme_analyzer.frameworks[name] = framework
                 
                 html_content = theme_analyzer._create_integrated_html_for_pdf(
-                    results_df, st.session_state.bert_results["highlighted_texts"]
+                    results_df, st.session_state[bert_results_key]["highlighted_texts"]
                 )
                 html_filename = f"theme_analysis_report_{timestamp}.html"
                 
                 with open(html_filename, "w", encoding="utf-8") as f:
                     f.write(html_content)
                     
-                st.session_state.bert_results["html_filename"] = html_filename
+                st.session_state[bert_results_key]["html_filename"] = html_filename
                 
                 # Provide download button for fresh HTML
                 with open(html_filename, "rb") as f:
