@@ -300,48 +300,48 @@ def main():
         render_footer()
         return
    
-
-    st.markdown(
+    if st.session_state.button_clicked is None:
+        st.markdown(
+                """
+                <h1 style='text-align:center;'>Welcome to the Dashboard</h1>""",
+                unsafe_allow_html = True
+            )
+        button_style = """
+                <style>
+                div.stButton > button:first-child {
+                    background-color: #0084B4;
+                    color: white;
+                    height: 80px;
+                    width: 200px;
+                    font-size: 30px;
+                    border-radius: 20px;
+                    border-color: white
+                }
+                div.stButton {
+                    display: flex;
+                    justify-content: center;
+                }
+                </style>
             """
-            <h1 style='text-align:center;'>Welcome to the Dashboard</h1>""",
-            unsafe_allow_html = True
-        )
-    button_style = """
-            <style>
-            div.stButton > button:first-child {
-                background-color: #0084B4;
-                color: white;
-                height: 80px;
-                width: 200px;
-                font-size: 30px;
-                border-radius: 20px;
-            }
-            div.stButton {
-                display: flex;
-                justify-content: center;
-            }
-            </style>
-        """
-    st.markdown(button_style, unsafe_allow_html=True)
+        st.markdown(button_style, unsafe_allow_html=True)
+
+        
+        
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.button("PFD Report", key="page1_btn", on_click=go_to_page, args=("page1",))
+
+        with col2:
+            st.button("Other Healthcare Document", key="page2_btn", on_click=go_to_page, args=("page2",))
+
 
     
-    
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.button("PFD Report", key="page1_btn", on_click=go_to_page, args=("page1",))
-
-    with col2:
-        st.button("Other Healthcare Document", key="page2_btn", on_click=go_to_page, args=("page2",))
-
-
-    st.markdown("</div>", unsafe_allow_html = True)
-
-    if st.session_state.button_clicked == "page1":
+    elif st.session_state.button_clicked == "page1":
         st.title("UK Judiciary PFD Reports Analysis")
-        if st.button("⬅️ Back to Dashboard"):
-            st.session_state.button_clicked = None
+        
         # Add main description
         st.markdown(
             """
@@ -597,8 +597,7 @@ def main():
             render_footer()
     elif st.session_state.button_clicked == "page2":
         st.title("Healthcare Document Analyser")
-        if st.button("⬅️ Back to Dashboard"):
-            st.session_state.button_clicked = None
+        
         st.markdown(
                 """
                 Analyse any medical report
