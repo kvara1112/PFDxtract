@@ -311,7 +311,7 @@ def main():
                 div.stButton > button:first-child {
                     background-color: #0084B4;
                     color: white;
-                    height: 10px;
+                    height: 200px;
                     width: 300px;
                     font-size: 30px;
                     border-radius: 30px;
