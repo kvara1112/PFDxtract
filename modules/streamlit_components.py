@@ -1573,6 +1573,8 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         display_cols = ["Record ID", "Title", "Framework", "Theme", "Confidence", "Combined Score", "Matched Keywords"]
         
         # Add metadata columns if available
+        print(results_df.columns.tolist())
+
         for col in ["coroner_name", "coroner_area", "year", "date_of_report"]:
             if col in results_df.columns:
                 display_cols.append(col)
@@ -1903,7 +1905,7 @@ def render_bert_analysis_tabworking(data: pd.DataFrame = None):
                 st.warning("HTML report not available")
 
 
-def render_theme_analysis_dashboard(data: pd.DataFrame = None):
+def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analyzing themes by various metadata fields
     
@@ -1911,18 +1913,24 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
         data: Optional DataFrame containing theme analysis results
     """
     #st.title("Theme Analysis Dashboard")
+    if isPFD:
+        report_key = "PFD"
+    else:
+        report_key = "Other"
     
     # Check for existing data in session state
+    dashboard_data_key = f"{report_key}_dashboard_Data"
+
     if data is None:
-        if "dashboard_data" in st.session_state:
-            data = st.session_state.dashboard_data
+        if dashboard_data_key in st.session_state:
+            data = st.session_state[dashboard_data_key]
     
     # File upload section with persistent state
     upload_key = "theme_analysis_dashboard_uploader"
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file for Dashboard Analysis",
         type=["csv", "xlsx"],
-        key=upload_key
+        key=f"{report_key}_upload_key",
     )
     
     # Process uploaded file
@@ -1938,7 +1946,7 @@ def render_theme_analysis_dashboard(data: pd.DataFrame = None):
             data = process_scraped_data(data)
             
             # Store in session state
-            st.session_state.dashboard_data = data
+            st.session_state[dashboard_data_key] = data
             
             st.success(f"File uploaded successfully! Found {len(data)} records.")
         except Exception as e:
@@ -3952,3 +3960,5 @@ def non_pfd_tab(currentData):
         render_topic_summary_tab(False, currentData)
     with BERT_tab:
         render_bert_analysis_tab(False, currentData)
+    with analysis_tab:
+        render_theme_analysis_dashboard(False, currentData)
