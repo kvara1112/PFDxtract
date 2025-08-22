@@ -472,6 +472,7 @@ def process_other(uploaded_file):
         date_str= "" 
         date_idx = None
         formatted_date = None
+        year_only = None
         for i, line in enumerate(lines[:40]):
             for pattern in date_patterns:
                 match = re.search(pattern, line, re.IGNORECASE)
@@ -484,12 +485,15 @@ def process_other(uploaded_file):
                 try:
                     date_dt = datetime.strptime(date_clean, "%d %B %Y")
                     formatted_date = date_dt.strftime("%d/%m/%Y")
+                    year_only = date_dt.year
                 except Exception:
                     # If parsing fails, just use the raw string
                     formatted_date = date_clean.strip()
+                    year_match = re.search(r"\b(20\d{2}|19\d{2})\b", date_clean)
+                    if year_match:
+                        year_only = int(year_match.group(0))
                 break
-        print("Raw:", date_str)
-        print("formatted_date:", formatted_date)
+        
         
         # Addressee
         address_lines = []
@@ -547,6 +551,7 @@ def process_other(uploaded_file):
             "Title":uploaded_file.name,
             "Subject": title,
             "date_of_report": formatted_date,
+            "year": year_only,
             "Sender Address": sender_address,
             "Addressee": addressee,
             "Content": content
