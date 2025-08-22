@@ -2050,44 +2050,45 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     else:
         selected_years = None
     
-    # Coroner area filter - MODIFIED: Multi-select instead of single select
-    areas = sorted(results_df["coroner_area"].dropna().unique().tolist())
     
-    area_options = ["All Areas"] + areas
-    # Default to "All Areas" if no specific selection
-    area_filter_type = st.sidebar.radio("Coroner Area Filter Type", ["All Areas", "Select Specific Areas"])
-    if area_filter_type == "All Areas":
-        selected_areas = areas  # Include all areas
-    else:
-        # Multi-select for specific areas
-        selected_areas = st.sidebar.multiselect(
-            "Select Areas", 
-            options=areas,
-            default=None,
-            help="Select one or more specific coroner areas to include"
-        )
-        # If nothing selected, default to all areas
-        if not selected_areas:
-            st.sidebar.warning("No areas selected. Showing all areas.")
-            selected_areas = areas
-    
-    # Coroner name filter - MODIFIED: Multi-select instead of single select
-    names = sorted(results_df["coroner_name"].dropna().unique().tolist())
-    name_filter_type = st.sidebar.radio("Coroner Name Filter Type", ["All Coroners", "Select Specific Coroners"])
-    if name_filter_type == "All Coroners":
-        selected_names = names  # Include all coroner names
-    else:
-        # Multi-select for specific coroner names
-        selected_names = st.sidebar.multiselect(
-            "Select Coroners", 
-            options=names,
-            default=None,
-            help="Select one or more specific coroners to include"
-        )
-        # If nothing selected, default to all names
-        if not selected_names:
-            st.sidebar.warning("No coroners selected. Showing all coroners.")
-            selected_names = names
+    if isPFD:
+        # Coroner area filter - MODIFIED: Multi-select instead of single select
+        areas = sorted(results_df["coroner_area"].dropna().unique().tolist())
+        area_options = ["All Areas"] + areas
+        # Default to "All Areas" if no specific selection
+        area_filter_type = st.sidebar.radio("Coroner Area Filter Type", ["All Areas", "Select Specific Areas"])
+        if area_filter_type == "All Areas":
+            selected_areas = areas  # Include all areas
+        else:
+            # Multi-select for specific areas
+            selected_areas = st.sidebar.multiselect(
+                "Select Areas", 
+                options=areas,
+                default=None,
+                help="Select one or more specific coroner areas to include"
+            )
+            # If nothing selected, default to all areas
+            if not selected_areas:
+                st.sidebar.warning("No areas selected. Showing all areas.")
+                selected_areas = areas
+        
+        # Coroner name filter - MODIFIED: Multi-select instead of single select
+        names = sorted(results_df["coroner_name"].dropna().unique().tolist())
+        name_filter_type = st.sidebar.radio("Coroner Name Filter Type", ["All Coroners", "Select Specific Coroners"])
+        if name_filter_type == "All Coroners":
+            selected_names = names  # Include all coroner names
+        else:
+            # Multi-select for specific coroner names
+            selected_names = st.sidebar.multiselect(
+                "Select Coroners", 
+                options=names,
+                default=None,
+                help="Select one or more specific coroners to include"
+            )
+            # If nothing selected, default to all names
+            if not selected_names:
+                st.sidebar.warning("No coroners selected. Showing all coroners.")
+                selected_names = names
     
     # Number of top themes to display
     top_n_themes = st.sidebar.slider("Number of Top Themes", 5, 20, 10)
@@ -2123,12 +2124,13 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
         else:
             filtered_df = filtered_df[(filtered_df["year"] >= selected_years[0]) & 
                                     (filtered_df["year"] <= selected_years[1])]
-    
-    # Apply multi-select area filter
-    filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
-    
-    # Apply multi-select coroner name filter
-    filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_names)]
+    if isPFD:
+
+        # Apply multi-select area filter
+        filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
+        
+        # Apply multi-select coroner name filter
+        filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_names)]
     
     # Apply multi-select confidence level filter
     filtered_df = filtered_df[filtered_df["Confidence"].isin(selected_confidence_levels)]
@@ -2779,199 +2781,202 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             st.plotly_chart(fig, use_container_width=True)
     
     # === TAB 4: AREA COMPARISON ===
-    with tab4:
-        st.subheader("Coroner Area Comparison")
-        
-        if "coroner_area" not in filtered_df.columns or filtered_df["coroner_area"].isna().all():
-            st.warning("No coroner area data available for area comparison.")
-        else:
-            # Get the top areas by theme count
-            area_counts = filtered_df["coroner_area"].value_counts().head(10)
-            top_areas = area_counts.index.tolist()
+    if isPFD:
+
+        with tab4:
+            st.subheader("Coroner Area Comparison")
             
-            # Format area names for better display
-            formatted_areas = [improved_truncate_text(area, max_length=40) for area in area_counts.index]
-            
-            # Create a mapping for display names
-            area_display_map = dict(zip(area_counts.index, formatted_areas))
-            
-            # Create a bar chart of top areas with formatted names
-            fig = px.bar(
-                x=formatted_areas,
-                y=area_counts.values,
-                labels={"x": "Coroner Area", "y": "Count"},
-                title="Theme Identifications by Coroner Area",
-                height=500,
-                color_discrete_sequence=['#ff9f40']  # Orange color for areas
-            )
-            
-            fig.update_layout(
-                xaxis_title="Coroner Area",
-                yaxis_title="Number of Theme Identifications",
-                xaxis_tickangle=-30,  # Less extreme angle for readability
-                margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin
-                font=dict(color="white"),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-            )
-            
-            # Update axes for dark mode and ensure labels fit
-            fig.update_xaxes(
-                title_font=dict(color="white"),
-                tickfont=dict(color="white"),
-                gridcolor="rgba(255,255,255,0.1)",
-                automargin=True  # Ensure labels fit without overlap
-            )
-            
-            fig.update_yaxes(
-                title_font=dict(color="white"),
-                tickfont=dict(color="white"),
-                gridcolor="rgba(255,255,255,0.1)"
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Multi-area theme comparison
-            st.subheader("Theme Distribution Across Top Coroner Areas")
-            
-            # Calculate total records per area (for normalization)
-            area_totals = {}
-            for area in top_areas:
-                area_totals[area] = len(filtered_df[filtered_df["coroner_area"] == area])
-            
-            # Get theme distribution for each area
-            area_theme_data = []
-            
-            # Get top themes overall for comparison
-            all_theme_counts = filtered_df["Theme"].value_counts()
-            top_themes = all_theme_counts.head(top_n_themes).index.tolist()
-            
-            # Create a mapping for formatted theme names
-            theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
-            
-            for area in top_areas:
-                area_df = filtered_df[filtered_df["coroner_area"] == area]
-                area_themes = area_df["Theme"].value_counts()
+            if "coroner_area" not in filtered_df.columns or filtered_df["coroner_area"].isna().all():
+                st.warning("No coroner area data available for area comparison.")
+            else:
+                # Get the top areas by theme count
+                area_counts = filtered_df["coroner_area"].value_counts().head(10)
+                top_areas = area_counts.index.tolist()
                 
-                # Calculate percentage for each top theme
-                for theme in top_themes:
-                    count = area_themes.get(theme, 0)
-                    percentage = (count / area_totals[area] * 100) if area_totals[area] > 0 else 0
-                    
-                    area_theme_data.append({
-                        "Coroner Area": area,
-                        "Display_Area": area_display_map[area],
-                        "Theme": theme,
-                        "Display_Theme": theme_display_map[theme],
-                        "Count": count,
-                        "Percentage": round(percentage, 1)
-                    })
-            
-            area_theme_df = pd.DataFrame(area_theme_data)
-            
-            # Create heatmap using formatted names
-            pivot_df = area_theme_df.pivot(
-                index="Display_Area", 
-                columns="Display_Theme", 
-                values="Percentage"
-            ).fillna(0)
-            
-            # Ensure we have data to display
-            if not pivot_df.empty:
-                fig = px.imshow(
-                    pivot_df,
-                    labels=dict(x="Theme", y="Coroner Area", color="Percentage"),
-                    x=pivot_df.columns,
-                    y=pivot_df.index,
-                    color_continuous_scale="YlGnBu",
-                    title="Theme Distribution by Coroner Area (%)",
-                    height=700,  # Increased height
-                    aspect="auto",
-                    text_auto=".1f"  # Show to 1 decimal place
+                # Format area names for better display
+                formatted_areas = [improved_truncate_text(area, max_length=40) for area in area_counts.index]
+                
+                # Create a mapping for display names
+                area_display_map = dict(zip(area_counts.index, formatted_areas))
+                
+                # Create a bar chart of top areas with formatted names
+                fig = px.bar(
+                    x=formatted_areas,
+                    y=area_counts.values,
+                    labels={"x": "Coroner Area", "y": "Count"},
+                    title="Theme Identifications by Coroner Area",
+                    height=500,
+                    color_discrete_sequence=['#ff9f40']  # Orange color for areas
                 )
                 
                 fig.update_layout(
-                    xaxis_title="Theme",
-                    yaxis_title="Coroner Area",
-                    xaxis_tickangle=-30,  # Reduce angle
-                    coloraxis_colorbar=dict(
-                        title=dict(text="% of Cases", font=dict(color="white")),
-                        tickfont=dict(color="white")
-                    ),
-                    margin=dict(l=250, r=70, b=180, t=80),  # Increased margins
+                    xaxis_title="Coroner Area",
+                    yaxis_title="Number of Theme Identifications",
+                    xaxis_tickangle=-30,  # Less extreme angle for readability
+                    margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin
                     font=dict(color="white"),
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
                 )
                 
-                # Enable automargin to ensure labels fit
-                fig.update_xaxes(automargin=True)
-                fig.update_yaxes(automargin=True)
+                # Update axes for dark mode and ensure labels fit
+                fig.update_xaxes(
+                    title_font=dict(color="white"),
+                    tickfont=dict(color="white"),
+                    gridcolor="rgba(255,255,255,0.1)",
+                    automargin=True  # Ensure labels fit without overlap
+                )
                 
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.warning("Not enough data to create area-theme heatmap.")
-                
-            # Radar chart option for areas
-            st.subheader("Theme Radar Comparison")
-            
-            # Select areas for radar chart
-            radar_areas = st.multiselect(
-                "Select Areas to Compare (2-5 recommended)",
-                options=top_areas,
-                default=top_areas[:3] if len(top_areas) >= 3 else top_areas
-            )
-            
-            if radar_areas and len(radar_areas) >= 2:
-                # Filter data for selected areas and top themes
-                radar_data = area_theme_df[
-                    (area_theme_df["Coroner Area"].isin(radar_areas)) & 
-                    (area_theme_df["Theme"].isin(top_themes[:8]))  # Limit to 8 themes for readability
-                ]
-                
-                # Create radar chart
-                fig = go.Figure()
-                
-                # Add traces for each area
-                for area in radar_areas:
-                    area_data = radar_data[radar_data["Coroner Area"] == area]
-                    # Sort by theme to ensure consistency
-                    area_data = area_data.set_index("Theme").reindex(top_themes[:8]).reset_index()
-                    
-                    fig.add_trace(go.Scatterpolar(
-                        r=area_data["Percentage"],
-                        theta=area_data["Display_Theme"],  # Use formatted theme names
-                        fill="toself",
-                        name=area_display_map.get(area, area)  # Use formatted area names
-                    ))
-                
-                fig.update_layout(
-                    polar=dict(
-                        radialaxis=dict(
-                            visible=True,
-                            range=[0, max(radar_data["Percentage"]) * 1.1],
-                            tickfont=dict(color="black")
-                        ),
-                        angularaxis=dict(
-                            tickfont=dict(color="white")
-                        )
-                    ),
-                    showlegend=True,
-                    legend=dict(font=dict(color="white")),
-                    title=dict(
-                        text="Theme Distribution Radar Chart",
-                        font=dict(color="white")
-                    ),
-                    height=700,  # Increased height
-                    margin=dict(l=80, r=80, t=100, b=80),
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
+                fig.update_yaxes(
+                    title_font=dict(color="white"),
+                    tickfont=dict(color="white"),
+                    gridcolor="rgba(255,255,255,0.1)"
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Please select at least 2 areas for radar comparison.")
-            
+                
+                # Multi-area theme comparison
+                st.subheader("Theme Distribution Across Top Coroner Areas")
+                
+                # Calculate total records per area (for normalization)
+                area_totals = {}
+                for area in top_areas:
+                    area_totals[area] = len(filtered_df[filtered_df["coroner_area"] == area])
+                
+                # Get theme distribution for each area
+                area_theme_data = []
+                
+                # Get top themes overall for comparison
+                all_theme_counts = filtered_df["Theme"].value_counts()
+                top_themes = all_theme_counts.head(top_n_themes).index.tolist()
+                
+                # Create a mapping for formatted theme names
+                theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
+                
+                for area in top_areas:
+                    area_df = filtered_df[filtered_df["coroner_area"] == area]
+                    area_themes = area_df["Theme"].value_counts()
+                    
+                    # Calculate percentage for each top theme
+                    for theme in top_themes:
+                        count = area_themes.get(theme, 0)
+                        percentage = (count / area_totals[area] * 100) if area_totals[area] > 0 else 0
+                        
+                        area_theme_data.append({
+                            "Coroner Area": area,
+                            "Display_Area": area_display_map[area],
+                            "Theme": theme,
+                            "Display_Theme": theme_display_map[theme],
+                            "Count": count,
+                            "Percentage": round(percentage, 1)
+                        })
+                
+                area_theme_df = pd.DataFrame(area_theme_data)
+                
+                # Create heatmap using formatted names
+                pivot_df = area_theme_df.pivot(
+                    index="Display_Area", 
+                    columns="Display_Theme", 
+                    values="Percentage"
+                ).fillna(0)
+                
+                # Ensure we have data to display
+                if not pivot_df.empty:
+                    fig = px.imshow(
+                        pivot_df,
+                        labels=dict(x="Theme", y="Coroner Area", color="Percentage"),
+                        x=pivot_df.columns,
+                        y=pivot_df.index,
+                        color_continuous_scale="YlGnBu",
+                        title="Theme Distribution by Coroner Area (%)",
+                        height=700,  # Increased height
+                        aspect="auto",
+                        text_auto=".1f"  # Show to 1 decimal place
+                    )
+                    
+                    fig.update_layout(
+                        xaxis_title="Theme",
+                        yaxis_title="Coroner Area",
+                        xaxis_tickangle=-30,  # Reduce angle
+                        coloraxis_colorbar=dict(
+                            title=dict(text="% of Cases", font=dict(color="white")),
+                            tickfont=dict(color="white")
+                        ),
+                        margin=dict(l=250, r=70, b=180, t=80),  # Increased margins
+                        font=dict(color="white"),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                    )
+                    
+                    # Enable automargin to ensure labels fit
+                    fig.update_xaxes(automargin=True)
+                    fig.update_yaxes(automargin=True)
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("Not enough data to create area-theme heatmap.")
+                    
+                # Radar chart option for areas
+                st.subheader("Theme Radar Comparison")
+                
+                # Select areas for radar chart
+                radar_areas = st.multiselect(
+                    "Select Areas to Compare (2-5 recommended)",
+                    options=top_areas,
+                    default=top_areas[:3] if len(top_areas) >= 3 else top_areas
+                )
+                
+                if radar_areas and len(radar_areas) >= 2:
+                    # Filter data for selected areas and top themes
+                    radar_data = area_theme_df[
+                        (area_theme_df["Coroner Area"].isin(radar_areas)) & 
+                        (area_theme_df["Theme"].isin(top_themes[:8]))  # Limit to 8 themes for readability
+                    ]
+                    
+                    # Create radar chart
+                    fig = go.Figure()
+                    
+                    # Add traces for each area
+                    for area in radar_areas:
+                        area_data = radar_data[radar_data["Coroner Area"] == area]
+                        # Sort by theme to ensure consistency
+                        area_data = area_data.set_index("Theme").reindex(top_themes[:8]).reset_index()
+                        
+                        fig.add_trace(go.Scatterpolar(
+                            r=area_data["Percentage"],
+                            theta=area_data["Display_Theme"],  # Use formatted theme names
+                            fill="toself",
+                            name=area_display_map.get(area, area)  # Use formatted area names
+                        ))
+                    
+                    fig.update_layout(
+                        polar=dict(
+                            radialaxis=dict(
+                                visible=True,
+                                range=[0, max(radar_data["Percentage"]) * 1.1],
+                                tickfont=dict(color="black")
+                            ),
+                            angularaxis=dict(
+                                tickfont=dict(color="white")
+                            )
+                        ),
+                        showlegend=True,
+                        legend=dict(font=dict(color="white")),
+                        title=dict(
+                            text="Theme Distribution Radar Chart",
+                            font=dict(color="white")
+                        ),
+                        height=700,  # Increased height
+                        margin=dict(l=80, r=80, t=100, b=80),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.info("Please select at least 2 areas for radar comparison.")
+    else:
+        st.info("Not applcable for these")      
     # === TAB 5: CORRELATION ANALYSIS ===
     with tab5:
         st.subheader("Theme Correlation Analysis")
