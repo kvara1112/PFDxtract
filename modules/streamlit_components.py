@@ -2144,19 +2144,21 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             active_filters.append(f"Year: {selected_years[0]}")
         else:
             active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
-    if area_filter_type == "Select Specific Areas" and selected_areas and isPFD:
-        if len(selected_areas) <= 3:
-            active_filters.append(f"Areas: {', '.join(selected_areas)}")
-        else:
-            active_filters.append(f"Areas: {len(selected_areas)} selected")
-    if name_filter_type == "Select Specific Coroners" and selected_names and isPFD:
-        if len(selected_names) <= 3:
-            active_filters.append(f"Coroners: {', '.join(selected_names)}")
-        else:
-            active_filters.append(f"Coroners: {len(selected_names)} selected")
-    if confidence_filter_type == "Select Specific Levels" and selected_confidence_levels:
-        active_filters.append(f"Confidence: {', '.join(selected_confidence_levels)}")
-    
+            
+    if isPFD:
+        if area_filter_type == "Select Specific Areas" and selected_areas:
+            if len(selected_areas) <= 3:
+                active_filters.append(f"Areas: {', '.join(selected_areas)}")
+            else:
+                active_filters.append(f"Areas: {len(selected_areas)} selected")
+        if name_filter_type == "Select Specific Coroners" and selected_names and isPFD:
+            if len(selected_names) <= 3:
+                active_filters.append(f"Coroners: {', '.join(selected_names)}")
+            else:
+                active_filters.append(f"Coroners: {len(selected_names)} selected")
+        if confidence_filter_type == "Select Specific Levels" and selected_confidence_levels:
+            active_filters.append(f"Confidence: {', '.join(selected_confidence_levels)}")
+        
     if active_filters:
         st.info("Active filters: " + " | ".join(active_filters))
     
