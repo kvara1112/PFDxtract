@@ -2144,12 +2144,12 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             active_filters.append(f"Year: {selected_years[0]}")
         else:
             active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
-    if area_filter_type == "Select Specific Areas" and selected_areas:
+    if area_filter_type == "Select Specific Areas" and selected_areas and isPFD:
         if len(selected_areas) <= 3:
             active_filters.append(f"Areas: {', '.join(selected_areas)}")
         else:
             active_filters.append(f"Areas: {len(selected_areas)} selected")
-    if name_filter_type == "Select Specific Coroners" and selected_names:
+    if name_filter_type == "Select Specific Coroners" and selected_names and isPFD:
         if len(selected_names) <= 3:
             active_filters.append(f"Coroners: {', '.join(selected_names)}")
         else:
