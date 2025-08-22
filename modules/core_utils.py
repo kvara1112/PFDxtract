@@ -757,7 +757,7 @@ def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> st
 
 
 
-def save_dashboard_images_as_zip(filtered_df):
+def save_dashboard_images_as_zip(isPFD:bool, filtered_df):
     """
     Save all dashboard visualizations as images and package them into a zip file.
     Improved version that properly generates and captures all visualizations from all tabs.

@@ -300,7 +300,7 @@ def main():
         render_footer()
         return
     st.title("⚖️")
-    if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash":
+    if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash" or st.session_state.button_clicked == "dash2":
         st.markdown(
                 """
                 <h1 style='text-align:center;'>Welcome to the Analyser</h1>""",
