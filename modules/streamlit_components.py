@@ -1934,11 +1934,11 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             data = st.session_state[dashboard_data_key]
     
     # File upload section with persistent state
-    upload_key = "theme_analysis_dashboard_uploader"
+    upload_key = f"{report_key}_theme_analysis_dashboard_uploader"
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file for Dashboard Analysis",
         type=["csv", "xlsx"],
-        key=f"{report_key}_upload_key",
+        key=upload_key
     )
     
     # Process uploaded file
@@ -1988,10 +1988,10 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     if missing_required:
         st.error(f"Missing required columns: {', '.join(missing_required)}")
         return
-    
-    if missing_recommended:
-        st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}")
-    
+    if isPFD:
+        if missing_recommended:
+            st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}")
+        
     # Data Overview
     st.subheader("Data Overview")
     metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
@@ -2001,11 +2001,12 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     with metrics_col2:
         st.metric("Unique Themes", data["Theme"].nunique())
     
-    with metrics_col3:
-        if "coroner_area" in data.columns and not data["coroner_area"].isna().all():
-            st.metric("Coroner Areas", data["coroner_area"].nunique())
-        else:
-            st.metric("Coroner Areas", "N/A")
+    if isPFD:
+        with metrics_col3:
+            if "coroner_area" in data.columns and not data["coroner_area"].isna().all():
+                st.metric("Coroner Areas", data["coroner_area"].nunique())
+            else:
+                st.metric("Coroner Areas", "N/A")
     
     with metrics_col4:
         if "year" in data.columns and not data["year"].isna().all():
@@ -2144,7 +2145,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             active_filters.append(f"Year: {selected_years[0]}")
         else:
             active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
-            
+
     if isPFD:
         if area_filter_type == "Select Specific Areas" and selected_areas:
             if len(selected_areas) <= 3:
