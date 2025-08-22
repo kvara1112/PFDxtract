@@ -43,6 +43,8 @@ from .web_scraping import (
     construct_search_url,
     get_report_content
 )
+
+
 from .vectorizer_models import get_vectorizer, render_topic_summary_tab
 from .bert_analysis import BERTResultsAnalyzer, ThemeAnalyzer
 from .visualization import (
@@ -1912,6 +1914,10 @@ def render_bert_analysis_tabworking(data: pd.DataFrame = None):
             else:
                 st.warning("HTML report not available")
 
+if "button_clicked" not in st.session_state:
+    st.session_state.button_clicked = None
+def go_to_page(page):
+    st.session_state.button_clicked = page
 
 def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     """
@@ -2091,6 +2097,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                 st.sidebar.warning("No coroners selected. Showing all coroners.")
                 selected_names = names
     
+
     # Number of top themes to display
     top_n_themes = st.sidebar.slider("Number of Top Themes", 5, 20, 10)
     
@@ -2159,6 +2166,8 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                 active_filters.append(f"Coroners: {len(selected_names)} selected")
         if confidence_filter_type == "Select Specific Levels" and selected_confidence_levels:
             active_filters.append(f"Confidence: {', '.join(selected_confidence_levels)}")
+    with st.sidebar:
+        st.button("Back to Dashboard", key="dash_btn", on_click=go_to_page, args=("dash",))
         
     if active_filters:
         st.info("Active filters: " + " | ".join(active_filters))
@@ -2166,7 +2175,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     if len(filtered_df) == 0:
         st.warning("No data matches the selected filters. Please adjust your filters.")
         return
-        
+    
     # Continue with the rest of the dashboard code...
     # Create tabs for different visualizations
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
