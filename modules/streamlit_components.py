@@ -2979,7 +2979,8 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                 else:
                     st.info("Please select at least 2 areas for radar comparison.")
     else:
-        st.info("Not applcable for these")      
+        with tab4:
+            st.info("Not applcable for these")      
     # === TAB 5: CORRELATION ANALYSIS ===
     with tab5:
         st.subheader("Theme Correlation Analysis")
