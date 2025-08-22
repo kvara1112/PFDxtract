@@ -1317,7 +1317,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
 
             # Process the uploaded data
             uploaded_data = process_scraped_data(uploaded_data)
-            print(uploaded_data)
+            print(uploaded_data["date_of_report"])
             # Update the data reference
             data = uploaded_data
 
