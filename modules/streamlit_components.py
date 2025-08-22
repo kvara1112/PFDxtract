@@ -64,49 +64,47 @@ from .file_prep import (
 
 
 # Add this to your initialize_session_state function
-def initialize_session_state(report_key:str):
-    
+def initialize_session_state():
     """Initialize all required session state variables"""
     # Check if we need to perform first-time initialization
-    if f"{report_key}_initialized" not in st.session_state:
+    if "initialized" not in st.session_state:
         # Clear all existing session state
         for key in list(st.session_state.keys()):
-            if key.startswith(report_key):
-                del st.session_state[key]
+            del st.session_state[key]
             
         # Set new session state variables
-        st.session_state[f"{report_key}_initialized"] = True
-        st.session_state[f"{report_key}_data_source"] = None
-        st.session_state[f"{report_key}_current_data"] = None
-        st.session_state[f"{report_key}_scraped_data"] = None
-        st.session_state[f"{report_key}_uploaded_data"] = None
-        st.session_state[f"{report_key}_topic_model"] = None
-        st.session_state[f"{report_key}_cleanup_done"] = False
-        st.session_state[f"{report_key}_last_scrape_time"] = None
-        st.session_state[f"{report_key}_last_upload_time"] = None
-        st.session_state[f"{report_key}_reset_counter"] = 0  # Add this counter for file uploader resets
+        st.session_state.initialized = True
+        st.session_state.data_source = None
+        st.session_state.current_data = None
+        st.session_state.scraped_data = None
+        st.session_state.uploaded_data = None
+        st.session_state.topic_model = None
+        st.session_state.cleanup_done = False
+        st.session_state.last_scrape_time = None
+        st.session_state.last_upload_time = None
+        st.session_state.reset_counter = 0  # Add this counter for file uploader resets
         
         # BERT-related session state variables
-        st.session_state[f"{report_key}_bert_results"] = {}
-        st.session_state[f"{report_key}_bert_initialized"] = False
-        st.session_state[f"{report_key}_bert_merged_data"] = None
+        st.session_state.bert_results = {}
+        st.session_state.bert_initialized = False
+        st.session_state.bert_merged_data = None
         
         # Analysis filters
-        st.session_state[f"{report_key}_analysis_filters"] = {
+        st.session_state.analysis_filters = {
             "date_range": None,
             "selected_categories": None,
             "selected_areas": None,
         }
         
         # Topic model settings
-        st.session_state[f"{report_key}_topic_model_settings"] = {
+        st.session_state.topic_model_settings = {
             "num_topics": 5,
             "max_features": 1000,
             "similarity_threshold": 0.3,
         }
     
     # Perform PDF cleanup if not done
-    if not st.session_state.get(f"{report_key}_cleanup_done", False):
+    if not st.session_state.get("cleanup_done", False):
         try:
             pdf_dir = "outputs"
             os.makedirs(pdf_dir, exist_ok=True)
@@ -129,7 +127,7 @@ def initialize_session_state(report_key:str):
         except Exception as e:
             logging.error(f"Error during PDF cleanup: {e}")
         finally:
-            st.session_state[f"{report_key}_cleanup_done"] = True
+            st.session_state.cleanup_done = True
             
             
 def initialize_session_state2():
