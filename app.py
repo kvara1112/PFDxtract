@@ -503,7 +503,7 @@ def main():
                     - Discover relationships between themes using correlation analysis
                     """
                 )
-                render_theme_analysis_dashboard(st.session_state.current_data)
+                render_theme_analysis_dashboard(True, st.session_state.current_data)
             # Sidebar data management
             with st.sidebar:
                 st.header("Data Management")
