@@ -2069,44 +2069,48 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             selected_years = None
         
         
-        if isPFD and missing_recommended is None:
-            # Coroner area filter - MODIFIED: Multi-select instead of single select
-            areas = sorted(results_df["coroner_area"].dropna().unique().tolist())
-            area_options = ["All Areas"] + areas
-            # Default to "All Areas" if no specific selection
-            area_filter_type = st.sidebar.radio("Coroner Area Filter Type", ["All Areas", "Select Specific Areas"])
-            if area_filter_type == "All Areas":
-                selected_areas = areas  # Include all areas
+        if isPFD:
+            if "coroner_area" not in missing_recommended and "coroner_name" not in missing_recommended:
+                # Coroner area filter - MODIFIED: Multi-select instead of single select
+                areas = sorted(results_df["coroner_area"].dropna().unique().tolist())
+                area_options = ["All Areas"] + areas
+                # Default to "All Areas" if no specific selection
+                area_filter_type = st.sidebar.radio("Coroner Area Filter Type", ["All Areas", "Select Specific Areas"])
+                if area_filter_type == "All Areas":
+                    selected_areas = areas  # Include all areas
+                else:
+                    # Multi-select for specific areas
+                    selected_areas = st.sidebar.multiselect(
+                        "Select Areas", 
+                        options=areas,
+                        default=None,
+                        help="Select one or more specific coroner areas to include"
+                    )
+                    # If nothing selected, default to all areas
+                    if not selected_areas:
+                        st.sidebar.warning("No areas selected. Showing all areas.")
+                        selected_areas = areas
+                
+                # Coroner name filter - MODIFIED: Multi-select instead of single select
+                names = sorted(results_df["coroner_name"].dropna().unique().tolist())
+                name_filter_type = st.sidebar.radio("Coroner Name Filter Type", ["All Coroners", "Select Specific Coroners"])
+                if name_filter_type == "All Coroners":
+                    selected_names = names  # Include all coroner names
+                else:
+                    # Multi-select for specific coroner names
+                    selected_names = st.sidebar.multiselect(
+                        "Select Coroners", 
+                        options=names,
+                        default=None,
+                        help="Select one or more specific coroners to include"
+                    )
+                    # If nothing selected, default to all names
+                    if not selected_names:
+                        st.sidebar.warning("No coroners selected. Showing all coroners.")
+                        selected_names = names
             else:
-                # Multi-select for specific areas
-                selected_areas = st.sidebar.multiselect(
-                    "Select Areas", 
-                    options=areas,
-                    default=None,
-                    help="Select one or more specific coroner areas to include"
-                )
-                # If nothing selected, default to all areas
-                if not selected_areas:
-                    st.sidebar.warning("No areas selected. Showing all areas.")
-                    selected_areas = areas
+                st.warning("Required columns for this analysis missing")
             
-            # Coroner name filter - MODIFIED: Multi-select instead of single select
-            names = sorted(results_df["coroner_name"].dropna().unique().tolist())
-            name_filter_type = st.sidebar.radio("Coroner Name Filter Type", ["All Coroners", "Select Specific Coroners"])
-            if name_filter_type == "All Coroners":
-                selected_names = names  # Include all coroner names
-            else:
-                # Multi-select for specific coroner names
-                selected_names = st.sidebar.multiselect(
-                    "Select Coroners", 
-                    options=names,
-                    default=None,
-                    help="Select one or more specific coroners to include"
-                )
-                # If nothing selected, default to all names
-                if not selected_names:
-                    st.sidebar.warning("No coroners selected. Showing all coroners.")
-                    selected_names = names
         
 
         # Number of top themes to display
@@ -2143,13 +2147,15 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             else:
                 filtered_df = filtered_df[(filtered_df["year"] >= selected_years[0]) & 
                                         (filtered_df["year"] <= selected_years[1])]
-        if isPFD and missing_recommended is None:
+        if isPFD:
+            if "coroner_area" not in missing_recommended and "coroner_name" not in missing_recommended:
 
-            # Apply multi-select area filter
-            filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
+                # Apply multi-select area filter
+                filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
+                
+                # Apply multi-select coroner name filter
+                filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_names)]
             
-            # Apply multi-select coroner name filter
-            filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_names)]
         
         # Apply multi-select confidence level filter
         filtered_df = filtered_df[filtered_df["Confidence"].isin(selected_confidence_levels)]
@@ -2164,17 +2170,19 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             else:
                 active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
 
-        if isPFD and missing_recommended is None:
-            if area_filter_type == "Select Specific Areas" and selected_areas:
-                if len(selected_areas) <= 3:
-                    active_filters.append(f"Areas: {', '.join(selected_areas)}")
-                else:
-                    active_filters.append(f"Areas: {len(selected_areas)} selected")
-            if name_filter_type == "Select Specific Coroners" and selected_names and isPFD:
-                if len(selected_names) <= 3:
-                    active_filters.append(f"Coroners: {', '.join(selected_names)}")
-                else:
-                    active_filters.append(f"Coroners: {len(selected_names)} selected")
+        if isPFD:
+            if "coroner_area" not in missing_recommended and "coroner_name" not in missing_recommended is None:
+                if area_filter_type == "Select Specific Areas" and selected_areas:
+                    if len(selected_areas) <= 3:
+                        active_filters.append(f"Areas: {', '.join(selected_areas)}")
+                    else:
+                        active_filters.append(f"Areas: {len(selected_areas)} selected")
+                if name_filter_type == "Select Specific Coroners" and selected_names and isPFD:
+                    if len(selected_names) <= 3:
+                        active_filters.append(f"Coroners: {', '.join(selected_names)}")
+                    else:
+                        active_filters.append(f"Coroners: {len(selected_names)} selected")
+            
             if confidence_filter_type == "Select Specific Levels" and selected_confidence_levels:
                 active_filters.append(f"Confidence: {', '.join(selected_confidence_levels)}")
         with st.sidebar:
