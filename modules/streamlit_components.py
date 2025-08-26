@@ -2007,7 +2007,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             return
         if isPFD:
             if missing_recommended:
-                st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}, must be an uploaded PFD")
+                st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}")
             
         # Data Overview
         st.subheader("Data Overview")
@@ -2109,7 +2109,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                         st.sidebar.warning("No coroners selected. Showing all coroners.")
                         selected_names = names
             else:
-                st.warning("Required columns for this analysis missing")
+                st.warning("Required columns for area analysis missing")
             
         
 
@@ -3009,7 +3009,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                         st.info("Please select at least 2 areas for radar comparison.")
         else:
             with tab4:
-                st.info("Only applicable for PFD reports as this evaluates the coroner areas")      
+                st.info("Only applicable for PFD reports with coroner areas, use our PFD analyzer for this")      
         # === TAB 5: CORRELATION ANALYSIS ===
         with tab5:
             st.subheader("Theme Correlation Analysis")
