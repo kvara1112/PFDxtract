@@ -1987,255 +1987,725 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             """)
             
         return  # Exit the function if no data
-    
-    # Validate required columns
-    required_cols = ["Framework", "Theme"]
-    recommended_cols = ["coroner_area", "coroner_name", "year"]
-    
-    missing_required = [col for col in required_cols if col not in data.columns]
-    missing_recommended = [col for col in recommended_cols if col not in data.columns]
-    
-    if missing_required:
-        st.error(f"Missing required columns: {', '.join(missing_required)}")
-        return
-    if isPFD:
-        if missing_recommended:
-            st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}")
+    else:
+        # Validate required columns
+        required_cols = ["Framework", "Theme"]
+        recommended_cols = ["coroner_area", "coroner_name", "year"]
         
-    # Data Overview
-    st.subheader("Data Overview")
-    metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
-    
-    with metrics_col1:
-        st.metric("Total Theme Identifications", len(data))
-    with metrics_col2:
-        st.metric("Unique Themes", data["Theme"].nunique())
-    
-    if isPFD:
-        with metrics_col3:
-            if "coroner_area" in data.columns and not data["coroner_area"].isna().all():
-                st.metric("Coroner Areas", data["coroner_area"].nunique())
-            else:
-                st.metric("Coroner Areas", "N/A")
-    
-    with metrics_col4:
-        if "year" in data.columns and not data["year"].isna().all():
-            years_count = data["year"].dropna().nunique()
-            year_text = f"{years_count}" if years_count > 0 else "N/A"
-            st.metric("Years Covered", year_text)
-        else:
-            st.metric("Years Covered", "N/A")
+        missing_required = [col for col in required_cols if col not in data.columns]
+        missing_recommended = [col for col in recommended_cols if col not in data.columns]
+        
+        if missing_required:
+            st.error(f"Missing required columns: {', '.join(missing_required)}")
+            return
+        if isPFD:
+            if missing_recommended:
+                st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}")
             
-    results_df = data.copy() if data is not None else pd.DataFrame()
-    
-    #
-    
-    # Sidebar filters
-    # Find the sidebar filter section in the render_theme_analysis_dashboard function 
-    # and replace it with this improved version:
-    
-    # Sidebar filters
-    st.sidebar.header("Dashboard Filters")
-    
-    # Framework filter
-    frameworks = ["All"] + sorted(results_df["Framework"].unique().tolist())
-    selected_framework = st.sidebar.selectbox("Filter by Framework", frameworks)
-    
-    # Year filter - Modified to handle single year selection properly
-    years = sorted(results_df["year"].dropna().unique().tolist())
-    if years:
-        min_year, max_year = min(years), max(years)
+        # Data Overview
+        st.subheader("Data Overview")
+        metrics_col1, metrics_col2, metrics_col3, metrics_col4 = st.columns(4)
         
-        # If only one year available, provide a checkbox instead of slider
-        if min_year == max_year:
-            include_year = st.sidebar.checkbox(f"Include year {min_year}", value=True)
-            if include_year:
-                selected_years = (min_year, max_year)
+        with metrics_col1:
+            st.metric("Total Theme Identifications", len(data))
+        with metrics_col2:
+            st.metric("Unique Themes", data["Theme"].nunique())
+        
+        if isPFD:
+            with metrics_col3:
+                if "coroner_area" in data.columns and not data["coroner_area"].isna().all():
+                    st.metric("Coroner Areas", data["coroner_area"].nunique())
+                else:
+                    st.metric("Coroner Areas", "N/A")
+        
+        with metrics_col4:
+            if "year" in data.columns and not data["year"].isna().all():
+                years_count = data["year"].dropna().nunique()
+                year_text = f"{years_count}" if years_count > 0 else "N/A"
+                st.metric("Years Covered", year_text)
             else:
-                selected_years = None
-        else:
-            # For multiple years, keep using the slider
-            selected_years = st.sidebar.slider(
-                "Year Range", min_year, max_year, (min_year, max_year)
-            )
-    else:
-        selected_years = None
-    
-    
-    if isPFD:
-        # Coroner area filter - MODIFIED: Multi-select instead of single select
-        areas = sorted(results_df["coroner_area"].dropna().unique().tolist())
-        area_options = ["All Areas"] + areas
-        # Default to "All Areas" if no specific selection
-        area_filter_type = st.sidebar.radio("Coroner Area Filter Type", ["All Areas", "Select Specific Areas"])
-        if area_filter_type == "All Areas":
-            selected_areas = areas  # Include all areas
-        else:
-            # Multi-select for specific areas
-            selected_areas = st.sidebar.multiselect(
-                "Select Areas", 
-                options=areas,
-                default=None,
-                help="Select one or more specific coroner areas to include"
-            )
-            # If nothing selected, default to all areas
-            if not selected_areas:
-                st.sidebar.warning("No areas selected. Showing all areas.")
-                selected_areas = areas
+                st.metric("Years Covered", "N/A")
+                
+        results_df = data.copy() if data is not None else pd.DataFrame()
         
-        # Coroner name filter - MODIFIED: Multi-select instead of single select
-        names = sorted(results_df["coroner_name"].dropna().unique().tolist())
-        name_filter_type = st.sidebar.radio("Coroner Name Filter Type", ["All Coroners", "Select Specific Coroners"])
-        if name_filter_type == "All Coroners":
-            selected_names = names  # Include all coroner names
-        else:
-            # Multi-select for specific coroner names
-            selected_names = st.sidebar.multiselect(
-                "Select Coroners", 
-                options=names,
-                default=None,
-                help="Select one or more specific coroners to include"
-            )
-            # If nothing selected, default to all names
-            if not selected_names:
-                st.sidebar.warning("No coroners selected. Showing all coroners.")
-                selected_names = names
-    
-
-    # Number of top themes to display
-    top_n_themes = st.sidebar.slider("Number of Top Themes", 5, 20, 10)
-    
-    # Confidence filter - MODIFIED: Multi-select instead of minimum
-    confidence_levels = ["High", "Medium", "Low"]
-    confidence_filter_type = st.sidebar.radio("Confidence Filter Type", ["All Confidence Levels", "Select Specific Levels"])
-    if confidence_filter_type == "All Confidence Levels":
-        selected_confidence_levels = confidence_levels  # Include all confidence levels
-    else:
-        # Multi-select for specific confidence levels
-        selected_confidence_levels = st.sidebar.multiselect(
-            "Select Confidence Levels", 
-            options=confidence_levels,
-            default=["High", "Medium"],  # Default to high and medium
-            help="Select one or more confidence levels to include"
-        )
-        # If nothing selected, default to all confidence levels
-        if not selected_confidence_levels:
-            st.sidebar.warning("No confidence levels selected. Showing all levels.")
-            selected_confidence_levels = confidence_levels
-    
-    # Apply filters - UPDATED to handle new multi-select filters
-    filtered_df = results_df.copy()
-    
-    if selected_framework != "All":
-        filtered_df = filtered_df[filtered_df["Framework"] == selected_framework]
-    
-    if selected_years:
-        # Handle edge case of single year (where both values are the same)
-        if selected_years[0] == selected_years[1]:
-            filtered_df = filtered_df[filtered_df["year"] == selected_years[0]]
-        else:
-            filtered_df = filtered_df[(filtered_df["year"] >= selected_years[0]) & 
-                                    (filtered_df["year"] <= selected_years[1])]
-    if isPFD:
-
-        # Apply multi-select area filter
-        filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
+        #
         
-        # Apply multi-select coroner name filter
-        filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_names)]
-    
-    # Apply multi-select confidence level filter
-    filtered_df = filtered_df[filtered_df["Confidence"].isin(selected_confidence_levels)]
-    
-    # Display filter summary
-    active_filters = []
-    if selected_framework != "All":
-        active_filters.append(f"Framework: {selected_framework}")
-    if selected_years:
-        if selected_years[0] == selected_years[1]:
-            active_filters.append(f"Year: {selected_years[0]}")
-        else:
-            active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
-
-    if isPFD:
-        if area_filter_type == "Select Specific Areas" and selected_areas:
-            if len(selected_areas) <= 3:
-                active_filters.append(f"Areas: {', '.join(selected_areas)}")
+        # Sidebar filters
+        # Find the sidebar filter section in the render_theme_analysis_dashboard function 
+        # and replace it with this improved version:
+        
+        # Sidebar filters
+        st.sidebar.header("Dashboard Filters")
+        
+        # Framework filter
+        frameworks = ["All"] + sorted(results_df["Framework"].unique().tolist())
+        selected_framework = st.sidebar.selectbox("Filter by Framework", frameworks)
+        
+        # Year filter - Modified to handle single year selection properly
+        years = sorted(results_df["year"].dropna().unique().tolist())
+        if years:
+            min_year, max_year = min(years), max(years)
+            
+            # If only one year available, provide a checkbox instead of slider
+            if min_year == max_year:
+                include_year = st.sidebar.checkbox(f"Include year {min_year}", value=True)
+                if include_year:
+                    selected_years = (min_year, max_year)
+                else:
+                    selected_years = None
             else:
-                active_filters.append(f"Areas: {len(selected_areas)} selected")
-        if name_filter_type == "Select Specific Coroners" and selected_names and isPFD:
-            if len(selected_names) <= 3:
-                active_filters.append(f"Coroners: {', '.join(selected_names)}")
-            else:
-                active_filters.append(f"Coroners: {len(selected_names)} selected")
-        if confidence_filter_type == "Select Specific Levels" and selected_confidence_levels:
-            active_filters.append(f"Confidence: {', '.join(selected_confidence_levels)}")
-    with st.sidebar:
-        st.button("Back to Dashboard", key="dash_btn2", on_click=go_to_page, args=("dash2",))
-        
-    if active_filters:
-        st.info("Active filters: " + " | ".join(active_filters))
-    
-    if len(filtered_df) == 0:
-        st.warning("No data matches the selected filters. Please adjust your filters.")
-        return
-    
-    # Continue with the rest of the dashboard code...
-    # Create tabs for different visualizations
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "Framework Heatmap", 
-        "Theme Distribution", 
-        "Temporal Analysis", 
-        "Area Comparison",
-        "Correlation Analysis"
-    ])
-    
-    # === TAB 1: FRAMEWORK HEATMAP ===
-    with tab1:
-        st.subheader("Framework Theme Heatmap by Year")
-        
-        if "year" not in filtered_df.columns or filtered_df["year"].isna().all():
-            st.warning("No year data available for temporal analysis.")
-        else:
-            # Handle special case where we only have one year
-            if filtered_df["year"].nunique() == 1:
-                st.info(f"Showing data for year {filtered_df['year'].iloc[0]}")
-                
-                # Create a simplified categorical count visualization for single year
-                theme_counts = filtered_df.groupby(['Framework', 'Theme']).size().reset_index(name='Count')
-                
-                # Sort by framework and count
-                theme_counts = theme_counts.sort_values(['Framework', 'Count'], ascending=[True, False])
-                
-                # Process theme names for better display using improved function
-                theme_counts['Display_Theme'] = theme_counts['Theme'].apply(
-                    lambda x: improved_truncate_text(x, max_length=40)
+                # For multiple years, keep using the slider
+                selected_years = st.sidebar.slider(
+                    "Year Range", min_year, max_year, (min_year, max_year)
                 )
-                
-                # Display as a horizontal bar chart grouped by framework
-                fig = px.bar(
-                    theme_counts,
-                    y='Display_Theme',  # Use formatted theme names
-                    x='Count',
-                    color='Framework',
-                    title=f"Theme Distribution for Year {filtered_df['year'].iloc[0]}",
-                    height=max(500, len(theme_counts) * 30),
-                    color_discrete_map={
+        else:
+            selected_years = None
+        
+        
+        if isPFD:
+            # Coroner area filter - MODIFIED: Multi-select instead of single select
+            areas = sorted(results_df["coroner_area"].dropna().unique().tolist())
+            area_options = ["All Areas"] + areas
+            # Default to "All Areas" if no specific selection
+            area_filter_type = st.sidebar.radio("Coroner Area Filter Type", ["All Areas", "Select Specific Areas"])
+            if area_filter_type == "All Areas":
+                selected_areas = areas  # Include all areas
+            else:
+                # Multi-select for specific areas
+                selected_areas = st.sidebar.multiselect(
+                    "Select Areas", 
+                    options=areas,
+                    default=None,
+                    help="Select one or more specific coroner areas to include"
+                )
+                # If nothing selected, default to all areas
+                if not selected_areas:
+                    st.sidebar.warning("No areas selected. Showing all areas.")
+                    selected_areas = areas
+            
+            # Coroner name filter - MODIFIED: Multi-select instead of single select
+            names = sorted(results_df["coroner_name"].dropna().unique().tolist())
+            name_filter_type = st.sidebar.radio("Coroner Name Filter Type", ["All Coroners", "Select Specific Coroners"])
+            if name_filter_type == "All Coroners":
+                selected_names = names  # Include all coroner names
+            else:
+                # Multi-select for specific coroner names
+                selected_names = st.sidebar.multiselect(
+                    "Select Coroners", 
+                    options=names,
+                    default=None,
+                    help="Select one or more specific coroners to include"
+                )
+                # If nothing selected, default to all names
+                if not selected_names:
+                    st.sidebar.warning("No coroners selected. Showing all coroners.")
+                    selected_names = names
+        
+
+        # Number of top themes to display
+        top_n_themes = st.sidebar.slider("Number of Top Themes", 5, 20, 10)
+        
+        # Confidence filter - MODIFIED: Multi-select instead of minimum
+        confidence_levels = ["High", "Medium", "Low"]
+        confidence_filter_type = st.sidebar.radio("Confidence Filter Type", ["All Confidence Levels", "Select Specific Levels"])
+        if confidence_filter_type == "All Confidence Levels":
+            selected_confidence_levels = confidence_levels  # Include all confidence levels
+        else:
+            # Multi-select for specific confidence levels
+            selected_confidence_levels = st.sidebar.multiselect(
+                "Select Confidence Levels", 
+                options=confidence_levels,
+                default=["High", "Medium"],  # Default to high and medium
+                help="Select one or more confidence levels to include"
+            )
+            # If nothing selected, default to all confidence levels
+            if not selected_confidence_levels:
+                st.sidebar.warning("No confidence levels selected. Showing all levels.")
+                selected_confidence_levels = confidence_levels
+        
+        # Apply filters - UPDATED to handle new multi-select filters
+        filtered_df = results_df.copy()
+        
+        if selected_framework != "All":
+            filtered_df = filtered_df[filtered_df["Framework"] == selected_framework]
+        
+        if selected_years:
+            # Handle edge case of single year (where both values are the same)
+            if selected_years[0] == selected_years[1]:
+                filtered_df = filtered_df[filtered_df["year"] == selected_years[0]]
+            else:
+                filtered_df = filtered_df[(filtered_df["year"] >= selected_years[0]) & 
+                                        (filtered_df["year"] <= selected_years[1])]
+        if isPFD:
+
+            # Apply multi-select area filter
+            filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
+            
+            # Apply multi-select coroner name filter
+            filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_names)]
+        
+        # Apply multi-select confidence level filter
+        filtered_df = filtered_df[filtered_df["Confidence"].isin(selected_confidence_levels)]
+        
+        # Display filter summary
+        active_filters = []
+        if selected_framework != "All":
+            active_filters.append(f"Framework: {selected_framework}")
+        if selected_years:
+            if selected_years[0] == selected_years[1]:
+                active_filters.append(f"Year: {selected_years[0]}")
+            else:
+                active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
+
+        if isPFD:
+            if area_filter_type == "Select Specific Areas" and selected_areas:
+                if len(selected_areas) <= 3:
+                    active_filters.append(f"Areas: {', '.join(selected_areas)}")
+                else:
+                    active_filters.append(f"Areas: {len(selected_areas)} selected")
+            if name_filter_type == "Select Specific Coroners" and selected_names and isPFD:
+                if len(selected_names) <= 3:
+                    active_filters.append(f"Coroners: {', '.join(selected_names)}")
+                else:
+                    active_filters.append(f"Coroners: {len(selected_names)} selected")
+            if confidence_filter_type == "Select Specific Levels" and selected_confidence_levels:
+                active_filters.append(f"Confidence: {', '.join(selected_confidence_levels)}")
+        with st.sidebar:
+            st.button("Back to Dashboard", key="dash_btn2", on_click=go_to_page, args=("dash2",))
+            
+        if active_filters:
+            st.info("Active filters: " + " | ".join(active_filters))
+        
+        if len(filtered_df) == 0:
+            st.warning("No data matches the selected filters. Please adjust your filters.")
+            return
+        
+        # Continue with the rest of the dashboard code...
+        # Create tabs for different visualizations
+        tab1, tab2, tab3, tab4, tab5 = st.tabs([
+            "Framework Heatmap", 
+            "Theme Distribution", 
+            "Temporal Analysis", 
+            "Area Comparison",
+            "Correlation Analysis"
+        ])
+        
+        # === TAB 1: FRAMEWORK HEATMAP ===
+        with tab1:
+            st.subheader("Framework Theme Heatmap by Year")
+            
+            if "year" not in filtered_df.columns or filtered_df["year"].isna().all():
+                st.warning("No year data available for temporal analysis.")
+            else:
+                # Handle special case where we only have one year
+                if filtered_df["year"].nunique() == 1:
+                    st.info(f"Showing data for year {filtered_df['year'].iloc[0]}")
+                    
+                    # Create a simplified categorical count visualization for single year
+                    theme_counts = filtered_df.groupby(['Framework', 'Theme']).size().reset_index(name='Count')
+                    
+                    # Sort by framework and count
+                    theme_counts = theme_counts.sort_values(['Framework', 'Count'], ascending=[True, False])
+                    
+                    # Process theme names for better display using improved function
+                    theme_counts['Display_Theme'] = theme_counts['Theme'].apply(
+                        lambda x: improved_truncate_text(x, max_length=40)
+                    )
+                    
+                    # Display as a horizontal bar chart grouped by framework
+                    fig = px.bar(
+                        theme_counts,
+                        y='Display_Theme',  # Use formatted theme names
+                        x='Count',
+                        color='Framework',
+                        title=f"Theme Distribution for Year {filtered_df['year'].iloc[0]}",
+                        height=max(500, len(theme_counts) * 30),
+                        color_discrete_map={
+                            "I-SIRch": "orange",
+                            "House of Commons": "royalblue",
+                            "Extended Analysis": "firebrick",
+                            "Yorkshire Contributory": "green"
+                        }
+                    )
+                    
+                    fig.update_layout(
+                        xaxis_title="Number of Reports",
+                        yaxis_title="Theme",
+                        yaxis={'categoryorder': 'total ascending'},
+                        font=dict(family="Arial, sans-serif", color="white"),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        margin=dict(l=250, r=40, t=80, b=60)  # Increased left margin for theme labels
+                    )
+                    
+                    # Update axes for dark mode
+                    fig.update_xaxes(
+                        title_font=dict(color="white"),
+                        tickfont=dict(color="white"),
+                        gridcolor="rgba(255,255,255,0.1)"
+                    )
+                    
+                    fig.update_yaxes(
+                        title_font=dict(color="white"),
+                        tickfont=dict(color="white"),
+                        automargin=True  # Enable automargin to ensure labels fit
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    # Regular heatmap code for multiple years
+                    # Create combined framework:theme field
+                    filtered_df['Framework_Theme'] = filtered_df['Framework'] + ': ' + filtered_df['Theme']
+                    
+                    # Count reports per year (for denominator)
+                    # Assuming Record ID is the unique identifier for reports
+                    id_column = 'Record ID' if 'Record ID' in filtered_df.columns else filtered_df.columns[0]
+                    reports_per_year = filtered_df.groupby('year')[id_column].nunique()
+                    
+                    # Count unique report IDs per theme per year
+                    counts = filtered_df.groupby(['year', 'Framework', 'Framework_Theme'])[id_column].nunique().reset_index()
+                    counts.columns = ['year', 'Framework', 'Framework_Theme', 'Count']
+                    
+                    # Calculate percentages
+                    counts['Total'] = counts['year'].map(reports_per_year)
+                    counts['Percentage'] = (counts['Count'] / counts['Total'] * 100).round(1)
+                    
+                    # Get frameworks in the filtered data
+                    frameworks_present = filtered_df['Framework'].unique()
+                    
+                    # Get top themes by framework (5 per framework)
+                    top_themes = []
+                    for framework in frameworks_present:
+                        framework_counts = counts[counts['Framework'] == framework]
+                        theme_totals = framework_counts.groupby('Framework_Theme')['Count'].sum().sort_values(ascending=False)
+                        top_themes.extend(theme_totals.head(5).index.tolist())
+                    
+                    # Filter to top themes
+                    counts = counts[counts['Framework_Theme'].isin(top_themes)]
+                    
+                    # Create pivot table for heatmap
+                    pivot = counts.pivot_table(
+                        index='Framework_Theme',
+                        columns='year',
+                        values='Percentage',
+                        fill_value=0
+                    )
+                    
+                    # Create pivot for counts
+                    count_pivot = counts.pivot_table(
+                        index='Framework_Theme',
+                        columns='year',
+                        values='Count',
+                        fill_value=0
+                    )
+                    
+                    # Sort by framework then by total count
+                    theme_totals = counts.groupby('Framework_Theme')['Count'].sum()
+                    theme_frameworks = {theme: theme.split(':')[0] for theme in theme_totals.index}
+                    
+                    # Sort first by framework, then by count within framework
+                    sorted_themes = sorted(
+                        theme_totals.index,
+                        key=lambda x: (theme_frameworks[x], -theme_totals[x])
+                    )
+                    
+                    # Apply the sort order
+                    pivot = pivot.reindex(sorted_themes)
+                    count_pivot = count_pivot.reindex(sorted_themes)
+                    
+                    # Create color mapping for frameworks
+                    framework_colors = {
                         "I-SIRch": "orange",
                         "House of Commons": "royalblue",
                         "Extended Analysis": "firebrick",
-                        "Yorkshire Contributory": "green"
+                        "Yorkshire Contributory":"green"
                     }
+                    
+                    # Default colors for any frameworks not specifically mapped
+                    other_colors = ["forestgreen", "purple", "darkred"]
+                    for i, framework in enumerate(frameworks_present):
+                        if framework not in framework_colors:
+                            framework_colors[framework] = other_colors[i % len(other_colors)]
+                    
+                    # Create a visually distinctive dataframe for plotting
+                    # For each theme, create a dict with clean name and framework
+                    theme_display_data = []
+                    
+                    for theme in pivot.index:
+                        framework = theme.split(':')[0].strip()
+                        theme_name = theme.split(':', 1)[1].strip()
+                        
+                        # Use improved_truncate_text for line breaking instead of manual handling
+                        formatted_theme = improved_truncate_text(theme_name, max_length=40)
+                        
+                        theme_display_data.append({
+                            'original': theme,
+                            'clean_name': formatted_theme,
+                            'framework': framework,
+                            'color': framework_colors[framework]
+                        })
+                        
+                    theme_display_df = pd.DataFrame(theme_display_data)
+                    
+                    # Add year count labels
+                    year_labels = [f"{math.floor(year)}<br>n={reports_per_year[year]}" for year in pivot.columns]
+                    
+                    # Create heatmap using plotly
+                    fig = go.Figure()
+                    
+                
+                    # Add heatmap
+                    heatmap = go.Heatmap(
+                        z=pivot.values,
+                        x=year_labels,
+                        y=theme_display_df['clean_name'],
+                        colorscale=[
+                            [0, '#f7fbff'],      # Lightest blue (almost white) for zero values
+                            [0.2, '#deebf7'],    # Very light blue
+                            [0.4, '#9ecae1'],    # Light blue
+                            [0.6, '#4292c6'],    # Medium blue
+                            [0.8, '#2171b5'],    # Deep blue
+                            [1.0, '#084594']     # Darkest blue
+                        ],
+                        zmin=0,
+                        zmax=min(100, pivot.values.max() * 1.2),  # Cap at 100% or 20% higher than max
+                        colorbar=dict(
+                            title=dict(text="Percentage (%)", font=dict(color="white", size=12)),
+                            tickfont=dict(color="white", size=10),
+                            outlinecolor="rgba(255,255,255,0.3)",
+                            outlinewidth=1
+                        ),
+                        hoverongaps=False,
+                        text=count_pivot.values.astype(int).astype(str),  # This will show the count in the hover
+                        
+                        hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{text}<extra></extra>'
+                    )
+                    
+                    fig.add_trace(heatmap)
+                    
+                    # Add count annotations
+                    for i in range(len(pivot.index)):
+                        for j in range(len(pivot.columns)):
+                            if pivot.iloc[i, j] > 0:
+                                count = count_pivot.iloc[i, j]
+                                
+                                # Calculate appropriate text color based on cell value
+                                bg_intensity = pivot.iloc[i, j] / 100  # Normalize to 0-1
+                                text_color = 'white' if bg_intensity > 0.4 else 'black'
+                                
+                                # Add an annotation with outline for better visibility
+                                fig.add_annotation(
+                                    x=j,
+                                    y=i,
+                                    text=f"({math.floor(count)})",
+                                    font=dict(size=9, color=text_color),
+                                    showarrow=False,
+                                    xanchor="center",
+                                    yanchor="middle",
+                                    bordercolor="rgba(0,0,0,0.2)",
+                                    borderwidth=1,
+                                    borderpad=2
+                                )
+                    
+                    # Improved framework indicator styling
+                    for framework, color in framework_colors.items():
+                        # Find rows corresponding to this framework
+                        framework_rows = theme_display_df[theme_display_df['framework'] == framework]
+                        
+                        if len(framework_rows) > 0:
+                            # Get the indices in the sorted display order
+                            indices = framework_rows.index.tolist()
+                            min_idx = min(indices)
+                            max_idx = max(indices)
+                            
+                            # Add a colored rectangle with higher contrast
+                            fig.add_shape(
+                                type="rect",
+                                x0=-1.3,  # Further to the left
+                                x1=-0.7,  # Wider rectangle
+                                y0=min_idx - 0.5,  # Align with the heatmap cells
+                                y1=max_idx + 0.5,
+                                fillcolor=color,
+                                opacity=0.85,  # More visible
+                                layer="below",
+                                line=dict(width=1, color='rgba(255,255,255,0.5)')  # White border
+                            )
+                            
+                            # Add framework label with black or white text based on background color
+                            if len(framework_rows) > 1:  # Only add text if multiple themes in framework
+                                # Determine text color (black for light backgrounds, white for dark)
+                                text_color = "black" if framework in ["I-SIRch"] else "white"
+                                
+                                fig.add_annotation(
+                                    x=-1.0,
+                                    y=(min_idx + max_idx) / 2,
+                                    text=framework,
+                                    showarrow=False,
+                                    textangle=90,  # Vertical text
+                                    font=dict(size=12, color=text_color, family="Arial, sans-serif"),
+                                    xanchor="center",
+                                    yanchor="middle"
+                                )
+                    
+                    # Update layout for better readability on dark background
+                    fig.update_layout(
+                        title="Framework Theme Heatmap by Year",
+                        font=dict(family="Arial, sans-serif", color="white"),  # White font for dark background
+                        title_font=dict(size=16, color="white"),  # Larger title with white color (fixed small size)
+                        xaxis_title="Year <br> (number of reports)",
+                        yaxis_title="Theme",
+                        height=max(650, len(pivot.index) * 35),  # Increased height
+                        width=900,  # Set explicit width
+                        margin=dict(l=250, r=60, t=80, b=80),  # Increased left margin further
+                        paper_bgcolor="rgba(0,0,0,0)",  # Transparent background
+                        plot_bgcolor="rgba(0,0,0,0)",  # Transparent background
+                        legend=dict(
+                            orientation="h",
+                            yanchor="bottom",
+                            y=1.05,  # Moved up for more space
+                            xanchor="center",
+                            x=0.5,
+                            bgcolor="rgba(50,50,50,0.8)",  # Dark semi-transparent background
+                            bordercolor="rgba(255,255,255,0.3)",
+                            borderwidth=1,
+                            font=dict(color="white")  # White text for legend
+                        )
+                    )
+                    
+                    # Set y-axis formatting for dark mode
+                    fig.update_layout(
+                        yaxis=dict(
+                            tickmode='array',
+                            tickvals=list(range(len(theme_display_df))),
+                            ticktext=theme_display_df['clean_name'],
+                            tickfont=dict(
+                                size=11,
+                                color='white'  # Changed to white from black for consistency
+                            ),
+                            automargin=True  # Added to ensure labels fit properly
+                        )
+                    )
+                    # Improve x-axis formatting for dark mode
+                    fig.update_xaxes(
+                        tickangle=-0,  # Horizontal labels
+                        title_font=dict(size=14, color="white"),  # White color for axis title
+                        tickfont=dict(size=12, color="white"),  # White color for tick labels
+                        gridcolor="rgba(255,255,255,0.1)"  # Very subtle grid
+                    )
+                    
+                    # Improve y-axis formatting for dark mode
+                    fig.update_yaxes(
+                        title_font=dict(size=14, color="white"),  # White color for axis title
+                        tickfont=dict(size=11, color="white"),  # White color for tick labels
+                        automargin=True  # Ensure labels fit properly
+                    )
+                    
+                    # Add framework legend
+                    for i, (framework, color) in enumerate(framework_colors.items()):
+                        if framework in frameworks_present:  # Only show legends for frameworks present in data
+                            fig.add_trace(go.Scatter(
+                                x=[None],
+                                y=[None],
+                                mode='markers',
+                                marker=dict(size=10, color=color),
+                                name=framework,
+                                showlegend=True
+                            ))
+                    
+                    # Use st.plotly_chart's config parameter for better sizing
+                    st.plotly_chart(
+                        fig, 
+                        use_container_width=True,
+                        config={
+                            'displayModeBar': True,
+                            'responsive': True,
+                            'toImageButtonOptions': {
+                                'format': 'png',
+                                'filename': 'theme_heatmap',
+                                'height': 800,
+                                'width': 1200,
+                                'scale': 2  # Higher resolution
+                            }
+                        }
+                    )
+                    
+        # === TAB 2: THEME DISTRIBUTION ===
+        with tab2:
+            st.subheader("Theme Distribution Analysis")
+            
+            # Get top themes by count
+            theme_counts = filtered_df["Theme"].value_counts().head(top_n_themes)
+            
+            # Use improved_truncate_text for better label formatting
+            formatted_themes = [improved_truncate_text(theme, max_length=40) for theme in theme_counts.index]
+            
+            # Create a bar chart with formatted theme names
+            fig = px.bar(
+                x=formatted_themes,
+                y=theme_counts.values,
+                labels={"x": "Theme", "y": "Count"},
+                title="Top 10 Themes by Occurrence",
+                height=600,  # Increased height to accommodate multi-line labels
+                color_discrete_sequence=['#4287f5']  # Consistent blue color
+            )
+            
+            # Improve layout with better spacing for multi-line text
+            fig.update_layout(
+                xaxis_title="Theme",
+                yaxis_title="Number of Occurrences",
+                xaxis={'categoryorder':'total descending'},
+                xaxis_tickangle=-30,  # Less extreme angle for better readability with multi-line text
+                margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin for labels
+                bargap=0.2,  # Add some gap between bars
+                font=dict(family="Arial, sans-serif", color="white"),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)"
+            )
+            
+            # Update axes for dark mode
+            fig.update_xaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white"),
+                gridcolor="rgba(255,255,255,0.1)",
+                automargin=True  # Ensure labels fit properly without overlap
+            )
+            
+            fig.update_yaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white"),
+                gridcolor="rgba(255,255,255,0.1)"
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+            # Theme by confidence
+            st.subheader("Theme Confidence Breakdown")
+            
+            # Group by theme and confidence
+            theme_confidence = filtered_df.groupby(["Theme", "Confidence"]).size().reset_index(name="Count")
+            
+            # Filter for top themes only
+            top_themes = theme_counts.index.tolist()
+            theme_confidence = theme_confidence[theme_confidence["Theme"].isin(top_themes)]
+            
+            # Create a mapping dictionary for theme display names
+            theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
+            
+            # Apply the formatting to the DataFrame
+            theme_confidence["Display_Theme"] = theme_confidence["Theme"].map(theme_display_map)
+            
+            # Create a grouped bar chart with formatted theme names
+            fig = px.bar(
+                theme_confidence, 
+                x="Display_Theme",  # Use the formatted theme names
+                y="Count", 
+                color="Confidence",
+                barmode="group",
+                color_discrete_map={"High": "#4CAF50", "Medium": "#FFC107", "Low": "#F44336"},
+                category_orders={
+                    "Confidence": ["High", "Medium", "Low"],
+                    "Display_Theme": [theme_display_map[theme] for theme in top_themes]
+                },
+                title="Confidence Distribution by Theme",
+                height=600  # Increased height for better readability
+            )
+            
+            # Improve layout for multi-line labels
+            fig.update_layout(
+                xaxis_title="Theme",
+                yaxis_title="Number of Reports",
+                xaxis_tickangle=-30,  # Less extreme angle for better readability
+                margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin
+                legend=dict(
+                    orientation="h", 
+                    yanchor="bottom", 
+                    y=1.02, 
+                    xanchor="center", 
+                    x=0.5,
+                    title=None,
+                    font=dict(color="white")
+                ),
+                font=dict(family="Arial, sans-serif", color="white"),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)"
+            )
+            
+            # Update axes for dark mode and ensure labels fit
+            fig.update_xaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white"),
+                gridcolor="rgba(255,255,255,0.1)",
+                automargin=True  # Ensure labels fit properly without overlap
+            )
+            
+            fig.update_yaxes(
+                title_font=dict(color="white"),
+                tickfont=dict(color="white"),
+                gridcolor="rgba(255,255,255,0.1)"
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # === TAB 3: TEMPORAL ANALYSIS ===
+        with tab3:
+            st.subheader("Temporal Analysis")
+            
+            if "year" not in filtered_df.columns or filtered_df["year"].isna().all():
+                st.warning("No year data available for temporal analysis.")
+            else:
+                # Create a time series of themes by year
+                year_theme_counts = filtered_df.groupby(["year", "Theme"]).size().reset_index(name="Count")
+                
+                # Filter for top themes only - get top themes by total count
+                all_theme_counts = filtered_df["Theme"].value_counts()
+                top_themes = all_theme_counts.head(top_n_themes).index.tolist()
+            
+                year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
+                
+                # Create a mapping dictionary for formatted theme names
+                theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
+                
+                # Apply the formatting to the DataFrame
+                year_theme_counts["Display_Theme"] = year_theme_counts["Theme"].map(theme_display_map)
+                
+                # Create a line chart - important fix: convert year to string to treat as categorical
+                year_theme_counts['year_str'] = year_theme_counts['year'].astype(str)
+                year_theme_counts['year_int'] = year_theme_counts['year'].astype(int).astype(str)
+
+
+                fig = px.line(
+                    year_theme_counts,
+                    x="year_int",  # Use string version of year
+                    y="Count",
+                    color="Display_Theme",  # Use formatted theme names
+                    markers=True,
+                    title="Theme Trends Over Time",
+                    height=600,  # Increased height
                 )
                 
+                # Improve layout
                 fig.update_layout(
-                    xaxis_title="Number of Reports",
-                    yaxis_title="Theme",
-                    yaxis={'categoryorder': 'total ascending'},
-                    font=dict(family="Arial, sans-serif", color="white"),
+                    xaxis_title="Year",
+                    yaxis_title="Number of Occurrences",
+                    xaxis=dict(
+                        type='category',  # Force categorical x-axis
+                        tickmode="array",
+                        tickvals=sorted(year_theme_counts['year_int'].unique()),
+                        ticktext=sorted(year_theme_counts['year_int'].unique()),
+                    ),
+                    # Move legend below the chart for more horizontal space and prevent overlap
+                    legend=dict(
+                        orientation="h", 
+                        yanchor="top", 
+                        y=-0.2,  # Position below the chart
+                        xanchor="center", 
+                        x=0.5,
+                        title=None  # Remove legend title
+                    ),
+                    margin=dict(l=50, r=50, b=150, t=80),  # Increase bottom margin for legend
+                    font=dict(color="white"),
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=250, r=40, t=80, b=60)  # Increased left margin for theme labels
                 )
                 
                 # Update axes for dark mode
@@ -2248,118 +2718,36 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                 fig.update_yaxes(
                     title_font=dict(color="white"),
                     tickfont=dict(color="white"),
-                    automargin=True  # Enable automargin to ensure labels fit
+                    gridcolor="rgba(255,255,255,0.1)"
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
-            else:
-                # Regular heatmap code for multiple years
-                # Create combined framework:theme field
-                filtered_df['Framework_Theme'] = filtered_df['Framework'] + ': ' + filtered_df['Theme']
                 
-                # Count reports per year (for denominator)
-                # Assuming Record ID is the unique identifier for reports
-                id_column = 'Record ID' if 'Record ID' in filtered_df.columns else filtered_df.columns[0]
-                reports_per_year = filtered_df.groupby('year')[id_column].nunique()
+                # Heatmap of themes by year
+                st.subheader("Theme Prevalence by Year")
                 
-                # Count unique report IDs per theme per year
-                counts = filtered_df.groupby(['year', 'Framework', 'Framework_Theme'])[id_column].nunique().reset_index()
-                counts.columns = ['year', 'Framework', 'Framework_Theme', 'Count']
+                # Create a pivot table
+                pivot_df = year_theme_counts.pivot(index="Theme", columns="year_str", values="Count").fillna(0)
                 
-                # Calculate percentages
-                counts['Total'] = counts['year'].map(reports_per_year)
-                counts['Percentage'] = (counts['Count'] / counts['Total'] * 100).round(1)
+                # Convert to a normalized heatmap (percentage)
+                # Calculate the total themes per year
+                year_theme_totals = pivot_df.sum(axis=0)
+                normalized_pivot = pivot_df.div(year_theme_totals, axis=1) * 100
                 
-                # Get frameworks in the filtered data
-                frameworks_present = filtered_df['Framework'].unique()
+                # Format the theme names for better display
+                formatted_themes = [improved_truncate_text(theme, max_length=40) for theme in normalized_pivot.index]
                 
-                # Get top themes by framework (5 per framework)
-                top_themes = []
-                for framework in frameworks_present:
-                    framework_counts = counts[counts['Framework'] == framework]
-                    theme_totals = framework_counts.groupby('Framework_Theme')['Count'].sum().sort_values(ascending=False)
-                    top_themes.extend(theme_totals.head(5).index.tolist())
+                # Create a heatmap - ensure years are in correct order
+                year_order = sorted(year_theme_counts['year'].unique())
+                year_order_str = [str(y) for y in year_order]
+                year_order_int = [int(y) for y in year_order]
                 
-                # Filter to top themes
-                counts = counts[counts['Framework_Theme'].isin(top_themes)]
-                
-                # Create pivot table for heatmap
-                pivot = counts.pivot_table(
-                    index='Framework_Theme',
-                    columns='year',
-                    values='Percentage',
-                    fill_value=0
-                )
-                
-                # Create pivot for counts
-                count_pivot = counts.pivot_table(
-                    index='Framework_Theme',
-                    columns='year',
-                    values='Count',
-                    fill_value=0
-                )
-                
-                # Sort by framework then by total count
-                theme_totals = counts.groupby('Framework_Theme')['Count'].sum()
-                theme_frameworks = {theme: theme.split(':')[0] for theme in theme_totals.index}
-                
-                # Sort first by framework, then by count within framework
-                sorted_themes = sorted(
-                    theme_totals.index,
-                    key=lambda x: (theme_frameworks[x], -theme_totals[x])
-                )
-                
-                # Apply the sort order
-                pivot = pivot.reindex(sorted_themes)
-                count_pivot = count_pivot.reindex(sorted_themes)
-                
-                # Create color mapping for frameworks
-                framework_colors = {
-                    "I-SIRch": "orange",
-                    "House of Commons": "royalblue",
-                    "Extended Analysis": "firebrick",
-                    "Yorkshire Contributory":"green"
-                }
-                
-                # Default colors for any frameworks not specifically mapped
-                other_colors = ["forestgreen", "purple", "darkred"]
-                for i, framework in enumerate(frameworks_present):
-                    if framework not in framework_colors:
-                        framework_colors[framework] = other_colors[i % len(other_colors)]
-                
-                # Create a visually distinctive dataframe for plotting
-                # For each theme, create a dict with clean name and framework
-                theme_display_data = []
-                
-                for theme in pivot.index:
-                    framework = theme.split(':')[0].strip()
-                    theme_name = theme.split(':', 1)[1].strip()
-                    
-                    # Use improved_truncate_text for line breaking instead of manual handling
-                    formatted_theme = improved_truncate_text(theme_name, max_length=40)
-                    
-                    theme_display_data.append({
-                        'original': theme,
-                        'clean_name': formatted_theme,
-                        'framework': framework,
-                        'color': framework_colors[framework]
-                    })
-                    
-                theme_display_df = pd.DataFrame(theme_display_data)
-                
-                # Add year count labels
-                year_labels = [f"{math.floor(year)}<br>n={reports_per_year[year]}" for year in pivot.columns]
-                
-                # Create heatmap using plotly
-                fig = go.Figure()
-                
-            
-                # Add heatmap
-                heatmap = go.Heatmap(
-                    z=pivot.values,
-                    x=year_labels,
-                    y=theme_display_df['clean_name'],
-                    colorscale=[
+                fig = px.imshow(
+                    normalized_pivot[year_order_str],  # Ensure columns are in correct order
+                    labels=dict(x="Year", y="Theme", color="% of Themes"),
+                    x=year_order_int,  # Use sorted string years
+                    y=formatted_themes,  # Use formatted theme names
+                    color_continuous_scale=[
                         [0, '#f7fbff'],      # Lightest blue (almost white) for zero values
                         [0.2, '#deebf7'],    # Very light blue
                         [0.4, '#9ecae1'],    # Light blue
@@ -2367,1145 +2755,757 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                         [0.8, '#2171b5'],    # Deep blue
                         [1.0, '#084594']     # Darkest blue
                     ],
-                    zmin=0,
-                    zmax=min(100, pivot.values.max() * 1.2),  # Cap at 100% or 20% higher than max
-                    colorbar=dict(
-                        title=dict(text="Percentage (%)", font=dict(color="white", size=12)),
-                        tickfont=dict(color="white", size=10),
-                        outlinecolor="rgba(255,255,255,0.3)",
-                        outlinewidth=1
+                    title="Theme Prevalence by Year (%)",
+                    height=600,
+                    aspect="auto",
+                    text_auto=".1f"  # Show percentage to 1 decimal place
+                )
+                
+                fig.update_layout(
+                    xaxis=dict(
+                        type='category',  # Force categorical x-axis
+                        tickmode="array",
+                        tickvals=year_order_int,
+                        ticktext=year_order_int,
                     ),
-                    hoverongaps=False,
-                    text=count_pivot.values.astype(int).astype(str),  # This will show the count in the hover
-                    
-                    hovertemplate='Year: %{x}<br>Theme: %{y}<br>Percentage: %{z}%<br>Count: %{text}<extra></extra>'
-                )
-                
-                fig.add_trace(heatmap)
-                
-                # Add count annotations
-                for i in range(len(pivot.index)):
-                    for j in range(len(pivot.columns)):
-                        if pivot.iloc[i, j] > 0:
-                            count = count_pivot.iloc[i, j]
-                            
-                            # Calculate appropriate text color based on cell value
-                            bg_intensity = pivot.iloc[i, j] / 100  # Normalize to 0-1
-                            text_color = 'white' if bg_intensity > 0.4 else 'black'
-                            
-                            # Add an annotation with outline for better visibility
-                            fig.add_annotation(
-                                x=j,
-                                y=i,
-                                text=f"({math.floor(count)})",
-                                font=dict(size=9, color=text_color),
-                                showarrow=False,
-                                xanchor="center",
-                                yanchor="middle",
-                                bordercolor="rgba(0,0,0,0.2)",
-                                borderwidth=1,
-                                borderpad=2
-                            )
-                
-                # Improved framework indicator styling
-                for framework, color in framework_colors.items():
-                    # Find rows corresponding to this framework
-                    framework_rows = theme_display_df[theme_display_df['framework'] == framework]
-                    
-                    if len(framework_rows) > 0:
-                        # Get the indices in the sorted display order
-                        indices = framework_rows.index.tolist()
-                        min_idx = min(indices)
-                        max_idx = max(indices)
-                        
-                        # Add a colored rectangle with higher contrast
-                        fig.add_shape(
-                            type="rect",
-                            x0=-1.3,  # Further to the left
-                            x1=-0.7,  # Wider rectangle
-                            y0=min_idx - 0.5,  # Align with the heatmap cells
-                            y1=max_idx + 0.5,
-                            fillcolor=color,
-                            opacity=0.85,  # More visible
-                            layer="below",
-                            line=dict(width=1, color='rgba(255,255,255,0.5)')  # White border
-                        )
-                        
-                        # Add framework label with black or white text based on background color
-                        if len(framework_rows) > 1:  # Only add text if multiple themes in framework
-                            # Determine text color (black for light backgrounds, white for dark)
-                            text_color = "black" if framework in ["I-SIRch"] else "white"
-                            
-                            fig.add_annotation(
-                                x=-1.0,
-                                y=(min_idx + max_idx) / 2,
-                                text=framework,
-                                showarrow=False,
-                                textangle=90,  # Vertical text
-                                font=dict(size=12, color=text_color, family="Arial, sans-serif"),
-                                xanchor="center",
-                                yanchor="middle"
-                            )
-                
-                # Update layout for better readability on dark background
-                fig.update_layout(
-                    title="Framework Theme Heatmap by Year",
-                    font=dict(family="Arial, sans-serif", color="white"),  # White font for dark background
-                    title_font=dict(size=16, color="white"),  # Larger title with white color (fixed small size)
-                    xaxis_title="Year <br> (number of reports)",
-                    yaxis_title="Theme",
-                    height=max(650, len(pivot.index) * 35),  # Increased height
-                    width=900,  # Set explicit width
-                    margin=dict(l=250, r=60, t=80, b=80),  # Increased left margin further
-                    paper_bgcolor="rgba(0,0,0,0)",  # Transparent background
-                    plot_bgcolor="rgba(0,0,0,0)",  # Transparent background
-                    legend=dict(
-                        orientation="h",
-                        yanchor="bottom",
-                        y=1.05,  # Moved up for more space
-                        xanchor="center",
-                        x=0.5,
-                        bgcolor="rgba(50,50,50,0.8)",  # Dark semi-transparent background
-                        bordercolor="rgba(255,255,255,0.3)",
-                        borderwidth=1,
-                        font=dict(color="white")  # White text for legend
-                    )
-                )
-                
-                # Set y-axis formatting for dark mode
-                fig.update_layout(
-                    yaxis=dict(
-                        tickmode='array',
-                        tickvals=list(range(len(theme_display_df))),
-                        ticktext=theme_display_df['clean_name'],
-                        tickfont=dict(
-                            size=11,
-                            color='white'  # Changed to white from black for consistency
-                        ),
-                        automargin=True  # Added to ensure labels fit properly
-                    )
-                )
-                # Improve x-axis formatting for dark mode
-                fig.update_xaxes(
-                    tickangle=-0,  # Horizontal labels
-                    title_font=dict(size=14, color="white"),  # White color for axis title
-                    tickfont=dict(size=12, color="white"),  # White color for tick labels
-                    gridcolor="rgba(255,255,255,0.1)"  # Very subtle grid
-                )
-                
-                # Improve y-axis formatting for dark mode
-                fig.update_yaxes(
-                    title_font=dict(size=14, color="white"),  # White color for axis title
-                    tickfont=dict(size=11, color="white"),  # White color for tick labels
-                    automargin=True  # Ensure labels fit properly
-                )
-                
-                # Add framework legend
-                for i, (framework, color) in enumerate(framework_colors.items()):
-                    if framework in frameworks_present:  # Only show legends for frameworks present in data
-                        fig.add_trace(go.Scatter(
-                            x=[None],
-                            y=[None],
-                            mode='markers',
-                            marker=dict(size=10, color=color),
-                            name=framework,
-                            showlegend=True
-                        ))
-                
-                # Use st.plotly_chart's config parameter for better sizing
-                st.plotly_chart(
-                    fig, 
-                    use_container_width=True,
-                    config={
-                        'displayModeBar': True,
-                        'responsive': True,
-                        'toImageButtonOptions': {
-                            'format': 'png',
-                            'filename': 'theme_heatmap',
-                            'height': 800,
-                            'width': 1200,
-                            'scale': 2  # Higher resolution
-                        }
-                    }
-                )
-                
-    # === TAB 2: THEME DISTRIBUTION ===
-    with tab2:
-        st.subheader("Theme Distribution Analysis")
-        
-        # Get top themes by count
-        theme_counts = filtered_df["Theme"].value_counts().head(top_n_themes)
-        
-        # Use improved_truncate_text for better label formatting
-        formatted_themes = [improved_truncate_text(theme, max_length=40) for theme in theme_counts.index]
-        
-        # Create a bar chart with formatted theme names
-        fig = px.bar(
-            x=formatted_themes,
-            y=theme_counts.values,
-            labels={"x": "Theme", "y": "Count"},
-            title="Top 10 Themes by Occurrence",
-            height=600,  # Increased height to accommodate multi-line labels
-            color_discrete_sequence=['#4287f5']  # Consistent blue color
-        )
-        
-        # Improve layout with better spacing for multi-line text
-        fig.update_layout(
-            xaxis_title="Theme",
-            yaxis_title="Number of Occurrences",
-            xaxis={'categoryorder':'total descending'},
-            xaxis_tickangle=-30,  # Less extreme angle for better readability with multi-line text
-            margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin for labels
-            bargap=0.2,  # Add some gap between bars
-            font=dict(family="Arial, sans-serif", color="white"),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)"
-        )
-        
-        # Update axes for dark mode
-        fig.update_xaxes(
-            title_font=dict(color="white"),
-            tickfont=dict(color="white"),
-            gridcolor="rgba(255,255,255,0.1)",
-            automargin=True  # Ensure labels fit properly without overlap
-        )
-        
-        fig.update_yaxes(
-            title_font=dict(color="white"),
-            tickfont=dict(color="white"),
-            gridcolor="rgba(255,255,255,0.1)"
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-    
-        # Theme by confidence
-        st.subheader("Theme Confidence Breakdown")
-        
-        # Group by theme and confidence
-        theme_confidence = filtered_df.groupby(["Theme", "Confidence"]).size().reset_index(name="Count")
-        
-        # Filter for top themes only
-        top_themes = theme_counts.index.tolist()
-        theme_confidence = theme_confidence[theme_confidence["Theme"].isin(top_themes)]
-        
-        # Create a mapping dictionary for theme display names
-        theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
-        
-        # Apply the formatting to the DataFrame
-        theme_confidence["Display_Theme"] = theme_confidence["Theme"].map(theme_display_map)
-        
-        # Create a grouped bar chart with formatted theme names
-        fig = px.bar(
-            theme_confidence, 
-            x="Display_Theme",  # Use the formatted theme names
-            y="Count", 
-            color="Confidence",
-            barmode="group",
-            color_discrete_map={"High": "#4CAF50", "Medium": "#FFC107", "Low": "#F44336"},
-            category_orders={
-                "Confidence": ["High", "Medium", "Low"],
-                "Display_Theme": [theme_display_map[theme] for theme in top_themes]
-            },
-            title="Confidence Distribution by Theme",
-            height=600  # Increased height for better readability
-        )
-        
-        # Improve layout for multi-line labels
-        fig.update_layout(
-            xaxis_title="Theme",
-            yaxis_title="Number of Reports",
-            xaxis_tickangle=-30,  # Less extreme angle for better readability
-            margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin
-            legend=dict(
-                orientation="h", 
-                yanchor="bottom", 
-                y=1.02, 
-                xanchor="center", 
-                x=0.5,
-                title=None,
-                font=dict(color="white")
-            ),
-            font=dict(family="Arial, sans-serif", color="white"),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)"
-        )
-        
-        # Update axes for dark mode and ensure labels fit
-        fig.update_xaxes(
-            title_font=dict(color="white"),
-            tickfont=dict(color="white"),
-            gridcolor="rgba(255,255,255,0.1)",
-            automargin=True  # Ensure labels fit properly without overlap
-        )
-        
-        fig.update_yaxes(
-            title_font=dict(color="white"),
-            tickfont=dict(color="white"),
-            gridcolor="rgba(255,255,255,0.1)"
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-    
-    # === TAB 3: TEMPORAL ANALYSIS ===
-    with tab3:
-        st.subheader("Temporal Analysis")
-        
-        if "year" not in filtered_df.columns or filtered_df["year"].isna().all():
-            st.warning("No year data available for temporal analysis.")
-        else:
-            # Create a time series of themes by year
-            year_theme_counts = filtered_df.groupby(["year", "Theme"]).size().reset_index(name="Count")
-            
-            # Filter for top themes only - get top themes by total count
-            all_theme_counts = filtered_df["Theme"].value_counts()
-            top_themes = all_theme_counts.head(top_n_themes).index.tolist()
-           
-            year_theme_counts = year_theme_counts[year_theme_counts["Theme"].isin(top_themes)]
-            
-            # Create a mapping dictionary for formatted theme names
-            theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
-            
-            # Apply the formatting to the DataFrame
-            year_theme_counts["Display_Theme"] = year_theme_counts["Theme"].map(theme_display_map)
-            
-            # Create a line chart - important fix: convert year to string to treat as categorical
-            year_theme_counts['year_str'] = year_theme_counts['year'].astype(str)
-            year_theme_counts['year_int'] = year_theme_counts['year'].astype(int).astype(str)
-
-
-            fig = px.line(
-                year_theme_counts,
-                x="year_int",  # Use string version of year
-                y="Count",
-                color="Display_Theme",  # Use formatted theme names
-                markers=True,
-                title="Theme Trends Over Time",
-                height=600,  # Increased height
-            )
-            
-            # Improve layout
-            fig.update_layout(
-                xaxis_title="Year",
-                yaxis_title="Number of Occurrences",
-                xaxis=dict(
-                    type='category',  # Force categorical x-axis
-                    tickmode="array",
-                    tickvals=sorted(year_theme_counts['year_int'].unique()),
-                    ticktext=sorted(year_theme_counts['year_int'].unique()),
-                ),
-                # Move legend below the chart for more horizontal space and prevent overlap
-                legend=dict(
-                    orientation="h", 
-                    yanchor="top", 
-                    y=-0.2,  # Position below the chart
-                    xanchor="center", 
-                    x=0.5,
-                    title=None  # Remove legend title
-                ),
-                margin=dict(l=50, r=50, b=150, t=80),  # Increase bottom margin for legend
-                font=dict(color="white"),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-            )
-            
-            # Update axes for dark mode
-            fig.update_xaxes(
-                title_font=dict(color="white"),
-                tickfont=dict(color="white"),
-                gridcolor="rgba(255,255,255,0.1)"
-            )
-            
-            fig.update_yaxes(
-                title_font=dict(color="white"),
-                tickfont=dict(color="white"),
-                gridcolor="rgba(255,255,255,0.1)"
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            # Heatmap of themes by year
-            st.subheader("Theme Prevalence by Year")
-            
-            # Create a pivot table
-            pivot_df = year_theme_counts.pivot(index="Theme", columns="year_str", values="Count").fillna(0)
-            
-            # Convert to a normalized heatmap (percentage)
-            # Calculate the total themes per year
-            year_theme_totals = pivot_df.sum(axis=0)
-            normalized_pivot = pivot_df.div(year_theme_totals, axis=1) * 100
-            
-            # Format the theme names for better display
-            formatted_themes = [improved_truncate_text(theme, max_length=40) for theme in normalized_pivot.index]
-            
-            # Create a heatmap - ensure years are in correct order
-            year_order = sorted(year_theme_counts['year'].unique())
-            year_order_str = [str(y) for y in year_order]
-            year_order_int = [int(y) for y in year_order]
-            
-            fig = px.imshow(
-                normalized_pivot[year_order_str],  # Ensure columns are in correct order
-                labels=dict(x="Year", y="Theme", color="% of Themes"),
-                x=year_order_int,  # Use sorted string years
-                y=formatted_themes,  # Use formatted theme names
-                color_continuous_scale=[
-                    [0, '#f7fbff'],      # Lightest blue (almost white) for zero values
-                    [0.2, '#deebf7'],    # Very light blue
-                    [0.4, '#9ecae1'],    # Light blue
-                    [0.6, '#4292c6'],    # Medium blue
-                    [0.8, '#2171b5'],    # Deep blue
-                    [1.0, '#084594']     # Darkest blue
-                ],
-                title="Theme Prevalence by Year (%)",
-                height=600,
-                aspect="auto",
-                text_auto=".1f"  # Show percentage to 1 decimal place
-            )
-            
-            fig.update_layout(
-                xaxis=dict(
-                    type='category',  # Force categorical x-axis
-                    tickmode="array",
-                    tickvals=year_order_int,
-                    ticktext=year_order_int,
-                ),
-                margin=dict(l=250, r=50, t=80, b=50),  # Increased left margin for theme labels
-                font=dict(color="white"),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-            )
-            
-            # Update axes and colorbar for dark mode
-            fig.update_xaxes(
-                title_font=dict(color="white"),
-                tickfont=dict(color="white"),
-                automargin=True  # Ensure labels don't overlap
-            )
-            
-            fig.update_yaxes(
-                title_font=dict(color="white"),
-                tickfont=dict(color="white"),
-                automargin=True  # Ensure y-axis labels fit
-            )
-            
-            fig.update_traces(
-                colorbar=dict(
-                    title=dict(text="% of Themes", font=dict(color="white")),
-                    tickfont=dict(color="white")
-                )
-            )
-            
-            st.plotly_chart(fig, use_container_width=True)
-    
-    # === TAB 4: AREA COMPARISON ===
-    if isPFD:
-
-        with tab4:
-            st.subheader("Coroner Area Comparison")
-            
-            if "coroner_area" not in filtered_df.columns or filtered_df["coroner_area"].isna().all():
-                st.warning("No coroner area data available for area comparison.")
-            else:
-                # Get the top areas by theme count
-                area_counts = filtered_df["coroner_area"].value_counts().head(10)
-                top_areas = area_counts.index.tolist()
-                
-                # Format area names for better display
-                formatted_areas = [improved_truncate_text(area, max_length=40) for area in area_counts.index]
-                
-                # Create a mapping for display names
-                area_display_map = dict(zip(area_counts.index, formatted_areas))
-                
-                # Create a bar chart of top areas with formatted names
-                fig = px.bar(
-                    x=formatted_areas,
-                    y=area_counts.values,
-                    labels={"x": "Coroner Area", "y": "Count"},
-                    title="Theme Identifications by Coroner Area",
-                    height=500,
-                    color_discrete_sequence=['#ff9f40']  # Orange color for areas
-                )
-                
-                fig.update_layout(
-                    xaxis_title="Coroner Area",
-                    yaxis_title="Number of Theme Identifications",
-                    xaxis_tickangle=-30,  # Less extreme angle for readability
-                    margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin
+                    margin=dict(l=250, r=50, t=80, b=50),  # Increased left margin for theme labels
                     font=dict(color="white"),
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
                 )
                 
-                # Update axes for dark mode and ensure labels fit
+                # Update axes and colorbar for dark mode
                 fig.update_xaxes(
                     title_font=dict(color="white"),
                     tickfont=dict(color="white"),
-                    gridcolor="rgba(255,255,255,0.1)",
-                    automargin=True  # Ensure labels fit without overlap
+                    automargin=True  # Ensure labels don't overlap
                 )
                 
                 fig.update_yaxes(
                     title_font=dict(color="white"),
                     tickfont=dict(color="white"),
-                    gridcolor="rgba(255,255,255,0.1)"
+                    automargin=True  # Ensure y-axis labels fit
+                )
+                
+                fig.update_traces(
+                    colorbar=dict(
+                        title=dict(text="% of Themes", font=dict(color="white")),
+                        tickfont=dict(color="white")
+                    )
                 )
                 
                 st.plotly_chart(fig, use_container_width=True)
+        
+        # === TAB 4: AREA COMPARISON ===
+        if isPFD:
+
+            with tab4:
+                st.subheader("Coroner Area Comparison")
                 
-                # Multi-area theme comparison
-                st.subheader("Theme Distribution Across Top Coroner Areas")
-                
-                # Calculate total records per area (for normalization)
-                area_totals = {}
-                for area in top_areas:
-                    area_totals[area] = len(filtered_df[filtered_df["coroner_area"] == area])
-                
-                # Get theme distribution for each area
-                area_theme_data = []
-                
-                # Get top themes overall for comparison
-                all_theme_counts = filtered_df["Theme"].value_counts()
-                top_themes = all_theme_counts.head(top_n_themes).index.tolist()
-                
-                # Create a mapping for formatted theme names
-                theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
-                
-                for area in top_areas:
-                    area_df = filtered_df[filtered_df["coroner_area"] == area]
-                    area_themes = area_df["Theme"].value_counts()
+                if "coroner_area" not in filtered_df.columns or filtered_df["coroner_area"].isna().all():
+                    st.warning("No coroner area data available for area comparison.")
+                else:
+                    # Get the top areas by theme count
+                    area_counts = filtered_df["coroner_area"].value_counts().head(10)
+                    top_areas = area_counts.index.tolist()
                     
-                    # Calculate percentage for each top theme
-                    for theme in top_themes:
-                        count = area_themes.get(theme, 0)
-                        percentage = (count / area_totals[area] * 100) if area_totals[area] > 0 else 0
-                        
-                        area_theme_data.append({
-                            "Coroner Area": area,
-                            "Display_Area": area_display_map[area],
-                            "Theme": theme,
-                            "Display_Theme": theme_display_map[theme],
-                            "Count": count,
-                            "Percentage": round(percentage, 1)
-                        })
-                
-                area_theme_df = pd.DataFrame(area_theme_data)
-                
-                # Create heatmap using formatted names
-                pivot_df = area_theme_df.pivot(
-                    index="Display_Area", 
-                    columns="Display_Theme", 
-                    values="Percentage"
-                ).fillna(0)
-                
-                # Ensure we have data to display
-                if not pivot_df.empty:
-                    fig = px.imshow(
-                        pivot_df,
-                        labels=dict(x="Theme", y="Coroner Area", color="Percentage"),
-                        x=pivot_df.columns,
-                        y=pivot_df.index,
-                        color_continuous_scale="YlGnBu",
-                        title="Theme Distribution by Coroner Area (%)",
-                        height=700,  # Increased height
-                        aspect="auto",
-                        text_auto=".1f"  # Show to 1 decimal place
+                    # Format area names for better display
+                    formatted_areas = [improved_truncate_text(area, max_length=40) for area in area_counts.index]
+                    
+                    # Create a mapping for display names
+                    area_display_map = dict(zip(area_counts.index, formatted_areas))
+                    
+                    # Create a bar chart of top areas with formatted names
+                    fig = px.bar(
+                        x=formatted_areas,
+                        y=area_counts.values,
+                        labels={"x": "Coroner Area", "y": "Count"},
+                        title="Theme Identifications by Coroner Area",
+                        height=500,
+                        color_discrete_sequence=['#ff9f40']  # Orange color for areas
                     )
                     
                     fig.update_layout(
-                        xaxis_title="Theme",
-                        yaxis_title="Coroner Area",
-                        xaxis_tickangle=-30,  # Reduce angle
-                        coloraxis_colorbar=dict(
-                            title=dict(text="% of Cases", font=dict(color="white")),
-                            tickfont=dict(color="white")
-                        ),
-                        margin=dict(l=250, r=70, b=180, t=80),  # Increased margins
+                        xaxis_title="Coroner Area",
+                        yaxis_title="Number of Theme Identifications",
+                        xaxis_tickangle=-30,  # Less extreme angle for readability
+                        margin=dict(l=50, r=50, b=150, t=80),  # Increased bottom margin
                         font=dict(color="white"),
                         paper_bgcolor="rgba(0,0,0,0)",
                         plot_bgcolor="rgba(0,0,0,0)",
                     )
                     
-                    # Enable automargin to ensure labels fit
-                    fig.update_xaxes(automargin=True)
-                    fig.update_yaxes(automargin=True)
+                    # Update axes for dark mode and ensure labels fit
+                    fig.update_xaxes(
+                        title_font=dict(color="white"),
+                        tickfont=dict(color="white"),
+                        gridcolor="rgba(255,255,255,0.1)",
+                        automargin=True  # Ensure labels fit without overlap
+                    )
                     
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning("Not enough data to create area-theme heatmap.")
-                    
-                # Radar chart option for areas
-                st.subheader("Theme Radar Comparison")
-                
-                # Select areas for radar chart
-                radar_areas = st.multiselect(
-                    "Select Areas to Compare (2-5 recommended)",
-                    options=top_areas,
-                    default=top_areas[:3] if len(top_areas) >= 3 else top_areas
-                )
-                
-                if radar_areas and len(radar_areas) >= 2:
-                    # Filter data for selected areas and top themes
-                    radar_data = area_theme_df[
-                        (area_theme_df["Coroner Area"].isin(radar_areas)) & 
-                        (area_theme_df["Theme"].isin(top_themes[:8]))  # Limit to 8 themes for readability
-                    ]
-                    
-                    # Create radar chart
-                    fig = go.Figure()
-                    
-                    # Add traces for each area
-                    for area in radar_areas:
-                        area_data = radar_data[radar_data["Coroner Area"] == area]
-                        # Sort by theme to ensure consistency
-                        area_data = area_data.set_index("Theme").reindex(top_themes[:8]).reset_index()
-                        
-                        fig.add_trace(go.Scatterpolar(
-                            r=area_data["Percentage"],
-                            theta=area_data["Display_Theme"],  # Use formatted theme names
-                            fill="toself",
-                            name=area_display_map.get(area, area)  # Use formatted area names
-                        ))
-                    
-                    fig.update_layout(
-                        polar=dict(
-                            radialaxis=dict(
-                                visible=True,
-                                range=[0, max(radar_data["Percentage"]) * 1.1],
-                                tickfont=dict(color="black")
-                            ),
-                            angularaxis=dict(
-                                tickfont=dict(color="white")
-                            )
-                        ),
-                        showlegend=True,
-                        legend=dict(font=dict(color="white")),
-                        title=dict(
-                            text="Theme Distribution Radar Chart",
-                            font=dict(color="white")
-                        ),
-                        height=700,  # Increased height
-                        margin=dict(l=80, r=80, t=100, b=80),
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
+                    fig.update_yaxes(
+                        title_font=dict(color="white"),
+                        tickfont=dict(color="white"),
+                        gridcolor="rgba(255,255,255,0.1)"
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.info("Please select at least 2 areas for radar comparison.")
-    else:
-        with tab4:
-            st.info("Only applicable for PFD reports as this evaluates the coroner areas")      
-    # === TAB 5: CORRELATION ANALYSIS ===
-    with tab5:
-        st.subheader("Theme Correlation Analysis")
-        
-        # Create correlation explanation
-        st.markdown("""
-        This analysis reveals relationships between themes. A high correlation suggests that when one theme appears, 
-        the other is likely to appear in the same documents as well.
-        """)
-        
-        # Calculate correlation between themes
-        # First, pivot the data to get a binary matrix of themes by report
-        id_column = 'Record ID' if 'Record ID' in filtered_df.columns else filtered_df.columns[0]
-        
-        # Create a binary pivot table: 1 if theme exists for a report, 0 otherwise
-        theme_pivot = pd.crosstab(
-            index=filtered_df[id_column], 
-            columns=filtered_df['Theme'],
-            values=filtered_df.get('Combined Score', 1),  # Use the score if we want weighted values
-            aggfunc='max'  # Take the maximum score for each theme in a report
-        ).fillna(0)
-        
-        # Convert to binary (1 if theme exists, 0 otherwise)
-        theme_pivot = (theme_pivot > 0).astype(int)
-        
-        # Calculate correlation between themes
-        theme_corr = theme_pivot.corr()
-        
-        # Get only the top themes for clarity
-        top_theme_corr = theme_corr.loc[top_themes, top_themes]
-        
-        # Create a mapping dictionary for theme display names
-        # for titles to split on two lines
-        theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
-        # for whole titles- Theme connection network and theme cooccurence table
-        theme_display_map2 = {theme: improved_truncate_text(theme, max_length=220) for theme in top_themes}
-        # Format column and index labels
-        formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
-        def extract_category(theme: str) ->str:
-            known_categories = ["Jobs/Task", "Organisation", "Internal", "Person", "External", "Human Error", "Communication"]
-
-            if "-" in theme:
-                return theme.split("-")[0].strip()
-            elif theme in known_categories:
-                return theme
-            else:
-                return "Other"
-        
-        group_colours = {
-            "Jobs/Task": "lightpink",
-            "Organisation": "lightcoral",
-            "Internal": "steelblue",
-            "Person": "palegreen",
-            "External": "darkorchid",
-            "Human Error": "orange",
-            "Communication":"brown",
-            "Other": "mediumseagreen"
-        }
-
-        group_aliases = {
-            "Communication and Culture": "Communication",
-            "External Factor":"External",
-            "Organisational Factors": "Organisation",
-            "Local Working Conditions": "Internal",
-            "Situational":"Jobs/Task",
-            "Jobs/Task":"Jobs/Task",
-            "Organisation":"Organisation",
-            "Internal":"Internal",
-            "Person":"Person",
-            "External":"External",
-            "Human Error":"Human Error",
-            "Communication":"Communication",
-            "Other":"Other"
-        }
-
-        group_map = {theme: group_aliases.get(extract_category(theme), "Other")
-                     for theme in top_themes}
-
-        # Create the correlation matrix visualization
-        fig_corr_matrix = px.imshow(
-            top_theme_corr,
-            color_continuous_scale=px.colors.diverging.RdBu_r,  # Red-Blue diverging colorscale
-            color_continuous_midpoint=0,
-            labels=dict(x="Theme", y="Theme", color="Correlation"),
-            title="Theme Correlation Matrix",
-            height=800,  # Increased height
-            width=850,   # Increased width
-            text_auto=".2f",  # Show correlation values with 2 decimal places
-            x=formatted_themes,
-            y=formatted_themes
-        )
-        
-        # Improved layout with better label positioning
-        fig_corr_matrix.update_layout(
-            margin=dict(l=200, r=80, b=220, t=80),  # Dramatically increased bottom margin
-            font=dict(color="white"),
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            xaxis=dict(
-                side="bottom",  # Place labels at the bottom
-                tickangle=90,   # Vertical text instead of angled
-                automargin=True # Auto-adjust margins
-            ),
-            yaxis=dict(
-                automargin=True # Auto-adjust margins
-            )
-        )
-        
-        # Update axes for dark mode and ensure labels fit
-        fig_corr_matrix.update_xaxes(
-            title_font=dict(color="white"),
-            tickfont=dict(color="white", size=11),
-            gridcolor="rgba(255,255,255,0.1)",
-            automargin=True  # Ensure labels fit properly
-        )
-        
-        fig_corr_matrix.update_yaxes(
-            title_font=dict(color="white"),
-            tickfont=dict(color="white", size=11),
-            gridcolor="rgba(255,255,255,0.1)",
-            automargin=True  # Ensure labels fit properly
-        )
-        
-        # Update colorbar for dark mode
-        fig_corr_matrix.update_traces(
-            colorbar=dict(
-                title=dict(text="Correlation", font=dict(color="white")),
-                tickfont=dict(color="white")
-            )
-        )
-        
-        # Display the correlation matrix with a unique key
-        st.plotly_chart(fig_corr_matrix, use_container_width=True, key="theme_correlation_matrix")
-        
-        # Network graph of correlations
-        st.subheader("Theme Connection Network")
-        
-        # Correlation threshold slider
-        corr_threshold = st.slider(
-            "Correlation Threshold", 
-            min_value=0.0, 
-            max_value=1.0, 
-            value=0.3, 
-            step=0.05,
-            help="Minimum correlation value to show connections between themes",
-            key="correlation_threshold_slider"
-        )
-        
-        # Create network from correlation matrix
-        G = nx.Graph()
-        
-        # Add nodes (themes) with formatted display names
-        for theme in top_theme_corr.columns:
-            
-            G.add_node(theme, display_name=theme)
-            
-        # Add edges (correlations above threshold)
-        for i, theme1 in enumerate(top_theme_corr.columns):
-            for j, theme2 in enumerate(top_theme_corr.columns):
-                if i < j:  # Only process each pair once
-                    correlation = top_theme_corr.loc[theme1, theme2]
-                    if correlation >= corr_threshold:
-                        G.add_edge(theme1, theme2, weight=correlation)
+                    
+                    # Multi-area theme comparison
+                    st.subheader("Theme Distribution Across Top Coroner Areas")
+                    
+                    # Calculate total records per area (for normalization)
+                    area_totals = {}
+                    for area in top_areas:
+                        area_totals[area] = len(filtered_df[filtered_df["coroner_area"] == area])
+                    
+                    # Get theme distribution for each area
+                    area_theme_data = []
+                    
+                    # Get top themes overall for comparison
+                    all_theme_counts = filtered_df["Theme"].value_counts()
+                    top_themes = all_theme_counts.head(top_n_themes).index.tolist()
+                    
+                    # Create a mapping for formatted theme names
+                    theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
+                    
+                    for area in top_areas:
+                        area_df = filtered_df[filtered_df["coroner_area"] == area]
+                        area_themes = area_df["Theme"].value_counts()
                         
-        
-        # Check if we have any edges
-        if len(G.edges()) == 0:
-            st.warning(f"No connections found with correlation threshold of {corr_threshold}. Try lowering the threshold.")
-        else:
-            #Pyvis network
-            net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")##added
-            central_node = max(G.degree, key=lambda x: x[1])[0]
-
-            radius = 310
-            other_nodes = [n for n in G.nodes() if n != central_node]
-            angle_step = (2*math.pi) / len(other_nodes)
-            positions = {central_node: (400,400)}
-
-            for i, node in enumerate(sorted(other_nodes)):
-                angle = i*angle_step
-                centre_x, centre_y = positions[central_node]
-                x = centre_x + radius * math.cos(angle)
-                y = centre_y + radius *math.sin(angle)
-                positions[node] = (x,y)
-
-            for node in G.nodes():
-                degree = len(list(G.neighbors(node)))
-                size = degree * 8 + 6
-                display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=100)
-
-                neighbors = list(G.neighbors(node))
-                connections = [f"{theme_display_map2[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
-                connection_text = "\n".join(connections)
-                title = f"{theme_display_map2[node]}\nConnections:{len(connections)}\n{connection_text}"
-                
-                group = group_map.get(node, "Other")
-                node_color = group_colours.get(group, "gray")
-                x, y = positions[node]
-
-                net.add_node(
-                    node,
-                    label=display_name,
-                    title=title,
-                    size=size,
-                    color= node_color,
-                    x=x,
-                    y=y,
-                    physics = False
-                )
-            for edge in G.edges(data=True):
-                weight = edge[2]['weight']
-                net.add_edge(
-                    edge[0], edge[1],
-                    value=weight,
-                    title=f"r={weight:.2f}",
-                    label=f"r={weight:.2f}",
-                    color=f"rgba(150,150,150,{weight})"
-                )
-            
-            
-            
-
-            
-            net.set_options("""
-            var options = {
-                "edges": {
-                    "color": {"inherit": false},
-                "font": {
-                    "size": 15,
-                    "strokeWidth": 2,
-                    "align": "middle"
-                },
-                "smooth": {
-                    "type": "continuous",
-                    "roundness": 0.2
-                }
-                },
-                "nodes": {
-                    "borderWidth": 1,
-                    "shape": "dot",
-                    "font": {"size": 19},
-                    "scaling": {"min": 20, "max": 50}
-                },
-                "physics": {
-                    "enabled": false,
-                    "barnesHut": {
-                        "gravitationalConstant": -4000,
-                        "springLength": 390,
-                        "springConstant": 0.03,
-                        "centralGravity": 0.1,
-                        "damping": 0.1,
-                        "avoidOverlap": 1
-                    },
-                    "minVelocity": 0.75,
-                    "stabilization": {
-                        "enabled": true,
-                        "iterations": 1000,
-                        "updateInterval": 25
-                    }
-                }
-            }
-                """)
-            
-            
-
-            net.save_graph("outputs/network.html")
-
-            legend_html = """
-            <div style="position:absolute; 
-                top:10px; 
-                right:10px; 
-                background-color:white; 
-                font-color: Black;
-                border:1px solid #ccc; 
-                padding:10px; 
-                border-radius:8px;
-                font-size : 14px;
-                z-index: 9999;
-                box-shadow: 2px 2px 10px rgba(0,0,0,0,1);
-            ">
-                <b>Categories</b><br>
-                <div style="color:lightpink;">■ </div><div style = "color:black;">Jobs/Task</div>
-                <div style="color:lightcoral;">■ </div><div style = "color:black;"> Organisation</div>
-                <div style="color:steelblue;">■ </div><div style = "color:black;">Internal</div>
-                <div style="color:palegreen;">■ </div><div style = "color:black;">Person</div>
-                <div style="color:darkorchid;">■ </div><div style = "color:black;">External</div>
-                <div style="color:orange;">■ </div><div style = "color:black;">Human Error</div>
-                <div style="color:brown;">■ </div><div style = "color:black;">Communication</div>
-                <div style="color:mediumseagreen;">■ </div><div style = "color:black;"> Other</div>
-            </div>
-
-            """
-            # Inject PNG download button and html2canvas script into the HTML
-            with open("outputs/network.html", "r", encoding="utf-8") as f:
-                html = f.read()
-            
-            html = html.replace('width: 600px;', 'width: 100%;')
-            html = html.replace('width:800px;', 'width:100%;')
-
-            # Insert download button and script before </body>
-            final_html = html.replace(
-                "<body>", 
-                """<body>
-                    <style>
-                        #mynetwork {
-                            width: 100% !important;
-                            height: 800px !importnat;
-                        }
-                    </style>
-                    """ +legend_html
+                        # Calculate percentage for each top theme
+                        for theme in top_themes:
+                            count = area_themes.get(theme, 0)
+                            percentage = (count / area_totals[area] * 100) if area_totals[area] > 0 else 0
+                            
+                            area_theme_data.append({
+                                "Coroner Area": area,
+                                "Display_Area": area_display_map[area],
+                                "Theme": theme,
+                                "Display_Theme": theme_display_map[theme],
+                                "Count": count,
+                                "Percentage": round(percentage, 1)
+                            })
+                    
+                    area_theme_df = pd.DataFrame(area_theme_data)
+                    
+                    # Create heatmap using formatted names
+                    pivot_df = area_theme_df.pivot(
+                        index="Display_Area", 
+                        columns="Display_Theme", 
+                        values="Percentage"
+                    ).fillna(0)
+                    
+                    # Ensure we have data to display
+                    if not pivot_df.empty:
+                        fig = px.imshow(
+                            pivot_df,
+                            labels=dict(x="Theme", y="Coroner Area", color="Percentage"),
+                            x=pivot_df.columns,
+                            y=pivot_df.index,
+                            color_continuous_scale="YlGnBu",
+                            title="Theme Distribution by Coroner Area (%)",
+                            height=700,  # Increased height
+                            aspect="auto",
+                            text_auto=".1f"  # Show to 1 decimal place
                         )
-
-           
-            with open("network_with_legend.html", "w", encoding="utf-8") as f:
-                f.write(final_html)
-                
-            final_html = final_html.replace(
-                "</body>",
-                """
-                <div style="text-align: center; margin-top: 20px;">
-                    <button onclick="downloadPNG()" style="padding: 10px 20px; font-size: 16px;">Download PNG</button>
-                </div>
-
-                <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
-                <script>
-                    function downloadPNG() {
-                        const container = document.getElementById("mynetwork");
-                        html2canvas(container).then(canvas => {
-                            const link = document.createElement("a");
-                            link.download = "network_graph.png";
-                            link.href = canvas.toDataURL();
-                            link.click();
-                        });
-                }
-                </script>
-                </body>
-                """
-            )
-
-            # Load into Streamlit
-            components.html(final_html, height=880,width = 1400, scrolling=True)
-
-            #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=False)
+                        
+                        fig.update_layout(
+                            xaxis_title="Theme",
+                            yaxis_title="Coroner Area",
+                            xaxis_tickangle=-30,  # Reduce angle
+                            coloraxis_colorbar=dict(
+                                title=dict(text="% of Cases", font=dict(color="white")),
+                                tickfont=dict(color="white")
+                            ),
+                            margin=dict(l=250, r=70, b=180, t=80),  # Increased margins
+                            font=dict(color="white"),
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                        )
+                        
+                        # Enable automargin to ensure labels fit
+                        fig.update_xaxes(automargin=True)
+                        fig.update_yaxes(automargin=True)
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.warning("Not enough data to create area-theme heatmap.")
+                        
+                    # Radar chart option for areas
+                    st.subheader("Theme Radar Comparison")
+                    
+                    # Select areas for radar chart
+                    radar_areas = st.multiselect(
+                        "Select Areas to Compare (2-5 recommended)",
+                        options=top_areas,
+                        default=top_areas[:3] if len(top_areas) >= 3 else top_areas
+                    )
+                    
+                    if radar_areas and len(radar_areas) >= 2:
+                        # Filter data for selected areas and top themes
+                        radar_data = area_theme_df[
+                            (area_theme_df["Coroner Area"].isin(radar_areas)) & 
+                            (area_theme_df["Theme"].isin(top_themes[:8]))  # Limit to 8 themes for readability
+                        ]
+                        
+                        # Create radar chart
+                        fig = go.Figure()
+                        
+                        # Add traces for each area
+                        for area in radar_areas:
+                            area_data = radar_data[radar_data["Coroner Area"] == area]
+                            # Sort by theme to ensure consistency
+                            area_data = area_data.set_index("Theme").reindex(top_themes[:8]).reset_index()
+                            
+                            fig.add_trace(go.Scatterpolar(
+                                r=area_data["Percentage"],
+                                theta=area_data["Display_Theme"],  # Use formatted theme names
+                                fill="toself",
+                                name=area_display_map.get(area, area)  # Use formatted area names
+                            ))
+                        
+                        fig.update_layout(
+                            polar=dict(
+                                radialaxis=dict(
+                                    visible=True,
+                                    range=[0, max(radar_data["Percentage"]) * 1.1],
+                                    tickfont=dict(color="black")
+                                ),
+                                angularaxis=dict(
+                                    tickfont=dict(color="white")
+                                )
+                            ),
+                            showlegend=True,
+                            legend=dict(font=dict(color="white")),
+                            title=dict(
+                                text="Theme Distribution Radar Chart",
+                                font=dict(color="white")
+                            ),
+                            height=700,  # Increased height
+                            margin=dict(l=80, r=80, t=100, b=80),
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                        )
+                        
+                        st.plotly_chart(fig, use_container_width=True)
+                    else:
+                        st.info("Please select at least 2 areas for radar comparison.")
+        else:
+            with tab4:
+                st.info("Only applicable for PFD reports as this evaluates the coroner areas")      
+        # === TAB 5: CORRELATION ANALYSIS ===
+        with tab5:
+            st.subheader("Theme Correlation Analysis")
             
-            # Create a co-occurrence frequency table
-            st.subheader("Theme Co-occurrence Table")
-            
-            # Create a matrix to count co-occurrences
-            co_occurrence_matrix = np.zeros((len(top_themes), len(top_themes)))
-            
-            # Iterate through each document to count co-occurrences
-            for doc_id in theme_pivot.index:
-                # Get themes present in this document
-                doc_themes = theme_pivot.columns[theme_pivot.loc[doc_id] == 1].tolist()
-                # Only consider top themes
-                doc_themes = [t for t in doc_themes if t in top_themes]
-                
-                # Count pairs of co-occurring themes
-                for i, theme1 in enumerate(doc_themes):
-                    idx1 = top_themes.index(theme1)
-                    for theme2 in doc_themes:
-                        idx2 = top_themes.index(theme2)
-                        co_occurrence_matrix[idx1, idx2] += 1
-        
-            # Create a formatted DataFrame for display in the UI
-            display_co_occurrence = pd.DataFrame(
-                co_occurrence_matrix,
-                index=[theme_display_map2[theme] for theme in top_themes],
-                columns=[theme_display_map2[theme] for theme in top_themes]
-            )
-            
-            # Keep original for CSV export
-            co_occurrence_df = pd.DataFrame(
-                co_occurrence_matrix,
-                index=top_themes,
-                columns=top_themes
-            )
-            
-            # Display the co-occurrence table with formatted names
-            st.dataframe(
-                display_co_occurrence,
-                use_container_width=True,
-                height=400,
-                key="co_occurrence_table"
-            )
-            
-            # Add explanation
+            # Create correlation explanation
             st.markdown("""
-            This table shows the number of documents where each pair of themes co-occurs. 
-            The diagonal represents the total count of each theme.
+            This analysis reveals relationships between themes. A high correlation suggests that when one theme appears, 
+            the other is likely to appear in the same documents as well.
             """)
-    
-            # Create a heatmap of the co-occurrence matrix
-            fig_cooccur = px.imshow(
-                co_occurrence_matrix,
-                x=[theme_display_map[theme] for theme in top_themes],
-                y=[theme_display_map[theme] for theme in top_themes],
-                labels=dict(x="Theme", y="Theme", color="Co-occurrences"),
-                title="Theme Co-occurrence Heatmap",
-                color_continuous_scale="Viridis",
-                text_auto=".0f"  # Show integer values
+            
+            # Calculate correlation between themes
+            # First, pivot the data to get a binary matrix of themes by report
+            id_column = 'Record ID' if 'Record ID' in filtered_df.columns else filtered_df.columns[0]
+            
+            # Create a binary pivot table: 1 if theme exists for a report, 0 otherwise
+            theme_pivot = pd.crosstab(
+                index=filtered_df[id_column], 
+                columns=filtered_df['Theme'],
+                values=filtered_df.get('Combined Score', 1),  # Use the score if we want weighted values
+                aggfunc='max'  # Take the maximum score for each theme in a report
+            ).fillna(0)
+            
+            # Convert to binary (1 if theme exists, 0 otherwise)
+            theme_pivot = (theme_pivot > 0).astype(int)
+            
+            # Calculate correlation between themes
+            theme_corr = theme_pivot.corr()
+            
+            # Get only the top themes for clarity
+            top_theme_corr = theme_corr.loc[top_themes, top_themes]
+            
+            # Create a mapping dictionary for theme display names
+            # for titles to split on two lines
+            theme_display_map = {theme: improved_truncate_text(theme, max_length=40) for theme in top_themes}
+            # for whole titles- Theme connection network and theme cooccurence table
+            theme_display_map2 = {theme: improved_truncate_text(theme, max_length=220) for theme in top_themes}
+            # Format column and index labels
+            formatted_themes = [theme_display_map[theme] for theme in top_theme_corr.columns]
+            def extract_category(theme: str) ->str:
+                known_categories = ["Jobs/Task", "Organisation", "Internal", "Person", "External", "Human Error", "Communication"]
+
+                if "-" in theme:
+                    return theme.split("-")[0].strip()
+                elif theme in known_categories:
+                    return theme
+                else:
+                    return "Other"
+            
+            group_colours = {
+                "Jobs/Task": "lightpink",
+                "Organisation": "lightcoral",
+                "Internal": "steelblue",
+                "Person": "palegreen",
+                "External": "darkorchid",
+                "Human Error": "orange",
+                "Communication":"brown",
+                "Other": "mediumseagreen"
+            }
+
+            group_aliases = {
+                "Communication and Culture": "Communication",
+                "External Factor":"External",
+                "Organisational Factors": "Organisation",
+                "Local Working Conditions": "Internal",
+                "Situational":"Jobs/Task",
+                "Jobs/Task":"Jobs/Task",
+                "Organisation":"Organisation",
+                "Internal":"Internal",
+                "Person":"Person",
+                "External":"External",
+                "Human Error":"Human Error",
+                "Communication":"Communication",
+                "Other":"Other"
+            }
+
+            group_map = {theme: group_aliases.get(extract_category(theme), "Other")
+                        for theme in top_themes}
+
+            # Create the correlation matrix visualization
+            fig_corr_matrix = px.imshow(
+                top_theme_corr,
+                color_continuous_scale=px.colors.diverging.RdBu_r,  # Red-Blue diverging colorscale
+                color_continuous_midpoint=0,
+                labels=dict(x="Theme", y="Theme", color="Correlation"),
+                title="Theme Correlation Matrix",
+                height=800,  # Increased height
+                width=850,   # Increased width
+                text_auto=".2f",  # Show correlation values with 2 decimal places
+                x=formatted_themes,
+                y=formatted_themes
             )
             
-            fig_cooccur.update_layout(
-                margin=dict(l=200, r=80, b=220, t=80),
+            # Improved layout with better label positioning
+            fig_corr_matrix.update_layout(
+                margin=dict(l=200, r=80, b=220, t=80),  # Dramatically increased bottom margin
                 font=dict(color="white"),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
                 xaxis=dict(
-                    side="bottom",
-                    tickangle=90,
-                    automargin=True
+                    side="bottom",  # Place labels at the bottom
+                    tickangle=90,   # Vertical text instead of angled
+                    automargin=True # Auto-adjust margins
                 ),
                 yaxis=dict(
-                    automargin=True
+                    automargin=True # Auto-adjust margins
                 )
             )
             
-            # Update axes for dark mode
-            fig_cooccur.update_xaxes(
+            # Update axes for dark mode and ensure labels fit
+            fig_corr_matrix.update_xaxes(
                 title_font=dict(color="white"),
                 tickfont=dict(color="white", size=11),
                 gridcolor="rgba(255,255,255,0.1)",
-                automargin=True
+                automargin=True  # Ensure labels fit properly
             )
             
-            fig_cooccur.update_yaxes(
+            fig_corr_matrix.update_yaxes(
                 title_font=dict(color="white"),
                 tickfont=dict(color="white", size=11),
                 gridcolor="rgba(255,255,255,0.1)",
-                automargin=True
+                automargin=True  # Ensure labels fit properly
             )
             
             # Update colorbar for dark mode
-            fig_cooccur.update_traces(
+            fig_corr_matrix.update_traces(
                 colorbar=dict(
-                    title=dict(text="Co-occurrences", font=dict(color="white")),
+                    title=dict(text="Correlation", font=dict(color="white")),
                     tickfont=dict(color="white")
                 )
             )
             
-            # Display the co-occurrence heatmap with a unique key
+            # Display the correlation matrix with a unique key
+            st.plotly_chart(fig_corr_matrix, use_container_width=True, key="theme_correlation_matrix")
             
-            st.plotly_chart(fig_cooccur, use_container_width=True, key="cooccurrence_heatmap")
-        
-        # Show detailed data table
-        with st.expander("View Detailed Data"):
-            st.dataframe(
-                filtered_df,
-                column_config={
-                    "Title": st.column_config.TextColumn("Document Title"),
-                    "Framework": st.column_config.TextColumn("Framework"),
-                    "Theme": st.column_config.TextColumn("Theme"),
-                    "Confidence": st.column_config.TextColumn("Confidence"),
-                    "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
-                    "Matched Keywords": st.column_config.TextColumn("Keywords"),
-                    "coroner_name": st.column_config.TextColumn("Coroner Name"),
-                    "coroner_area": st.column_config.TextColumn("Coroner Area"),
-                    "year": st.column_config.NumberColumn("Year"),
-                },
-                use_container_width=True,
-                key="detailed_data_table"
+            # Network graph of correlations
+            st.subheader("Theme Connection Network")
+            
+            # Correlation threshold slider
+            corr_threshold = st.slider(
+                "Correlation Threshold", 
+                min_value=0.0, 
+                max_value=1.0, 
+                value=0.3, 
+                step=0.05,
+                help="Minimum correlation value to show connections between themes",
+                key="correlation_threshold_slider"
             )
             
-        # Export options
-        st.subheader("Export Filtered Data")
-        
-        # Generate timestamp for filenames
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        
-        # Create columns for download buttons
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            # CSV Export
-            csv = filtered_df.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                "📥 Download Filtered Data (CSV)",
-                data=csv,
-                file_name=f"theme_analysis_export_{timestamp}.csv",
-                mime="text/csv",
-                key=f"download_csv_{timestamp}",
-            )
-        
-        with col2:
-            # Excel Export
-            excel_data = export_to_excel(filtered_df)
-            st.download_button(
-                "📥 Download Filtered Data (Excel)",
-                data=excel_data,
-                file_name=f"theme_analysis_export_{timestamp}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key=f"download_excel_{timestamp}",
-            )
-    
-        with col3:
-            # All Images Export
-            try:
-                # Get the zip file and image count
-                images_zip, image_count = save_dashboard_images_as_zip(isPFD, filtered_df)
+            # Create network from correlation matrix
+            G = nx.Graph()
+            
+            # Add nodes (themes) with formatted display names
+            for theme in top_theme_corr.columns:
+                
+                G.add_node(theme, display_name=theme)
+                
+            # Add edges (correlations above threshold)
+            for i, theme1 in enumerate(top_theme_corr.columns):
+                for j, theme2 in enumerate(top_theme_corr.columns):
+                    if i < j:  # Only process each pair once
+                        correlation = top_theme_corr.loc[theme1, theme2]
+                        if correlation >= corr_threshold:
+                            G.add_edge(theme1, theme2, weight=correlation)
+                            
+            
+            # Check if we have any edges
+            if len(G.edges()) == 0:
+                st.warning(f"No connections found with correlation threshold of {corr_threshold}. Try lowering the threshold.")
+            else:
+                #Pyvis network
+                net = Network(height="800px", width = "100%", bgcolor ="#02182B", font_color="white")##added
+                central_node = max(G.degree, key=lambda x: x[1])[0]
 
-                # Update button text to show number of images
-                st.download_button(
-                    f"📥 Download {image_count} Visualizations (ZIP)",
-                    data=images_zip,
-                    file_name=f"theme_analysis_images_{timestamp}.zip",
-                    mime="application/zip",
-                    key=f"download_images_{timestamp}",
+                radius = 310
+                other_nodes = [n for n in G.nodes() if n != central_node]
+                angle_step = (2*math.pi) / len(other_nodes)
+                positions = {central_node: (400,400)}
+
+                for i, node in enumerate(sorted(other_nodes)):
+                    angle = i*angle_step
+                    centre_x, centre_y = positions[central_node]
+                    x = centre_x + radius * math.cos(angle)
+                    y = centre_y + radius *math.sin(angle)
+                    positions[node] = (x,y)
+
+                for node in G.nodes():
+                    degree = len(list(G.neighbors(node)))
+                    size = degree * 8 + 6
+                    display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=100)
+
+                    neighbors = list(G.neighbors(node))
+                    connections = [f"{theme_display_map2[neighbor]}\n(r={G[node][neighbor]['weight']:.2f})" for neighbor in neighbors]
+                    connection_text = "\n".join(connections)
+                    title = f"{theme_display_map2[node]}\nConnections:{len(connections)}\n{connection_text}"
+                    
+                    group = group_map.get(node, "Other")
+                    node_color = group_colours.get(group, "gray")
+                    x, y = positions[node]
+
+                    net.add_node(
+                        node,
+                        label=display_name,
+                        title=title,
+                        size=size,
+                        color= node_color,
+                        x=x,
+                        y=y,
+                        physics = False
+                    )
+                for edge in G.edges(data=True):
+                    weight = edge[2]['weight']
+                    net.add_edge(
+                        edge[0], edge[1],
+                        value=weight,
+                        title=f"r={weight:.2f}",
+                        label=f"r={weight:.2f}",
+                        color=f"rgba(150,150,150,{weight})"
+                    )
+                
+                
+                
+
+                
+                net.set_options("""
+                var options = {
+                    "edges": {
+                        "color": {"inherit": false},
+                    "font": {
+                        "size": 15,
+                        "strokeWidth": 2,
+                        "align": "middle"
+                    },
+                    "smooth": {
+                        "type": "continuous",
+                        "roundness": 0.2
+                    }
+                    },
+                    "nodes": {
+                        "borderWidth": 1,
+                        "shape": "dot",
+                        "font": {"size": 19},
+                        "scaling": {"min": 20, "max": 50}
+                    },
+                    "physics": {
+                        "enabled": false,
+                        "barnesHut": {
+                            "gravitationalConstant": -4000,
+                            "springLength": 390,
+                            "springConstant": 0.03,
+                            "centralGravity": 0.1,
+                            "damping": 0.1,
+                            "avoidOverlap": 1
+                        },
+                        "minVelocity": 0.75,
+                        "stabilization": {
+                            "enabled": true,
+                            "iterations": 1000,
+                            "updateInterval": 25
+                        }
+                    }
+                }
+                    """)
+                
+                
+
+                net.save_graph("outputs/network.html")
+
+                legend_html = """
+                <div style="position:absolute; 
+                    top:10px; 
+                    right:10px; 
+                    background-color:white; 
+                    font-color: Black;
+                    border:1px solid #ccc; 
+                    padding:10px; 
+                    border-radius:8px;
+                    font-size : 14px;
+                    z-index: 9999;
+                    box-shadow: 2px 2px 10px rgba(0,0,0,0,1);
+                ">
+                    <b>Categories</b><br>
+                    <div style="color:lightpink;">■ </div><div style = "color:black;">Jobs/Task</div>
+                    <div style="color:lightcoral;">■ </div><div style = "color:black;"> Organisation</div>
+                    <div style="color:steelblue;">■ </div><div style = "color:black;">Internal</div>
+                    <div style="color:palegreen;">■ </div><div style = "color:black;">Person</div>
+                    <div style="color:darkorchid;">■ </div><div style = "color:black;">External</div>
+                    <div style="color:orange;">■ </div><div style = "color:black;">Human Error</div>
+                    <div style="color:brown;">■ </div><div style = "color:black;">Communication</div>
+                    <div style="color:mediumseagreen;">■ </div><div style = "color:black;"> Other</div>
+                </div>
+
+                """
+                # Inject PNG download button and html2canvas script into the HTML
+                with open("outputs/network.html", "r", encoding="utf-8") as f:
+                    html = f.read()
+                
+                html = html.replace('width: 600px;', 'width: 100%;')
+                html = html.replace('width:800px;', 'width:100%;')
+
+                # Insert download button and script before </body>
+                final_html = html.replace(
+                    "<body>", 
+                    """<body>
+                        <style>
+                            #mynetwork {
+                                width: 100% !important;
+                                height: 800px !importnat;
+                            }
+                        </style>
+                        """ +legend_html
+                            )
+
+            
+                with open("network_with_legend.html", "w", encoding="utf-8") as f:
+                    f.write(final_html)
+                    
+                final_html = final_html.replace(
+                    "</body>",
+                    """
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button onclick="downloadPNG()" style="padding: 10px 20px; font-size: 16px;">Download PNG</button>
+                    </div>
+
+                    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+                    <script>
+                        function downloadPNG() {
+                            const container = document.getElementById("mynetwork");
+                            html2canvas(container).then(canvas => {
+                                const link = document.createElement("a");
+                                link.download = "network_graph.png";
+                                link.href = canvas.toDataURL();
+                                link.click();
+                            });
+                    }
+                    </script>
+                    </body>
+                    """
                 )
-            except Exception as e:
-                st.error(f"Error creating visualization zip: {e}")
-                logging.error(f"Visualization zip error: {e}", exc_info=True)
+
+                # Load into Streamlit
+                components.html(final_html, height=880,width = 1400, scrolling=True)
+
+                #components.html(open("network.html",'r',encoding='utf-8').read(), height = 850, scrolling=False)
+                
+                # Create a co-occurrence frequency table
+                st.subheader("Theme Co-occurrence Table")
+                
+                # Create a matrix to count co-occurrences
+                co_occurrence_matrix = np.zeros((len(top_themes), len(top_themes)))
+                
+                # Iterate through each document to count co-occurrences
+                for doc_id in theme_pivot.index:
+                    # Get themes present in this document
+                    doc_themes = theme_pivot.columns[theme_pivot.loc[doc_id] == 1].tolist()
+                    # Only consider top themes
+                    doc_themes = [t for t in doc_themes if t in top_themes]
+                    
+                    # Count pairs of co-occurring themes
+                    for i, theme1 in enumerate(doc_themes):
+                        idx1 = top_themes.index(theme1)
+                        for theme2 in doc_themes:
+                            idx2 = top_themes.index(theme2)
+                            co_occurrence_matrix[idx1, idx2] += 1
+            
+                # Create a formatted DataFrame for display in the UI
+                display_co_occurrence = pd.DataFrame(
+                    co_occurrence_matrix,
+                    index=[theme_display_map2[theme] for theme in top_themes],
+                    columns=[theme_display_map2[theme] for theme in top_themes]
+                )
+                
+                # Keep original for CSV export
+                co_occurrence_df = pd.DataFrame(
+                    co_occurrence_matrix,
+                    index=top_themes,
+                    columns=top_themes
+                )
+                
+                # Display the co-occurrence table with formatted names
+                st.dataframe(
+                    display_co_occurrence,
+                    use_container_width=True,
+                    height=400,
+                    key="co_occurrence_table"
+                )
+                
+                # Add explanation
+                st.markdown("""
+                This table shows the number of documents where each pair of themes co-occurs. 
+                The diagonal represents the total count of each theme.
+                """)
+        
+                # Create a heatmap of the co-occurrence matrix
+                fig_cooccur = px.imshow(
+                    co_occurrence_matrix,
+                    x=[theme_display_map[theme] for theme in top_themes],
+                    y=[theme_display_map[theme] for theme in top_themes],
+                    labels=dict(x="Theme", y="Theme", color="Co-occurrences"),
+                    title="Theme Co-occurrence Heatmap",
+                    color_continuous_scale="Viridis",
+                    text_auto=".0f"  # Show integer values
+                )
+                
+                fig_cooccur.update_layout(
+                    margin=dict(l=200, r=80, b=220, t=80),
+                    font=dict(color="white"),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    xaxis=dict(
+                        side="bottom",
+                        tickangle=90,
+                        automargin=True
+                    ),
+                    yaxis=dict(
+                        automargin=True
+                    )
+                )
+                
+                # Update axes for dark mode
+                fig_cooccur.update_xaxes(
+                    title_font=dict(color="white"),
+                    tickfont=dict(color="white", size=11),
+                    gridcolor="rgba(255,255,255,0.1)",
+                    automargin=True
+                )
+                
+                fig_cooccur.update_yaxes(
+                    title_font=dict(color="white"),
+                    tickfont=dict(color="white", size=11),
+                    gridcolor="rgba(255,255,255,0.1)",
+                    automargin=True
+                )
+                
+                # Update colorbar for dark mode
+                fig_cooccur.update_traces(
+                    colorbar=dict(
+                        title=dict(text="Co-occurrences", font=dict(color="white")),
+                        tickfont=dict(color="white")
+                    )
+                )
+                
+                # Display the co-occurrence heatmap with a unique key
+                
+                st.plotly_chart(fig_cooccur, use_container_width=True, key="cooccurrence_heatmap")
+            
+            # Show detailed data table
+            with st.expander("View Detailed Data"):
+                st.dataframe(
+                    filtered_df,
+                    column_config={
+                        "Title": st.column_config.TextColumn("Document Title"),
+                        "Framework": st.column_config.TextColumn("Framework"),
+                        "Theme": st.column_config.TextColumn("Theme"),
+                        "Confidence": st.column_config.TextColumn("Confidence"),
+                        "Combined Score": st.column_config.NumberColumn("Score", format="%.3f"),
+                        "Matched Keywords": st.column_config.TextColumn("Keywords"),
+                        "coroner_name": st.column_config.TextColumn("Coroner Name"),
+                        "coroner_area": st.column_config.TextColumn("Coroner Area"),
+                        "year": st.column_config.NumberColumn("Year"),
+                    },
+                    use_container_width=True,
+                    key="detailed_data_table"
+                )
+                
+            # Export options
+            st.subheader("Export Filtered Data")
+            
+            # Generate timestamp for filenames
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            
+            # Create columns for download buttons
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # CSV Export
+                csv = filtered_df.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "📥 Download Filtered Data (CSV)",
+                    data=csv,
+                    file_name=f"theme_analysis_export_{timestamp}.csv",
+                    mime="text/csv",
+                    key=f"download_csv_{timestamp}",
+                )
+            
+            with col2:
+                # Excel Export
+                excel_data = export_to_excel(filtered_df)
+                st.download_button(
+                    "📥 Download Filtered Data (Excel)",
+                    data=excel_data,
+                    file_name=f"theme_analysis_export_{timestamp}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key=f"download_excel_{timestamp}",
+                )
+        
+            with col3:
+                # All Images Export
+                try:
+                    # Get the zip file and image count
+                    images_zip, image_count = save_dashboard_images_as_zip(isPFD, filtered_df)
+
+                    # Update button text to show number of images
+                    st.download_button(
+                        f"📥 Download {image_count} Visualizations (ZIP)",
+                        data=images_zip,
+                        file_name=f"theme_analysis_images_{timestamp}.zip",
+                        mime="application/zip",
+                        key=f"download_images_{timestamp}",
+                    )
+                except Exception as e:
+                    st.error(f"Error creating visualization zip: {e}")
+                    logging.error(f"Visualization zip error: {e}", exc_info=True)
 
 
 def render_analysis_tab(data: pd.DataFrame = None):
