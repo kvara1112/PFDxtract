@@ -1336,7 +1336,9 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         except Exception as e:
             st.error(f"Error uploading file: {str(e)}")
             return
-
+    else:
+        if bert_results_key in st.session_state:
+            del st.session_state[bert_results_key] 
     # Check if data is available
     if data is None or len(data) == 0:
         st.warning(
