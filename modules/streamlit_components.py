@@ -1968,7 +1968,8 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
         except Exception as e:
             st.error(f"Error processing file: {e}")
             return
-    
+    else:
+        del st.session_state[dashboard_data_key]
     # If no data is available after upload
     if data is None or len(data) == 0:
         with st.expander("💡 How to get theme analysis data?"):
