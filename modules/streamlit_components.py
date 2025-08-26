@@ -1936,13 +1936,13 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     
     # Check for existing data in session state
     dashboard_data_key = f"{report_key}_dashboard_Data"
+    upload_key = f"{report_key}_theme_analysis_dashboard_uploader"
 
-    if data is None:
-        if dashboard_data_key in st.session_state:
-            data = st.session_state[dashboard_data_key]
+    # if data is None:
+    #     if dashboard_data_key in st.session_state:
+    #         data = st.session_state[dashboard_data_key]
     
     # File upload section with persistent state
-    upload_key = f"{report_key}_theme_analysis_dashboard_uploader"
     uploaded_file = st.file_uploader(
         "Upload CSV or Excel file for Dashboard Analysis",
         type=["csv", "xlsx"],
@@ -1950,7 +1950,10 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     )
 
     # Process uploaded file
-    if uploaded_file is not None:
+    if uploaded_file is None:
+        st.session_state[dashboard_data_key] = None
+        data = None
+    else:
         try:
             # Load the file based on its type
             if uploaded_file.name.endswith('.csv'):
@@ -1967,10 +1970,12 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             st.success(f"File uploaded successfully! Found {len(data)} records.")
         except Exception as e:
             st.error(f"Error processing file: {e}")
-            data = None
             st.session_state[dashboard_data_key] = None
+            data = None
+
             return
-    
+        
+    data = st.session_state.get(dashboard_data_key, None)
     # If no data is available after upload
     if data is None or len(data) == 0:
         st.session_state[dashboard_data_key] = None
