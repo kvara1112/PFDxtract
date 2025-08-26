@@ -2143,7 +2143,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             else:
                 filtered_df = filtered_df[(filtered_df["year"] >= selected_years[0]) & 
                                         (filtered_df["year"] <= selected_years[1])]
-        if isPFD:
+        if isPFD and missing_recommended is None:
 
             # Apply multi-select area filter
             filtered_df = filtered_df[filtered_df["coroner_area"].isin(selected_areas)]
@@ -2164,7 +2164,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             else:
                 active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
 
-        if isPFD:
+        if isPFD and missing_recommended is None:
             if area_filter_type == "Select Specific Areas" and selected_areas:
                 if len(selected_areas) <= 3:
                     active_filters.append(f"Areas: {', '.join(selected_areas)}")
