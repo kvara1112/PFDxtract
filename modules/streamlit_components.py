@@ -1973,6 +1973,8 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     
     # If no data is available after upload
     if data is None or len(data) == 0:
+        st.session_state[dashboard_data_key] = None
+
         with st.expander("💡 How to get theme analysis data?"):
             st.markdown("""
             #### To get theme analysis data:
