@@ -2007,7 +2007,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             return
         if isPFD:
             if missing_recommended:
-                st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}")
+                st.warning(f"Some recommended columns are missing: {', '.join(missing_recommended)}, must be an uploaded PFD")
             
         # Data Overview
         st.subheader("Data Overview")
@@ -2069,7 +2069,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             selected_years = None
         
         
-        if isPFD:
+        if isPFD and missing_recommended is None:
             # Coroner area filter - MODIFIED: Multi-select instead of single select
             areas = sorted(results_df["coroner_area"].dropna().unique().tolist())
             area_options = ["All Areas"] + areas
@@ -2811,6 +2811,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                 
                 if "coroner_area" not in filtered_df.columns or filtered_df["coroner_area"].isna().all():
                     st.warning("No coroner area data available for area comparison.")
+
                 else:
                     # Get the top areas by theme count
                     area_counts = filtered_df["coroner_area"].value_counts().head(10)
