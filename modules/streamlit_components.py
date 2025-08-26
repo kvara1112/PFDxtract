@@ -1948,7 +1948,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
         type=["csv", "xlsx"],
         key=upload_key
     )
-    
+
     # Process uploaded file
     if uploaded_file is not None:
         try:
@@ -1967,10 +1967,10 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             st.success(f"File uploaded successfully! Found {len(data)} records.")
         except Exception as e:
             st.error(f"Error processing file: {e}")
+            data = None
+            st.session_state[dashboard_data_key] = None
             return
-    else:
-        if dashboard_data_key in st.session_state:
-            del data
+    
     # If no data is available after upload
     if data is None or len(data) == 0:
         with st.expander("💡 How to get theme analysis data?"):
