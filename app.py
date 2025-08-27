@@ -302,54 +302,55 @@ def main():
         render_footer()
         return
     
-    col1, col2, col3 = st.columns([1,2,1])
-    with col1:
-        st.title("⚖️")
-    with col3:
-        # Initialize session state
-        if "show_help" not in st.session_state:
-            st.session_state.show_help = False
-
-        # Custom CSS for just-icon button
-        st.markdown(
-            """
-            <style>
-            /* Make all buttons inside col4 just an icon */
-            .help-btn button {
-                background: none;
-                border: none;
-                padding: 0;
-                font-size: 1.5rem;
-                cursor: pointer;
-            }
-            .help-btn button:hover {
-                color: #555;  /* optional hover effect */
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-
-        # Place the button in a div with class "help-btn"
-        if st.button("🛈︎", key="help_icon", help="Click for help"):
-            st.session_state.show_help = not st.session_state.show_help
-
-        # Display help message
-        if st.session_state.show_help:
-            st.info("""
-            This app has two functions:
-
-            1) **Analyse PFD reports**  
-            These are prevention of future death reports that follow a certain command. 
-            You can either upload your own or search and filter for them.
-
-            2) **Analyse other healthcare documents**  
-            This performs a similar analysis, but for any other healthcare documents you may want to analyse.
-
-            Click the button again to hide this message.
-            """)
+    
             
     if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash" or st.session_state.button_clicked == "dash2":
+        col1, col2, col3 = st.columns([1,2,1])
+        with col1:
+            st.title("⚖️")
+        with col3:
+            # Initialize session state
+            if "show_help" not in st.session_state:
+                st.session_state.show_help = False
+
+            # Custom CSS for just-icon button
+            st.markdown(
+                """
+                <style>
+                /* Make all buttons inside col4 just an icon */
+                .help-btn button {
+                    background: none;
+                    border: none;
+                    padding: 0;
+                    font-size: 1.5rem;
+                    cursor: pointer;
+                }
+                .help-btn button:hover {
+                    color: #555;  /* optional hover effect */
+                }
+                </style>
+                """,
+                unsafe_allow_html=True
+            )
+
+            # Place the button in a div with class "help-btn"
+            if st.button("🛈︎", key="help_icon", help="Click for help"):
+                st.session_state.show_help = not st.session_state.show_help
+
+            # Display help message
+            if st.session_state.show_help:
+                st.info("""
+                This app has two functions:
+
+                1) **Analyse PFD reports**  
+                These are prevention of future death reports that follow a certain command. 
+                You can either upload your own or search and filter for them.
+
+                2) **Analyse other healthcare documents**  
+                This performs a similar analysis, but for any other healthcare documents you may want to analyse.
+
+                Click the button again to hide this message.
+                """)
         st.markdown(
                 """
                 <h1 style='text-align:center;'>Welcome to the Analyser</h1>""",
