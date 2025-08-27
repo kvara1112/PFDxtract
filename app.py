@@ -306,56 +306,48 @@ def main():
     with col1:
         st.title("⚖️")
     with col4:
+        # Initialize session state
         if "show_help" not in st.session_state:
             st.session_state.show_help = False
-        
-        button_html = """
-        <button id="help-btn" style="
-            padding: 4px 8px;
-            font-size: 0.8rem;
-            height: 30px;
-            width: 30px;
-            background-color: #eee;
-            color: black;
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            cursor: pointer;">
-            🛈︎
-        </button>
-        <script>
-        const btn = document.getElementById('help-btn');
-        btn.addEventListener('click', () => {
-            window.dispatchEvent(new CustomEvent('toggleHelp'));
-        });
-        </script>
-        """
 
-        st.markdown(button_html, unsafe_allow_html=True)
-        
-        # Listen for toggleHelp event to change session state
-        if "toggleHelp" not in st.session_state:
-            st.session_state.toggleHelp = False
+        # Custom CSS for just-icon button
+        st.markdown(
+            """
+            <style>
+            /* Make all buttons inside col4 just an icon */
+            .help-btn button {
+                background: none;
+                border: none;
+                padding: 0;
+                font-size: 1.5rem;
+                cursor: pointer;
+            }
+            .help-btn button:hover {
+                color: #555;  /* optional hover effect */
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
 
-        # Detect click event using a hidden streamlit element
-        # Workaround: Use a checkbox to trigger rerun
-        if st.session_state.toggleHelp:
+        # Place the button in a div with class "help-btn"
+        if st.button("🛈︎", key="help_icon", help="Click for help"):
             st.session_state.show_help = not st.session_state.show_help
-            st.session_state.toggleHelp = False
-        # with button_container:
-        #     if st.button("🛈︎"):
-        #         st.session_state.show_help = not st.session_state.show_help
+
+        # Display help message
         if st.session_state.show_help:
             st.info("""
-            This app has two functions
-            1) Analyse PFD reports
-            These are precention of future death reports that follow a certain command,
-            you can either upload your own or search and filter for them
-                        
-            2) Analyse other healthcare document
-            This performs a similar analysis however it is for any other healthcare documents 
-            you may want to analyse
-                    
-            Click again to return """)
+            This app has two functions:
+
+            1) **Analyse PFD reports**  
+            These are prevention of future death reports that follow a certain command. 
+            You can either upload your own or search and filter for them.
+
+            2) **Analyse other healthcare documents**  
+            This performs a similar analysis, but for any other healthcare documents you may want to analyse.
+
+            Click the button again to hide this message.
+            """)
             
     if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash" or st.session_state.button_clicked == "dash2":
         st.markdown(
