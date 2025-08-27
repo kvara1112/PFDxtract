@@ -212,6 +212,9 @@ def check_app_password():
                 st.success("Login successful!")
                 st.rerun()
                 return True
+            if password == "":
+                st.error("Please enter password. Try again.")
+                return False
             else:
                 st.error("Incorrect password. Please try again.")
                 return False
