@@ -550,6 +550,8 @@ def process_other(uploaded_file):
         
         content = "\n".join(lines[start_idx+1:])
         
+        if formatted_date == None:
+            raise ValueError("Date missing from file {uploaded_file.name}")
 
         return {
             "Status": "success",
@@ -789,7 +791,7 @@ def upload_reports(is_PFD):
                 
 
     # Handle retry-needed files
-    if state["retry_files"] and report_key == "PFD":
+    if state["retry_files"]:
         st.markdown("### 🔍 Files Needing Attention")
         
         files_to_remove = []  # Track which files to remove from retry list
@@ -1992,7 +1994,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             
             2. **Run New Theme Analysis**
                - Go to the 'Concept Annotation' tab 
-               - Upload your merged PFD reports file
+               - Upload your merged PFD reports file or file produced after upload in Healthcare document analyser
                - Run a new theme analysis
             """)
             

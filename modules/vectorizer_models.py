@@ -907,7 +907,8 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
             - **date_of_report**: Report dates (optional, for filtering)
             - **categories**: Report categories (optional, for filtering)
             
-            Files prepared from Step 2 "Scraped File Preparation" are ideal for this analysis.
+            Files prepared in PFD analyser from Step 2 "Scraped File Preparation" are ideal for this analysis.
+            You can also use files prepared after upload in the other Healthcare document analyser.
             """)
             
         # Show a sample of what to expect
