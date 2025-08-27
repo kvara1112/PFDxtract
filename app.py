@@ -308,6 +308,31 @@ def main():
     with col4:
         if "show_help" not in st.session_state:
             st.session_state.show_help = False
+        button_container = st.container()
+
+        # Inject CSS for a small/different button
+        st.markdown(
+            """
+            <style>
+            /* Only target the first button inside this container */
+            div[data-testid="stExpander"] + div button,
+            div.stButton button {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.8rem;
+                height: 30px;
+                width: auto;
+                background-color: #eee;
+                color: black;
+                border-radius: 5px;
+                border: 1px solid #ccc;
+            }
+            div.stButton button:hover {
+                background-color: #ddd;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True
+        )
         if st.button("🛈︎"):
             st.session_state.show_help = not st.session_state.show_help
         if st.session_state.show_help:
