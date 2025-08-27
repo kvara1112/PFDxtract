@@ -893,11 +893,20 @@ def upload_reports(is_PFD):
         st.warning(f"{len(retry_needed)} files failed to process. Please retry.")
         for r in retry_needed:
             st.write(r["Filename"])
-        #state["processing"] = False
-        state["current_date"] = None
-
-        
-
+        st.markdown("### Begin a New Upload")
+        if st.button("🔄 Start New Analysis", type="secondary"):
+            st.session_state.reports[report_key] = {
+                "file_uploader_key": state["file_uploader_key"] + 1,
+                "uploaded_files": [],
+                "processed": False,
+                "processing": False,
+                "current_data": None,
+                "show_clear_success": False,
+                "last_widget_signatures": set(),
+                "retry_files": {},
+                "processing_results": [],
+            }
+            st.rerun()
     # Final processed data
     if state["processed"] and state["current_data"] is not None:
         st.markdown("### Processed Data Ready")
