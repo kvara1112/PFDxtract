@@ -333,8 +333,9 @@ def main():
             """,
             unsafe_allow_html=True
         )
-        if st.button("🛈︎"):
-            st.session_state.show_help = not st.session_state.show_help
+        with button_container:
+            if st.button("🛈︎"):
+                st.session_state.show_help = not st.session_state.show_help
         if st.session_state.show_help:
             st.info("""
             This app has two functions
