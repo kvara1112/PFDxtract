@@ -301,11 +301,16 @@ def main():
         # Render the footer even when not authenticated
         render_footer()
         return
+    
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.title("⚖️")
     with col4:
-        if st.button("🛈︎", key = "help_button", help="show help"):
+        if "show_help" not in st.session_state:
+            st.session_state.show_help = False
+        if st.button("🛈︎"):
+            st.session_state.show_help = not st.session_state.show_help
+        if st.session_state.show_help:
             st.info("""
             This app has two functions
             1) Analyse PFD reports
@@ -317,7 +322,7 @@ def main():
             you may want to analyse
                     
             Click again to return """)
-                
+            
     if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash" or st.session_state.button_clicked == "dash2":
         st.markdown(
                 """
