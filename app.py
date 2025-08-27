@@ -60,6 +60,34 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s: %(message)s",
 )
+
+st.markdown(
+    """
+    <style>
+    /* Only style buttons inside modals to be smaller */
+    div[data-testid="stModal"] button,
+    .streamlit-modal-container button {
+        all: unset;            /* remove inherited large button styles */
+        width: 30px;
+        height: 30px;
+        padding: 0;
+        background: #eee;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+
+    div[data-testid="stModal"] button:hover,
+    .streamlit-modal-container button:hover {
+        background-color: #ccc;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 modal = Modal("help modal", key="help-modal", padding=20, max_width=744)
 def render_analysis_tab(data=None):
     """Render the analysis tab with improved filters and visualizations"""
@@ -299,10 +327,10 @@ def main():
         # Render the footer even when not authenticated
         render_footer()
         return
-    col1, col2 = st.columns(2)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.title("⚖️")
-    with col2:
+    with col4:
         if st.button("🛈︎", key = "help_button", help="show help"):
             modal.open()
         if modal.is_open():
@@ -316,7 +344,8 @@ def main():
                 2) Analyse other healthcare document
                 This performs a similar analysis however it is for any other healthcare documents 
                 you may want to analyse """)
-
+                if st.button("Close"):
+                    modal.close()
     if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash" or st.session_state.button_clicked == "dash2":
         st.markdown(
                 """
