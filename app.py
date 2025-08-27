@@ -303,7 +303,7 @@ def main():
     with col1:
         st.title("⚖️")
     with col2:
-        if st.button("🛈︎"):
+        if st.button("🛈︎", key = "help_button", help="show help"):
             modal.open()
         if modal.is_open():
             with modal.container():
@@ -316,8 +316,7 @@ def main():
                 2) Analyse other healthcare document
                 This performs a similar analysis however it is for any other healthcare documents 
                 you may want to analyse """)
-                if st.button("Close"):
-                    modal.close()
+
     if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash" or st.session_state.button_clicked == "dash2":
         st.markdown(
                 """
