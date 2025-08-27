@@ -308,34 +308,42 @@ def main():
     with col4:
         if "show_help" not in st.session_state:
             st.session_state.show_help = False
-        button_container = st.container()
+        
+        button_html = """
+        <button id="help-btn" style="
+            padding: 4px 8px;
+            font-size: 0.8rem;
+            height: 30px;
+            width: 30px;
+            background-color: #eee;
+            color: black;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;">
+            🛈︎
+        </button>
+        <script>
+        const btn = document.getElementById('help-btn');
+        btn.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('toggleHelp'));
+        });
+        </script>
+        """
 
-        # Inject CSS for a small/different button
-        st.markdown(
-            """
-            <style>
-            /* Only target the first button inside this container */
-            div[data-testid="stExpander"] + div button,
-            div.stButton button {
-                padding: 0.25rem 0.5rem;
-                font-size: 0.8rem;
-                height: 30px;
-                width: auto;
-                background-color: #eee;
-                color: black;
-                border-radius: 5px;
-                border: 1px solid #ccc;
-            }
-            div.stButton button:hover {
-                background-color: #ddd;
-            }
-            </style>
-            """,
-            unsafe_allow_html=True
-        )
-        with button_container:
-            if st.button("🛈︎"):
-                st.session_state.show_help = not st.session_state.show_help
+        st.markdown(button_html, unsafe_allow_html=True)
+        
+        # Listen for toggleHelp event to change session state
+        if "toggleHelp" not in st.session_state:
+            st.session_state.toggleHelp = False
+
+        # Detect click event using a hidden streamlit element
+        # Workaround: Use a checkbox to trigger rerun
+        if st.session_state.toggleHelp:
+            st.session_state.show_help = not st.session_state.show_help
+            st.session_state.toggleHelp = False
+        # with button_container:
+        #     if st.button("🛈︎"):
+        #         st.session_state.show_help = not st.session_state.show_help
         if st.session_state.show_help:
             st.info("""
             This app has two functions
