@@ -550,8 +550,6 @@ def process_other(uploaded_file):
         
         content = "\n".join(lines[start_idx+1:])
         
-        if formatted_date == None:
-            raise ValueError("Date missing from file {uploaded_file.name}")
 
         return {
             "Status": "success",
@@ -892,22 +890,8 @@ def upload_reports(is_PFD):
     elif state["retry_files"] and report_key == "Other":
         st.warning(f"{len(retry_needed)} files failed to process. Please retry.")
         for r in retry_needed:
-            st.write(r["Filename"])
-        st.markdown("### Begin a New Upload")
-        if st.button("🔄 Start New Analysis", type="secondary"):
-            st.session_state.reports[report_key] = {
-                "file_uploader_key": state["file_uploader_key"] + 1,
-                "uploaded_files": [],
-                "processed": False,
-                "processing": False,
-                "current_data": None,
-                "show_clear_success": False,
-                "last_widget_signatures": set(),
-                "retry_files": {},
-                "processing_results": [],
-            }
-            retry_needed = []
-            st.rerun()
+            st.write(r["Subject"])
+
     # Final processed data
     if state["processed"] and state["current_data"] is not None:
         st.markdown("### Processed Data Ready")
