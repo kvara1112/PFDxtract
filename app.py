@@ -302,10 +302,10 @@ def main():
         render_footer()
         return
     
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns([1,2,1])
     with col1:
         st.title("⚖️")
-    with col4:
+    with col3:
         # Initialize session state
         if "show_help" not in st.session_state:
             st.session_state.show_help = False
