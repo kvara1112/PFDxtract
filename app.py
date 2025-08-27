@@ -60,7 +60,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s: %(message)s",
 )
-
+modal = Modal("help modal", key="help-modal", padding=20, max_width=744)
 def render_analysis_tab(data=None):
     """Render the analysis tab with improved filters and visualizations"""
     st.subheader("Data Analysis & Visualization")
@@ -299,7 +299,25 @@ def main():
         # Render the footer even when not authenticated
         render_footer()
         return
-    st.title("⚖️")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.title("⚖️")
+    with col2:
+        if st.button("🛈︎"):
+            modal.open()
+        if modal.is_open():
+            with modal.container():
+                st.markdown("""
+                This app has two functions
+                1) Analyse PFD reports
+                These are precention of future death reports that follow a certain command,
+                you can either upload your own or search and filter for them
+                            
+                2) Analyse other healthcare document
+                This performs a similar analysis however it is for any other healthcare documents 
+                you may want to analyse """)
+                if st.button("Close"):
+                    modal.close()
     if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash" or st.session_state.button_clicked == "dash2":
         st.markdown(
                 """
