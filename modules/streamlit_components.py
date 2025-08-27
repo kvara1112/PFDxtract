@@ -906,6 +906,7 @@ def upload_reports(is_PFD):
                 "retry_files": {},
                 "processing_results": [],
             }
+            retry_needed = []
             st.rerun()
     # Final processed data
     if state["processed"] and state["current_data"] is not None:
