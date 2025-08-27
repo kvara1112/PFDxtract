@@ -791,7 +791,7 @@ def upload_reports(is_PFD):
                 
 
     # Handle retry-needed files
-    if state["retry_files"]:
+    if state["retry_files"] and report_key == "PFD":
         st.markdown("### 🔍 Files Needing Attention")
         
         files_to_remove = []  # Track which files to remove from retry list
