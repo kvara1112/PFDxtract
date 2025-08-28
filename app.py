@@ -305,7 +305,7 @@ def main():
     
             
     if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash" or st.session_state.button_clicked == "dash2":
-        col1, col2, col3, col4, col5, col6 = st.column(6)
+        col1, col2, col3, col4, col5, col6 = st.columns(6)
         with col1:
             st.title("⚖️")
         with col6:
