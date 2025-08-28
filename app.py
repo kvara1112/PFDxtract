@@ -305,10 +305,10 @@ def main():
     
             
     if st.session_state.button_clicked is None or st.session_state.button_clicked == "dash" or st.session_state.button_clicked == "dash2":
-        col1, col2, col3 = st.columns([1,2,1])
+        col1, col2, col3, col4, col5, col6 = st.column(6)
         with col1:
             st.title("⚖️")
-        with col3:
+        with col6:
             # Initialize session state
             if "show_help" not in st.session_state:
                 st.session_state.show_help = False
