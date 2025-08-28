@@ -895,6 +895,7 @@ def upload_reports(is_PFD):
     elif state["retry_files"] and report_key == "Other":
         st.warning(f"{len(retry_needed)} files failed to process. Please retry.")
         for r in retry_needed:
+            print("hello")
             st.write(r["Subject"])
 
     # Final processed data
