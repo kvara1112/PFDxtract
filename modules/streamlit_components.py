@@ -899,11 +899,8 @@ def upload_reports(is_PFD):
         st.warning(f"{len(retry_needed)} files failed to process. Please retry.")
         for r in retry_needed:
             st.write(r["Title"])
-        for r in state["retry_files"]:
-            del state["retry_files"][r]
-        if not state["retry_files"]:
-            state["processed"] = True
-            state["processing"] = False
+        state["processed"] = True
+        state["processing"] = False
         st.rerun()
         
         
