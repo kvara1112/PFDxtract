@@ -895,14 +895,16 @@ def upload_reports(is_PFD):
             st.rerun()
     elif state["retry_files"] and report_key == "Other":
         retry_needed = list(state["retry_files"].values())
-        total_files = state.get("total_files", len(retry_needed))
+        #total_files = state.get("total_files", len(retry_needed))
         st.warning(f"{len(retry_needed)} files failed to process. Please retry.")
         for r in retry_needed:
             st.write(r["Title"])
-        if total_files == len(retry_needed):
+        for r in state["retry_files"]:
+            del state["retry_files"][r]
+        if not state["retry_files"]:
             state["processed"] = True
             state["processing"] = False
-            st.rerun()
+        st.rerun()
         
         
 
