@@ -1517,6 +1517,9 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
 
     # Run analysis if button is clicked
     if run_analysis:
+        bert_results_key = f"{report_key}_bert_results"
+        if bert_results_key not in st.session_state:
+            st.session_state[bert_results_key] = {}
         with st.spinner("Performing Theme Analysis..."):
             try:
                 # Validate data selection
