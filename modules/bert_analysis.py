@@ -217,7 +217,7 @@ class BERTResultsAnalyzer:
                             # Show a preview of the data
                             st.subheader("Preview of Merged Data")
                             st.dataframe(self.data.head(5))
-
+                            st.session_state.data_source = 'merged data'
                             # Save merged data to session state
                             st.session_state.bert_merged_data = self.data.copy()
                         else:
