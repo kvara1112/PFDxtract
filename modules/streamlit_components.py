@@ -771,6 +771,7 @@ def upload_reports(is_PFD):
         elif report_key == "Other":
             if not state["processing_results"]:
                 total_files = len(state["uploaded_files"])
+                state["total_files"] = total_files
                 progress_placeholder = st.empty()
                 
                 for i, file in enumerate(state["uploaded_files"], 1):
@@ -894,6 +895,7 @@ def upload_reports(is_PFD):
             st.rerun()
     elif state["retry_files"] and report_key == "Other":
         retry_needed = list(state["retry_files"].values())
+        total_files = state.get("total_files", len(retry_needed))
         st.warning(f"{len(retry_needed)} files failed to process. Please retry.")
         for r in retry_needed:
             st.write(r["Title"])
