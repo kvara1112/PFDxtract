@@ -197,7 +197,7 @@ def check_app_password():
         return True
     
     # Otherwise show login screen
-    st.title("UK Judiciary PFD Reports Analysis")
+    st.title("Learning from Evidence Through Natural Language Systems")
     st.markdown("### Authentication Required")
     st.markdown("Please enter the password to access the application.")
 
@@ -1357,9 +1357,13 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         except Exception as e:
             st.error(f"Error uploading file: {str(e)}")
             return
-    else:
+        
+    if uploaded_file is None and data is None:
         if bert_results_key in st.session_state:
-            del st.session_state[bert_results_key] 
+            del st.session_state[bert_results_key]
+    # else:
+    #     if bert_results_key in st.session_state:
+    #         del st.session_state[bert_results_key] 
     # Check if data is available
     if data is None or len(data) == 0:
         st.warning(
@@ -1648,55 +1652,65 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         # Generate timestamp for filenames
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         
+
         # Create columns for download buttons
         col1, col2 = st.columns(2)
         
-        with col1:
-            # Excel download button using the enhanced export_to_excel function
-            excel_data = export_to_excel(clean_df)
-            st.download_button(
-                "📥 Download Results Table",
-                data=excel_data,
-                file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                key="bert_excel_download",
-            )
+        if bert_results_key in st.session_state:
+            results_df = st.session_state[bert_results_key].get("results_df")
+            highlighted_texts = st.session_state[bert_results_key].get("highlighted_texts")
         
-        with col2:
-            # Always regenerate HTML report when results are available
-            if "results_df" in st.session_state[bert_results_key] and "highlighted_texts" in st.session_state[bert_results_key]:
-                # Generate fresh HTML report based on current results
-                theme_analyzer = ThemeAnalyzer()
-                
-                # Set custom frameworks if they exist
-                if st.session_state[custom_frameworks_key]:
-                    for name, framework in st.session_state[custom_frameworks_key].items():
-                        if name in st.session_state[selected_frameworks_key]:
-                            theme_analyzer.frameworks[name] = framework
-                
-                html_content = theme_analyzer._create_integrated_html_for_pdf(
-                    results_df, st.session_state[bert_results_key]["highlighted_texts"]
-                )
-                html_filename = f"theme_analysis_report_{timestamp}.html"
-                
-                with open(html_filename, "w", encoding="utf-8") as f:
-                    f.write(html_content)
-                    
-                st.session_state[bert_results_key]["html_filename"] = html_filename
-                
-                # Provide download button for fresh HTML
-                with open(html_filename, "rb") as f:
-                    html_data = f.read()
-                
+        if results_df is not None:
+
+            with col1:
+                # Excel download button using the enhanced export_to_excel function
+                excel_data = export_to_excel(clean_df)
                 st.download_button(
-                    "📄 Download Annotated Reports (HTML)",
-                    data=html_data,
-                    file_name=os.path.basename(html_filename),
-                    mime="text/html",
-                    key="bert_html_download",
+                    "📥 Download Results Table",
+                    data=excel_data,
+                    file_name=f"annotated_theme_analysis_{timestamp}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    key="bert_excel_download",
                 )
-            else:
-                st.warning("HTML report not available")
+            
+            with col2:
+                # Always regenerate HTML report when results are available
+                if "results_df" in st.session_state[bert_results_key] and "highlighted_texts" in st.session_state[bert_results_key]:
+                    # Generate fresh HTML report based on current results
+                    theme_analyzer = ThemeAnalyzer()
+                    
+                    # Set custom frameworks if they exist
+                    if st.session_state[custom_frameworks_key]:
+                        for name, framework in st.session_state[custom_frameworks_key].items():
+                            if name in st.session_state[selected_frameworks_key]:
+                                theme_analyzer.frameworks[name] = framework
+                    
+                    html_content = theme_analyzer._create_integrated_html_for_pdf(
+                        results_df, st.session_state[bert_results_key]["highlighted_texts"]
+                    )
+                    html_filename = f"theme_analysis_report_{timestamp}.html"
+                    
+                    with open(html_filename, "w", encoding="utf-8") as f:
+                        f.write(html_content)
+                        
+                    st.session_state[bert_results_key]["html_filename"] = html_filename
+                    
+                    # Provide download button for fresh HTML
+                    with open(html_filename, "rb") as f:
+                        html_data = f.read()
+                    
+                    st.download_button(
+                        "📄 Download Annotated Reports (HTML)",
+                        data=html_data,
+                        file_name=os.path.basename(html_filename),
+                        mime="text/html",
+                        key="bert_html_download",
+                    )
+                else:
+                    st.warning("HTML report not available")
+        else:
+            st.warning("No results available")
+
 
 def render_bert_analysis_tabworking(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function to include enhanced metadata in results"""
