@@ -895,24 +895,28 @@ def upload_reports(is_PFD):
             st.rerun()
     elif state["retry_files"] and report_key == "Other":
         retry_needed = list(state["retry_files"].values())
-        #total_files = state.get("total_files", len(retry_needed))
+        total_files = state.get("total_files", len(retry_needed))
         st.warning(f"{len(retry_needed)} files failed to process. Please retry.")
         for r in retry_needed:
             st.write(r["Title"])
-        state["processed"] = True
-        state["processing"] = False
-        st.rerun()
+        if total_files == len(retry_needed):
+            state["processed"] = True
+            state["processing"] = False
+            state["current_data"] = None
+    
         
         
 
-    if state["processed"] and state["current_data"] is not None:
-        st.markdown("### Processed Data Ready")
-        st.dataframe(state["current_data"])
-        if report_key == "PFD":
-            show_export_options(state["current_data"], prefix="uploaded")
-        elif report_key == "Other":
-            show_export_options(state["current_data"], prefix="uploaded_other")
-
+    if state["processed"]:
+        if state["current_data"] is not None:
+            st.markdown("### Processed Data Ready")
+            st.dataframe(state["current_data"])
+            if report_key == "PFD":
+                show_export_options(state["current_data"], prefix="uploaded")
+            elif report_key == "Other":
+                show_export_options(state["current_data"], prefix="uploaded_other")
+        else:
+            st.markdown("No data could be processed")
         st.markdown("### Begin a New Upload")
         if st.button("🔄 Start New Analysis", type="secondary"):
             st.session_state.reports[report_key] = {
