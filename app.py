@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-UK Judiciary PFD Reports Analysis Tool - Main Application
+UK Judiciary PFD Reports and Healthcare Document Analysis Tool - Main Application
 A comprehensive tool for analyzing Prevention of Future Deaths (PFD) reports.
 """
 
@@ -17,7 +17,7 @@ import requests
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="UK Judiciary PFD Reports Analysis",
+    page_title="Learning from Evidence through Natural Language Systems",
     page_icon="⚖️",
     layout="wide",
     initial_sidebar_state="expanded"
