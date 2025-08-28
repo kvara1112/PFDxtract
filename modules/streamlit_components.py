@@ -915,6 +915,7 @@ def upload_reports(is_PFD):
                 show_export_options(state["current_data"], prefix="uploaded")
             elif report_key == "Other":
                 show_export_options(state["current_data"], prefix="uploaded_other")
+            st.session_state.current_data = state["current_data"]
         else:
             st.markdown("No data could be processed")
         st.markdown("### Begin a New Upload")
