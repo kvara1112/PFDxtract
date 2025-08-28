@@ -550,9 +550,13 @@ def process_other(uploaded_file):
         
         content = "\n".join(lines[start_idx+1:])
         
+        if formatted_date == None:
+            status = "failed"
+        else:
+            status = "success"
 
         return {
-            "Status": "success",
+            "Status": status,
             "Title":uploaded_file.name,
             "Subject": title,
             "date_of_report": formatted_date,
@@ -773,10 +777,11 @@ def upload_reports(is_PFD):
                     progress_placeholder.info(f"Processing {i}/{total_files}")
                     result = process_other(file)
                     state["processing_results"].append(result)
-
-                progress_placeholder.success(f"✅ Processed {total_files} files successfully!")
-                successful_reports = [r for r in state["processing_results"]]
+                
                 retry_needed = [r for r in state["processing_results"] if r["Status"] == "failed"]
+                progress_placeholder.success(f"✅ Processed {total_files - len(retry_needed)} files successfully!")
+                successful_reports = [r for r in state["processing_results"] if r["Status"] == "success"]
+                #retry_needed = [r for r in state["processing_results"] if r["Status"] == "failed"]
                 
                 if successful_reports:
                     df = pd.DataFrame(successful_reports)
