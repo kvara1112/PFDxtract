@@ -1358,8 +1358,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             st.error(f"Error uploading file: {str(e)}")
             return
         
-    if uploaded_file is None:
-        data = None
+    if uploaded_file is None and data is None:
         if bert_results_key in st.session_state:
             del st.session_state[bert_results_key]
     # else:
