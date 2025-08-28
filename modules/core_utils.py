@@ -466,13 +466,28 @@ def filter_by_categories(df: pd.DataFrame, selected_categories: list[str]) -> pd
     selected_categories_lower = [str(sc).lower().strip() for sc in selected_categories]
 
     def check_match(row_categories):
-        if pd.isna(row_categories): return False
+        # handle NaN
+        if row_categories is None or (isinstance(row_categories, float) and pd.isna(row_categories)):
+            return False
         
-        current_cats_lower = []
-        if isinstance(row_categories, list):
-            current_cats_lower = [str(c).lower().strip() for c in row_categories if c]
-        elif isinstance(row_categories, str):
-            current_cats_lower = [c.strip() for c in str(row_categories).lower().split(',') if c.strip()]
+        #make sure it is always a list
+        if isinstance(row_categories, str):
+            categories = [row_categories]
+        elif isinstance(row_categories, (list, tuple, set)):
+            categories = row_categories
+        else:
+            try:
+                categories = list(row_categories)
+            except Exception:
+                return False
+        
+        current_cats_lower = [str(c).lower().strip() for c in categories if c]
+        
+        # current_cats_lower = []
+        # if isinstance(row_categories, list):
+        #     current_cats_lower = [str(c).lower().strip() for c in row_categories if c]
+        # elif isinstance(row_categories, str):
+        #     current_cats_lower = [c.strip() for c in str(row_categories).lower().split(',') if c.strip()]
         
         return any(sc in current_cats_lower for sc in selected_categories_lower)
 
