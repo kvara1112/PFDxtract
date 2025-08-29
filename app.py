@@ -375,11 +375,6 @@ def main():
                     border: 2px solid white;
                     border-color: white
                 }
-                div.stButton {
-                    display: flex;
-                    justify-content: center;
-                    gap: 40px;
-                }
                 </style>
             """ , unsafe_allow_html=True)
 
