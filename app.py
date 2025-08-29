@@ -99,11 +99,11 @@ def render_analysis_tab(data=None, data_source=None):
             return
     
     # Use either uploaded data or passed data
-    elif data_source == 'merged':    
-        data = st.session_state.get('current_data')
-        if data is None or len(data) == 0:
-            st.warning("No previously merged data available")
-            return
+    if uploaded_file is None:
+        if data_source == 'merged':    
+            data = st.session_state.get('current_data')
+        else:
+            data = None
     
     if data is None or len(data) == 0:
         st.warning("No data available. Please upload a file or scrape reports first.")
@@ -514,7 +514,12 @@ def main():
                 if not validate_data_state():
                     handle_no_data_state("analysis")
                 else:
-                    render_analysis_tab(st.session_state.current_data, st.session_state.data_source)
+                    if st.session_state.get("data_source") == 'merged':
+                        data_to_use = st.session_state.current_data
+                    else:
+                        data = None
+
+                    render_analysis_tab(data = data_to_use,data_source= st.session_state.get("data_source"))
             
             elif current_tab == "(4)📝 Topic Analysis & Summaries":
                 # Add tab-specific description here
