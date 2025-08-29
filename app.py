@@ -133,7 +133,7 @@ def render_analysis_tab(data=None, data_source=None):
                 with col1:
                     start_date = st.date_input(
                         "From",
-                        value=st.session_state.get("start_date_filter",min_date),
+                        value=st.session_state.get("start_date_filter") or min_date,
                         min_value=min_date,
                         max_value=max_date,
                         key="start_date_filter",
@@ -142,7 +142,7 @@ def render_analysis_tab(data=None, data_source=None):
                 with col2:
                     end_date = st.date_input(
                         "To",
-                        value=st.session_state.get("end_date_filter",max_date),
+                        value=st.session_state.get("end_date_filter") or max_date,
                         min_value=min_date,
                         max_value=max_date,
                         key="end_date_filter",
@@ -185,10 +185,13 @@ def render_analysis_tab(data=None, data_source=None):
             
             # Reset Filters Button
             if st.button("🔄 Reset Filters"):
-                keys_to_delete = [key for key in st.session_state if key.endswith("_filter")]
-                for key in keys_to_delete:
-                    st.session_state[key] = []
-                #st.rerun()
+                for key in st.session_state:
+                    if key.endswith("_filter"):
+                        if "date" in key:
+                            # Set to None or min/max for date inputs
+                            st.session_state[key] = None
+                        else:
+                            st.session_state[key] = []
 
         # Apply filters
         filtered_df = data.copy()
