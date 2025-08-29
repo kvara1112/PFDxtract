@@ -460,7 +460,8 @@ def initialize_nltk():
 
 def filter_by_categories(df: pd.DataFrame, selected_categories: list[str]) -> pd.DataFrame:
     """Filter DataFrame by categories, handling both list and string formats in the 'categories' column."""
-    if not selected_categories: return df
+    if not selected_categories: return df[df['normalized_categories'].apply(lambda x: any(cat in x for cat in selected_categories))]
+
     if "categories" not in df.columns: return df
 
     selected_categories_lower = [str(sc).lower().strip() for sc in selected_categories]
