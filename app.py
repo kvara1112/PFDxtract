@@ -378,11 +378,7 @@ def main():
                     width: 300px;
                     border-radius: 30px;
                     border: 2px solid white;
-                    border-color: white
-                }
-                    
-                div.stButton > button > span {
-                    font-size: 50px !important; 
+                    font-size: 50px !important;
                 }
                 
                 </style>
