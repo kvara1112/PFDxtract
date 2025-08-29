@@ -389,22 +389,7 @@ def main():
 
         col1, col2, col3, col4 = st.columns(4)
 
-        st.markdown(
-            """
-            <div style="background-color: lightblue; padding: 20px; display: inline-block;">
-            <img src="research.gif" width="200">
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        st.markdown(
-            """
-            <div style="background-color: lightblue; padding: 20px; display: inline-block;">
-            <img src="report.gif" width="200">
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        
         with col2:
             st.image("research.gif")
             st.button("Analyse PFD Reports", key="page1_btn", on_click=go_to_page, args=("page1",))
