@@ -773,10 +773,11 @@ def upload_reports(is_PFD):
                 total_files = len(state["uploaded_files"])
                 state["total_files"] = total_files
                 progress_placeholder = st.empty()
+                other_placeholder = st.empty()
                 
                 for i, file in enumerate(state["uploaded_files"], 1):
                     progress_placeholder.info(f"Processing {i}/{total_files}")
-                    progress_placeholder.info("Removing duplicate records")
+                    other_placeholder.info("Removing duplicate records")
                     result = process_other(file)
                     state["processing_results"].append(result)
                 
