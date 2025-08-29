@@ -160,11 +160,12 @@ def render_analysis_tab(data=None, data_source=None):
                 all_categories = set()
                 for cats in data['categories'].dropna():
                     if isinstance(cats, list):
-                        all_categories.update(str(cat).strip() for cat in cats if cat)
+                        all_categories.update(str(cat).strip(" []") for cat in cats if cat)
                     elif isinstance(cats, str):
-                        all_categories.update(str(cat).strip() for cat in cats.split(',') if cat)
+                        cleaned = cats.strip(" []")
+                        all_categories.update(str(cat).strip(" []") for cat in cleaned.split(',') if cat.strip())
                 
-                all_categories = {cat for cat in all_categories if cat.strip()}
+                all_categories = {cat.strip(" []") for cat in all_categories if cat.strip(" []")}
                 
                 if all_categories:
                     selected_categories = st.multiselect(
