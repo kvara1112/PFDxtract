@@ -363,15 +363,14 @@ def main():
                 <h2 style='text-align:center;'>Learning Through Evidence from Natural Language Systems</h2>""",
                 unsafe_allow_html = True
             )
-        button_style = """
+        st.markdown("""
                 <style>
-                button[kind="primary"] {
+                div.stButton > button {
                     background-color: #0084B4;
                     color: white;
                     height: 200px;
                     width: 300px;
                     font-size: 30px;
-                    font-weight: bold;
                     border-radius: 30px;
                     border: 2px solid white;
                     border-color: white
@@ -382,8 +381,7 @@ def main():
                     gap: 40px;
                 }
                 </style>
-            """
-        st.markdown(button_style, unsafe_allow_html=True)
+            """ , unsafe_allow_html=True)
 
         
         
