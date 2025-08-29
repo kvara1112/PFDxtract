@@ -365,16 +365,26 @@ def main():
             )
         st.markdown("""
                 <style>
+                div.stButton {
+                    display: flex;
+                    justify-content: center;
+                    gap: 40px;
+                }
+                    
                 div.stButton > button {
                     background-color: #0084B4;
                     color: white;
                     height: 200px;
                     width: 300px;
-                    font-size: 50px;
                     border-radius: 30px;
                     border: 2px solid white;
                     border-color: white
                 }
+                    
+                div.stButton > button > span {
+                    font-size: 50px !important; 
+                }
+                
                 </style>
             """ , unsafe_allow_html=True)
 
