@@ -150,10 +150,14 @@ def render_analysis_tab(data=None, data_source=None):
                     )
             
             # Document Type Filter
+            doc_type_options = ["Report", "Response"]
             doc_type = st.multiselect(
                 "Document Type",
-                ["Report", "Response"],
-                default=[st.session_state.get("doc_type_filter", [])],
+                options = doc_type_options,
+                default=[
+                        dt for dt in st.session_state.get("doc_type_filter", [])
+                        if dt in doc_type_options
+                    ],
                 key="doc_type_filter",
                 help="Filter by document type"
             )
@@ -173,7 +177,9 @@ def render_analysis_tab(data=None, data_source=None):
                     selected_categories = st.multiselect(
                         "Categories",
                         options=sorted(all_categories),
-                        default=st.session_state.get("categories_filter", []),
+                        default=[cat for cat in st.session_state.get("categories_filter", [])
+                                 if cat in all_categories
+                                ],
                         key="categories_filter"
                     )
             
