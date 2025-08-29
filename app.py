@@ -517,7 +517,7 @@ def main():
                     if st.session_state.get("data_source") == 'merged':
                         data_to_use = st.session_state.current_data
                     else:
-                        data = None
+                        data_to_use = None
 
                     render_analysis_tab(data = data_to_use,data_source= st.session_state.get("data_source"))
             
