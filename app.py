@@ -370,7 +370,7 @@ def main():
                     color: white;
                     height: 200px;
                     width: 300px;
-                    font-size: 30px;
+                    font-size: 50px;
                     border-radius: 30px;
                     border: 2px solid white;
                     border-color: white
