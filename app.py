@@ -550,7 +550,7 @@ def main():
                 if not validate_data_state():
                     handle_no_data_state("topic_summary")
                 else:
-                    render_topic_summary_tab(True, st.session_state.current_data)
+                    render_topic_summary_tab(True, st.session_state.current_data, data_source= st.session_state.get("data_source"))
             
             elif current_tab == "(5)🔬 Concept Annotation":
                 # Add tab-specific description here
