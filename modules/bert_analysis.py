@@ -972,27 +972,39 @@ class BERTResultsAnalyzer:
             # Apply cleaning
             merged_df = self._clean_categories(merged_df)
             
+            merged_df["categories"] = merged_df["categories"].apply(
+                lambda x: ", ".join(c.strip() for c in x) if isinstance(x, list) else x
+            )
             # Count changes - this is more complex since categories can be lists
             changes_made = 0
             example_changes = []
             
             # Check each row for changes
             for i, (old, new) in enumerate(zip(original_categories, merged_df["categories"])):
-                # Handle list case
-                if isinstance(old, list) and isinstance(new, list):
-                    # Consider it changed if any element changed
-                    if any(o != n for o, n in zip(old, new) if isinstance(o, str) and isinstance(n, str)):
-                        changes_made += 1
-                        # Add example if we don't have many yet
-                        if len(example_changes) < 3:
-                            old_str = ", ".join(old) if all(isinstance(x, str) for x in old) else str(old)
-                            new_str = ", ".join(new) if all(isinstance(x, str) for x in new) else str(new)
-                            example_changes.append(f"'{old_str}' → '{new_str}'")
-                # Handle string case
-                elif isinstance(old, str) and isinstance(new, str) and old != new:
+                if isinstance(old, list):
+                    old_str = ", ".join(c.strip() for c in old if isinstance(c, str))
+                else:
+                    old_str = old
+
+                if old_str != new:
                     changes_made += 1
                     if len(example_changes) < 3:
-                        example_changes.append(f"'{old}' → '{new}'")
+                        example_changes.append(f"'{old_str}' → '{new}'")
+                #  Handle list case
+                # if isinstance(old, list) and isinstance(new, list):
+                #     # Consider it changed if any element changed
+                #     if any(o != n for o, n in zip(old, new) if isinstance(o, str) and isinstance(n, str)):
+                #         changes_made += 1
+                #         # Add example if we don't have many yet
+                #         if len(example_changes) < 3:
+                #             old_str = ", ".join(old) if all(isinstance(x, str) for x in old) else str(old)
+                #             new_str = ", ".join(new) if all(isinstance(x, str) for x in new) else str(new)
+                #             example_changes.append(f"'{old_str}' → '{new_str}'")
+                # # Handle string case
+                # elif isinstance(old, str) and isinstance(new, str) and old != new:
+                #     changes_made += 1
+                #     if len(example_changes) < 3:
+                #         example_changes.append(f"'{old}' → '{new}'")
             
             # Report changes
             if changes_made > 0:
