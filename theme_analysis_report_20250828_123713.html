@@ -1,0 +1,887 @@
+
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Theme Analysis Report</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        line-height: 1.6; 
+                        margin: 0;
+                        padding: 20px;
+                        color: #333;
+                        background-color: #f9f9f9;
+                    }
+                    h1 { 
+                        color: #2c3e50; 
+                        border-bottom: 3px solid #3498db; 
+                        padding-bottom: 10px; 
+                        margin-top: 30px;
+                        font-weight: 600;
+                    }
+                    h2 { 
+                        color: #2c3e50; 
+                        margin-top: 30px; 
+                        border-bottom: 2px solid #bdc3c7; 
+                        padding-bottom: 5px; 
+                        font-weight: 600;
+                    }
+                    h3 {
+                        color: #34495e;
+                        font-weight: 600;
+                        margin-top: 20px;
+                    }
+                    .record-container { 
+                        margin-bottom: 40px; 
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 20px;
+                        page-break-after: always; 
+                    }
+                    .highlighted-text { 
+                        margin: 15px 0; 
+                        padding: 15px; 
+                        border-radius: 4px;
+                        border: 1px solid #ddd; 
+                        background-color: #fff; 
+                        line-height: 1.7;
+                    }
+                    .theme-info { margin: 15px 0; }
+                    .theme-info table { 
+                        border-collapse: collapse; 
+                        width: 100%; 
+                        margin-top: 15px;
+                        border-radius: 4px;
+                        overflow: hidden;
+                    }
+                    .theme-info th, .theme-info td { 
+                        border: 1px solid #ddd; 
+                        padding: 12px; 
+                        text-align: left; 
+                    }
+                    .theme-info th { 
+                        background-color: #3498db; 
+                        color: white;
+                        font-weight: 600;
+                    }
+                    .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
+                    .theme-info tr:hover { background-color: #f1f1f1; }
+                    .high-confidence { background-color: #D5F5E3; }  /* Light green */
+                    .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
+                    .low-confidence { background-color: #FADBD8; }   /* Light red */
+                    .report-header {
+                        background-color: #3498db;
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                        border-radius: 8px;
+                        margin-bottom: 30px;
+                    }
+                    .summary-card {
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 20px;
+                        margin-bottom: 30px;
+                        display: flex;
+                        flex-wrap: wrap;
+                        justify-content: space-between;
+                    }
+                    .summary-box {
+                        flex: 1;
+                        min-width: 200px;
+                        padding: 15px;
+                        text-align: center;
+                        border-right: 1px solid #eee;
+                    }
+                    .summary-box:last-child {
+                        border-right: none;
+                    }
+                    .summary-number {
+                        font-size: 36px;
+                        font-weight: bold;
+                        color: #3498db;
+                        margin-bottom: 10px;
+                    }
+                    .summary-label {
+                        font-size: 14px;
+                        color: #7f8c8d;
+                        text-transform: uppercase;
+                    }
+                    .theme-color-box {
+                        display: inline-block;
+                        width: 20px;
+                        height: 20px;
+                        margin-right: 5px;
+                        vertical-align: middle;
+                        border: 1px solid #999;
+                    }
+                    .legend-container {
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 15px;
+                        margin-bottom: 20px;
+                    }
+                    .legend-title {
+                        font-weight: bold;
+                        margin-bottom: 10px;
+                    }
+                    .legend-item {
+                        display: flex;
+                        align-items: center;
+                        margin-bottom: 5px;
+                    }
+                    @media print {
+                        .record-container { page-break-after: always; }
+                        body { background-color: white; }
+                        .record-container, .summary-card { box-shadow: none; }
+                    }
+                    
+                    /* Define theme-specific CSS classes for consistency */
+        
+                    .theme-i-sirch_internal---time-of-day-eg-night-working-or-day-of-the-week {
+                        background-color: #FFF8E1 !important;
+                    }
+            
+                    .theme-i-sirch_person---patient-characteristics-and-performance---characteristics---psychological-characteristics-eg-stress-mental-health {
+                        background-color: #F5F5DC !important;
+                    }
+            
+                    .theme-house-of-commons_care-quality-and-access-issues {
+                        background-color: #FFF3E0 !important;
+                    }
+            
+                    .theme-house-of-commons_inadequate-maternity-care {
+                        background-color: #F3E5F5 !important;
+                    }
+            
+                    .theme-i-sirch_external---policy-factor {
+                        background-color: #FFD580 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_situational--team-factors {
+                        background-color: #d5bcea !important;
+                    }
+            
+                    .theme-yorkshire-contributory_communication-and-culture--safety-culture {
+                        background-color: #FFF3CD !important;
+                    }
+            
+                    .theme-house-of-commons_socioeconomic-factors-and-deprivation {
+                        background-color: #E0F7FA !important;
+                    }
+            
+                    .theme-house-of-commons_guidance-gaps {
+                        background-color: #E1F5FE !important;
+                    }
+            
+                    .theme-yorkshire-contributory_organisational-factors--escalation/referral-factor {
+                        background-color: #D1E7DD !important;
+                    }
+            
+                    .theme-yorkshire-contributory_organisational-factors--policies-and-procedures {
+                        background-color: #FFFACD !important;
+                    }
+            
+                    .theme-i-sirch_internal---physical-layout-and-environment {
+                        background-color: #dfb6c1 !important;
+                    }
+            
+                    .theme-i-sirch_organisation---communication-factor---between-staff {
+                        background-color: #dcd4ea !important;
+                    }
+            
+                    .theme-i-sirch_jobs/task---care-planning {
+                        background-color: #dbbbd9 !important;
+                    }
+            
+                    .theme-extended-analysis_staff-wellbeing-and-burnout {
+                        background-color: #cebed5 !important;
+                    }
+            
+                    .theme-house-of-commons_fragmented-care {
+                        background-color: #FFECB3 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_situational--patient-factors {
+                        background-color: #E8F5E9 !important;
+                    }
+            
+                    .theme-house-of-commons_communication {
+                        background-color: #e1c4ea !important;
+                    }
+            
+                    .theme-i-sirch_jobs/task---risk-assessment {
+                        background-color: #bdecc0 !important;
+                    }
+            
+                    .theme-i-sirch_organisation---communication-factor---between-staff-and-patient-verbal {
+                        background-color: #e3d6ee !important;
+                    }
+            
+                    .theme-i-sirch_organisation---team-culture-factor-eg-patient-safety-culture {
+                        background-color: #E8EAF6 !important;
+                    }
+            
+                </style>
+            </head>
+            <body>
+                <div class="report-header">
+                    <h1>Theme Analysis Results</h1>
+                    <p>Generated on 28 August 2025, 12:37</p>
+                </div>
+                
+                <div class="summary-card">
+                    <div class="summary-box">
+                        <div class="summary-number">2</div>
+                        <div class="summary-label">Documents Analyzed</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-number">23</div>
+                        <div class="summary-label">Theme Identifications</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-number">4</div>
+                        <div class="summary-label">Frameworks</div>
+                    </div>
+                </div>
+                
+                <!-- Add legend explaining gradients -->
+                <div class="legend-container">
+                    <div class="legend-title">Theme Color Guide</div>
+                    <div>When text contains multiple themes, a gradient background is used to show all applicable themes. Check the tooltip for details.</div>
+                </div>
+            
+                <h2>Framework Summary</h2>
+                <table class="theme-info">
+                    <tr>
+                        <th>Framework</th>
+                        <th>Number of Themes</th>
+                        <th>Number of Documents</th>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>9</td>
+                        <td>2</td>
+                    </tr>
+                
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>6</td>
+                        <td>2</td>
+                    </tr>
+                
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>1</td>
+                        <td>2</td>
+                    </tr>
+                
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>5</td>
+                        <td>2</td>
+                    </tr>
+                
+                </table>
+            <h2>Document Analysis</h2>
+                    <div class="record-container">
+                        <h2>Document: Louise-Crane-2-Prevention-of-Future-Deaths-Report-2025-0318</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #cebed5;">
+                                    <td>Extended Analysis</td>
+                                    <td>Staff Wellbeing and Burnout</td>
+                                    <td>High</td>
+                                    <td>0.804</td>
+                                    <td>mental health</td>
+                                    <td><div class="theme-color-box" style="background-color:#cebed5;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E0F7FA;">
+                                    <td>House of Commons</td>
+                                    <td>Socioeconomic factors and deprivation</td>
+                                    <td>High</td>
+                                    <td>0.911</td>
+                                    <td>factors</td>
+                                    <td><div class="theme-color-box" style="background-color:#E0F7FA;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F3E5F5;">
+                                    <td>House of Commons</td>
+                                    <td>Inadequate maternity care</td>
+                                    <td>High</td>
+                                    <td>0.891</td>
+                                    <td>care, inadequate</td>
+                                    <td><div class="theme-color-box" style="background-color:#F3E5F5;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E1F5FE;">
+                                    <td>House of Commons</td>
+                                    <td>Guidance gaps</td>
+                                    <td>High</td>
+                                    <td>0.881</td>
+                                    <td>information</td>
+                                    <td><div class="theme-color-box" style="background-color:#E1F5FE;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF3E0;">
+                                    <td>House of Commons</td>
+                                    <td>Care quality and access issues</td>
+                                    <td>High</td>
+                                    <td>0.852</td>
+                                    <td>treatment</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF3E0;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFECB3;">
+                                    <td>House of Commons</td>
+                                    <td>Fragmented care</td>
+                                    <td>High</td>
+                                    <td>0.851</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFECB3;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E8EAF6;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Team culture factor (e.g., patient safety culture)</td>
+                                    <td>High</td>
+                                    <td>0.882</td>
+                                    <td>team</td>
+                                    <td><div class="theme-color-box" style="background-color:#E8EAF6;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFD580;">
+                                    <td>I-SIRch</td>
+                                    <td>External - Policy factor</td>
+                                    <td>High</td>
+                                    <td>0.88</td>
+                                    <td>policy</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFD580;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e3d6ee;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Communication factor - Between staff and patient (verbal)</td>
+                                    <td>High</td>
+                                    <td>0.877</td>
+                                    <td>between, patient</td>
+                                    <td><div class="theme-color-box" style="background-color:#e3d6ee;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #dbbbd9;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Care planning</td>
+                                    <td>High</td>
+                                    <td>0.871</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#dbbbd9;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #dfb6c1;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Physical layout and Environment</td>
+                                    <td>High</td>
+                                    <td>0.867</td>
+                                    <td>physical</td>
+                                    <td><div class="theme-color-box" style="background-color:#dfb6c1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #d5bcea;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Situational- Team Factors</td>
+                                    <td>High</td>
+                                    <td>0.896</td>
+                                    <td>team</td>
+                                    <td><div class="theme-color-box" style="background-color:#d5bcea;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF3CD;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Communication and Culture- Safety Culture</td>
+                                    <td>High</td>
+                                    <td>0.889</td>
+                                    <td>risk management</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF3CD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFFACD;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Organisational Factors- Policies and Procedures</td>
+                                    <td>High</td>
+                                    <td>0.878</td>
+                                    <td>policy</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFFACD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E8F5E9;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Situational- Patient Factors</td>
+                                    <td>High</td>
+                                    <td>0.875</td>
+                                    <td>unstable</td>
+                                    <td><div class="theme-color-box" style="background-color:#E8F5E9;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: mental health + care + care + care">Date of report: 23/06/2025
+Ref: 2025-0318
+Deceased name: Louise Crane
+Coroners name: Ian Potter
+Coroners Area: Inner North London
+Category: Suicide (from 2015) | Mental Health related deaths
+This report is being sent to: NHS England | Department of Health and Social Care
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: 1.</span> NHS England 7-8 Wellington Place Leeds West Yorkshire LS1 4AP 2. <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: care + care + care">Secretary of State for Health and Social Care Department of Health and Social Care 39 Victoria Street London SW1H 0EU 1 CORONER I am Ian Potter, assistant coroner, for the coroner area of Inner North London. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and Regulations 28 and 29 of the Coroners (investigations) Regulations 2013. 3 INVESTIGATION and INQUEST On 20 September 2024, an investigation was commenced into the death of Louise Elizabeth Amy Crane, aged 39 years at the time of her death.</span> <span style="background-color:#D1E7DD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)
+Keywords: between">The investigation concluded at the end of an inquest heard by me between 2 June and 10 June 2025.</span> The inquest concluded with a short-form conclusion of suicide. <span style="background-color:#E8F5E9; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_Situational- Patient Factors
+Keywords: unstable">The medical cause of death was: 1a ligature compression to the neck 4 CIRCUMSTANCES OF DEATH Louise Crane had an established diagnosis of Emotionally Unstable Personality Disorder (EUPD).</span> She also had diagnoses of depression and psychosis (in the context of drug use). <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)
+Keywords: mental health + patient">Ms Crane first came into contact with mental health services in 2012, since then she had been treated in the community, in voluntary in-patient settings, and while detained under the Mental Health Act.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Care quality and access issues + I-SIRch_Internal - Physical layout and Environment
+Keywords: treatment + physical">Ms Crane was admitted to hospital for emergency treatment in relation to her physical health on 2 May 2024, following an attempt to end her life.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)
+Keywords: mental health + patient">Once medically fit for discharge, Ms Crane was admitted to an in-patient psychiatric ward at Highgate Mental Health Centre (North London NHS Foundation Trust), under section 2 of the Mental Health Act.</span> This detention commenced on 4 June 2024. <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: mental health + care + care + care">Following Ms Crane's initial admission to Highgate Mental Health Centre, she was transferred to a psychiatric intensive care unit (Ruby Ward) on 5 July 2024.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout
+Keywords: mental health">Ms Crane remained on Ruby Ward until she was stepped down to an acute mental health ward (Topaz Ward) on 5 September 2024.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout
+Keywords: mental health">On 19 September 2024, when Ms Crane remained detained under section 3 of the Mental Health Act, she was found in her room suspended by a dressing gown cord used as a ligature.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout
+Keywords: mental health">The jury's findings as to how, when, where and in what circumstances Ms Crane came by her death were, as follows: "Louise Crane died in Highgate Mental Health Centre on 19 September 2024 from a ligature compression to the neck.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Care quality and access issues + House of Commons_Fragmented care + House of Commons_Guidance gaps + House of Commons_Inadequate maternity care + House of Commons_Socioeconomic factors and deprivation + I-SIRch_Jobs/Task - Care planning + Yorkshire Contributory_Communication and Culture- Safety Culture + Yorkshire Contributory_Situational- Patient Factors
+Keywords: treatment + care + information + inadequate, care + factors + care + risk management + unstable">Factors contributing to Louise's death were a chronic high risk of suicide linked to Emotionally Unstable Personality Disorder, in combination with unsatisfactory information sharing and recording, and inadequate risk management, staffing and levels of care and treatment during Louise's time on Topaz Ward." 5 CORONER'S CONCERNS During the course of the inquest the evidence revealed matters giving rise to concern.</span> In my opinion, there is a risk that future deaths could occur unless action is taken. In the circumstances, it is my statutory duty to report to you. <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_External - Policy factor + I-SIRch_Organisation - Team culture factor (e.g., patient safety culture) + Yorkshire Contributory_Organisational Factors- Policies and Procedures + Yorkshire Contributory_Situational- Team Factors
+Keywords: mental health + policy + team + policy + team">The MATTER OF CONCERN is as follows: 1) Evidence from a senior member of North London NHS Trust's clinical leadership team revealed that there is a lack of a nationwide policy / approach to anti-ligature measures in mental health settings. 6 ACTION SHOULD BE TAKEN In my opinion, action should be taken to prevent future deaths and I believe that you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of the report, namely 18 August 2025.</span> I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action. Otherwise, you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the Chief Coroner and the following: Ms Crane's family; North London NHS Foundation Trust. I am also under a duty to send the Chief Coroner a copy of your response. The Chief Coroner may publish either or both in a complete or redacted or summary form. She may send a copy of this report to any person who she believes may find it useful or of interest. You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 Ian Potter HM Assistant Coroner, Inner North London 23 June 2025
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + care + care + care</td>
+                        <td>Date of report: 23/06/2025
+Ref: 2025-0318
+Deceased name: Louise Crane
+Coroners name: Ian Potter
+Coroners Area: Inner North London
+Category: Suicide (from 2015) | Mental Health related deaths
+This report is being sent to: NHS England | Department of Health and Social Care
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: 1.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care</td>
+                        <td>Secretary of State for Health and Social Care Department of Health and Social Care 39 Victoria Street London SW1H 0EU 1 CORONER I am Ian Potter, assistant coroner, for the coroner area of Inner North London. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and Regulations 28 and 29 of the Coroners (investigations) Regulations 2013. 3 INVESTIGATION and INQUEST On 20 September 2024, an investigation was commenced into the death of Louise Elizabeth Amy Crane, aged 39 years at the time of her death.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - Communication factor - Between staff and patient (verbal)</td>
+                        <td style="background-color: #D1E7DD;">#D1E7DD</td>
+                        <td>between</td>
+                        <td>The investigation concluded at the end of an inquest heard by me between 2 June and 10 June 2025.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>Situational- Patient Factors</td>
+                        <td style="background-color: #E8F5E9;">#E8F5E9</td>
+                        <td>unstable</td>
+                        <td>The medical cause of death was: 1a ligature compression to the neck 4 CIRCUMSTANCES OF DEATH Louise Crane had an established diagnosis of Emotionally Unstable Personality Disorder (EUPD).</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + patient</td>
+                        <td>Ms Crane first came into contact with mental health services in 2012, since then she had been treated in the community, in voluntary in-patient settings, and while detained under the Mental Health Act.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Care quality and access issues + I-SIRch_Internal - Physical layout and Environment</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>treatment + physical</td>
+                        <td>Ms Crane was admitted to hospital for emergency treatment in relation to her physical health on 2 May 2024, following an attempt to end her life.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + patient</td>
+                        <td>Once medically fit for discharge, Ms Crane was admitted to an in-patient psychiatric ward at Highgate Mental Health Centre (North London NHS Foundation Trust), under section 2 of the Mental Health Act.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + care + care + care</td>
+                        <td>Following Ms Crane's initial admission to Highgate Mental Health Centre, she was transferred to a psychiatric intensive care unit (Ruby Ward) on 5 July 2024.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health</td>
+                        <td>Ms Crane remained on Ruby Ward until she was stepped down to an acute mental health ward (Topaz Ward) on 5 September 2024.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health</td>
+                        <td>On 19 September 2024, when Ms Crane remained detained under section 3 of the Mental Health Act, she was found in her room suspended by a dressing gown cord used as a ligature.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health</td>
+                        <td>The jury's findings as to how, when, where and in what circumstances Ms Crane came by her death were, as follows: "Louise Crane died in Highgate Mental Health Centre on 19 September 2024 from a ligature compression to the neck.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Care quality and access issues + House of Commons_Fragmented care + House of Commons_Guidance gaps + House of Commons_Inadequate maternity care + House of Commons_Socioeconomic factors and deprivation + I-SIRch_Jobs/Task - Care planning + Yorkshire Contributory_Communication and Culture- Safety Culture + Yorkshire Contributory_Situational- Patient Factors</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>treatment + care + information + inadequate, care + factors + care + risk management + unstable</td>
+                        <td>Factors contributing to Louise's death were a chronic high risk of suicide linked to Emotionally Unstable Personality Disorder, in combination with unsatisfactory information sharing and recording, and inadequate risk management, staffing and levels of care and treatment during Louise's time on Topaz Ward." 5 CORONER'S CONCERNS During the course of the inquest the evidence revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + I-SIRch_External - Policy factor + I-SIRch_Organisation - Team culture factor (e.g., patient safety culture) + Yorkshire Contributory_Organisational Factors- Policies and Procedures + Yorkshire Contributory_Situational- Team Factors</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + policy + team + policy + team</td>
+                        <td>The MATTER OF CONCERN is as follows: 1) Evidence from a senior member of North London NHS Trust's clinical leadership team revealed that there is a lack of a nationwide policy / approach to anti-ligature measures in mental health settings. 6 ACTION SHOULD BE TAKEN In my opinion, action should be taken to prevent future deaths and I believe that you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of the report, namely 18 August 2025.</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+                    <div class="record-container">
+                        <h2>Document: Charlotte-Werner-Prevention-of-Future-Deaths-Report-2025-0270</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #cebed5;">
+                                    <td>Extended Analysis</td>
+                                    <td>Staff Wellbeing and Burnout</td>
+                                    <td>High</td>
+                                    <td>0.781</td>
+                                    <td>mental health</td>
+                                    <td><div class="theme-color-box" style="background-color:#cebed5;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e1c4ea;">
+                                    <td>House of Commons</td>
+                                    <td>Communication</td>
+                                    <td>High</td>
+                                    <td>0.819</td>
+                                    <td>concerns</td>
+                                    <td><div class="theme-color-box" style="background-color:#e1c4ea;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF8E1;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                                    <td>High</td>
+                                    <td>0.884</td>
+                                    <td>time</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF8E1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #dcd4ea;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Communication factor - Between staff</td>
+                                    <td>High</td>
+                                    <td>0.851</td>
+                                    <td>between</td>
+                                    <td><div class="theme-color-box" style="background-color:#dcd4ea;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F5F5DC;">
+                                    <td>I-SIRch</td>
+                                    <td>Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)</td>
+                                    <td>High</td>
+                                    <td>0.842</td>
+                                    <td>mental health</td>
+                                    <td><div class="theme-color-box" style="background-color:#F5F5DC;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e3d6ee;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Communication factor - Between staff and patient (verbal)</td>
+                                    <td>High</td>
+                                    <td>0.831</td>
+                                    <td>between</td>
+                                    <td><div class="theme-color-box" style="background-color:#e3d6ee;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #bdecc0;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Risk assessment</td>
+                                    <td>High</td>
+                                    <td>0.8</td>
+                                    <td>risk</td>
+                                    <td><div class="theme-color-box" style="background-color:#bdecc0;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #D1E7DD;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Organisational Factors- Escalation/referral factor</td>
+                                    <td>High</td>
+                                    <td>0.829</td>
+                                    <td>referral</td>
+                                    <td><div class="theme-color-box" style="background-color:#D1E7DD;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)
+Keywords: mental health + mental health">Date of report: 02/06/2025
+Ref: 2025-0270
+Deceased name: Charlotte Werner
+Coroners name: Mary Hassell
+Coroners Area: Inner North London
+Category: Child Death (from 2015) | Hospital Death (Clinical Procedures and medical management) related deaths | Mental Health related deaths
+This report is being sent to: University College London Hospitals NHS Trust
+Regulation 28: Prevention of Future Deaths report THIS REPORT IS BEING SENT TO: 1.</span> Medical Director University College London Hospitals NHS Trust (UCLH) 1 CORONER I am: Coroner ME Hassell Senior Coroner Inner North London St Pancras Coroner's Court Poplar Coroner's Court Bow Coroner's Court 2 CORONER'S LEGAL POWERS I make this report under the Coroners and Justice Act 2009, paragraph 7, Schedule 5, and The Coroners (Investigations) Regulations 2013, regulations 28 and 29. 3 INVESTIGATION and INQUEST On 29 November 2024, one of my assistant coroners, Richard Brittain, commenced an investigation into the death of Charlotte Louise Werner, aged 13 years. The investigation concluded at the end of the inquest on 28 May 2025. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication
+Keywords: concerns">I made a determination at inquest of death by suicide. 4 CIRCUMSTANCES OF THE DEATH Charlotte hanged herself at home. 5 CORONER'S CONCERNS During the course of the inquest, the evidence revealed matters giving rise to concern.</span> <span style="background-color:#E8F5E9; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Jobs/Task - Risk assessment
+Keywords: risk">In my opinion, there is a risk that future deaths will occur unless action is taken.</span> In the circumstances, it is my statutory duty to report to you. The MATTERS OF CONCERN are as follows. <span style="background-color:#D1E7DD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_Organisational Factors- Escalation/referral factor
+Keywords: referral">Charlotte's mother formed the view that Charlotte was suffering from an eating disorder and was under the impression that the referral to a UCLH dietitian was made, at least in part, in order to explore this.</span> <span style="background-color:#D1E7DD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_Organisational Factors- Escalation/referral factor
+Keywords: referral">In fact, Charlotte was never diagnosed with an eating disorder, did not meet the criteria for a referral on this basis and was referred solely for consideration of whether her nutritional status was having an impact on her height.</span> <span style="background-color:#FFFACD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - Communication factor - Between staff + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)
+Keywords: between + between">I found no evidence of any link between Charlotte's eating and her death.</span> However, that might be different for another child. <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)
+Keywords: mental health + mental health">It seems from the evidence I heard that an explanation, perhaps on the website or in correspondence, that the UCLH dietetic service is not a mental health service and does not treating eating disorders, could be helpful. 6 ACTION SHOULD BE TAKEN In my opinion, action should be taken to prevent future deaths and I believe that you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 28 July 2025.</span> I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action. Otherwise, you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the following. The mother of Charlotte Werner HHJ Alexia Durran, the Chief Coroner of England & Wales I am also under a duty to send a copy of your response to the Chief Coroner and all interested persons who in my opinion should receive it. I may also send a copy of your response to any other person who I believe may find it useful or of interest. The Chief Coroner may publish either or both in a complete or redacted or summary form. She may send a copy of this report to any person who she believes may find it useful or of interest. <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response. 9 DATE 02.06.25 SIGNED BY SENIOR CORONER ME Hassell</span>
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + mental health</td>
+                        <td>Date of report: 02/06/2025
+Ref: 2025-0270
+Deceased name: Charlotte Werner
+Coroners name: Mary Hassell
+Coroners Area: Inner North London
+Category: Child Death (from 2015) | Hospital Death (Clinical Procedures and medical management) related deaths | Mental Health related deaths
+This report is being sent to: University College London Hospitals NHS Trust
+Regulation 28: Prevention of Future Deaths report THIS REPORT IS BEING SENT TO: 1.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns</td>
+                        <td>I made a determination at inquest of death by suicide. 4 CIRCUMSTANCES OF THE DEATH Charlotte hanged herself at home. 5 CORONER'S CONCERNS During the course of the inquest, the evidence revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Jobs/Task - Risk assessment</td>
+                        <td style="background-color: #E8F5E9;">#E8F5E9</td>
+                        <td>risk</td>
+                        <td>In my opinion, there is a risk that future deaths will occur unless action is taken.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>Organisational Factors- Escalation/referral factor</td>
+                        <td style="background-color: #D1E7DD;">#D1E7DD</td>
+                        <td>referral</td>
+                        <td>Charlotte's mother formed the view that Charlotte was suffering from an eating disorder and was under the impression that the referral to a UCLH dietitian was made, at least in part, in order to explore this.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>Organisational Factors- Escalation/referral factor</td>
+                        <td style="background-color: #D1E7DD;">#D1E7DD</td>
+                        <td>referral</td>
+                        <td>In fact, Charlotte was never diagnosed with an eating disorder, did not meet the criteria for a referral on this basis and was referred solely for consideration of whether her nutritional status was having an impact on her height.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - Communication factor - Between staff + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)</td>
+                        <td style="background-color: #FFFACD;">#FFFACD</td>
+                        <td>between + between</td>
+                        <td>I found no evidence of any link between Charlotte's eating and her death.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + mental health</td>
+                        <td>It seems from the evidence I heard that an explanation, perhaps on the website or in correspondence, that the UCLH dietetic service is not a mental health service and does not treating eating disorders, could be helpful. 6 ACTION SHOULD BE TAKEN In my opinion, action should be taken to prevent future deaths and I believe that you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 28 July 2025.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response. 9 DATE 02.06.25 SIGNED BY SENIOR CORONER ME Hassell</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+            </body>
+            </html>
+            

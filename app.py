@@ -158,17 +158,14 @@ def render_analysis_tab(data=None, data_source=None):
             # Categories
             if 'categories' in data.columns:
                 all_categories = set()
-
-                data['normalized_categories'] = data['categories'].apply(
-                    lambda cats: [str(cat).strip(" []") for cat in cats] if isinstance(cats, list)
-                    else [str(cat).strip(" []") for cat in cats.strip(" []").split(',')] if isinstance(cats, str)
-                    else []
-                )
-
-                for cat_list in data['normalized_categories']:
-                    all_categories.update(cat.strip(" []") for cat in cat_list if cat.strip(" []"))
-
-
+                for cats in data['categories'].dropna():
+                    if isinstance(cats, list):
+                        all_categories.update(str(cat).strip() for cat in cats if cat)
+                    elif isinstance(cats, str):
+                        all_categories.update(str(cat).strip() for cat in cats.split(',') if cat)
+                
+                all_categories = {cat for cat in all_categories if cat.strip()}
+                
                 if all_categories:
                     selected_categories = st.multiselect(
                         "Categories",

@@ -1,0 +1,1927 @@
+
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Theme Analysis Report</title>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1">
+                <style>
+                    body { 
+                        font-family: Arial, sans-serif; 
+                        line-height: 1.6; 
+                        margin: 0;
+                        padding: 20px;
+                        color: #333;
+                        background-color: #f9f9f9;
+                    }
+                    h1 { 
+                        color: #2c3e50; 
+                        border-bottom: 3px solid #3498db; 
+                        padding-bottom: 10px; 
+                        margin-top: 30px;
+                        font-weight: 600;
+                    }
+                    h2 { 
+                        color: #2c3e50; 
+                        margin-top: 30px; 
+                        border-bottom: 2px solid #bdc3c7; 
+                        padding-bottom: 5px; 
+                        font-weight: 600;
+                    }
+                    h3 {
+                        color: #34495e;
+                        font-weight: 600;
+                        margin-top: 20px;
+                    }
+                    .record-container { 
+                        margin-bottom: 40px; 
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 20px;
+                        page-break-after: always; 
+                    }
+                    .highlighted-text { 
+                        margin: 15px 0; 
+                        padding: 15px; 
+                        border-radius: 4px;
+                        border: 1px solid #ddd; 
+                        background-color: #fff; 
+                        line-height: 1.7;
+                    }
+                    .theme-info { margin: 15px 0; }
+                    .theme-info table { 
+                        border-collapse: collapse; 
+                        width: 100%; 
+                        margin-top: 15px;
+                        border-radius: 4px;
+                        overflow: hidden;
+                    }
+                    .theme-info th, .theme-info td { 
+                        border: 1px solid #ddd; 
+                        padding: 12px; 
+                        text-align: left; 
+                    }
+                    .theme-info th { 
+                        background-color: #3498db; 
+                        color: white;
+                        font-weight: 600;
+                    }
+                    .theme-info tr:nth-child(even) { background-color: #f9f9f9; }
+                    .theme-info tr:hover { background-color: #f1f1f1; }
+                    .high-confidence { background-color: #D5F5E3; }  /* Light green */
+                    .medium-confidence { background-color: #FCF3CF; } /* Light yellow */
+                    .low-confidence { background-color: #FADBD8; }   /* Light red */
+                    .report-header {
+                        background-color: #3498db;
+                        color: white;
+                        padding: 30px;
+                        text-align: center;
+                        border-radius: 8px;
+                        margin-bottom: 30px;
+                    }
+                    .summary-card {
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 20px;
+                        margin-bottom: 30px;
+                        display: flex;
+                        flex-wrap: wrap;
+                        justify-content: space-between;
+                    }
+                    .summary-box {
+                        flex: 1;
+                        min-width: 200px;
+                        padding: 15px;
+                        text-align: center;
+                        border-right: 1px solid #eee;
+                    }
+                    .summary-box:last-child {
+                        border-right: none;
+                    }
+                    .summary-number {
+                        font-size: 36px;
+                        font-weight: bold;
+                        color: #3498db;
+                        margin-bottom: 10px;
+                    }
+                    .summary-label {
+                        font-size: 14px;
+                        color: #7f8c8d;
+                        text-transform: uppercase;
+                    }
+                    .theme-color-box {
+                        display: inline-block;
+                        width: 20px;
+                        height: 20px;
+                        margin-right: 5px;
+                        vertical-align: middle;
+                        border: 1px solid #999;
+                    }
+                    .legend-container {
+                        background-color: white;
+                        border-radius: 8px;
+                        box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+                        padding: 15px;
+                        margin-bottom: 20px;
+                    }
+                    .legend-title {
+                        font-weight: bold;
+                        margin-bottom: 10px;
+                    }
+                    .legend-item {
+                        display: flex;
+                        align-items: center;
+                        margin-bottom: 5px;
+                    }
+                    @media print {
+                        .record-container { page-break-after: always; }
+                        body { background-color: white; }
+                        .record-container, .summary-card { box-shadow: none; }
+                    }
+                    
+                    /* Define theme-specific CSS classes for consistency */
+        
+                    .theme-i-sirch_internal---time-of-day-eg-night-working-or-day-of-the-week {
+                        background-color: #FFF8E1 !important;
+                    }
+            
+                    .theme-i-sirch_organisation---national-and/or-local-guidance {
+                        background-color: #FFF3CD !important;
+                    }
+            
+                    .theme-i-sirch_person---patient-characteristics-and-performance---characteristics---psychological-characteristics-eg-stress-mental-health {
+                        background-color: #F5F5DC !important;
+                    }
+            
+                    .theme-house-of-commons_care-quality-and-access-issues {
+                        background-color: #FFF3E0 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_organisational-factors--support-from-other-departments {
+                        background-color: #FCE4EC !important;
+                    }
+            
+                    .theme-house-of-commons_inadequate-maternity-care {
+                        background-color: #F3E5F5 !important;
+                    }
+            
+                    .theme-i-sirch_external---policy-factor {
+                        background-color: #FFD580 !important;
+                    }
+            
+                    .theme-extended-analysis_medication-safety {
+                        background-color: #FFECB3 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_situational--team-factors {
+                        background-color: #e8dbd9 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_communication-and-culture--safety-culture {
+                        background-color: #bdeee4 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_organisational-factors--staff-training-and-education {
+                        background-color: #E6E6FA !important;
+                    }
+            
+                    .theme-house-of-commons_socioeconomic-factors-and-deprivation {
+                        background-color: #E0F7FA !important;
+                    }
+            
+                    .theme-house-of-commons_guidance-gaps {
+                        background-color: #E1F5FE !important;
+                    }
+            
+                    .theme-yorkshire-contributory_organisational-factors--escalation/referral-factor {
+                        background-color: #D1E7DD !important;
+                    }
+            
+                    .theme-yorkshire-contributory_organisational-factors--policies-and-procedures {
+                        background-color: #FFFACD !important;
+                    }
+            
+                    .theme-i-sirch_person---patient-characteristics-and-performance---characteristics---training-and-education-eg-attendance-at-ante-natal-classes {
+                        background-color: #ddebb8 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_external-factors--national-policies {
+                        background-color: #D1ECF1 !important;
+                    }
+            
+                    .theme-i-sirch_internal---physical-layout-and-environment {
+                        background-color: #e7efeb !important;
+                    }
+            
+                    .theme-i-sirch_organisation---communication-factor---between-staff {
+                        background-color: #dacae7 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_human-error--violations {
+                        background-color: #d4b4ce !important;
+                    }
+            
+                    .theme-i-sirch_person---patient-characteristics-and-performance---characteristics---record-of-attendance-eg-failure-to-attend-antenatal-classes {
+                        background-color: #F8D7DA !important;
+                    }
+            
+                    .theme-i-sirch_jobs/task---care-planning {
+                        background-color: #cae4ea !important;
+                    }
+            
+                    .theme-extended-analysis_staff-wellbeing-and-burnout {
+                        background-color: #edc3e4 !important;
+                    }
+            
+                    .theme-house-of-commons_fragmented-care {
+                        background-color: #cfc0c3 !important;
+                    }
+            
+                    .theme-yorkshire-contributory_situational--patient-factors {
+                        background-color: #E8F5E9 !important;
+                    }
+            
+                    .theme-i-sirch_jobs/task---obstetric-review {
+                        background-color: #c3dbea !important;
+                    }
+            
+                    .theme-house-of-commons_communication {
+                        background-color: #dec1b6 !important;
+                    }
+            
+                    .theme-house-of-commons_consent/agency {
+                        background-color: #ddd0ea !important;
+                    }
+            
+                    .theme-i-sirch_jobs/task---risk-assessment {
+                        background-color: #bdd2ca !important;
+                    }
+            
+                    .theme-yorkshire-contributory_situational--individual-staff-factors- {
+                        background-color: #dcc2d5 !important;
+                    }
+            
+                    .theme-i-sirch_organisation---communication-factor---between-staff-and-patient-verbal {
+                        background-color: #e2dee2 !important;
+                    }
+            
+                    .theme-i-sirch_organisation---team-culture-factor-eg-patient-safety-culture {
+                        background-color: #E8EAF6 !important;
+                    }
+            
+                </style>
+            </head>
+            <body>
+                <div class="report-header">
+                    <h1>Theme Analysis Results</h1>
+                    <p>Generated on 28 August 2025, 12:02</p>
+                </div>
+                
+                <div class="summary-card">
+                    <div class="summary-box">
+                        <div class="summary-number">5</div>
+                        <div class="summary-label">Documents Analyzed</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-number">65</div>
+                        <div class="summary-label">Theme Identifications</div>
+                    </div>
+                    <div class="summary-box">
+                        <div class="summary-number">4</div>
+                        <div class="summary-label">Frameworks</div>
+                    </div>
+                </div>
+                
+                <!-- Add legend explaining gradients -->
+                <div class="legend-container">
+                    <div class="legend-title">Theme Color Guide</div>
+                    <div>When text contains multiple themes, a gradient background is used to show all applicable themes. Check the tooltip for details.</div>
+                </div>
+            
+                <h2>Framework Summary</h2>
+                <table class="theme-info">
+                    <tr>
+                        <th>Framework</th>
+                        <th>Number of Themes</th>
+                        <th>Number of Documents</th>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>13</td>
+                        <td>5</td>
+                    </tr>
+                
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>7</td>
+                        <td>5</td>
+                    </tr>
+                
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>2</td>
+                        <td>5</td>
+                    </tr>
+                
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>10</td>
+                        <td>5</td>
+                    </tr>
+                
+                </table>
+            <h2>Document Analysis</h2>
+                    <div class="record-container">
+                        <h2>Document: Louise-Crane-2-Prevention-of-Future-Deaths-Report-2025-0318</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #edc3e4;">
+                                    <td>Extended Analysis</td>
+                                    <td>Staff Wellbeing and Burnout</td>
+                                    <td>High</td>
+                                    <td>0.804</td>
+                                    <td>mental health</td>
+                                    <td><div class="theme-color-box" style="background-color:#edc3e4;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E0F7FA;">
+                                    <td>House of Commons</td>
+                                    <td>Socioeconomic factors and deprivation</td>
+                                    <td>High</td>
+                                    <td>0.911</td>
+                                    <td>factors</td>
+                                    <td><div class="theme-color-box" style="background-color:#E0F7FA;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F3E5F5;">
+                                    <td>House of Commons</td>
+                                    <td>Inadequate maternity care</td>
+                                    <td>High</td>
+                                    <td>0.891</td>
+                                    <td>care, inadequate</td>
+                                    <td><div class="theme-color-box" style="background-color:#F3E5F5;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E1F5FE;">
+                                    <td>House of Commons</td>
+                                    <td>Guidance gaps</td>
+                                    <td>High</td>
+                                    <td>0.881</td>
+                                    <td>information</td>
+                                    <td><div class="theme-color-box" style="background-color:#E1F5FE;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF3E0;">
+                                    <td>House of Commons</td>
+                                    <td>Care quality and access issues</td>
+                                    <td>High</td>
+                                    <td>0.852</td>
+                                    <td>treatment</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF3E0;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #cfc0c3;">
+                                    <td>House of Commons</td>
+                                    <td>Fragmented care</td>
+                                    <td>High</td>
+                                    <td>0.851</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#cfc0c3;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E8EAF6;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Team culture factor (e.g., patient safety culture)</td>
+                                    <td>High</td>
+                                    <td>0.882</td>
+                                    <td>team</td>
+                                    <td><div class="theme-color-box" style="background-color:#E8EAF6;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFD580;">
+                                    <td>I-SIRch</td>
+                                    <td>External - Policy factor</td>
+                                    <td>High</td>
+                                    <td>0.88</td>
+                                    <td>policy</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFD580;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e2dee2;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Communication factor - Between staff and patient (verbal)</td>
+                                    <td>High</td>
+                                    <td>0.877</td>
+                                    <td>between, patient</td>
+                                    <td><div class="theme-color-box" style="background-color:#e2dee2;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #cae4ea;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Care planning</td>
+                                    <td>High</td>
+                                    <td>0.871</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#cae4ea;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e7efeb;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Physical layout and Environment</td>
+                                    <td>High</td>
+                                    <td>0.867</td>
+                                    <td>physical</td>
+                                    <td><div class="theme-color-box" style="background-color:#e7efeb;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e8dbd9;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Situational- Team Factors</td>
+                                    <td>High</td>
+                                    <td>0.896</td>
+                                    <td>team</td>
+                                    <td><div class="theme-color-box" style="background-color:#e8dbd9;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #bdeee4;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Communication and Culture- Safety Culture</td>
+                                    <td>High</td>
+                                    <td>0.889</td>
+                                    <td>risk management</td>
+                                    <td><div class="theme-color-box" style="background-color:#bdeee4;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFFACD;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Organisational Factors- Policies and Procedures</td>
+                                    <td>High</td>
+                                    <td>0.878</td>
+                                    <td>policy</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFFACD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E8F5E9;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Situational- Patient Factors</td>
+                                    <td>High</td>
+                                    <td>0.875</td>
+                                    <td>unstable</td>
+                                    <td><div class="theme-color-box" style="background-color:#E8F5E9;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: mental health + care + care + care">Date of report: 23/06/2025
+Ref: 2025-0318
+Deceased name: Louise Crane
+Coroners name: Ian Potter
+Coroners Area: Inner North London
+Category: Suicide (from 2015) | Mental Health related deaths
+This report is being sent to: NHS England | Department of Health and Social Care
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: 1.</span> NHS England 7-8 Wellington Place Leeds West Yorkshire LS1 4AP 2. <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: care + care + care">Secretary of State for Health and Social Care Department of Health and Social Care 39 Victoria Street London SW1H 0EU 1 CORONER I am Ian Potter, assistant coroner, for the coroner area of Inner North London. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and Regulations 28 and 29 of the Coroners (investigations) Regulations 2013. 3 INVESTIGATION and INQUEST On 20 September 2024, an investigation was commenced into the death of Louise Elizabeth Amy Crane, aged 39 years at the time of her death.</span> <span style="background-color:#D1E7DD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)
+Keywords: between">The investigation concluded at the end of an inquest heard by me between 2 June and 10 June 2025.</span> The inquest concluded with a short-form conclusion of suicide. <span style="background-color:#E8F5E9; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_Situational- Patient Factors
+Keywords: unstable">The medical cause of death was: 1a ligature compression to the neck 4 CIRCUMSTANCES OF DEATH Louise Crane had an established diagnosis of Emotionally Unstable Personality Disorder (EUPD).</span> She also had diagnoses of depression and psychosis (in the context of drug use). <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)
+Keywords: mental health + patient">Ms Crane first came into contact with mental health services in 2012, since then she had been treated in the community, in voluntary in-patient settings, and while detained under the Mental Health Act.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Care quality and access issues + I-SIRch_Internal - Physical layout and Environment
+Keywords: treatment + physical">Ms Crane was admitted to hospital for emergency treatment in relation to her physical health on 2 May 2024, following an attempt to end her life.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)
+Keywords: mental health + patient">Once medically fit for discharge, Ms Crane was admitted to an in-patient psychiatric ward at Highgate Mental Health Centre (North London NHS Foundation Trust), under section 2 of the Mental Health Act.</span> This detention commenced on 4 June 2024. <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning
+Keywords: mental health + care + care + care">Following Ms Crane's initial admission to Highgate Mental Health Centre, she was transferred to a psychiatric intensive care unit (Ruby Ward) on 5 July 2024.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout
+Keywords: mental health">Ms Crane remained on Ruby Ward until she was stepped down to an acute mental health ward (Topaz Ward) on 5 September 2024.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout
+Keywords: mental health">On 19 September 2024, when Ms Crane remained detained under section 3 of the Mental Health Act, she was found in her room suspended by a dressing gown cord used as a ligature.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout
+Keywords: mental health">The jury's findings as to how, when, where and in what circumstances Ms Crane came by her death were, as follows: "Louise Crane died in Highgate Mental Health Centre on 19 September 2024 from a ligature compression to the neck.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Care quality and access issues + House of Commons_Fragmented care + House of Commons_Guidance gaps + House of Commons_Inadequate maternity care + House of Commons_Socioeconomic factors and deprivation + I-SIRch_Jobs/Task - Care planning + Yorkshire Contributory_Communication and Culture- Safety Culture + Yorkshire Contributory_Situational- Patient Factors
+Keywords: treatment + care + information + inadequate, care + factors + care + risk management + unstable">Factors contributing to Louise's death were a chronic high risk of suicide linked to Emotionally Unstable Personality Disorder, in combination with unsatisfactory information sharing and recording, and inadequate risk management, staffing and levels of care and treatment during Louise's time on Topaz Ward." 5 CORONER'S CONCERNS During the course of the inquest the evidence revealed matters giving rise to concern.</span> In my opinion, there is a risk that future deaths could occur unless action is taken. In the circumstances, it is my statutory duty to report to you. <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_External - Policy factor + I-SIRch_Organisation - Team culture factor (e.g., patient safety culture) + Yorkshire Contributory_Organisational Factors- Policies and Procedures + Yorkshire Contributory_Situational- Team Factors
+Keywords: mental health + policy + team + policy + team">The MATTER OF CONCERN is as follows: 1) Evidence from a senior member of North London NHS Trust's clinical leadership team revealed that there is a lack of a nationwide policy / approach to anti-ligature measures in mental health settings. 6 ACTION SHOULD BE TAKEN In my opinion, action should be taken to prevent future deaths and I believe that you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of the report, namely 18 August 2025.</span> I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action. Otherwise, you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the Chief Coroner and the following: Ms Crane's family; North London NHS Foundation Trust. I am also under a duty to send the Chief Coroner a copy of your response. The Chief Coroner may publish either or both in a complete or redacted or summary form. She may send a copy of this report to any person who she believes may find it useful or of interest. You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 Ian Potter HM Assistant Coroner, Inner North London 23 June 2025
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + care + care + care</td>
+                        <td>Date of report: 23/06/2025
+Ref: 2025-0318
+Deceased name: Louise Crane
+Coroners name: Ian Potter
+Coroners Area: Inner North London
+Category: Suicide (from 2015) | Mental Health related deaths
+This report is being sent to: NHS England | Department of Health and Social Care
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: 1.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>care + care + care</td>
+                        <td>Secretary of State for Health and Social Care Department of Health and Social Care 39 Victoria Street London SW1H 0EU 1 CORONER I am Ian Potter, assistant coroner, for the coroner area of Inner North London. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and Regulations 28 and 29 of the Coroners (investigations) Regulations 2013. 3 INVESTIGATION and INQUEST On 20 September 2024, an investigation was commenced into the death of Louise Elizabeth Amy Crane, aged 39 years at the time of her death.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - Communication factor - Between staff and patient (verbal)</td>
+                        <td style="background-color: #D1E7DD;">#D1E7DD</td>
+                        <td>between</td>
+                        <td>The investigation concluded at the end of an inquest heard by me between 2 June and 10 June 2025.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>Situational- Patient Factors</td>
+                        <td style="background-color: #E8F5E9;">#E8F5E9</td>
+                        <td>unstable</td>
+                        <td>The medical cause of death was: 1a ligature compression to the neck 4 CIRCUMSTANCES OF DEATH Louise Crane had an established diagnosis of Emotionally Unstable Personality Disorder (EUPD).</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + patient</td>
+                        <td>Ms Crane first came into contact with mental health services in 2012, since then she had been treated in the community, in voluntary in-patient settings, and while detained under the Mental Health Act.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Care quality and access issues + I-SIRch_Internal - Physical layout and Environment</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>treatment + physical</td>
+                        <td>Ms Crane was admitted to hospital for emergency treatment in relation to her physical health on 2 May 2024, following an attempt to end her life.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + patient</td>
+                        <td>Once medically fit for discharge, Ms Crane was admitted to an in-patient psychiatric ward at Highgate Mental Health Centre (North London NHS Foundation Trust), under section 2 of the Mental Health Act.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Care planning</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + care + care + care</td>
+                        <td>Following Ms Crane's initial admission to Highgate Mental Health Centre, she was transferred to a psychiatric intensive care unit (Ruby Ward) on 5 July 2024.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health</td>
+                        <td>Ms Crane remained on Ruby Ward until she was stepped down to an acute mental health ward (Topaz Ward) on 5 September 2024.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health</td>
+                        <td>On 19 September 2024, when Ms Crane remained detained under section 3 of the Mental Health Act, she was found in her room suspended by a dressing gown cord used as a ligature.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health</td>
+                        <td>The jury's findings as to how, when, where and in what circumstances Ms Crane came by her death were, as follows: "Louise Crane died in Highgate Mental Health Centre on 19 September 2024 from a ligature compression to the neck.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Care quality and access issues + House of Commons_Fragmented care + House of Commons_Guidance gaps + House of Commons_Inadequate maternity care + House of Commons_Socioeconomic factors and deprivation + I-SIRch_Jobs/Task - Care planning + Yorkshire Contributory_Communication and Culture- Safety Culture + Yorkshire Contributory_Situational- Patient Factors</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>treatment + care + information + inadequate, care + factors + care + risk management + unstable</td>
+                        <td>Factors contributing to Louise's death were a chronic high risk of suicide linked to Emotionally Unstable Personality Disorder, in combination with unsatisfactory information sharing and recording, and inadequate risk management, staffing and levels of care and treatment during Louise's time on Topaz Ward." 5 CORONER'S CONCERNS During the course of the inquest the evidence revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + I-SIRch_External - Policy factor + I-SIRch_Organisation - Team culture factor (e.g., patient safety culture) + Yorkshire Contributory_Organisational Factors- Policies and Procedures + Yorkshire Contributory_Situational- Team Factors</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + policy + team + policy + team</td>
+                        <td>The MATTER OF CONCERN is as follows: 1) Evidence from a senior member of North London NHS Trust's clinical leadership team revealed that there is a lack of a nationwide policy / approach to anti-ligature measures in mental health settings. 6 ACTION SHOULD BE TAKEN In my opinion, action should be taken to prevent future deaths and I believe that you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of the report, namely 18 August 2025.</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+                    <div class="record-container">
+                        <h2>Document: Amy-Levy-Prevention-of-Future-Deaths-Report-2025-0289</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #FFECB3;">
+                                    <td>Extended Analysis</td>
+                                    <td>Medication safety</td>
+                                    <td>High</td>
+                                    <td>0.822</td>
+                                    <td>prescription</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFECB3;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #edc3e4;">
+                                    <td>Extended Analysis</td>
+                                    <td>Staff Wellbeing and Burnout</td>
+                                    <td>High</td>
+                                    <td>0.809</td>
+                                    <td>mental health</td>
+                                    <td><div class="theme-color-box" style="background-color:#edc3e4;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E1F5FE;">
+                                    <td>House of Commons</td>
+                                    <td>Guidance gaps</td>
+                                    <td>High</td>
+                                    <td>0.896</td>
+                                    <td>guidance, information</td>
+                                    <td><div class="theme-color-box" style="background-color:#E1F5FE;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #cfc0c3;">
+                                    <td>House of Commons</td>
+                                    <td>Fragmented care</td>
+                                    <td>High</td>
+                                    <td>0.85</td>
+                                    <td>clear</td>
+                                    <td><div class="theme-color-box" style="background-color:#cfc0c3;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #ddd0ea;">
+                                    <td>House of Commons</td>
+                                    <td>Consent/agency</td>
+                                    <td>High</td>
+                                    <td>0.829</td>
+                                    <td>informed</td>
+                                    <td><div class="theme-color-box" style="background-color:#ddd0ea;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #dec1b6;">
+                                    <td>House of Commons</td>
+                                    <td>Communication</td>
+                                    <td>High</td>
+                                    <td>0.819</td>
+                                    <td>concerns</td>
+                                    <td><div class="theme-color-box" style="background-color:#dec1b6;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #dacae7;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Communication factor - Between staff</td>
+                                    <td>High</td>
+                                    <td>0.878</td>
+                                    <td>staff</td>
+                                    <td><div class="theme-color-box" style="background-color:#dacae7;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF3CD;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - National and/or local guidance</td>
+                                    <td>High</td>
+                                    <td>0.865</td>
+                                    <td>guidance</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF3CD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFD580;">
+                                    <td>I-SIRch</td>
+                                    <td>External - Policy factor</td>
+                                    <td>High</td>
+                                    <td>0.864</td>
+                                    <td>policy</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFD580;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #ddebb8;">
+                                    <td>I-SIRch</td>
+                                    <td>Person - Patient (characteristics and performance) - Characteristics - Training and education (e.g., attendance at ante-natal classes)</td>
+                                    <td>High</td>
+                                    <td>0.864</td>
+                                    <td>training</td>
+                                    <td><div class="theme-color-box" style="background-color:#ddebb8;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF8E1;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                                    <td>High</td>
+                                    <td>0.863</td>
+                                    <td>time</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF8E1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFFACD;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Organisational Factors- Policies and Procedures</td>
+                                    <td>High</td>
+                                    <td>0.878</td>
+                                    <td>policy</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFFACD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E6E6FA;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Organisational Factors- Staff Training and Education</td>
+                                    <td>High</td>
+                                    <td>0.869</td>
+                                    <td>training</td>
+                                    <td><div class="theme-color-box" style="background-color:#E6E6FA;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #dcc2d5;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Situational- Individual Staff Factors </td>
+                                    <td>High</td>
+                                    <td>0.854</td>
+                                    <td>training</td>
+                                    <td><div class="theme-color-box" style="background-color:#dcc2d5;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout
+Keywords: mental health">Date of report: 10/06/2025
+Ref: 2025-0289
+Deceased name: Amy Levy
+Coroners name: Robert Sowersby
+Coroners Area: Avon
+Category: Police related deaths | Emergency services related deaths (2019 onwards) | Mental Health related deaths
+This report is being sent to: Avon and Somerset Police | Surrey Police | College of Policing
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS This report is being sent to: Chief Constable of Avon and Somerset Chief Constable of Surrey College of Policing 1 CORONER I am Robert Sowersby, Assistant Coroner for Avon 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and regulations 28 and 29 of the Coroners (Investigations) Regulations 2013. 3 INVESTIGATION AND INQUEST On 28 June 2023 my office commenced an investigation into the death of Amy Anne Levy.</span> The investigation concluded at the end of a 5-day inquest on 6 June 2025. <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Medication safety
+Keywords: prescription">The conclusion of the jury who heard the inquest was - ‘ Amy took a deliberate overdose of prescription drugs on 18 th June 2023.</span> <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">It is not possible to know her true intent. ' Police were notified at the time of her overdose but Amy's whereabouts were unknown: much of the evidence in the inquest centred on their attempts to find her address so that emergency services could be sent to help her.</span> This was an article 2 inquest, and in recording how Amy died the jury identified ‘ a catalogue of missed opportunities to obtain Amy's correct address ' by various bodies including Surrey Police and Avon and Somerset Constabulary. <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">The jury also concluded that if not for those missed opportunities Amy would probably have survived. 4 CIRCUMSTANCES OF DEATH At the time of her death Amy was a 22-year-old student at the University of the West of England (UWE), living at a term-time address in Bristol.</span> <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Medication safety
+Keywords: prescription">While she was in Bristol (on 18 June 2023) she called a friend, took an overdose of prescription drugs, and then steadily deteriorated while remaining on the phone - initially becoming unresponsive and later appearing to stop breathing.</span> <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Consent/agency
+Keywords: informed">Surrey Police were informed of the situation via a 999 call.</span> In the ensuing period of over 2 hours before Amy was found Surrey Police and Avon and Somerset Constabulary both tried to obtain her correct address. As part of that effort calls were made by police (i) to Amy's family home in Surrey, and (ii) to her mother's mobile phone. Each call came through with ‘no caller ID' and went unanswered. Both police forces knew that Amy had taken an overdose at an unknown address and that her condition was deteriorating. Both forces had graded Amy's case as requiring an ‘immediate' response (the most urgent category). Despite that factual background, none of the officers or call handlers who phoned Amy's parents left a voicemail message. Having missed the call/s (from an unknown source or sources) Amy's parents did not know that there was an emergency, or that the police wanted to speak with them, and had no way of calling back whoever had called them. It is probable that Amy's location could have been obtained earlier than it was if the police had left a suitably worded voicemail for one or more of her parents. Amy died in hospital on 22 June 2023. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication
+Keywords: concerns">The medical cause of death was determined to be: 1a) Hypoxic brain injury 1b) Quetiapine and zopiclone overdose 2) Depression 5 CORONER'S CONCERNS During the course of the inquest the evidence revealed matters giving rise to concern.</span> As I have outlined above, this was an ‘ immediate' priority search to obtain the address of a young woman whose life was believed to be at risk. It is hard to understand the decision (made by more than one police caller) not to leave any voicemail/message. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication + House of Commons_Guidance gaps + I-SIRch_External - Policy factor + I-SIRch_Organisation - National and/or local guidance + Yorkshire Contributory_Organisational Factors- Policies and Procedures
+Keywords: concerns + guidance + policy + guidance + policy">We heard evidence from two police Inspectors (one from Avon and Somerset Constabulary and one from Surrey Police) that although there is guidance in Avon not to leave voicemails when the incident in question concerns domestic abuse, there is no general guidance about when to leave a voicemail message in other cases ( ie , it is neither encouraged not discouraged by any policy or standard operating procedure).</span> I was subsequently provided with an updated ‘ Deployment of Resources Procedure ' from Surrey Police, which indicates that ‘ call takers and dispatchers must consider whether it is appropriate to leave a voicemail, unless there is a compelling operational reason not to do so '. <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Fragmented care + House of Commons_Guidance gaps + I-SIRch_Organisation - National and/or local guidance
+Keywords: clear + guidance + guidance">It is not clear from the title of the document or the wording of the guidance whether this is intended to affect police officers, or only the actions of those in Surrey's contact centre and force control room.</span> <span style="background-color:#E1F5FE; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Guidance gaps + I-SIRch_External - Policy factor + I-SIRch_Organisation - Communication factor - Between staff + I-SIRch_Organisation - National and/or local guidance + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Training and education (e.g., attendance at ante-natal classes) + Yorkshire Contributory_Organisational Factors- Policies and Procedures + Yorkshire Contributory_Organisational Factors- Staff Training and Education + Yorkshire Contributory_Situational- Individual Staff Factors 
+Keywords: guidance, information + policy + staff + guidance + training + policy + training + training">The MATTERS OF CONCERN are as follows - With limited or no guidance, training or policy on when police and/or police support staff liaising with the public should leave a voicemail (particularly in circumstances where they are trying to obtain important information in a timepressured situation), I am concerned that there is a risk that future deaths will occur unless action is taken, and in the circumstances it is my statutory duty to report to you. 6 ACTION SHOULD BE TAKEN In my opinion action should be taken to prevent future deaths and I believe you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 5 August 2025.</span> I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action: otherwise you must explain why no action is proposed. 8 COPIES AND PUBLICATION I have sent a copy of my report to the Chief Coroner and to the following Interested Persons: Amy Levy's family. I am also under a duty to send the Chief Coroner a copy of your response. The Chief Coroner may publish either or both in a complete, redacted or summary form. He may send a copy of this report to any person who he believes may find it useful or of interest. <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 10 June 2025 Signature: Robert Sowersby Assistant Coroner for Avon</span>
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health</td>
+                        <td>Date of report: 10/06/2025
+Ref: 2025-0289
+Deceased name: Amy Levy
+Coroners name: Robert Sowersby
+Coroners Area: Avon
+Category: Police related deaths | Emergency services related deaths (2019 onwards) | Mental Health related deaths
+This report is being sent to: Avon and Somerset Police | Surrey Police | College of Policing
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS This report is being sent to: Chief Constable of Avon and Somerset Chief Constable of Surrey College of Policing 1 CORONER I am Robert Sowersby, Assistant Coroner for Avon 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and regulations 28 and 29 of the Coroners (Investigations) Regulations 2013. 3 INVESTIGATION AND INQUEST On 28 June 2023 my office commenced an investigation into the death of Amy Anne Levy.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Medication safety</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>prescription</td>
+                        <td>The conclusion of the jury who heard the inquest was - ‘ Amy took a deliberate overdose of prescription drugs on 18 th June 2023.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>It is not possible to know her true intent. ' Police were notified at the time of her overdose but Amy's whereabouts were unknown: much of the evidence in the inquest centred on their attempts to find her address so that emergency services could be sent to help her.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>The jury also concluded that if not for those missed opportunities Amy would probably have survived. 4 CIRCUMSTANCES OF DEATH At the time of her death Amy was a 22-year-old student at the University of the West of England (UWE), living at a term-time address in Bristol.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Medication safety</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>prescription</td>
+                        <td>While she was in Bristol (on 18 June 2023) she called a friend, took an overdose of prescription drugs, and then steadily deteriorated while remaining on the phone - initially becoming unresponsive and later appearing to stop breathing.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Consent/agency</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>informed</td>
+                        <td>Surrey Police were informed of the situation via a 999 call.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns</td>
+                        <td>The medical cause of death was determined to be: 1a) Hypoxic brain injury 1b) Quetiapine and zopiclone overdose 2) Depression 5 CORONER'S CONCERNS During the course of the inquest the evidence revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication + House of Commons_Guidance gaps + I-SIRch_External - Policy factor + I-SIRch_Organisation - National and/or local guidance + Yorkshire Contributory_Organisational Factors- Policies and Procedures</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns + guidance + policy + guidance + policy</td>
+                        <td>We heard evidence from two police Inspectors (one from Avon and Somerset Constabulary and one from Surrey Police) that although there is guidance in Avon not to leave voicemails when the incident in question concerns domestic abuse, there is no general guidance about when to leave a voicemail message in other cases ( ie , it is neither encouraged not discouraged by any policy or standard operating procedure).</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Fragmented care + House of Commons_Guidance gaps + I-SIRch_Organisation - National and/or local guidance</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>clear + guidance + guidance</td>
+                        <td>It is not clear from the title of the document or the wording of the guidance whether this is intended to affect police officers, or only the actions of those in Surrey's contact centre and force control room.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Guidance gaps + I-SIRch_External - Policy factor + I-SIRch_Organisation - Communication factor - Between staff + I-SIRch_Organisation - National and/or local guidance + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Training and education (e.g., attendance at ante-natal classes) + Yorkshire Contributory_Organisational Factors- Policies and Procedures + Yorkshire Contributory_Organisational Factors- Staff Training and Education + Yorkshire Contributory_Situational- Individual Staff Factors </td>
+                        <td style="background-color: #E1F5FE;">#E1F5FE</td>
+                        <td>guidance, information + policy + staff + guidance + training + policy + training + training</td>
+                        <td>The MATTERS OF CONCERN are as follows - With limited or no guidance, training or policy on when police and/or police support staff liaising with the public should leave a voicemail (particularly in circumstances where they are trying to obtain important information in a timepressured situation), I am concerned that there is a risk that future deaths will occur unless action is taken, and in the circumstances it is my statutory duty to report to you. 6 ACTION SHOULD BE TAKEN In my opinion action should be taken to prevent future deaths and I believe you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 5 August 2025.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 10 June 2025 Signature: Robert Sowersby Assistant Coroner for Avon</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+                    <div class="record-container">
+                        <h2>Document: Charlotte-Werner-Prevention-of-Future-Deaths-Report-2025-0270</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #edc3e4;">
+                                    <td>Extended Analysis</td>
+                                    <td>Staff Wellbeing and Burnout</td>
+                                    <td>High</td>
+                                    <td>0.781</td>
+                                    <td>mental health</td>
+                                    <td><div class="theme-color-box" style="background-color:#edc3e4;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #dec1b6;">
+                                    <td>House of Commons</td>
+                                    <td>Communication</td>
+                                    <td>High</td>
+                                    <td>0.819</td>
+                                    <td>concerns</td>
+                                    <td><div class="theme-color-box" style="background-color:#dec1b6;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF8E1;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                                    <td>High</td>
+                                    <td>0.884</td>
+                                    <td>time</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF8E1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #dacae7;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Communication factor - Between staff</td>
+                                    <td>High</td>
+                                    <td>0.851</td>
+                                    <td>between</td>
+                                    <td><div class="theme-color-box" style="background-color:#dacae7;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F5F5DC;">
+                                    <td>I-SIRch</td>
+                                    <td>Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)</td>
+                                    <td>High</td>
+                                    <td>0.842</td>
+                                    <td>mental health</td>
+                                    <td><div class="theme-color-box" style="background-color:#F5F5DC;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e2dee2;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Communication factor - Between staff and patient (verbal)</td>
+                                    <td>High</td>
+                                    <td>0.831</td>
+                                    <td>between</td>
+                                    <td><div class="theme-color-box" style="background-color:#e2dee2;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #bdd2ca;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Risk assessment</td>
+                                    <td>High</td>
+                                    <td>0.8</td>
+                                    <td>risk</td>
+                                    <td><div class="theme-color-box" style="background-color:#bdd2ca;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #D1E7DD;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Organisational Factors- Escalation/referral factor</td>
+                                    <td>High</td>
+                                    <td>0.829</td>
+                                    <td>referral</td>
+                                    <td><div class="theme-color-box" style="background-color:#D1E7DD;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)
+Keywords: mental health + mental health">Date of report: 02/06/2025
+Ref: 2025-0270
+Deceased name: Charlotte Werner
+Coroners name: Mary Hassell
+Coroners Area: Inner North London
+Category: Child Death (from 2015) | Hospital Death (Clinical Procedures and medical management) related deaths | Mental Health related deaths
+This report is being sent to: University College London Hospitals NHS Trust
+Regulation 28: Prevention of Future Deaths report THIS REPORT IS BEING SENT TO: 1.</span> Medical Director University College London Hospitals NHS Trust (UCLH) 1 CORONER I am: Coroner ME Hassell Senior Coroner Inner North London St Pancras Coroner's Court Poplar Coroner's Court Bow Coroner's Court 2 CORONER'S LEGAL POWERS I make this report under the Coroners and Justice Act 2009, paragraph 7, Schedule 5, and The Coroners (Investigations) Regulations 2013, regulations 28 and 29. 3 INVESTIGATION and INQUEST On 29 November 2024, one of my assistant coroners, Richard Brittain, commenced an investigation into the death of Charlotte Louise Werner, aged 13 years. The investigation concluded at the end of the inquest on 28 May 2025. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication
+Keywords: concerns">I made a determination at inquest of death by suicide. 4 CIRCUMSTANCES OF THE DEATH Charlotte hanged herself at home. 5 CORONER'S CONCERNS During the course of the inquest, the evidence revealed matters giving rise to concern.</span> <span style="background-color:#E8F5E9; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Jobs/Task - Risk assessment
+Keywords: risk">In my opinion, there is a risk that future deaths will occur unless action is taken.</span> In the circumstances, it is my statutory duty to report to you. The MATTERS OF CONCERN are as follows. <span style="background-color:#D1E7DD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_Organisational Factors- Escalation/referral factor
+Keywords: referral">Charlotte's mother formed the view that Charlotte was suffering from an eating disorder and was under the impression that the referral to a UCLH dietitian was made, at least in part, in order to explore this.</span> <span style="background-color:#D1E7DD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_Organisational Factors- Escalation/referral factor
+Keywords: referral">In fact, Charlotte was never diagnosed with an eating disorder, did not meet the criteria for a referral on this basis and was referred solely for consideration of whether her nutritional status was having an impact on her height.</span> <span style="background-color:#FFFACD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - Communication factor - Between staff + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)
+Keywords: between + between">I found no evidence of any link between Charlotte's eating and her death.</span> However, that might be different for another child. <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)
+Keywords: mental health + mental health">It seems from the evidence I heard that an explanation, perhaps on the website or in correspondence, that the UCLH dietetic service is not a mental health service and does not treating eating disorders, could be helpful. 6 ACTION SHOULD BE TAKEN In my opinion, action should be taken to prevent future deaths and I believe that you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 28 July 2025.</span> I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action. Otherwise, you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the following. The mother of Charlotte Werner HHJ Alexia Durran, the Chief Coroner of England & Wales I am also under a duty to send a copy of your response to the Chief Coroner and all interested persons who in my opinion should receive it. I may also send a copy of your response to any other person who I believe may find it useful or of interest. The Chief Coroner may publish either or both in a complete or redacted or summary form. She may send a copy of this report to any person who she believes may find it useful or of interest. <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response. 9 DATE 02.06.25 SIGNED BY SENIOR CORONER ME Hassell</span>
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + mental health</td>
+                        <td>Date of report: 02/06/2025
+Ref: 2025-0270
+Deceased name: Charlotte Werner
+Coroners name: Mary Hassell
+Coroners Area: Inner North London
+Category: Child Death (from 2015) | Hospital Death (Clinical Procedures and medical management) related deaths | Mental Health related deaths
+This report is being sent to: University College London Hospitals NHS Trust
+Regulation 28: Prevention of Future Deaths report THIS REPORT IS BEING SENT TO: 1.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns</td>
+                        <td>I made a determination at inquest of death by suicide. 4 CIRCUMSTANCES OF THE DEATH Charlotte hanged herself at home. 5 CORONER'S CONCERNS During the course of the inquest, the evidence revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Jobs/Task - Risk assessment</td>
+                        <td style="background-color: #E8F5E9;">#E8F5E9</td>
+                        <td>risk</td>
+                        <td>In my opinion, there is a risk that future deaths will occur unless action is taken.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>Organisational Factors- Escalation/referral factor</td>
+                        <td style="background-color: #D1E7DD;">#D1E7DD</td>
+                        <td>referral</td>
+                        <td>Charlotte's mother formed the view that Charlotte was suffering from an eating disorder and was under the impression that the referral to a UCLH dietitian was made, at least in part, in order to explore this.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>Organisational Factors- Escalation/referral factor</td>
+                        <td style="background-color: #D1E7DD;">#D1E7DD</td>
+                        <td>referral</td>
+                        <td>In fact, Charlotte was never diagnosed with an eating disorder, did not meet the criteria for a referral on this basis and was referred solely for consideration of whether her nutritional status was having an impact on her height.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - Communication factor - Between staff + I-SIRch_Organisation - Communication factor - Between staff and patient (verbal)</td>
+                        <td style="background-color: #FFFACD;">#FFFACD</td>
+                        <td>between + between</td>
+                        <td>I found no evidence of any link between Charlotte's eating and her death.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + mental health</td>
+                        <td>It seems from the evidence I heard that an explanation, perhaps on the website or in correspondence, that the UCLH dietetic service is not a mental health service and does not treating eating disorders, could be helpful. 6 ACTION SHOULD BE TAKEN In my opinion, action should be taken to prevent future deaths and I believe that you have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 28 July 2025.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response. 9 DATE 02.06.25 SIGNED BY SENIOR CORONER ME Hassell</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+                    <div class="record-container">
+                        <h2>Document: Callum-Hargreaves-5-Prevention-of-Future-Deaths-Report-2025-0263</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #FFECB3;">
+                                    <td>Extended Analysis</td>
+                                    <td>Medication safety</td>
+                                    <td>High</td>
+                                    <td>0.839</td>
+                                    <td>medication, safety</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFECB3;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #edc3e4;">
+                                    <td>Extended Analysis</td>
+                                    <td>Staff Wellbeing and Burnout</td>
+                                    <td>High</td>
+                                    <td>0.774</td>
+                                    <td>mental health</td>
+                                    <td><div class="theme-color-box" style="background-color:#edc3e4;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E1F5FE;">
+                                    <td>House of Commons</td>
+                                    <td>Guidance gaps</td>
+                                    <td>High</td>
+                                    <td>0.893</td>
+                                    <td>guidance, gaps</td>
+                                    <td><div class="theme-color-box" style="background-color:#E1F5FE;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #ddd0ea;">
+                                    <td>House of Commons</td>
+                                    <td>Consent/agency</td>
+                                    <td>High</td>
+                                    <td>0.833</td>
+                                    <td>informed</td>
+                                    <td><div class="theme-color-box" style="background-color:#ddd0ea;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #dec1b6;">
+                                    <td>House of Commons</td>
+                                    <td>Communication</td>
+                                    <td>High</td>
+                                    <td>0.81</td>
+                                    <td>concerns</td>
+                                    <td><div class="theme-color-box" style="background-color:#dec1b6;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF3CD;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - National and/or local guidance</td>
+                                    <td>High</td>
+                                    <td>0.869</td>
+                                    <td>local, guidance</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF3CD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E8EAF6;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - Team culture factor (e.g., patient safety culture)</td>
+                                    <td>High</td>
+                                    <td>0.852</td>
+                                    <td>team</td>
+                                    <td><div class="theme-color-box" style="background-color:#E8EAF6;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F8D7DA;">
+                                    <td>I-SIRch</td>
+                                    <td>Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)</td>
+                                    <td>High</td>
+                                    <td>0.849</td>
+                                    <td>record</td>
+                                    <td><div class="theme-color-box" style="background-color:#F8D7DA;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF8E1;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                                    <td>High</td>
+                                    <td>0.842</td>
+                                    <td>time</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF8E1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F5F5DC;">
+                                    <td>I-SIRch</td>
+                                    <td>Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)</td>
+                                    <td>High</td>
+                                    <td>0.823</td>
+                                    <td>mental health</td>
+                                    <td><div class="theme-color-box" style="background-color:#F5F5DC;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #D1ECF1;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>External Factors- National Policies</td>
+                                    <td>High</td>
+                                    <td>0.867</td>
+                                    <td>locally</td>
+                                    <td><div class="theme-color-box" style="background-color:#D1ECF1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #e8dbd9;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Situational- Team Factors</td>
+                                    <td>High</td>
+                                    <td>0.851</td>
+                                    <td>team</td>
+                                    <td><div class="theme-color-box" style="background-color:#e8dbd9;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FCE4EC;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Organisational Factors- Support from other departments</td>
+                                    <td>High</td>
+                                    <td>0.846</td>
+                                    <td>facilities</td>
+                                    <td><div class="theme-color-box" style="background-color:#FCE4EC;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Medication safety + Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)
+Keywords: medication + mental health + mental health">Date of report: 29/05/2025
+Ref: 2025-0263
+Deceased name: Callum Hargreaves
+Coroners name: Andrew Cox
+Coroners Area: Cornwall and Isles of Scilly
+Category: Alcohol, drug and medication related deaths | Suicide (from 2015) | Mental Health related deaths
+This report is being sent to: Cornwall Council
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: 1. [REDACTED], Cornwall Council 1 CORONER I am Andrew Cox, the Senior Coroner for the coroner area of Cornwall and the Isles of Scilly. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and regulations 28 and 29 of the Coroners (Investigations) Regulations 2013. 3 INVESTIGATION and INQUEST On 22/5/25, I concluded the inquest into the death of Callum James Hargreaves who died on 20/1/24 at the age of 32.</span> I recorded the cause of death as 1a) Multiple Injuries. I recorded a conclusion that Callum died from suicide. 4 CIRCUMSTANCES OF THE DEATH Callum was sexually assaulted as a child. In his adult years, he developed substance misuse/addiction issues and it is likely he presented with complex PTSD or EUPD. He lived in social housing at Silverdale Court in Newquay. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication
+Keywords: concerns">From approximately 2020, there started to be concerns that Callum was being cuckooed.</span> In 2023, following the receipt of safeguarding alerts, it became apparent substantial damage had been caused at the flat which was uninhabitable. Callum was sleeping rough elsewhere. Temporary accommodation was arranged in Roche and Wadebridge but Callum was not allowed to remain at the addresses after drug paraphernalia was discovered. <span style="background-color:#FFF3CD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - National and/or local guidance
+Keywords: local">Callum continued to sleep rough apart from a short period when he was housed by the local authority under a severe weather protocol.</span> In early 2024, a Notice Seeking Possession of the flat at Silverdale Court was served on Callum. <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Medication safety
+Keywords: medication">On 19/1/24, Callum was seen in a distressed state having been involved in an altercation and complaining that his medication had been stolen.</span> He went to a cliff edge in Newquay. Police attended and eventually removed Callum from the cliff. <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Medication safety + Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)
+Keywords: safety + mental health + mental health">He was taken to a place of safety by police and underwent a mental health act assessment.</span> He was determined not to be presenting with a severe and enduring mental illness of a nature and degree to warrant detention in hospital. Further, by the end of the period of assessment Callum's risk to himself was not felt to be sufficiently imminent or significant to justify short-term detention. Callum was discharged and provided with a taxi to take him back to his emergency accommodation. <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Consent/agency
+Keywords: informed">There was a discussion about whether Callum wanted members of his family informed of his discharge.</span> Callum said that he did not and this decision was not tested or challenged. It was not felt appropriate to breach the duties of confidentiality owed to Callum in this regard. <span style="background-color:#D1ECF1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_External Factors- National Policies
+Keywords: locally">Callum's body was recovered from the sea at a location known locally as [REDACTED] in Newquay on 20/1/24.</span> He had suffered multiple injuries consistent with a fall from height. Additionally, post-mortem toxicology revealed evidence of cocaine metabolites, diazepam, mirtazapene, pregabalin, zopiclone and methadone. The methadone in particular was at a high level and sufficient to have caused death on its own. The pregabalin and zopiclone were also present at high levels. <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Communication
+Keywords: concerns">On the evidence, it is more likely than not that Callum has jumped or fallen from the cliffs with the intention of ending his own life. 5 CORONER'S CONCERNS During the course of these inquests, the evidence has revealed matters giving rise to concern.</span> In my opinion there is a risk that future deaths will occur unless action is taken. In the circumstances it is my statutory duty to report to you. The MATTERS OF CONCERN are as follows. <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + House of Commons_Guidance gaps + I-SIRch_Organisation - National and/or local guidance + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)
+Keywords: mental health + guidance + guidance + mental health">At inquest, the court heard from Gail Ashton who was the AMHP involved in the mental health act assessment conducted overnight on 19 & 20 January 2024. 1) One issue that arose was whether Callum presented with an imminent and significant risk of harm to justify a short-term admission into hospital as is provided for in NICE guidance.</span> Ms Ashton said this was expressly discussed by the clinicians concerned. <span style="background-color:#FCE4EC; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_Organisational Factors- Support from other departments
+Keywords: facilities">It was felt he was likely to be withdrawing and there were no resuscitation facilities available in Longreach.</span> She also said the vulnerabilities of others on the ward needed to be considered all of which contributed to the decision not to detain Callum in hospital. She accepted that this rationale was not recorded in the notes. 2) Callum was asked whether he wanted his mother (who he described as his rock) notified of his discharge. He said that he did not. <span style="background-color:#E1F5FE; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Guidance gaps + I-SIRch_Organisation - National and/or local guidance
+Keywords: guidance + guidance">This was not tested or challenged where GMC guidance is that it may be appropriate to do so.</span> The Nearest Relative details on the MH 1 form were not completed. <span style="background-color:#E1F5FE; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Guidance gaps + I-SIRch_Organisation - Team culture factor (e.g., patient safety culture) + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes) + Yorkshire Contributory_Situational- Team Factors
+Keywords: gaps + team + record + team">The expert who reviewed the case felt there were ‘obvious gaps' in the record keeping and that as Callum's mother was one of the few levers available to the assessing team, Callum's decision not to involve her should have been explored further.</span> You may feel these omissions should be learned from when assessments are conducted in the future and, in particular, when notes of an assessment are subsequently recorded. 6 ACTION SHOULD BE TAKEN In my opinion action should be taken to prevent future deaths and I believe you [AND/OR your organisation] have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by 25.7.25. I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action. Otherwise, you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the Chief Coroner and to the following Interested Persons: [REDACTED], mother [REDACTED], father and step-mother Cornwall Partnership Foundation Trust Sanctuary Housing I am also under a duty to send the Chief Coroner a copy of your response. The Chief Coroner may publish either or both in a complete or redacted or summary form. He may send a copy of this report to any person who he believes may find it useful or of interest. <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 [DATE] 28.5.25 [SIGNED BY CORONER]</span>
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Medication safety + Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>medication + mental health + mental health</td>
+                        <td>Date of report: 29/05/2025
+Ref: 2025-0263
+Deceased name: Callum Hargreaves
+Coroners name: Andrew Cox
+Coroners Area: Cornwall and Isles of Scilly
+Category: Alcohol, drug and medication related deaths | Suicide (from 2015) | Mental Health related deaths
+This report is being sent to: Cornwall Council
+REGULATION 28 REPORT TO PREVENT FUTURE DEATHS THIS REPORT IS BEING SENT TO: 1. [REDACTED], Cornwall Council 1 CORONER I am Andrew Cox, the Senior Coroner for the coroner area of Cornwall and the Isles of Scilly. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and regulations 28 and 29 of the Coroners (Investigations) Regulations 2013. 3 INVESTIGATION and INQUEST On 22/5/25, I concluded the inquest into the death of Callum James Hargreaves who died on 20/1/24 at the age of 32.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns</td>
+                        <td>From approximately 2020, there started to be concerns that Callum was being cuckooed.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - National and/or local guidance</td>
+                        <td style="background-color: #FFF3CD;">#FFF3CD</td>
+                        <td>local</td>
+                        <td>Callum continued to sleep rough apart from a short period when he was housed by the local authority under a severe weather protocol.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Medication safety</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>medication</td>
+                        <td>On 19/1/24, Callum was seen in a distressed state having been involved in an altercation and complaining that his medication had been stolen.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Medication safety + Extended Analysis_Staff Wellbeing and Burnout + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>safety + mental health + mental health</td>
+                        <td>He was taken to a place of safety by police and underwent a mental health act assessment.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Consent/agency</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>informed</td>
+                        <td>There was a discussion about whether Callum wanted members of his family informed of his discharge.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>External Factors- National Policies</td>
+                        <td style="background-color: #D1ECF1;">#D1ECF1</td>
+                        <td>locally</td>
+                        <td>Callum's body was recovered from the sea at a location known locally as [REDACTED] in Newquay on 20/1/24.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Communication</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>concerns</td>
+                        <td>On the evidence, it is more likely than not that Callum has jumped or fallen from the cliffs with the intention of ending his own life. 5 CORONER'S CONCERNS During the course of these inquests, the evidence has revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + House of Commons_Guidance gaps + I-SIRch_Organisation - National and/or local guidance + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + guidance + guidance + mental health</td>
+                        <td>At inquest, the court heard from Gail Ashton who was the AMHP involved in the mental health act assessment conducted overnight on 19 & 20 January 2024. 1) One issue that arose was whether Callum presented with an imminent and significant risk of harm to justify a short-term admission into hospital as is provided for in NICE guidance.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>Organisational Factors- Support from other departments</td>
+                        <td style="background-color: #FCE4EC;">#FCE4EC</td>
+                        <td>facilities</td>
+                        <td>It was felt he was likely to be withdrawing and there were no resuscitation facilities available in Longreach.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Guidance gaps + I-SIRch_Organisation - National and/or local guidance</td>
+                        <td style="background-color: #E1F5FE;">#E1F5FE</td>
+                        <td>guidance + guidance</td>
+                        <td>This was not tested or challenged where GMC guidance is that it may be appropriate to do so.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Guidance gaps + I-SIRch_Organisation - Team culture factor (e.g., patient safety culture) + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes) + Yorkshire Contributory_Situational- Team Factors</td>
+                        <td style="background-color: #E1F5FE;">#E1F5FE</td>
+                        <td>gaps + team + record + team</td>
+                        <td>The expert who reviewed the case felt there were ‘obvious gaps' in the record keeping and that as Callum's mother was one of the few levers available to the assessing team, Callum's decision not to involve her should have been explored further.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>You may make representations to me, the coroner, at the time of your response, about the release or the publication of your response by the Chief Coroner. 9 [DATE] 28.5.25 [SIGNED BY CORONER]</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+                    <div class="record-container">
+                        <h2>Document: Shaun-Bass-Prevention-of-Future-Deaths-Report-2025-0253</h2>
+                        
+                        <div class="theme-info">
+                            <h3>Identified Themes</h3>
+                            <table>
+                                <tr>
+                                    <th>Framework</th>
+                                    <th>Theme</th>
+                                    <th>Confidence</th>
+                                    <th>Score</th>
+                                    <th>Matched Keywords</th>
+                                    <th>Color</th>
+                                </tr>
+                    
+                                <tr style="background-color: #FFECB3;">
+                                    <td>Extended Analysis</td>
+                                    <td>Medication safety</td>
+                                    <td>High</td>
+                                    <td>0.755</td>
+                                    <td>medication</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFECB3;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #edc3e4;">
+                                    <td>Extended Analysis</td>
+                                    <td>Staff Wellbeing and Burnout</td>
+                                    <td>High</td>
+                                    <td>0.734</td>
+                                    <td>mental health</td>
+                                    <td><div class="theme-color-box" style="background-color:#edc3e4;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E1F5FE;">
+                                    <td>House of Commons</td>
+                                    <td>Guidance gaps</td>
+                                    <td>High</td>
+                                    <td>0.897</td>
+                                    <td>guidance, information</td>
+                                    <td><div class="theme-color-box" style="background-color:#E1F5FE;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF3E0;">
+                                    <td>House of Commons</td>
+                                    <td>Care quality and access issues</td>
+                                    <td>High</td>
+                                    <td>0.865</td>
+                                    <td>treatment, access</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF3E0;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #cfc0c3;">
+                                    <td>House of Commons</td>
+                                    <td>Fragmented care</td>
+                                    <td>High</td>
+                                    <td>0.783</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#cfc0c3;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #dec1b6;">
+                                    <td>House of Commons</td>
+                                    <td>Communication</td>
+                                    <td>High</td>
+                                    <td>0.78</td>
+                                    <td>concerns</td>
+                                    <td><div class="theme-color-box" style="background-color:#dec1b6;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F3E5F5;">
+                                    <td>House of Commons</td>
+                                    <td>Inadequate maternity care</td>
+                                    <td>High</td>
+                                    <td>0.774</td>
+                                    <td>care</td>
+                                    <td><div class="theme-color-box" style="background-color:#F3E5F5;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF3CD;">
+                                    <td>I-SIRch</td>
+                                    <td>Organisation - National and/or local guidance</td>
+                                    <td>High</td>
+                                    <td>0.894</td>
+                                    <td>guidance, national</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF3CD;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #bdd2ca;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Risk assessment</td>
+                                    <td>High</td>
+                                    <td>0.835</td>
+                                    <td>assessment, risk</td>
+                                    <td><div class="theme-color-box" style="background-color:#bdd2ca;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #F8D7DA;">
+                                    <td>I-SIRch</td>
+                                    <td>Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)</td>
+                                    <td>High</td>
+                                    <td>0.805</td>
+                                    <td>record</td>
+                                    <td><div class="theme-color-box" style="background-color:#F8D7DA;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #c3dbea;">
+                                    <td>I-SIRch</td>
+                                    <td>Jobs/Task - Obstetric review</td>
+                                    <td>High</td>
+                                    <td>0.796</td>
+                                    <td>review</td>
+                                    <td><div class="theme-color-box" style="background-color:#c3dbea;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #FFF8E1;">
+                                    <td>I-SIRch</td>
+                                    <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                                    <td>High</td>
+                                    <td>0.779</td>
+                                    <td>time</td>
+                                    <td><div class="theme-color-box" style="background-color:#FFF8E1;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #d4b4ce;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Human Error- Violations</td>
+                                    <td>High</td>
+                                    <td>0.8</td>
+                                    <td>presumed</td>
+                                    <td><div class="theme-color-box" style="background-color:#d4b4ce;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E6E6FA;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Organisational Factors- Staff Training and Education</td>
+                                    <td>High</td>
+                                    <td>0.784</td>
+                                    <td>training</td>
+                                    <td><div class="theme-color-box" style="background-color:#E6E6FA;"></div></td>
+                                </tr>
+                        
+                                <tr style="background-color: #E8F5E9;">
+                                    <td>Yorkshire Contributory</td>
+                                    <td>Situational- Patient Factors</td>
+                                    <td>High</td>
+                                    <td>0.781</td>
+                                    <td>medical history</td>
+                                    <td><div class="theme-color-box" style="background-color:#E8F5E9;"></div></td>
+                                </tr>
+                        
+                            </table>
+                        </div>
+                        
+                        <div class="highlighted-text">
+                            <h3>Text with Highlighted Keywords</h3>
+                    
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <title>Highlighted Document Analysis</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    margin: 20px;
+                    line-height: 1.6;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    margin-bottom: 20px;
+                }
+                th, td {
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }
+                th {
+                    background-color: #f2f2f2;
+                    font-weight: bold;
+                }
+                .paragraph-container {
+                    border: 1px solid #ddd;
+                    padding: 15px;
+                    margin-bottom: 20px;
+                    background-color: #f9f9f9;
+                }
+            </style>
+        </head>
+        <body>
+            <h2>Document Theme Analysis</h2>
+            
+            <div class="paragraph-container">
+                <h3>Highlighted Text</h3>
+                <p>
+        <span style="background-color:#FFECB3; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Medication safety + Extended Analysis_Staff Wellbeing and Burnout
+Keywords: medication + mental health">Date of report: 23/05/2025
+Ref: 2025-0253
+Deceased name: Shaun Bass
+Coroners name: Timothy Brennand
+Coroners Area: Manchester West
+Category: Alcohol, drug and medication related deaths | Mental Health related deaths | Suicide (from 2015)
+This report is being sent to: Home Office
+REGULATION 28 REPORT TO PREVENT DEATHS THIS REPORT IS BEING SENT TO: [REDACTED] Secretary of State for the Home Department Home Office 2 Masham Street LONDON SW1P 4DF 1 CORONER I am Mr Timothy W Brennand, HM Senior Coroner for the coroner area of Manchester West. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and regulations 28 and 29 of the Coroners (Investigations) Regulations 2013. 3 INVESTIGATION and INQUEST On 10 September 2020 I commenced an investigation into the death of Shaun Michael Bass aged 23.</span> The investigation concluded at the end of the inquest on 11 August 2022. The medical cause of death was determined to be; 1a. [REDACTED] toxicity. I returned a short form conclusion that Shaun Michael Bass died as the result of suicide. Reporting restrictions were imposed in this case because of an ongoing criminal investigation in the United Kingdom, Europe and the United States of America, the case being one of a cluster of eight similar cases upon the Greater Manchester West jurisdiction. Reporting restrictions were lifted on the 19th of April 2024. <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Care quality and access issues + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + Yorkshire Contributory_Situational- Patient Factors
+Keywords: treatment + care + care + medical history">This report is being published following updates from Greater Manchester Police and suicide prevention organisations received on the 14th of March 2025. 4 CIRCUMSTANCES OF THE DEATH The deceased had a medical history that included persistent and enduring anxiety and depressive disorders that had required previous inpatient phases of treatment and care but had recently been treated and managed conservatively in the community.</span> On the 23rd of February 2020, the deceased was discovered collapsed and unresponsive in his residence at [REDACTED], Bolton having ingested a significant quantity of [REDACTED] that he had acquired earlier in the month from an internet-based company licensed to sell reportable poisons. He was verified as dead and beyond further attempted resuscitation by attending paramedics. From within the premises, police recovered a note of intent recently handwritten by the deceased and empty packaging labelled "[REDACTED] - Extra Pure 99.9% 50g" - for meat curing" the deceased had sourced via accessing a website promoting and sanctioning self-harm by means of [REDACTED] poisoning. Post-mortem samples were analysed and confirmed the deceased had recently ingested a significant and fatally toxic quantity of [REDACTED]. <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + House of Commons_Communication + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Obstetric review + I-SIRch_Jobs/Task - Risk assessment
+Keywords: mental health + concerns + care + care + review + assessment">The evidence established suboptimal elements in the mental healthcare and management of the deceased namely, a lack of continuity of personnel responsible for the deceased's care co-ordination, no mental health assessment review that was due to have taken place in November 2019, no adequate or immediate response to family concerns that had been communicated to health care professionals in January and February 2020.</span> <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Extended Analysis_Staff Wellbeing and Burnout + House of Commons_Communication + I-SIRch_Jobs/Task - Obstetric review + I-SIRch_Jobs/Task - Risk assessment + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)
+Keywords: mental health + concerns + review + risk + record">Whilst the consequence of the suboptimal healthcare in terms of bearing upon outcome cannot be evaluated, they represent a series of missed opportunities to record, discuss, review or adequately safeguard the deceased during a phase of deterioration in his mental health with the consequence that treating healthcare professionals failed to appreciate that the deceased was at an increased risk of self-harm. 5 CORONER'S CONCERNS During the course of the investigation my inquiries revealed matters giving rise to concern.</span> <span style="background-color:#E8F5E9; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Jobs/Task - Risk assessment
+Keywords: risk">In my opinion there is a risk that future deaths could occur unless action is taken.</span> In the circumstances it is my statutory duty to report to you. The MATTERS OF CONCERN are as follows: (brief summary of matters of concern) 1. [REDACTED] is a reportable poison as well as a reportable explosives precursor within the terms, meaning and effect of Part 4 of Schedule 1A of the Poisons Act 1972 with the consequence that: a. The Poisons Act 1972 sets out the legal obligations in relation to the sale, purchase, and use of these chemicals for suppliers, professional users and members of the public. b. <span style="background-color:#E1F5FE; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Guidance gaps + I-SIRch_Organisation - National and/or local guidance + Yorkshire Contributory_Organisational Factors- Staff Training and Education
+Keywords: guidance + guidance + training">The published Guidance (commenced in 2014 and updated in August 2024) does not give specific guidance or suggested training to sellers, particularly [REDACTED] acquired by members of the public, particularly over ‘online marketplaces' in circumstances of the purchase on a ‘one off' basis for the means of self-harming. c.</span> <span style="background-color:#FFD580; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: Yorkshire Contributory_Human Error- Violations
+Keywords: presumed">Whilst there is a legal duty on persons selling this substance to report "suspicious" transactions within 24 hours to the Home Office, the purchase of small quantities is being presumed to be connected to the many legitimate uses of the substance (such as food preservation, fertilizer etc) rather than in fact, being evaluated as a member of the public seeking purchase of modest quantities used as their chosen means by which to end life. d.</span> <span style="background-color:#E1F5FE; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Guidance gaps + I-SIRch_Organisation - National and/or local guidance
+Keywords: guidance + guidance">The current Home Office guidance and supporting video, leaflet and posters do not reference [REDACTED] as a specific example of concern and focuses on the phenomenon of ‘malicious' misuse and not deliberate misuse in the sense of suicide/self-harm. 2.</span> <span style="background-color:#FFF3CD; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Organisation - National and/or local guidance
+Keywords: national">The police investigation into one UK based source of supply revealed in 247 cases separate supplies of 500 grams of less of [REDACTED] to customers in the UK and Europe, police established that 85 of these individuals who were traceable had either died as the consequence of self-ingestion of the substance, or had purchased it with a view to having the means to use this method to end their life in circumstances where: a. the vendors of the [REDACTED] were not aware of this potential misuse of the substance. b. the small quantities being purchased had been incorrectly evaluated to be an increase in individuals pursuing recreational home-curing/food preservations as a hobby, being an artefact of ‘lockdown' living following the COVID national pandemic emergency. c.</span> <span style="background-color:#E1F5FE; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Guidance gaps
+Keywords: information">Vendors were unaware that their website/details were being distributed as part of internet information platforms designed to aid, abet, assist or promote suicide methods. d.</span> From the specific example of 247 supplies in a 12-month period, police established that 45 purchasers were confirmed as deceased (these deaths were in relation to supplies to UK customers and purchasers from abroad) and only 15 purchases were confirmed to have taken place for legitimate purposes (meat curing etc.). 3. <span style="background-color:#FFF3E0; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: House of Commons_Care quality and access issues + House of Commons_Guidance gaps
+Keywords: access + information">The police investigation revealed the ability of members of the public to access a number of websites, primarily created in the USA, Canada and Mexico that promoted information as to how to access: a.</span> Poisons that could bring about death b. How, in what way and with other necessary preparations (in particular -antiemetic medications) the poisons should be administered. c. Sourcing such poisons/chemicals/medications in the UK and abroad. 6 ACTION SHOULD BE TAKEN In my opinion action should be taken to prevent future deaths and I believe you (and/or your organisation) have the power to take such action. 7 YOUR RESPONSE You are under a duty to respond to this report within 56 days of the date of this report, namely by May 16, 2025. I, the coroner, may extend the period. Your response must contain details of action taken or proposed to be taken, setting out the timetable for action. Otherwise you must explain why no action is proposed. 8 COPIES and PUBLICATION I have sent a copy of my report to the Chief Coroner and to the following Interested Persons 1. The family of Shaun Michael Bass 2. HHJ Alexia Durran - The Chief Coroner of England and Wales Chief Coroner's Office 11 th Floor, Thomas More Building Royal Courts of Justice Strand LONDON I have also sent it to Greater Manchester Police who may find it useful or of interest. I am also under a duty to send a copy of your response to the Chief Coroner and all interested persons who in my opinion should receive it. I may also send a copy of your response to any person who I believe may find it useful or of interest. The Chief Coroner may publish either or both in a complete or redacted or summary form. He may send a copy of this report to any person who he believes may find it useful or of interest. <span style="background-color:#FFF8E1; border:1px solid #666; border-radius:2px; padding:1px 2px;" title="Theme: I-SIRch_Internal - Time of day (e.g., night working or day of the week)
+Keywords: time">You may make representations to me, the coroner, at the time of your response about the release or the publication of your response by the Chief Coroner. 9 Dated: 23 rd May 2025 Mr Timothy W Brennand HM Senior Coroner for Manchester West</span>
+                </p>
+            </div>
+            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Framework</th>
+                        <th>Theme</th>
+                        <th>Color</th>
+                        <th>Matched Keywords</th>
+                        <th>Extracted Sentence</th>
+                    </tr>
+                </thead>
+                <tbody>
+        
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Medication safety + Extended Analysis_Staff Wellbeing and Burnout</td>
+                        <td style="background-color: #FFECB3;">#FFECB3</td>
+                        <td>medication + mental health</td>
+                        <td>Date of report: 23/05/2025
+Ref: 2025-0253
+Deceased name: Shaun Bass
+Coroners name: Timothy Brennand
+Coroners Area: Manchester West
+Category: Alcohol, drug and medication related deaths | Mental Health related deaths | Suicide (from 2015)
+This report is being sent to: Home Office
+REGULATION 28 REPORT TO PREVENT DEATHS THIS REPORT IS BEING SENT TO: [REDACTED] Secretary of State for the Home Department Home Office 2 Masham Street LONDON SW1P 4DF 1 CORONER I am Mr Timothy W Brennand, HM Senior Coroner for the coroner area of Manchester West. 2 CORONER'S LEGAL POWERS I make this report under paragraph 7, Schedule 5, of the Coroners and Justice Act 2009 and regulations 28 and 29 of the Coroners (Investigations) Regulations 2013. 3 INVESTIGATION and INQUEST On 10 September 2020 I commenced an investigation into the death of Shaun Michael Bass aged 23.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Care quality and access issues + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + Yorkshire Contributory_Situational- Patient Factors</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>treatment + care + care + medical history</td>
+                        <td>This report is being published following updates from Greater Manchester Police and suicide prevention organisations received on the 14th of March 2025. 4 CIRCUMSTANCES OF THE DEATH The deceased had a medical history that included persistent and enduring anxiety and depressive disorders that had required previous inpatient phases of treatment and care but had recently been treated and managed conservatively in the community.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + House of Commons_Communication + House of Commons_Fragmented care + House of Commons_Inadequate maternity care + I-SIRch_Jobs/Task - Obstetric review + I-SIRch_Jobs/Task - Risk assessment</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + concerns + care + care + review + assessment</td>
+                        <td>The evidence established suboptimal elements in the mental healthcare and management of the deceased namely, a lack of continuity of personnel responsible for the deceased's care co-ordination, no mental health assessment review that was due to have taken place in November 2019, no adequate or immediate response to family concerns that had been communicated to health care professionals in January and February 2020.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Extended Analysis</td>
+                        <td>Staff Wellbeing and Burnout + House of Commons_Communication + I-SIRch_Jobs/Task - Obstetric review + I-SIRch_Jobs/Task - Risk assessment + I-SIRch_Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>mental health + concerns + review + risk + record</td>
+                        <td>Whilst the consequence of the suboptimal healthcare in terms of bearing upon outcome cannot be evaluated, they represent a series of missed opportunities to record, discuss, review or adequately safeguard the deceased during a phase of deterioration in his mental health with the consequence that treating healthcare professionals failed to appreciate that the deceased was at an increased risk of self-harm. 5 CORONER'S CONCERNS During the course of the investigation my inquiries revealed matters giving rise to concern.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Jobs/Task - Risk assessment</td>
+                        <td style="background-color: #E8F5E9;">#E8F5E9</td>
+                        <td>risk</td>
+                        <td>In my opinion there is a risk that future deaths could occur unless action is taken.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Guidance gaps + I-SIRch_Organisation - National and/or local guidance + Yorkshire Contributory_Organisational Factors- Staff Training and Education</td>
+                        <td style="background-color: #E1F5FE;">#E1F5FE</td>
+                        <td>guidance + guidance + training</td>
+                        <td>The published Guidance (commenced in 2014 and updated in August 2024) does not give specific guidance or suggested training to sellers, particularly [REDACTED] acquired by members of the public, particularly over ‘online marketplaces' in circumstances of the purchase on a ‘one off' basis for the means of self-harming. c.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>Yorkshire Contributory</td>
+                        <td>Human Error- Violations</td>
+                        <td style="background-color: #FFD580;">#FFD580</td>
+                        <td>presumed</td>
+                        <td>Whilst there is a legal duty on persons selling this substance to report "suspicious" transactions within 24 hours to the Home Office, the purchase of small quantities is being presumed to be connected to the many legitimate uses of the substance (such as food preservation, fertilizer etc) rather than in fact, being evaluated as a member of the public seeking purchase of modest quantities used as their chosen means by which to end life. d.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Guidance gaps + I-SIRch_Organisation - National and/or local guidance</td>
+                        <td style="background-color: #E1F5FE;">#E1F5FE</td>
+                        <td>guidance + guidance</td>
+                        <td>The current Home Office guidance and supporting video, leaflet and posters do not reference [REDACTED] as a specific example of concern and focuses on the phenomenon of ‘malicious' misuse and not deliberate misuse in the sense of suicide/self-harm. 2.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Organisation - National and/or local guidance</td>
+                        <td style="background-color: #FFF3CD;">#FFF3CD</td>
+                        <td>national</td>
+                        <td>The police investigation into one UK based source of supply revealed in 247 cases separate supplies of 500 grams of less of [REDACTED] to customers in the UK and Europe, police established that 85 of these individuals who were traceable had either died as the consequence of self-ingestion of the substance, or had purchased it with a view to having the means to use this method to end their life in circumstances where: a. the vendors of the [REDACTED] were not aware of this potential misuse of the substance. b. the small quantities being purchased had been incorrectly evaluated to be an increase in individuals pursuing recreational home-curing/food preservations as a hobby, being an artefact of ‘lockdown' living following the COVID national pandemic emergency. c.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Guidance gaps</td>
+                        <td style="background-color: #E1F5FE;">#E1F5FE</td>
+                        <td>information</td>
+                        <td>Vendors were unaware that their website/details were being distributed as part of internet information platforms designed to aid, abet, assist or promote suicide methods. d.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>House of Commons</td>
+                        <td>Care quality and access issues + House of Commons_Guidance gaps</td>
+                        <td style="background-color: #FFF3E0;">#FFF3E0</td>
+                        <td>access + information</td>
+                        <td>The police investigation revealed the ability of members of the public to access a number of websites, primarily created in the USA, Canada and Mexico that promoted information as to how to access: a.</td>
+                    </tr>
+            
+                    <tr>
+                        <td>I-SIRch</td>
+                        <td>Internal - Time of day (e.g., night working or day of the week)</td>
+                        <td style="background-color: #FFF8E1;">#FFF8E1</td>
+                        <td>time</td>
+                        <td>You may make representations to me, the coroner, at the time of your response about the release or the publication of your response by the Chief Coroner. 9 Dated: 23 rd May 2025 Mr Timothy W Brennand HM Senior Coroner for Manchester West</td>
+                    </tr>
+            
+                </tbody>
+            </table>
+        </body>
+        </html>
+        
+                        </div>
+                    </div>
+                    
+            </body>
+            </html>
+            
