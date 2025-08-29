@@ -363,22 +363,26 @@ def main():
                 <h2 style='text-align:center;'>Learning Through Evidence from Natural Language Systems</h2>""",
                 unsafe_allow_html = True
             )
-        st.markdown("""
-                <div style="display:flex; justify-content:center;">
-                <button style="
-                    font-size:10px;
-                    height:50px;
-                    width:300px;
-                    border-radius:30px;
-                    border:2px solid white;
-                    background-color:#0084B4;
-                    color:white;
-                    cursor:pointer;"
-                    onclick="window.alert('Button clicked!')">
-                    Click Me
-                </button>
-            </div>
-            """ , unsafe_allow_html=True)
+        button_style = """
+                <style>
+                div.stButton > button:first-child {
+                    background-color: #0084B4;
+                    color: white;
+                    height: 50px;
+                    width: 200px;
+                    font-size: 30px;
+                    border-radius: 30px;
+                    border: 2px solid white;
+                    border-color: white
+                }
+                div.stButton {
+                    display: flex;
+                    justify-content: center;
+                    gap: 40px;
+                }
+                </style>
+            """
+        st.markdown(button_style, unsafe_allow_html=True)
 
         
         
