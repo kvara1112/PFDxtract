@@ -193,11 +193,8 @@ def render_analysis_tab(data=None, data_source=None):
             if st.button("🔄 Reset Filters"):
                 for key in st.session_state:
                     if key.endswith("_filter"):
-                        if "date" in key:
-                            # Set to None or min/max for date inputs
-                            st.session_state[key] = None
-                        else:
-                            st.session_state[key] = []
+                        st.session_state[key] = []
+                st.rerun()
 
         # Apply filters
         filtered_df = data.copy()
