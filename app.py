@@ -100,6 +100,8 @@ def render_analysis_tab(data=None, data_source=None):
     
     # Use either uploaded data or passed data
     if uploaded_file is None:
+        import pandas as pd
+        from modules.core_utils import process_scraped_data
         if data_source == 'merged data':    
             data = st.session_state.get('current_data')
             data = process_scraped_data(data)
