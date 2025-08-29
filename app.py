@@ -63,7 +63,7 @@ logging.basicConfig(
 
 
 
-def render_analysis_tab(data=None):
+def render_analysis_tab(data=None, data_source=None):
     """Render the analysis tab with improved filters and visualizations"""
     st.subheader("Data Analysis & Visualization")
     
@@ -89,7 +89,7 @@ def render_analysis_tab(data=None):
             st.success("File uploaded and processed successfully!")
             
             # Update session state
-            st.session_state.uploaded_data = data.copy()
+            #st.session_state.uploaded_data = data.copy()
             #st.session_state.data_source = 'uploaded'
             #st.session_state.current_data = data.copy()
         
@@ -100,7 +100,7 @@ def render_analysis_tab(data=None):
     
     # Use either uploaded data or passed data
     if data is None:
-        if st.session_state.get("data_source") == "merged":
+        if data_source == "merged":
             data = st.session_state.get('current_data')
     
     if data is None or len(data) == 0:
@@ -512,7 +512,7 @@ def main():
                 if not validate_data_state():
                     handle_no_data_state("analysis")
                 else:
-                    render_analysis_tab(st.session_state.current_data)
+                    render_analysis_tab(st.session_state.current_data, st.session_state.data_source)
             
             elif current_tab == "(4)📝 Topic Analysis & Summaries":
                 # Add tab-specific description here
