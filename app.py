@@ -364,24 +364,20 @@ def main():
                 unsafe_allow_html = True
             )
         st.markdown("""
-                <style>
-                div.stButton {
-                    display: flex;
-                    justify-content: center;
-                    gap: 40px;
-                }
-                    
-                div.stButton > button {
-                    background-color: #0084B4;
-                    color: white;
-                    height: 200px;
-                    width: 300px;
-                    border-radius: 30px;
-                    border: 2px solid white;
-                    font-size: 50px !important;
-                }
-                
-                </style>
+                <div style="display:flex; justify-content:center;">
+                <button style="
+                    font-size:10px;
+                    height:50px;
+                    width:300px;
+                    border-radius:30px;
+                    border:2px solid white;
+                    background-color:#0084B4;
+                    color:white;
+                    cursor:pointer;"
+                    onclick="window.alert('Button clicked!')">
+                    Click Me
+                </button>
+            </div>
             """ , unsafe_allow_html=True)
 
         
@@ -391,9 +387,11 @@ def main():
     
 
         with col2:
+            st.image("research.gif")
             st.button("Analyse PFD Reports", key="page1_btn", on_click=go_to_page, args=("page1",))
 
         with col3:
+            st.image("report.gif")
             st.button("Analyse Other Healthcare Documents", key="page2_btn", on_click=go_to_page, args=("page2",))
 
 
