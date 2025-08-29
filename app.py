@@ -126,6 +126,10 @@ def render_analysis_tab(data=None, data_source=None):
         # Filters sidebar
         with st.sidebar:
             st.header("Filters")
+
+            if st.button("🔄 Reset Filters"):
+                st.session_state["reset_trigger"] = True
+
             if st.session_state.get("reset_trigger", False):
                 st.session_state["start_date_filter"] = min_date
                 st.session_state["end_date_filter"] = max_date
@@ -190,11 +194,11 @@ def render_analysis_tab(data=None, data_source=None):
                     )
             
             # Reset Filters Button
-            if st.button("🔄 Reset Filters"):
-                for key in st.session_state:
-                    if key.endswith("_filter"):
-                        st.session_state[key] = []
-                st.rerun()
+            # if st.button("🔄 Reset Filters"):
+            #     for key in st.session_state:
+            #         if key.endswith("_filter"):
+            #             st.session_state[key] = []
+            #     st.rerun()
 
         # Apply filters
         filtered_df = data.copy()
