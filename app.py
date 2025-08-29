@@ -133,7 +133,7 @@ def render_analysis_tab(data=None, data_source=None):
                 with col1:
                     start_date = st.date_input(
                         "From",
-                        value=min_date,
+                        value=st.session_state.get("start_date_filter",min_date),
                         min_value=min_date,
                         max_value=max_date,
                         key="start_date_filter",
@@ -142,7 +142,7 @@ def render_analysis_tab(data=None, data_source=None):
                 with col2:
                     end_date = st.date_input(
                         "To",
-                        value=max_date,
+                        value=st.session_state.get("end_date_filter",max_date),
                         min_value=min_date,
                         max_value=max_date,
                         key="end_date_filter",
@@ -153,7 +153,7 @@ def render_analysis_tab(data=None, data_source=None):
             doc_type = st.multiselect(
                 "Document Type",
                 ["Report", "Response"],
-                default=[],
+                default=[st.session_state.get("doc_type_filter", [])],
                 key="doc_type_filter",
                 help="Filter by document type"
             )
@@ -173,15 +173,16 @@ def render_analysis_tab(data=None, data_source=None):
                     selected_categories = st.multiselect(
                         "Categories",
                         options=sorted(all_categories),
+                        default=st.session_state.get("categories_filter", []),
                         key="categories_filter"
                     )
             
             # Reset Filters Button
             if st.button("🔄 Reset Filters"):
-                for key in st.session_state:
-                    if key.endswith('_filter'):
-                        del st.session_state[key]
-                st.rerun()
+                keys_to_delete = [key for key in st.session_state if key.endswith("_filter")]
+                for key in keys_to_delete:
+                    st.session_state[key] = None
+                #st.rerun()
 
         # Apply filters
         filtered_df = data.copy()
