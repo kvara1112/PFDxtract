@@ -90,8 +90,8 @@ def render_analysis_tab(data=None):
             
             # Update session state
             st.session_state.uploaded_data = data.copy()
-            st.session_state.data_source = 'uploaded'
-            st.session_state.current_data = data.copy()
+            #st.session_state.data_source = 'uploaded'
+            #st.session_state.current_data = data.copy()
         
         except Exception as e:
             st.error(f"Error uploading file: {str(e)}")
@@ -100,7 +100,8 @@ def render_analysis_tab(data=None):
     
     # Use either uploaded data or passed data
     if data is None:
-        data = st.session_state.get('current_data')
+        if st.session_state.get("data_source") == "merged":
+            data = st.session_state.get('current_data')
     
     if data is None or len(data) == 0:
         st.warning("No data available. Please upload a file or scrape reports first.")
