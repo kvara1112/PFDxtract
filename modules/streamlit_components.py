@@ -783,6 +783,7 @@ def upload_reports(is_PFD):
                 
                 retry_needed = [r for r in state["processing_results"] if r["Status"] == "failed"]
                 progress_placeholder.success(f"✅ Processed {total_files - len(retry_needed)} files successfully!")
+                other_placeholder.success("Successfully removed any duplicate records")
                 successful_reports = [r for r in state["processing_results"] if r["Status"] == "success"]
                 #retry_needed = [r for r in state["processing_results"] if r["Status"] == "failed"]
                 
