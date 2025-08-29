@@ -27,6 +27,12 @@ def plot_category_distribution(df: pd.DataFrame) -> None:
     for cats in df["categories"].dropna():
         if isinstance(cats, list):
             all_cats.extend(cats)
+        elif isinstance(cats, str):
+            all_cats.extend([c.strip() for c in cats.split(",")])
+    
+    if not all_cats:
+        st.warning("No Categories to display")
+        return
 
     cat_counts = pd.Series(all_cats).value_counts()
 
