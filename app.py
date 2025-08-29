@@ -365,7 +365,7 @@ def main():
             )
         button_style = """
                 <style>
-                div.stButton > button:first-child {
+                button[kind="primary"] {
                     background-color: #0084B4;
                     color: white;
                     height: 200px;
