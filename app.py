@@ -353,7 +353,8 @@ def main():
                 """)
         st.markdown(
                 """
-                <h1 style='text-align:center;'>Welcome to the Analyser</h1>""",
+                <h1 style='text-align:center;'>Welcome to LENS.ai</h1>
+                <h2 style='text-align:center;'>Learning Through Evidence from Natural Language Systems</h2>""",
                 unsafe_allow_html = True
             )
         button_style = """
