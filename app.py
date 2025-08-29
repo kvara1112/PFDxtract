@@ -181,7 +181,7 @@ def render_analysis_tab(data=None, data_source=None):
             if st.button("🔄 Reset Filters"):
                 keys_to_delete = [key for key in st.session_state if key.endswith("_filter")]
                 for key in keys_to_delete:
-                    st.session_state[key] = None
+                    st.session_state[key] = []
                 #st.rerun()
 
         # Apply filters
