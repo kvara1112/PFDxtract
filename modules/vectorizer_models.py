@@ -321,7 +321,7 @@ def perform_semantic_clustering(
                 / min(len(c["documents"]) for c in clusters)
             ),
         }
-
+        
         return {
             "n_clusters": len(clusters),
             "total_documents": len(processed_texts),
@@ -916,7 +916,9 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None, data_source
                 max_df=0.95,
                 similarity_threshold=0.3,
             )
-
+            if not cluster_results:
+                st.warning("No clusters could be formed with the current settings. Try lowering minimum group size or adjusting filters.")
+                return
             progress_bar.progress(0.8)
             status_text.text("Generating summaries...")
             st.session_state[f"{report_key}_topic_model"] = cluster_results
