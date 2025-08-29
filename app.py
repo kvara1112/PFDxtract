@@ -100,13 +100,13 @@ def render_analysis_tab(data=None, data_source=None):
     
     # Use either uploaded data or passed data
     if uploaded_file is None:
-        if data_source == 'merged':    
+        if data_source == 'merged data':    
             data = st.session_state.get('current_data')
         else:
             data = None
     
     if data is None or len(data) == 0:
-        st.warning("No data available. Please upload a file or scrape reports first.")
+        st.warning("No data available. Please merge a file or scrape reports first.")
         return
         
     try:
