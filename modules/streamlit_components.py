@@ -268,7 +268,7 @@ def handle_no_data_state(tab_type: str):
     st.warning("No data available. Please complete previous steps first.")
     
     if tab_type == "analysis":
-        st.info("To analyze data, you need to either:")
+        st.info("To analyse data, you need to either:")
         st.markdown("- Scrape reports using the 'Scrape Reports' tab")
         st.markdown("- Upload existing data using the file uploader below")
         
@@ -846,7 +846,7 @@ def upload_reports(is_PFD):
                 
                 with col2:
                     st.write("**Use Local File:**")
-                    st.write("Analyze the uploaded PDF content directly")
+                    st.write("Analyse the uploaded PDF content directly")
                     if st.button("📄 Use Local Content", key=f"local_btn_{retry_id}"):
                         local_report = create_local_report(retry_info)
                         additional_reports.append(local_report)
@@ -1961,7 +1961,7 @@ def go_to_page(page):
 
 def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     """
-    Render a comprehensive dashboard for analyzing themes by various metadata fields
+    Render a comprehensive dashboard for analysing themes by various metadata fields
     
     Args:
         data: Optional DataFrame containing theme analysis results
@@ -3047,7 +3047,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                         st.info("Please select at least 2 areas for radar comparison.")
         else:
             with tab4:
-                st.info("Only applicable for PFD reports with coroner areas, use our PFD analyzer for this")      
+                st.info("Only applicable for PFD reports with coroner areas, use our PFD analyser for this")      
         # === TAB 5: CORRELATION ANALYSIS ===
         with tab5:
             st.subheader("Theme Correlation Analysis")

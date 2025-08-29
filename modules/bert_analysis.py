@@ -1387,7 +1387,7 @@ class ThemeAnalyzer:
     def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
         """Initialize the BERT-based theme analyzer with sentence highlighting capabilities"""
         # Initialize transformer model and tokenizer
-        st.info("Loading annotation model and tokenizer... This may take a moment.")
+        st.info("Loading annotation model and tokeniser... This may take a moment.")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModel.from_pretrained(model_name)
 
@@ -1992,7 +1992,7 @@ class ThemeAnalyzer:
                 <div class="summary-card">
                     <div class="summary-box">
                         <div class="summary-number">""" + str(len(highlighted_texts)) + """</div>
-                        <div class="summary-label">Documents Analyzed</div>
+                        <div class="summary-label">Documents Analysed</div>
                     </div>
                     <div class="summary-box">
                         <div class="summary-number">""" + str(len(results_df)) + """</div>
@@ -3628,12 +3628,12 @@ class ThemeAnalyzer:
 
     def create_detailed_results(self, data, content_column="Content"):
         """
-        Analyze multiple documents and create detailed results with progress tracking.
+        Analyse multiple documents and create detailed results with progress tracking.
         Enhanced to include additional metadata (coroner_name, coroner_area, year).
     
         Args:
             data (pd.DataFrame): DataFrame containing documents
-            content_column (str): Name of the column containing text to analyze
+            content_column (str): Name of the column containing text to analyse
     
         Returns:
             Tuple[pd.DataFrame, Dict]: (Results DataFrame, Dictionary of highlighted texts)
@@ -3657,7 +3657,7 @@ class ThemeAnalyzer:
             progress = (idx + 1) / total_docs
             progress_bar.progress(progress)
             status_text.text(
-                f"Analyzing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}"
+                f"Analysing document {idx + 1}/{total_docs}: {row.get('Title', f'Document {i}')}"
             )
     
             # Skip empty content
@@ -3806,7 +3806,7 @@ class ThemeAnalyzer:
 
             # Add framework names
             frameworks = self.frameworks.keys()
-            framework_text = "Frameworks analyzed: " + ", ".join(frameworks)
+            framework_text = "Frameworks analysed: " + ", ".join(frameworks)
             plt.text(
                 0.5,
                 0.3,
@@ -3847,7 +3847,7 @@ class ThemeAnalyzer:
                 frameworks_count = len(results_df["Framework"].unique())
 
                 metrics_text = (
-                    f"Total Documents Analyzed: {doc_count}\n"
+                    f"Total Documents Analysed: {doc_count}\n"
                     f"Total Theme Predictions: {theme_count}\n"
                     f"Unique Frameworks: {frameworks_count}\n"
                 )

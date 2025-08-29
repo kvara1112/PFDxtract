@@ -842,7 +842,7 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
                     )
 
                     progress_bar.progress(0.6)
-                    status_text.text("Analyzing patterns...")
+                    status_text.text("Analysing patterns...")
 
                     # Prepare vectorizer parameters
                     vectorizer_params = {}
@@ -902,7 +902,7 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None) -> None:
             
             For topic analysis, your file should include:
             
-            - **Content**: The text content to analyze (required)
+            - **Content**: The text content to analyse (required)
             - **Title**: Report titles (recommended)
             - **date_of_report**: Report dates (optional, for filtering)
             - **categories**: Report categories (optional, for filtering)

@@ -155,7 +155,7 @@ def plot_yearly_comparison(df: pd.DataFrame) -> None:
 
 
 def analyze_data_quality(df: pd.DataFrame) -> None:
-    """Analyze and display data quality metrics for PFD reports"""
+    """Analyse and display data quality metrics for PFD reports"""
 
     # Calculate completeness metrics
     total_records = len(df)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 UK Judiciary PFD Reports and Healthcare Document Analysis Tool - Main Application
-A comprehensive tool for analyzing Prevention of Future Deaths (PFD) reports.
+A comprehensive tool for analysing Prevention of Future Deaths (PFD) reports.
 """
 
 import streamlit as st
@@ -675,7 +675,7 @@ def main():
                 - Upload a folder of your reports
                 - Perform cleaning and formatting into one document
                 - Complete a topic analysis on the reports
-                - Concept anntoate your reports by framework
+                - Concept annotate your reports by framework
                 - Visualise annotations and results
                 """
             )
