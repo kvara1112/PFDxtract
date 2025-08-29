@@ -645,6 +645,8 @@ def main():
                     st.success("All data cleared successfully")
                     time.sleep(0.5)  # Brief pause to ensure UI updates
                     st.rerun()
+
+                st.info("This will clear data from all previous steps!")
                 st.button("Back to Dashboard", key="dash_btn", on_click=go_to_page, args=("dash",) )
                     
         
