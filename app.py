@@ -126,6 +126,12 @@ def render_analysis_tab(data=None, data_source=None):
         # Filters sidebar
         with st.sidebar:
             st.header("Filters")
+            if st.session_state.get("reset_trigger", False):
+                st.session_state["start_date_filter"] = min_date
+                st.session_state["end_date_filter"] = max_date
+                st.session_state["doc_type_filter"] = []
+                st.session_state["categories_filter"] = []
+                st.session_state["reset_trigger"] = False
             
             # Date Range
             with st.expander("📅 Date Range", expanded=True):
@@ -133,7 +139,7 @@ def render_analysis_tab(data=None, data_source=None):
                 with col1:
                     start_date = st.date_input(
                         "From",
-                        value=st.session_state.get("start_date_filter") or min_date,
+                        value=st.session_state.get("start_date_filter", min_date),
                         min_value=min_date,
                         max_value=max_date,
                         key="start_date_filter",
@@ -142,7 +148,7 @@ def render_analysis_tab(data=None, data_source=None):
                 with col2:
                     end_date = st.date_input(
                         "To",
-                        value=st.session_state.get("end_date_filter") or max_date,
+                        value=st.session_state.get("end_date_filter", max_date),
                         min_value=min_date,
                         max_value=max_date,
                         key="end_date_filter",
