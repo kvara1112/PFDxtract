@@ -724,8 +724,8 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None, data_source
             The quality of results depends on having enough documents with good text content.
             """)
 
-    if isPFD and (data is None or not isinstance(data, pd.DataFrame)):
-        st.error("No valid current data")
+    if data is None or not isinstance(data, pd.DataFrame):
+        st.error("No valid data available yet")
         return
     
     if "Content" not in data.columns:
