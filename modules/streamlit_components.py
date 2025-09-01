@@ -916,10 +916,11 @@ def upload_reports(is_PFD):
             st.dataframe(state["current_data"])
             if report_key == "PFD":
                 show_export_options(state["current_data"], prefix="uploaded")
+                st.session_state.current_data = state["current_data"]
+                st.session_state.data_source = 'uploaded PFD'
             elif report_key == "Other":
                 show_export_options(state["current_data"], prefix="uploaded_other")
-            st.session_state.current_data = state["current_data"]
-            st.session_state.data_source = 'uploaded PFD'
+            
         else:
             st.markdown("No data could be processed")
         st.markdown("### Begin a New Upload")
