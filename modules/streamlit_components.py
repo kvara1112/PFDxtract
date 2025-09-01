@@ -2231,8 +2231,8 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             
             if confidence_filter_type == "Select Specific Levels" and selected_confidence_levels:
                 active_filters.append(f"Confidence: {', '.join(selected_confidence_levels)}")
-        with st.sidebar:
-            st.button("Back to Dashboard", key="dash_btn2", on_click=go_to_page, args=("dash2",))
+        #with st.sidebar:
+            #st.button("Back to Dashboard", key="dash_btn2", on_click=go_to_page, args=("dash2",))
             
         if active_filters:
             st.info("Active filters: " + " | ".join(active_filters))
