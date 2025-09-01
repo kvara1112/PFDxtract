@@ -725,7 +725,7 @@ def render_topic_summary_tab(isPFD: bool, data: pd.DataFrame = None, data_source
             """)
 
     if data is None or not isinstance(data, pd.DataFrame):
-        st.error("No valid data available yet")
+        st.warning("No valid data available yet")
         return
     
     if "Content" not in data.columns:
