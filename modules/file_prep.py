@@ -419,7 +419,7 @@ def show_export_options(df: pd.DataFrame, prefix: str):
         random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
         unique_id = f"{timestamp}_{random_suffix}"
         if prefix == "uploaded_other":
-            filename = f"other_reports_{timestamp}"
+            filename = f"merged_other_reports_{timestamp}"
         else:
             filename = f"pfd_reports_{prefix}_{timestamp}"
 

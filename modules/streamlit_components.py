@@ -1293,6 +1293,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         report_key = "PFD"
     else:
         report_key = "Other"
+        data = None
     """Modified render_bert_analysis_tab function to include framework selection and custom framework upload"""
     
     # Ensure the bert_results dictionary exists in session state
