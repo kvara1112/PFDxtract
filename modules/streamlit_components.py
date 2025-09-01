@@ -1558,7 +1558,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 filtered_frameworks = {}
                 
                 # Add selected built-in frameworks
-                for framework in st.session_state[selected_frameworks_key]:
+                for framework in st.session_state[widget_key]:
                     if framework == "I-SIRch":
                         filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
                     elif framework == "House of Commons":
