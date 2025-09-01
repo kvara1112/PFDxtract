@@ -1387,18 +1387,21 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
         if custom_frameworks_key in st.session_state:
             available_frameworks.extend(list(st.session_state[custom_frameworks_key].keys()))
-        
+        widget_key = f"{report_key}framework_Select_{reset_counter}"
+        if widget_key not in st.session_state:
+            st.session_state[widget_key] = []
         # Predefined framework selection - use a unique key
-        st.session_state[selected_frameworks_key] = st.multiselect(
+        st.multiselect(
             "Choose Frameworks to Use",
             options=available_frameworks,
             default=st.session_state[selected_frameworks_key],
             help="Select which conceptual frameworks to use for theme analysis",
-            key=f"{report_key}framework_select_{reset_counter}"
+            key=widget_key#f"{report_key}framework_select_{reset_counter}"
         )
     
     with frame_col2:
         # Custom framework upload
+        
         custom_framework_file = st.file_uploader(
             "Upload Custom Framework",
             type=["json", "txt"],
