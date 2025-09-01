@@ -1394,7 +1394,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         st.multiselect(
             "Choose Frameworks to Use",
             options=available_frameworks,
-            default=st.session_state[selected_frameworks_key],
+            #default=st.session_state[selected_frameworks_key],
             help="Select which conceptual frameworks to use for theme analysis",
             key=widget_key#f"{report_key}framework_select_{reset_counter}"
         )
