@@ -866,7 +866,8 @@ def save_dashboard_images_as_zip(isPFD:bool, filtered_df, callback=None):
             zip_file.write(text_file, arcname="README.txt")
             image_count += 1
             logging.info(f"Successfully added {htmlFile} to zip")
-            
+            if callback:
+                callback(image_count)
         # === TAB 1: FRAMEWORK HEATMAP ===
         try:
             # Framework distribution chart
