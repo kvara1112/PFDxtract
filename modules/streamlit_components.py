@@ -3553,11 +3553,15 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
         
             with col3:
                 # All Images Export
+                status_message = st.empty()
+                status_message.info("⏳ Generating visualizations and preparing download…")
                 try:
                     # Get the zip file and image count
+                    
                     images_zip, image_count = save_dashboard_images_as_zip(isPFD, filtered_df)
 
                     # Update button text to show number of images
+                    status_message.empty()
                     st.download_button(
                         f"📥 Download {image_count} Visualizations (ZIP)",
                         data=images_zip,
