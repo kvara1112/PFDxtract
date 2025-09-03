@@ -3553,17 +3553,11 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
         
             with col3:
                 # All Images Export
-                progress_placeholder = st.empty()
-                #progress_bar = st.progress(0)
-                def update_progress(count):
-                    progress_placeholder.progress(min(count,100))
-                    import time; time.sleep(0)
                 try:
                     # Get the zip file and image count
-                    images_zip, image_count = save_dashboard_images_as_zip(isPFD, filtered_df, callback=update_progress)
-                    progress_placeholder.progress(100)
+                    images_zip, image_count = save_dashboard_images_as_zip(isPFD, filtered_df)
+
                     # Update button text to show number of images
-                    progress_placeholder.empty()
                     st.download_button(
                         f"📥 Download {image_count} Visualizations (ZIP)",
                         data=images_zip,

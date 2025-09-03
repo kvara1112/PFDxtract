@@ -772,7 +772,7 @@ def export_topic_results(lda_model, vectorizer, feature_names, doc_topics) -> st
 
 
 
-def save_dashboard_images_as_zip(isPFD:bool, filtered_df, callback=None):
+def save_dashboard_images_as_zip(isPFD:bool, filtered_df):
     """
     Save all dashboard visualizations as images and package them into a zip file.
     Improved version that properly generates and captures all visualizations from all tabs.
@@ -851,7 +851,6 @@ def save_dashboard_images_as_zip(isPFD:bool, filtered_df, callback=None):
                     zip_file.writestr(filename, img_bytes)
                     image_count += 1
                     logging.info(f"Successfully added {filename} to zip")
-                    
                     return True
                 else:
                     logging.warning(f"No image bytes generated for {filename}")
@@ -866,8 +865,6 @@ def save_dashboard_images_as_zip(isPFD:bool, filtered_df, callback=None):
             zip_file.write(text_file, arcname="README.txt")
             image_count += 1
             logging.info(f"Successfully added {htmlFile} to zip")
-            if callback:
-                callback(image_count)
         # === TAB 1: FRAMEWORK HEATMAP ===
         try:
             # Framework distribution chart
