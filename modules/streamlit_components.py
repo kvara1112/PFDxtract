@@ -1849,7 +1849,7 @@ def render_bert_analysis_tabworking(data: pd.DataFrame = None):
                     
                     # Mark as initialized
                     st.session_state.bert_initialized = True
-                
+                st.success("Model and tokenizer loaded successfully!")
                 # Set custom configuration
                 theme_analyzer.config[
                     "base_similarity_threshold"
