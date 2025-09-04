@@ -1472,7 +1472,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
 
     # Find text columns (object/string type)
     text_columns = data.select_dtypes(include=["object"]).columns.tolist()
-    allowed_text_columns = [col for col in["Content", "Extracted_concerns"] if col in data.columns]
+    allowed_text_columns = [col for col in["Content", "Extracted_Concerns"] if col in data.columns]
     # If no text columns found
     if not text_columns:
         st.error("No text columns found in the dataset.")
