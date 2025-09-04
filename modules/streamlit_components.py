@@ -1472,17 +1472,20 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
 
     # Find text columns (object/string type)
     text_columns = data.select_dtypes(include=["object"]).columns.tolist()
-
+    allowed_text_columns = [col for col in["Content", "Extracted_concerns"] if col in data.columns]
     # If no text columns found
     if not text_columns:
         st.error("No text columns found in the dataset.")
         return
-
+    if not allowed_text_columns:
+        st.error("Neither Content nor Extracted concerns column found in the dataset")
+        return
     # Column selection with dropdown
     content_column = st.selectbox(
         "Choose the column to analyse:",
-        options=text_columns,
-        index=text_columns.index("Content") if "Content" in text_columns else 0,
+        options=allowed_text_columns,
+        #index=text_columns.index("Content") if "Content" in text_columns else 0,
+        index = 0,
         help="Select the column containing the text you want to analyse",
         key="bert_content_column",
     )
