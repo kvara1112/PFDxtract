@@ -1543,7 +1543,15 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     return
 
                 # Initialize the theme analyzer (with loading message in a spinner)
-                with st.spinner("Loading annotation model and tokenizer..."):
+                # with st.spinner("Loading annotation model and tokenizer..."):
+                #     # Initialize the analyzer
+                #     theme_analyzer = ThemeAnalyzer(
+                #         model_name="emilyalsentzer/Bio_ClinicalBERT"
+                #     )
+                    
+                #     # Mark as initialized
+                #     st.session_state[bert_initialized_key] = True
+                with st.status("Loading annotation model and tokenizer...", expanded=False) as status:
                     # Initialize the analyzer
                     theme_analyzer = ThemeAnalyzer(
                         model_name="emilyalsentzer/Bio_ClinicalBERT"
@@ -1551,7 +1559,11 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     
                     # Mark as initialized
                     st.session_state[bert_initialized_key] = True
-                st.success("Model and tokenizer loaded successfully!")
+
+                    # Update status once loading is done
+                    status.update(label="Model and tokenizer loaded successfully!", state="complete")
+
+                #st.success("Model and tokenizer loaded successfully!")
                 # Set custom configuration
                 theme_analyzer.config[
                     "base_similarity_threshold"
