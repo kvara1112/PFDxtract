@@ -1551,17 +1551,14 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     
                 #     # Mark as initialized
                 #     st.session_state[bert_initialized_key] = True
-                with st.status("Loading annotation model and tokenizer...", expanded=False) as status:
-                    # Initialize the analyzer
+                with st.status("", expanded=False) as status:
                     theme_analyzer = ThemeAnalyzer(
                         model_name="emilyalsentzer/Bio_ClinicalBERT"
                     )
-                    
-                    # Mark as initialized
                     st.session_state[bert_initialized_key] = True
+                    # Replace the label instead of adding a log
+                    status.update(label="Model and tokenizer loaded successfully!", state="complete", expanded=False)
 
-                    # Update status once loading is done
-                    status.update(label="Model and tokenizer loaded successfully!", state="complete")
 
                 #st.success("Model and tokenizer loaded successfully!")
                 # Set custom configuration
