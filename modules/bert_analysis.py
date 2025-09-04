@@ -1387,7 +1387,7 @@ class ThemeAnalyzer:
     def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
         """Initialize the BERT-based theme analyzer with sentence highlighting capabilities"""
         # Initialize transformer model and tokenizer
-        st.info("Loading annotation model and tokeniser... This may take a moment.")
+        #st.info("Loading annotation model and tokeniser... This may take a moment.")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModel.from_pretrained(model_name)
 
