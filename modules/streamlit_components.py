@@ -1551,7 +1551,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     
                     # Mark as initialized
                     st.session_state[bert_initialized_key] = True
-                
+                st.success("Model and tokenizer loaded successfully!")
                 # Set custom configuration
                 theme_analyzer.config[
                     "base_similarity_threshold"
