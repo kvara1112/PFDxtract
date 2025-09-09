@@ -1565,14 +1565,18 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                         return [
                             {
                                 "name": theme["name"],
-                                "keywords": [stemmer.stem(k) for k in theme["keywords"]],
+                                "keywords": list(set(
+                                    theme["keywords"] + [stemmer.stem(k) for k in theme["keywords"]]
+                                )),
                             }
                             for theme in framework_data
                         ]
                     # If framework is a dict {theme: [keywords]}
                     elif isinstance(framework_data, dict):
                         return {
-                            theme: [stemmer.stem(k) for k in keywords]
+                            theme: list(set(
+                                keywords + [stemmer.stem(k) for k in keywords]
+                            ))
                             for theme, keywords in framework_data.items()
                         }
                     else:
