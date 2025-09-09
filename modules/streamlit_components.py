@@ -1602,6 +1602,8 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                         fw = {}
 
                     filtered_frameworks[framework] = stem_framework_keywords(fw)
+
+                st.write("Stemmed frameworks:", filtered_frameworks)
                 # Set the filtered frameworks
                 theme_analyzer.frameworks = filtered_frameworks
                 
