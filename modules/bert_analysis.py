@@ -704,7 +704,7 @@ class BERTResultsAnalyzer:
     
                     reduced_csv_data = df_csv_reduced.to_csv(index=False).encode("utf-8")
                     st.download_button(
-                        "📥 Download Reduced Dataset (CSV)",
+                        "📥 Download Coroners Concerns (CSV)",
                         data=reduced_csv_data,
                         file_name=f"{filename_prefix}_reduced.csv",
                         mime="text/csv",
@@ -722,7 +722,7 @@ class BERTResultsAnalyzer:
                     )
                     excel_buffer_reduced.seek(0)
                     st.download_button(
-                        "📥 Download Reduced Dataset (Excel)",
+                        "📥 Download Coroners Concerns (Excel)",
                         data=excel_buffer_reduced,
                         file_name=f"{filename_prefix}_reduced.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
