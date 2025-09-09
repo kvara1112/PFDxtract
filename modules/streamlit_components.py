@@ -3351,6 +3351,8 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                 </div>
 
                 """
+
+                st.info("Drag around the nodes to position them as desired")
                 # Inject PNG download button and html2canvas script into the HTML
                 with open("outputs/network.html", "r", encoding="utf-8") as f:
                     html = f.read()
