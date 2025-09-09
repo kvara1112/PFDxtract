@@ -27,6 +27,7 @@ import os
 import uuid
 import logging
 import pdfplumber
+from nltk.stem import PorterStemmer
 # Import our modules
 from .core_utils import (
     process_scraped_data, 
@@ -1557,23 +1558,38 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     "base_similarity_threshold"
                 ] = similarity_threshold
                 
+                stemmer = PorterStemmer()
+
+                def stem_framework_keywords(framework_dict):
+                    return{
+                        name: [stemmer.stem(k) for k in keywords]
+                        for name, keywords in framework_dict.items()
+                    }
                 # Filter frameworks based on user selection
                 filtered_frameworks = {}
                 
                 # Add selected built-in frameworks
                 for framework in st.session_state[widget_key]:
                     if framework == "I-SIRch":
-                        filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
+                        #filtered_frameworks["I-SIRch"] = theme_analyzer._get_isirch_framework()
+                        fw = theme_analyzer._get_isirch_framework()
                     elif framework == "House of Commons":
-                        filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
+                        #filtered_frameworks["House of Commons"] = theme_analyzer._get_house_of_commons_themes()
+                        fw = theme_analyzer._get_house_of_commons_themes()
                     elif framework == "Extended Analysis":
-                        filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
+                        #filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
+                        fw = theme_analyzer._get_extended_themes()                    
                     elif framework == "Yorkshire Contributory":
-                        filtered_frameworks["Yorkshire Contributory"] = theme_analyzer._get_yorkshire_framework()
+                        #filtered_frameworks["Yorkshire Contributory"] = theme_analyzer._get_yorkshire_framework()
+                        fw = theme_analyzer._get_yorkshire_framework()
                     elif framework in st.session_state[custom_frameworks_key]:
                         # Add custom framework
-                        filtered_frameworks[framework] = st.session_state[custom_frameworks_key][framework]
-                
+                        #filtered_frameworks[framework] = st.session_state[custom_frameworks_key][framework]
+                        fw = st.session_state[custom_frameworks_key][framework]
+                    else:
+                        fw = {}
+
+                    filtered_frameworks[framework] = stem_framework_keywords(fw)
                 # Set the filtered frameworks
                 theme_analyzer.frameworks = filtered_frameworks
                 
