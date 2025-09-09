@@ -1560,11 +1560,23 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 
                 stemmer = PorterStemmer()
 
-                def stem_framework_keywords(framework_dict):
-                    return{
-                        name: [stemmer.stem(k) for k in keywords]
-                        for name, keywords in framework_dict.items()
-                    }
+                def stem_framework_keywords(framework_data):
+                    if isinstance(framework_data, list):
+                        return [
+                            {
+                                "name": theme["name"],
+                                "keywords": [stemmer.stem(k) for k in theme["keywords"]],
+                            }
+                            for theme in framework_data
+                        ]
+                    # If framework is a dict {theme: [keywords]}
+                    elif isinstance(framework_data, dict):
+                        return {
+                            theme: [stemmer.stem(k) for k in keywords]
+                            for theme, keywords in framework_data.items()
+                        }
+                    else:
+                        raise TypeError(f"Unexpected framework type: {type(framework_data)}")
                 # Filter frameworks based on user selection
                 filtered_frameworks = {}
                 
