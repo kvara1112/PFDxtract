@@ -2370,7 +2370,9 @@ class ThemeAnalyzer:
                         "hadn't had a break",
                         "felt overwhelmed",
                         "preoccupied",
-                        "staff were sick"
+                        "were sick",
+                        "workload",
+                        "staff not listening"
                     ]
                 },
                 {
@@ -2402,7 +2404,12 @@ class ThemeAnalyzer:
                         "elderly",
                         "fragile",
                         "unwell",
-                        "not suitable"
+                        "not suitable",
+                        "patient anxiety",
+                        "information provision",
+                        "trauma history",
+                        "personality disorder",
+                        "self-harm"
                     ]
                 },
                 {
@@ -2413,7 +2420,8 @@ class ThemeAnalyzer:
                         "insufficient staff",
                         "staff sickness",
                         "inexperienced staff",
-                        "no staff"
+                        "no staff",
+                        "staffed"
                     ]
                 },
                 {
@@ -2453,7 +2461,11 @@ class ThemeAnalyzer:
                         "overlap in responsibility",
                         "not sure who",
                         "mutlple allocation",
-                        "no allocation"
+                        "no allocation",
+                        "agencies",
+                        "consultation",
+                        "advice",
+                        "monitoring"
                     ]
                 },
                 {
@@ -2461,13 +2473,14 @@ class ThemeAnalyzer:
                     "keywords":[
                         "short-staffed",
                         "under pressure",
-                        "busy",
+                        "too busy",
                         "no time",
                         "no cover",
                         "no one available",
                         "no support",
                         "poor communication",
-                        "availability"
+                        "availability",
+                        "continuity of care"
                     ]
                 },
                 {
@@ -2502,20 +2515,28 @@ class ThemeAnalyzer:
                         "medical departmant",
                         "GP",
                         "ambulance",
-                        "facilities"
+                        "facilities",
+                        "mental health services",
+                        "contact with police",
+                        "accident and emergency department",
+                        "do not cater"
                     ]
                 },
                 {
-                    "name":"Organisational Factors- Scheduling and Bed Management",
+                    "name":"Organisational Factors- Care planning",
                     "keywords":[
                         "delay in the provision of care",
-                        "difficulties finding a bed",
                         "ward transfer",
                         "poor out of hours support",
                         "no beds available",
                         "hospital in full capacity",
                         "discharged to make space",
-                        "hospital bed"
+                        "hospital bed",
+                        "care planning",
+                        "care",
+                        "care plan",
+                        "no space",
+                        "absence of treatment"
                     ]
                 },
                 {
@@ -2532,7 +2553,9 @@ class ThemeAnalyzer:
                         "outside the experience",
                         "outside their capabilities",
                         "trained",
-                        "training"
+                        "training",
+                        "monitoring",
+                        "lack of awareness"
                     ]
                 },
                 {
@@ -2542,11 +2565,13 @@ class ThemeAnalyzer:
                         "policy not followed",
                         "unclear procedure",
                         "lack of guidance",
-                        "inconsitent policies",
+                        "guidance",
+                        "inconsistent policies",
                         "complex procedure",
                         "conflicting instructions",
                         "outdated policy",
-                        "policy"
+                        "policy",
+                        "procedure"
                     ]
                 },
                 {
@@ -2598,11 +2623,13 @@ class ThemeAnalyzer:
                         "safety awareness",
                         "fear of documenting errors",
                         "risk management",
-                        "afraid of senior",
+                        "afraid of seniors",
                         "mistakes punishment",
                         "no risk assessment",
                         "safety notices",
-                        "no safety"
+                        "no safety",
+                        "raising concerns",
+                        "concerns"
                     ]
                 },
                 {
@@ -2614,7 +2641,13 @@ class ThemeAnalyzer:
                         "lack of notes",
                         "unable to read notes",
                         "legibility",
-                        "notes availability"
+                        "notes availability",
+                        "communication",
+                        "documenting",
+                        "documentation",
+                        "clinical information",
+                        "written records",
+                        "lacked clarity"
                     ]
                 },
                 {
@@ -2632,7 +2665,9 @@ class ThemeAnalyzer:
                         "wrong decision",
                         "misunderstanding",
                         "misjudged risk",
-                        "wrong protocol"
+                        "wrong protocol",
+                        "not reported",
+                        "confusion"
                     ]
                 },
                 {
@@ -2646,8 +2681,14 @@ class ThemeAnalyzer:
                         "skipping checks",
                         "skipped double check",
                         "knew the policy",
+                        "confidentiality breach",
+                        "not acted upon",
                         "presumed",
-                        "not followed"
+                        "not followed",
+                        "monitoring",
+                        "verbal abuse",
+                        "Mental Health Act breach",
+                        "inappropriate use"
                     ]
                 }
                 # {
