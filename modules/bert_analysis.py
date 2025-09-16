@@ -2565,8 +2565,7 @@ class ThemeAnalyzer:
                         "trained",
                         "training",
                         "monitoring",
-                        "lack of awareness",
-                        "assessment"
+                        "lack of awareness"
                     ]
                 },
                 {
@@ -2623,7 +2622,6 @@ class ThemeAnalyzer:
                         "inteference",
                         "national medical standards",
                         "emergencey department",
-                        "locally",
                         "nationally",
                         "due to the rules and regulations"
                     ]
@@ -2640,7 +2638,6 @@ class ThemeAnalyzer:
                         "safety notices",
                         "no safety",
                         "raising concerns",
-                        "concerns",
                         "mental health assessment",
                         "culture"
                     ]
