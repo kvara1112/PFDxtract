@@ -2566,7 +2566,8 @@ class ThemeAnalyzer:
                         "psychotherapy training"
                         "monitoring",
                         "lack of awareness",
-                        "expertise"
+                        "expertise",
+                        "training"
                     ]
                 },
                 {
