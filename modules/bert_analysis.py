@@ -2387,7 +2387,8 @@ class ThemeAnalyzer:
                         "multiple steps",
                         "had to multitask",
                         "rare procedure",
-                        "job"
+                        "job",
+                        "timescale"
                     ]
                 },
                 {
@@ -2544,7 +2545,8 @@ class ThemeAnalyzer:
                         "absence of treatment",
                         "inpatient beds",
                         "coordination",
-                        "delayed discharge"
+                        "delayed discharge",
+                        "time taken"
                     ]
                 },
                 {
