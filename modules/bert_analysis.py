@@ -2562,12 +2562,11 @@ class ThemeAnalyzer:
                         "no risk assessment",
                         "outside the experience",
                         "outside their capabilities",
-                        "training on",
-                        "psychotherapy training"
+                        "trained",
+                        "training",
                         "monitoring",
                         "lack of awareness",
-                        "expertise",
-                        "training"
+                        "assessment"
                     ]
                 },
                 {
