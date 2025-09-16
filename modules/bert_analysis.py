@@ -2354,7 +2354,8 @@ class ThemeAnalyzer:
                         "poor feedback",
                         "team function",
                         "poor communication",
-                        "team"
+                        "team",
+                        "teams"
                     ]
                 },
                 {
@@ -2372,7 +2373,8 @@ class ThemeAnalyzer:
                         "preoccupied",
                         "were sick",
                         "workload",
-                        "staff not listening"
+                        "staff not listening",
+                        "did not understand"
                     ]
                 },
                 {
@@ -2465,7 +2467,8 @@ class ThemeAnalyzer:
                         "agencies",
                         "consultation",
                         "advice",
-                        "monitoring"
+                        "monitoring",
+                        "responsibility"
                     ]
                 },
                 {
@@ -2500,7 +2503,8 @@ class ThemeAnalyzer:
                         "working conditions",
                         "smoke detector",
                         "smoky",
-                        "smoke filled"
+                        "smoke filled",
+                        "environment"
                     ]
                 },
                 {
@@ -2514,7 +2518,8 @@ class ThemeAnalyzer:
                         "blood bank",
                         "medical departmant",
                         "GP",
-                        "ambulance",
+                        "ambulance delay",
+                        "ambulance arrival",
                         "facilities",
                         "mental health services",
                         "contact with police",
@@ -2525,7 +2530,7 @@ class ThemeAnalyzer:
                 {
                     "name":"Organisational Factors- Care planning",
                     "keywords":[
-                        "delay in the provision of care",
+                        "delay",
                         "ward transfer",
                         "poor out of hours support",
                         "no beds available",
@@ -2536,7 +2541,10 @@ class ThemeAnalyzer:
                         "care",
                         "care plan",
                         "no space",
-                        "absence of treatment"
+                        "absence of treatment",
+                        "inpatient beds",
+                        "coordination",
+                        "delayed discharge"
                     ]
                 },
                 {
@@ -2555,7 +2563,8 @@ class ThemeAnalyzer:
                         "trained",
                         "training",
                         "monitoring",
-                        "lack of awareness"
+                        "lack of awareness",
+                        "assessment"
                     ]
                 },
                 {
@@ -2629,7 +2638,9 @@ class ThemeAnalyzer:
                         "safety notices",
                         "no safety",
                         "raising concerns",
-                        "concerns"
+                        "concerns",
+                        "mental health assessment",
+                        "culture"
                     ]
                 },
                 {
@@ -2667,7 +2678,8 @@ class ThemeAnalyzer:
                         "misjudged risk",
                         "wrong protocol",
                         "not reported",
-                        "confusion"
+                        "confusion",
+                        "did not read"
                     ]
                 },
                 {
