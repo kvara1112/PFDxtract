@@ -2355,7 +2355,8 @@ class ThemeAnalyzer:
                         "team function",
                         "poor communication",
                         "a team",
-                        "the team"
+                        "the team",
+                        "team could not"
                     ]
                 },
                 {
@@ -2424,7 +2425,8 @@ class ThemeAnalyzer:
                         "staff sickness",
                         "inexperienced staff",
                         "no staff",
-                        "staffed"
+                        "staffed",
+                        "workload"
                     ]
                 },
                 {
@@ -2469,7 +2471,9 @@ class ThemeAnalyzer:
                         "different agencies",
                         "monitoring",
                         "responsibility",
-                        "failure to allocate"
+                        "failure to allocate",
+                        "consultation with other agencies",
+                        "responsibility for the patient"
                     ]
                 },
                 {
@@ -2484,7 +2488,8 @@ class ThemeAnalyzer:
                         "no support",
                         "poor communication",
                         "availability",
-                        "continuity of care"
+                        "continuity of care",
+                        "no staff to conduct"
                     ]
                 },
                 {
@@ -2502,8 +2507,9 @@ class ThemeAnalyzer:
                         "exposure to",
                         "unsafe conditions",
                         "working conditions",
-                        "environment",
-                        "secure unit"
+                        "unsuitable environment",
+                        "secure unit",
+                        "patient area"
                     ]
                 },
                 {
@@ -2546,7 +2552,11 @@ class ThemeAnalyzer:
                         "coordination",
                         "delayed discharge",
                         "time taken",
-                        "advise"
+                        "advise",
+                        "lack of equipment",
+                        "lack a robust system",
+                        "coordination",
+                        "arrangements"
                     ]
                 },
                 {
@@ -2565,7 +2575,8 @@ class ThemeAnalyzer:
                         "training",
                         "monitoring",
                         "lack of awareness",
-                        "expertise"
+                        "expertise",
+                        "did not have knowledge"
                     ]
                 },
                 {
@@ -2582,7 +2593,9 @@ class ThemeAnalyzer:
                         "outdated policy",
                         "policy",
                         "procedure",
-                        "management tool"
+                        "management tool",
+                        "guidance to be provided",
+                        "issue of privacy"
                     ]
                 },
                 {
@@ -2625,7 +2638,8 @@ class ThemeAnalyzer:
                         "emergencey department",
                         "nationally",
                         "due to the rules and regulations",
-                        "mental health act"
+                        "mental health act",
+                        "nationwide policy"
                     ]
                 },
                 {
@@ -2641,7 +2655,7 @@ class ThemeAnalyzer:
                         "no safety",
                         "raising concerns",
                         "mental health assessment",
-                        "culture"
+                        "culture/stigma"
                     ]
                 },
                 {
@@ -2662,7 +2676,10 @@ class ThemeAnalyzer:
                         "lacked clarity",
                         "liaison",
                         "accurately recorded",
-                        "did not make any notes"
+                        "did not make any notes",
+                        "staff communicated",
+                        "lack of availability",
+                        "information gathering"
                     ]
                 },
                 {
@@ -2679,7 +2696,7 @@ class ThemeAnalyzer:
                         "overlooked alert",
                         "wrong decision",
                         "misunderstanding",
-                        "misjudged risk",
+                        "misjudgement",
                         "wrong protocol",
                         "not reported",
                         "confusion",
@@ -2690,7 +2707,8 @@ class ThemeAnalyzer:
                         "decision-making",
                         "no action was taken",
                         "notwithstanding the seriousness",
-                        "informed incorrectly"
+                        "informed incorrectly",
+                        "were not aware"
                     ]
                 },
                 {
