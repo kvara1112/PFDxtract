@@ -2437,7 +2437,8 @@ class ThemeAnalyzer:
                         "limited supervision",
                         "no supervision",
                         "lack of regulation",
-                        "manager"
+                        "manager",
+                        "monitoring"
                     ]
                 },
                 {
@@ -2501,9 +2502,6 @@ class ThemeAnalyzer:
                         "exposure to",
                         "unsafe conditions",
                         "working conditions",
-                        "smoke detector",
-                        "smoky",
-                        "smoke filled",
                         "environment",
                         "secure unit"
                     ]
@@ -2526,7 +2524,8 @@ class ThemeAnalyzer:
                         "contact with police",
                         "accident and emergency department",
                         "do not cater",
-                        "mental health urgent care department"
+                        "mental health urgent care department",
+                        "coordination"
                     ]
                 },
                 {
@@ -2589,7 +2588,6 @@ class ThemeAnalyzer:
                 {
                     "name": "Organisational Factors- Escalation/referral factor",
                     "keywords": [
-                        "escalation/referral factor",
                         "escalation/referral",
                         "including fresh eyes reviews",
                         "specialist referral",
@@ -2626,7 +2624,8 @@ class ThemeAnalyzer:
                         "national medical standards",
                         "emergencey department",
                         "nationally",
-                        "due to the rules and regulations"
+                        "due to the rules and regulations",
+                        "mental health act"
                     ]
                 },
                 {
