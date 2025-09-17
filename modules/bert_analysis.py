@@ -2576,7 +2576,7 @@ class ThemeAnalyzer:
                         "policy not followed",
                         "unclear procedure",
                         "lack of guidance",
-                        "guidance",
+                        "no guidance",
                         "inconsistent policies",
                         "complex procedure",
                         "conflicting instructions",
