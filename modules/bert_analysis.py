@@ -2354,8 +2354,8 @@ class ThemeAnalyzer:
                         "poor feedback",
                         "team function",
                         "poor communication",
-                        "team",
-                        "teams"
+                        "a team",
+                        "the team"
                     ]
                 },
                 {
@@ -2452,7 +2452,7 @@ class ThemeAnalyzer:
                         "battery was flat",
                         "not restocked",
                         "missing equipment",
-                        "mechanism",
+                        "mechanism was broken",
                         "material"
                     ]
                 },
@@ -2465,11 +2465,10 @@ class ThemeAnalyzer:
                         "not sure who",
                         "mutlple allocation",
                         "no allocation",
-                        "agencies",
-                        "consultation",
-                        "advice",
+                        "different agencies",
                         "monitoring",
-                        "responsibility"
+                        "responsibility",
+                        "failure to allocate"
                     ]
                 },
                 {
@@ -2505,7 +2504,8 @@ class ThemeAnalyzer:
                         "smoke detector",
                         "smoky",
                         "smoke filled",
-                        "environment"
+                        "environment",
+                        "secure unit"
                     ]
                 },
                 {
@@ -2525,7 +2525,8 @@ class ThemeAnalyzer:
                         "mental health services",
                         "contact with police",
                         "accident and emergency department",
-                        "do not cater"
+                        "do not cater",
+                        "mental health urgent care department"
                     ]
                 },
                 {
@@ -2539,14 +2540,14 @@ class ThemeAnalyzer:
                         "discharged to make space",
                         "hospital bed",
                         "care planning",
-                        "care",
                         "care plan",
                         "no space",
                         "absence of treatment",
                         "inpatient beds",
                         "coordination",
                         "delayed discharge",
-                        "time taken"
+                        "time taken",
+                        "advise"
                     ]
                 },
                 {
@@ -2562,7 +2563,6 @@ class ThemeAnalyzer:
                         "no risk assessment",
                         "outside the experience",
                         "outside their capabilities",
-                        "trained",
                         "training",
                         "monitoring",
                         "lack of awareness",
@@ -2583,7 +2583,8 @@ class ThemeAnalyzer:
                         "conflicting instructions",
                         "outdated policy",
                         "policy",
-                        "procedure"
+                        "procedure",
+                        "management tool"
                     ]
                 },
                 {
@@ -2599,7 +2600,8 @@ class ThemeAnalyzer:
                         "interdisciplinary referral",
                         "escalation delay",
                         "consultant opinion",
-                        "referral"
+                        "referral",
+                        "did not escalate"
                     ]
                 },
                 {
@@ -2611,7 +2613,7 @@ class ThemeAnalyzer:
                         "unclear labelling",
                         "equipment",
                         "design",
-                        "mechanism",
+                        "its mechanism",
                         "equipped"
                     ]
                 },
@@ -2659,7 +2661,10 @@ class ThemeAnalyzer:
                         "documentation",
                         "clinical information",
                         "written records",
-                        "lacked clarity"
+                        "lacked clarity",
+                        "liaison",
+                        "accurately recorded",
+                        "did not make any notes"
                     ]
                 },
                 {
@@ -2680,7 +2685,14 @@ class ThemeAnalyzer:
                         "wrong protocol",
                         "not reported",
                         "confusion",
-                        "did not read"
+                        "did not read",
+                        "voicemail",
+                        "record keeping",
+                        "never diagnosed",
+                        "decision-making",
+                        "no action was taken",
+                        "notwithstanding the seriousness",
+                        "informed incorrectly"
                     ]
                 },
                 {
@@ -2701,7 +2713,8 @@ class ThemeAnalyzer:
                         "monitoring",
                         "verbal abuse",
                         "Mental Health Act breach",
-                        "inappropriate use"
+                        "inappropriate use",
+                        "did not want to"
                     ]
                 }
                 # {
