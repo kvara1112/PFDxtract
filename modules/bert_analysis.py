@@ -2566,7 +2566,6 @@ class ThemeAnalyzer:
                         "training",
                         "monitoring",
                         "lack of awareness",
-                        "assessment",
                         "expertise"
                     ]
                 },
