@@ -2262,7 +2262,7 @@ class ThemeAnalyzer:
                 # Theme embedding
                 # --------------------------
                 theme_text = theme["name"] + ": " + ", ".join(theme.get("keywords", []))
-                theme_embedding = self.get_embedding(theme_text)
+                theme_embedding = self.get_bert_embedding(theme_text)
 
                 # --------------------------
                 # Semantic similarity
