@@ -1455,7 +1455,7 @@ class ThemeAnalyzer:
         if not isinstance(text, str) or not text.strip():
             #return np.zeros(768)
             return np.zeros(self.embedding_model.get_sentence_embedding_dimension())
-        return self.model_name.encode(text, normalize_embeddings = True)
+        return self.embedding_model.encode(text, normalize_embeddings = True)
         # Tokenize with truncation
         inputs = self.tokenizer(
             text,
