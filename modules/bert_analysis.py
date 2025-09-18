@@ -17,7 +17,7 @@ from tqdm import tqdm
 import os
 import shutil
 import streamlit as st
-from sentence_transformers import SentenceTransformer
+from sentence_trandformers import SentenceTransformer, util
 # Optional WeasyPrint import (only needed for PDF generation)
 try:
     from weasyprint import HTML, CSS
@@ -1384,14 +1384,15 @@ class BERTResultsAnalyzer:
 
 ###########################
 class ThemeAnalyzer:
-    def __init__(self, model_name="emilyalsentzer/Bio_ClinicalBERT"):
+    def __init__(self, model_name="pritamdeka/S-BioBert-snli-multinli-stsb"):
         """Initialize the BERT-based theme analyzer with sentence highlighting capabilities"""
         # Initialize transformer model and tokenizer
         #st.info("Loading annotation model and tokeniser... This may take a moment.")
+        self.embedding_model = SentenceTransformer(model_name)
+
         ##self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         ##self.model = AutoModel.from_pretrained(model_name)
 
-        self.embedding_model = SentenceTransformer(model_name)
         # Configuration settings
         self.config = {
             "base_similarity_threshold": 0.65,
@@ -1452,25 +1453,28 @@ class ThemeAnalyzer:
 
     def get_bert_embedding(self, text, max_length=512):
         """Generate BERT embedding for text"""
-        if not isinstance(text, str) or not text.strip():
-            #return np.zeros(768)
+        if not text or not isinstance(text, str):
             return np.zeros(self.embedding_model.get_sentence_embedding_dimension())
-        return self.embedding_model.encode(text, normalize_embeddings = True)
-        # Tokenize with truncation
-        inputs = self.tokenizer(
-            text,
-            return_tensors="pt",
-            truncation=True,
-            max_length=max_length,
-            padding=True,
-        )
 
-        # Get embeddings
-        with torch.no_grad():
-            outputs = self.model(**inputs)
+        return self.embedding_model.encode(text, normalize_embeddings=True)
+        # if not isinstance(text, str) or not text.strip():
+        #     return np.zeros(768)
 
-        # Use CLS token for sentence representation
-        return outputs.last_hidden_state[:, 0, :].squeeze().numpy()
+        # # Tokenize with truncation
+        # inputs = self.tokenizer(
+        #     text,
+        #     return_tensors="pt",
+        #     truncation=True,
+        #     max_length=max_length,
+        #     padding=True,
+        # )
+
+        # # Get embeddings
+        # with torch.no_grad():
+        #     outputs = self.model(**inputs)
+
+        # # Use CLS token for sentence representation
+        # return outputs.last_hidden_state[:, 0, :].squeeze().numpy()
 
     def _get_contextual_embedding(self, text, keyword, window_size=100):
         """Get embedding for text surrounding the keyword occurrence"""
@@ -2226,14 +2230,107 @@ class ThemeAnalyzer:
         """Analyze document text for themes and highlight sentences containing theme keywords"""
         if not isinstance(text, str) or not text.strip():
             return {}, {}
+        sentence_endings = r"(?<=[.!?])\s+(?=[A-Z])"
+        sentences = re.split(sentence_endings, text)
+        sentence_embeddings = self.embedding_model.encode(sentences, normalize_embeddings=True)
 
-        # Get full document embedding
-        document_embedding = self.get_bert_embedding(text)
         text_length = len(text.split())
-
         framework_themes = {}
         theme_highlights = {}
+        # Get full document embedding
+        # document_embedding = self.get_bert_embedding(text)
+        # text_length = len(text.split())
 
+        # framework_themes = {}
+        # theme_highlights = {}
+        for framework_name, framework_theme_list in self.frameworks.items():
+            all_keyword_matches = []
+            theme_matches = []
+
+            for theme in framework_theme_list:
+                # --------------------------
+                # Sentence positions & keywords
+                # --------------------------
+                sentence_positions = self._find_sentence_positions(text, theme.get("keywords", []))
+                matched_keywords = []
+                for _, _, keywords_str, _ in sentence_positions:
+                    for keyword in keywords_str.split(", "):
+                        if keyword not in matched_keywords:
+                            matched_keywords.append(keyword)
+
+                # --------------------------
+                # Theme embedding
+                # --------------------------
+                theme_text = theme["name"] + ": " + ", ".join(theme.get("keywords", []))
+                theme_embedding = self.get_embedding(theme_text)
+
+                # --------------------------
+                # Semantic similarity
+                # --------------------------
+                semantic_scores = [
+                    cosine_similarity([sent_emb], [theme_embedding])[0][0] for sent_emb in sentence_embeddings
+                ]
+                max_semantic_similarity = max(semantic_scores) if semantic_scores else 0
+
+                # --------------------------
+                # Keyword score
+                # --------------------------
+                keyword_score = min(1.0, len(matched_keywords) / max(1, len(theme.get("keywords", []))))
+
+                # --------------------------
+                # Combined score
+                # --------------------------
+                combined_score = max(
+                    max_semantic_similarity,
+                    self.config["semantic_similarity_weight"] * max_semantic_similarity +
+                    self.config["keyword_match_weight"] * keyword_score
+                )
+
+                # --------------------------
+                # Keep only significant matches
+                # --------------------------
+                if matched_keywords and combined_score >= self.config["base_similarity_threshold"]:
+                    theme_matches.append({
+                        "theme": theme["name"],
+                        "semantic_similarity": round(max_semantic_similarity, 3),
+                        "combined_score": round(combined_score, 3),
+                        "matched_keywords": ", ".join(matched_keywords),
+                        "keyword_count": len(matched_keywords),
+                        "sentence_positions": sentence_positions
+                    })
+                    all_keyword_matches.extend(matched_keywords)
+
+            # --------------------------
+            # Sort and limit top themes
+            # --------------------------
+            theme_matches.sort(key=lambda x: x["combined_score"], reverse=True)
+            top_theme_matches = theme_matches[:self.config.get("max_themes_per_framework", 5)]
+
+            # --------------------------
+            # Filter overlaps
+            # --------------------------
+            final_themes = []
+            used_keywords = set()
+            for theme_match in top_theme_matches:
+                theme_keywords = set(theme_match["matched_keywords"].split(", "))
+                unique_keywords = theme_keywords - used_keywords
+
+                if unique_keywords or theme_match["combined_score"] > 0.75:
+                    final_themes.append({
+                        "theme": theme_match["theme"],
+                        "semantic_similarity": theme_match["semantic_similarity"],
+                        "combined_score": theme_match["combined_score"],
+                        "matched_keywords": theme_match["matched_keywords"],
+                        "keyword_count": theme_match["keyword_count"]
+                    })
+                    theme_key = f"{framework_name}_{theme_match['theme']}"
+                    theme_highlights[theme_key] = theme_match["sentence_positions"]
+                    used_keywords.update(theme_keywords)
+
+            framework_themes[framework_name] = final_themes
+
+        return framework_themes, theme_highlights
+    """
         for framework_name, framework_theme_list in self.frameworks.items():
             # Track keyword matches across the entire document
             all_keyword_matches = []
@@ -2264,22 +2361,35 @@ class ThemeAnalyzer:
                 # Calculate semantic similarity with theme description
                 theme_description = theme["name"] + ": " + ", ".join(theme["keywords"])
                 theme_embedding = self.get_bert_embedding(theme_description)
-                theme_doc_similarity = cosine_similarity(
-                    [document_embedding], [theme_embedding]
-                )[0][0]
+                # Split document into sentences
+                sentence_endings = r"(?<=[.!?])\s+(?=[A-Z])"
+                sentences = re.split(sentence_endings, text)
+                sentence_embeddings = self.embedding_model.encode(sentences, normalize_embeddings=True)
 
-                # Calculate context similarities if available
-                context_similarities = []
-                if match_contexts:
-                    for context_emb in match_contexts:
-                        sim = cosine_similarity([context_emb], [theme_embedding])[0][0]
-                        context_similarities.append(sim)
+                # Theme embedding
+                theme_embedding = self.get_embedding(theme_description)
 
-                # Use max context similarity if available, otherwise use document similarity
-                max_context_similarity = (
-                    max(context_similarities) if context_similarities else 0
-                )
-                semantic_similarity = max(theme_doc_similarity, max_context_similarity)
+                # Max similarity across sentences
+                semantic_scores = [cosine_similarity([sent_emb], [theme_embedding])[0][0] for sent_emb in sentence_embeddings]
+                semantic_similarity = max(semantic_scores)
+
+                # theme_doc_similarity = cosine_similarity(
+                #     [document_embedding], [theme_embedding]
+                # )[0][0]
+
+                # # Calculate context similarities if available
+                # context_similarities = []
+                # if match_contexts:
+                #     for context_emb in match_contexts:
+                #         sim = cosine_similarity([context_emb], [theme_embedding])[0][0]
+                #         context_similarities.append(sim)
+
+                # # Use max context similarity if available, otherwise use document similarity
+                # max_context_similarity = (
+                #     max(context_similarities) if context_similarities else 0
+                # )
+                #semantic_similarity = max(theme_doc_similarity, max_context_similarity)
+                semantic_similarity = max(semantic_scores)
 
                 # Calculate combined score
                 combined_score = self._calculate_combined_score(
@@ -2346,6 +2456,7 @@ class ThemeAnalyzer:
                 framework_themes[framework_name] = []
 
         return framework_themes, theme_highlights
+    """
     def _get_yorkshire_framework(self):
         """Yorkshire Contributory factors framework themes mapped exactly to the official framework structure"""
         return [{
