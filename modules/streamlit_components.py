@@ -1878,7 +1878,7 @@ def render_bert_analysis_tabworking(data: pd.DataFrame = None):
                 with st.spinner("Loading annotation model and tokenizer..."):
                     # Initialize the analyzer
                     theme_analyzer = ThemeAnalyzer(
-                        model_name="pritamdeka/S-BioBert-snli-multinli-stsb"
+                        model_name="emilyalsentzer/Bio_ClinicalBERT"
                     )
                     
                     # Mark as initialized
