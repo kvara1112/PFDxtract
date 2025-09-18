@@ -28,6 +28,7 @@ import uuid
 import logging
 import pdfplumber
 from nltk.stem import PorterStemmer
+from sentence_transformers import SentenceTransformer
 # Import our modules
 from .core_utils import (
     process_scraped_data, 
@@ -1547,7 +1548,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 with st.spinner("Loading annotation model and tokenizer..."):
                     # Initialize the analyzer
                     theme_analyzer = ThemeAnalyzer(
-                        model_name="emilyalsentzer/Bio_ClinicalBERT"
+                        model_name= "emilyalsentzer/Bio_ClinicalBERT"
                     )
                     
                     # Mark as initialized

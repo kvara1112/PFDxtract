@@ -17,7 +17,7 @@ from tqdm import tqdm
 import os
 import shutil
 import streamlit as st
-
+from sentence_transformers import SentenceTransformer
 # Optional WeasyPrint import (only needed for PDF generation)
 try:
     from weasyprint import HTML, CSS
@@ -1388,9 +1388,10 @@ class ThemeAnalyzer:
         """Initialize the BERT-based theme analyzer with sentence highlighting capabilities"""
         # Initialize transformer model and tokenizer
         #st.info("Loading annotation model and tokeniser... This may take a moment.")
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
+        ##self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        ##self.model = AutoModel.from_pretrained(model_name)
 
+        self.embedding_model = SentenceTransformer(model_name)
         # Configuration settings
         self.config = {
             "base_similarity_threshold": 0.65,
@@ -1452,8 +1453,9 @@ class ThemeAnalyzer:
     def get_bert_embedding(self, text, max_length=512):
         """Generate BERT embedding for text"""
         if not isinstance(text, str) or not text.strip():
-            return np.zeros(768)
-
+            #return np.zeros(768)
+            return np.zeros(self.embedding_model.get_sentence_embedding_dimension())
+        return self.model_name.encode(text, normalize_embeddings = True)
         # Tokenize with truncation
         inputs = self.tokenizer(
             text,
