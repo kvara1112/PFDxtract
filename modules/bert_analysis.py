@@ -2696,7 +2696,7 @@ class ThemeAnalyzer:
                         "lack of availability",
                         "information gathering",
                         "contained any written record",
-                        "no formal internal post-death inves ga on report"
+                        "no formal internal post-death investigation report"
                     ]
                 },
                 {
