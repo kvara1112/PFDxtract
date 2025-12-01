@@ -43,7 +43,7 @@ def find_negated_sentences_in_text(text: str):
 # -------------------------------
 # Pretrained annotator
 # -------------------------------
-def pretrained_annotator(negated_sentences, report_name):
+def pretrained_annotator(negated_sentences, report_name, confidence):
     hits = []
     for sentence in negated_sentences:
         if not sentence.strip():
@@ -53,15 +53,15 @@ def pretrained_annotator(negated_sentences, report_name):
             label_id = int(pred["label"].replace("LABEL_", "")) if "LABEL_" in pred["label"] else int(pred["label"])
             theme = le.inverse_transform([label_id])[0]
             score = pred["score"]
-
-            hits.append({
-                "framework": "PubMed-Theme",
-                "theme": theme,
-                "confidence": score,
-                "combined_score": score,
-                "matched_keywords": [],
-                "matched_sentences": [sentence],
-            })
+            if score >= confidence:
+                hits.append({
+                    "framework": "PubMed-Theme",
+                    "theme": theme,
+                    "confidence": score,
+                    #"combined_score": score,
+                    "matched_keywords": [],
+                    "matched_sentences": [sentence],
+                })
         except Exception as e:
             print(f"⚠️ Error processing sentence in {report_name}: {e}")
     return hits
@@ -69,13 +69,13 @@ def pretrained_annotator(negated_sentences, report_name):
 # -------------------------------
 # Processing function
 # -------------------------------
-def process_selected_reports(df, text_column):
+def process_selected_reports(df, text_column, confidenceScore):
     final_rows = []
     for idx, row in df.iterrows():
         text = str(row[text_column])
         report_name = row.get("Title", f"Report_{idx}")
         negated_sentences = find_negated_sentences_in_text(text)
-        theme_hits = pretrained_annotator(negated_sentences, report_name)
+        theme_hits = pretrained_annotator(negated_sentences, report_name, confidenceScore)
 
         for hit in theme_hits:
             final_rows.append({
@@ -84,7 +84,7 @@ def process_selected_reports(df, text_column):
                 "Framework": hit["framework"],
                 "Theme": hit["theme"],
                 "Confidence": hit["confidence"],
-                "Combined Score": hit["combined_score"],
+                #"Combined Score": hit["combined_score"],
                 "Matched Keywords": ", ".join(hit["matched_keywords"]),
                 "coroner_name": row.get("coroner_name", ""),
                 "coroner_area": row.get("coroner_area", ""),

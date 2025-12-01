@@ -1895,13 +1895,13 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
 
     # Analysis parameters
     st.subheader("Analysis Parameters")
-    similarity_threshold = st.slider(
+    confidenceScore = st.slider(
         "Similarity Threshold",
         min_value=0.3,
         max_value=0.9,
         value=0.65,
         step=0.05,
-        help="Minimum similarity score for theme detection (higher = more strict)",
+        help="Minimum confidence score for theme detection (higher = more strict)",
         key="pubmed_similarity_threshold",
     )
 
@@ -1918,7 +1918,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 results_df = process_selected_reports(
                     selected_data,
                     content_column,
-                    similarity_threshold
+                    confidenceScore
                 )
 
             st.subheader("Analysis Results")
