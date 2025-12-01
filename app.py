@@ -587,6 +587,7 @@ def main():
                     New Ai annotator, uses trained pubmed model to anotate PFD reports and generates a HTML report, as well as an annotations 
                     excel file for the user to make any changes to incorrectly annotated themes and simply for personal use. 
 
+                    For the Yorkshire Contributory Factors Framework only.
                     Note: Please upload the newly edited file below for our research purposes
                     """
                 )

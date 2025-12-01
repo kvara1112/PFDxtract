@@ -1775,27 +1775,27 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         st.session_state[pubmed_initialized_key] = False
     
     # Initialize custom frameworks dictionary if not present
-    custom_frameworks_key = f"{report_key}_custom_frameworks"
-    if custom_frameworks_key not in st.session_state:
-        st.session_state[custom_frameworks_key] = {}
+    # custom_frameworks_key = f"{report_key}_custom_frameworks"
+    # if custom_frameworks_key not in st.session_state:
+    #     st.session_state[custom_frameworks_key] = {}
         
     # Safer initialization with validation
-    selected_frameworks_key = f"{report_key}_selected_frameworks"
-    if selected_frameworks_key not in st.session_state:
-        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
-        st.session_state[selected_frameworks_key] = default_frameworks
-    if selected_frameworks_key not in st.session_state:
-        # Only include frameworks that actually exist
-        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
-        st.session_state[selected_frameworks_key] = default_frameworks
-    else:
-        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"] + list(st.session_state.get(custom_frameworks_key, {}).keys())
-        # Keep only valid frameworks
-        st.session_state[selected_frameworks_key] = [f for f in st.session_state[selected_frameworks_key] if f in available_frameworks]
-        # Optionally add any new frameworks that aren’t in the selection yet
-        for f in available_frameworks:
-            if f not in st.session_state[selected_frameworks_key]:
-                st.session_state[selected_frameworks_key].append(f)
+    # selected_frameworks_key = f"{report_key}_selected_frameworks"
+    # if selected_frameworks_key not in st.session_state:
+    #     default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
+    #     st.session_state[selected_frameworks_key] = default_frameworks
+    # if selected_frameworks_key not in st.session_state:
+    #     # Only include frameworks that actually exist
+    #     default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
+    #     st.session_state[selected_frameworks_key] = default_frameworks
+    # else:
+    #     available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"] + list(st.session_state.get(custom_frameworks_key, {}).keys())
+    #     # Keep only valid frameworks
+    #     st.session_state[selected_frameworks_key] = [f for f in st.session_state[selected_frameworks_key] if f in available_frameworks]
+    #     # Optionally add any new frameworks that aren’t in the selection yet
+    #     for f in available_frameworks:
+    #         if f not in st.session_state[selected_frameworks_key]:
+    #             st.session_state[selected_frameworks_key].append(f)
 
     # File upload section
     st.subheader("Upload Data")
@@ -1841,9 +1841,10 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         return
 
     # Framework selection section
-    st.subheader("Select Frameworks")
+    #st.subheader("Select Frameworks")
     
     # Create columns for the framework selection and custom framework upload
+    """
     frame_col1, frame_col2 = st.columns([2, 1])
     
     with frame_col1:
@@ -1930,7 +1931,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                         st.session_state[selected_frameworks_key].remove(name)
                     st.success(f"Removed framework '{name}'")
                     st.rerun()  # Refresh to update UI
-
+    """
     # Column selection for analysis
     st.subheader("Select Analysis Column")
 
