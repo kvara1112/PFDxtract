@@ -468,8 +468,8 @@ def main():
                 "(3)📊 Scraped File Analysis",
                 "(4)📝 Topic Analysis & Summaries", 
                 "(5)🔬 Concept Annotation",
-                "(6)📈 Theme Analysis Dashboard",
-                "(7)✨ New Ai Annotator"
+                "(6)✨ New Ai Annotator"
+                "(7)📈 Theme Analysis Dashboard"
             ],
             label_visibility="collapsed",
             horizontal=True,
@@ -566,7 +566,7 @@ def main():
                 )
                 render_bert_analysis_tab(True, st.session_state.current_data)
                 
-            elif current_tab == "(6)📈 Theme Analysis Dashboard":
+            elif current_tab == "(7)📈 Theme Analysis Dashboard":
                 # Add tab-specific description here
                 st.markdown(
                     """
@@ -580,7 +580,7 @@ def main():
                 )
                 render_theme_analysis_dashboard(True, st.session_state.current_data)
             
-            elif current_tab == "(7)✨ New Ai Annotator":
+            elif current_tab == "(6)✨ New Ai Annotator":
                 st.markdown(
                     """
                     New Ai annotator, uses trained pubmed model to anotate PFD reports and generates a HTML report, as well as an annotations 

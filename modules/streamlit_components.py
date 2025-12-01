@@ -3612,7 +3612,8 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                     st.error(f"Error creating visualization zip: {e}")
                     logging.error(f"Visualization zip error: {e}", exc_info=True)
 
-
+def render_pubmed_analysis_tab(data: pd.DataFrame = None):
+    pass
 def render_analysis_tab(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
 
