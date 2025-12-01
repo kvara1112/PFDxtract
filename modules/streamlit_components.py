@@ -1756,6 +1756,243 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         else:
             st.warning("No results available")
 
+def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
+    if isPFD:
+        report_key = "PFD"
+    else:
+        report_key = "Other"
+        data = None
+    
+    
+    # Ensure the pubmed bert_results dictionary exists in session state
+    pubmed_results_key = f"{report_key}_pubmed_results"
+    if pubmed_results_key not in st.session_state:
+        st.session_state[pubmed_results_key] = {}
+    
+    # Track if pubmed BERT model is initialized
+    pubmed_initialized_key = f"{report_key}_pubmed_initialised"
+    if pubmed_initialized_key not in st.session_state:
+        st.session_state[pubmed_initialized_key] = False
+    
+    # Initialize custom frameworks dictionary if not present
+    custom_frameworks_key = f"{report_key}_custom_frameworks"
+    if custom_frameworks_key not in st.session_state:
+        st.session_state[custom_frameworks_key] = {}
+        
+    # Safer initialization with validation
+    selected_frameworks_key = f"{report_key}_selected_frameworks"
+    if selected_frameworks_key not in st.session_state:
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
+        st.session_state[selected_frameworks_key] = default_frameworks
+    if selected_frameworks_key not in st.session_state:
+        # Only include frameworks that actually exist
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
+        st.session_state[selected_frameworks_key] = default_frameworks
+    else:
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"] + list(st.session_state.get(custom_frameworks_key, {}).keys())
+        # Keep only valid frameworks
+        st.session_state[selected_frameworks_key] = [f for f in st.session_state[selected_frameworks_key] if f in available_frameworks]
+        # Optionally add any new frameworks that aren’t in the selection yet
+        for f in available_frameworks:
+            if f not in st.session_state[selected_frameworks_key]:
+                st.session_state[selected_frameworks_key].append(f)
+
+    # File upload section
+    st.subheader("Upload Data")
+    reset_counter = st.session_state.get("reset_counter", 0)
+    uploaded_file = st.file_uploader(
+        "Upload CSV or Excel file for Pubmed BERT Analysis",
+        type=["csv", "xlsx"],
+        help="Upload a file with reports for theme analysis",
+        key=f"{report_key}_pubmed_file_uploader",
+    )
+
+    # If a file is uploaded, process it
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                uploaded_data = pd.read_csv(uploaded_file)
+            else:
+                uploaded_data = pd.read_excel(uploaded_file)
+
+            # Process the uploaded data
+            if isPFD:
+                uploaded_data = process_scraped_data(uploaded_data)
+            else:
+                uploaded_data = uploaded_data
+            
+            # Update the data reference
+            data = uploaded_data
+
+            st.success("File uploaded and processed successfully!")
+                
+        except Exception as e:
+            st.error(f"Error uploading file: {str(e)}")
+            return
+        
+    if uploaded_file is None and data is None:
+        if pubmed_results_key in st.session_state:
+            del st.session_state[pubmed_results_key]
+   
+    if data is None or len(data) == 0:
+        st.warning(
+            "No data available. Please upload a file or ensure existing data is loaded."
+        )
+        return
+
+    # Framework selection section
+    st.subheader("Select Frameworks")
+    
+    # Create columns for the framework selection and custom framework upload
+    frame_col1, frame_col2 = st.columns([2, 1])
+    
+    with frame_col1:
+        # Get all available framework options
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
+        if custom_frameworks_key in st.session_state:
+            available_frameworks.extend(list(st.session_state[custom_frameworks_key].keys()))
+        widget_key = f"{report_key}framework_Select_{reset_counter}"
+        if widget_key not in st.session_state:
+            st.session_state[widget_key] = []
+        # Predefined framework selection - use a unique key
+        st.multiselect(
+            "Choose Frameworks to Use",
+            options=available_frameworks,
+            #default=st.session_state[selected_frameworks_key],
+            help="Select which conceptual frameworks to use for theme analysis",
+            key=widget_key#f"{report_key}framework_select_{reset_counter}"
+        )
+    
+    with frame_col2:
+        # Custom framework upload
+        
+        custom_framework_file = st.file_uploader(
+            "Upload Custom Framework",
+            type=["json", "txt"],
+            help="Upload a JSON file containing custom framework definitions",
+            key=f"{report_key}_custom_framework_uploader_{reset_counter}"
+        )
+        
+        if custom_framework_file is not None:
+            try:
+                # Read framework definition
+                custom_framework_content = custom_framework_file.read().decode("utf-8")
+                custom_framework_data = json.loads(custom_framework_content)
+                
+                # Validate framework structure
+                if isinstance(custom_framework_data, list) and all(isinstance(item, dict) and "name" in item and "keywords" in item for item in custom_framework_data):
+                    # Framework name input
+                    custom_framework_name = st.text_input(
+                        "Custom Framework Name", 
+                        f"Custom Framework {len(st.session_state[custom_frameworks_key]) + 1}",
+                        key=f"{report_key}custom_framework_name_{reset_counter}"
+                    )
+                    
+                    # Add button for the custom framework
+                    if st.button("Add Custom Framework", key=f"add_custom_framework_{reset_counter}"):
+                        # Check if name already exists
+                        if custom_framework_name in st.session_state[custom_frameworks_key]:
+                            st.warning(f"A framework with the name '{custom_framework_name}' already exists. Please choose a different name.")
+                        else:
+                            # Add to session state
+                            st.session_state[custom_frameworks_key][custom_framework_name] = custom_framework_data
+                            
+                            # Add to selected frameworks if not already there
+                            if custom_framework_name not in st.session_state[selected_frameworks_key]:
+                                st.session_state[selected_frameworks_key].append(custom_framework_name)
+                            
+                            st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
+                            st.rerun()  # Refresh to update UI
+                else:
+                    st.error("Invalid framework format. Each item must have 'name' and 'keywords' fields.")
+            except json.JSONDecodeError:
+                st.error("Invalid JSON format. Please check your file.")
+            except Exception as e:
+                st.error(f"Error processing custom framework: {str(e)}")
+                logging.error(f"Custom framework error: {e}", exc_info=True)
+    
+    # Display currently loaded custom frameworks
+    if custom_frameworks_key in st.session_state and st.session_state[custom_frameworks_key]:
+        st.subheader("Loaded Custom Frameworks")
+        for name, framework in st.session_state[custom_frameworks_key].items():
+            with st.expander(f"{name} ({len(framework)} themes)"):
+                # Display the first few themes as an example
+                for i, theme in enumerate(framework[:5]):
+                    st.markdown(f"**{theme['name']}**: {', '.join(theme['keywords'][:5])}...")
+                    if i >= 4 and len(framework) > 5:
+                        st.markdown(f"*... and {len(framework) - 5} more themes*")
+                        break
+                
+                # Add option to remove this framework
+                if st.button("Remove Framework", key=f"remove_{name}_{reset_counter}"):
+                    del st.session_state[custom_frameworks_key][name]
+                    if name in st.session_state[selected_frameworks_key]:
+                        st.session_state[selected_frameworks_key].remove(name)
+                    st.success(f"Removed framework '{name}'")
+                    st.rerun()  # Refresh to update UI
+
+    # Column selection for analysis
+    st.subheader("Select Analysis Column")
+
+    # Find text columns (object/string type)
+    text_columns = data.select_dtypes(include=["object"]).columns.tolist()
+    allowed_text_columns = [col for col in["Content", "Extracted_Concerns"] if col in data.columns]
+    # If no text columns found
+    if not text_columns:
+        st.error("No text columns found in the dataset.")
+        return
+    if not allowed_text_columns:
+        st.error("Neither Content nor Extracted concerns column found in the dataset")
+        return
+    # Column selection with dropdown
+    content_column = st.selectbox(
+        "Choose the column to analyse:",
+        options=allowed_text_columns,
+        #index=text_columns.index("Content") if "Content" in text_columns else 0,
+        index = 0,
+        help="Select the column containing the text you want to analyse",
+        key="pubmed_content_column",
+    )
+
+    # Filtering options
+    st.subheader("Select Documents to Analyse")
+
+    # Option to select all or specific records
+    analysis_type = st.radio(
+        "Analysis Type",
+        ["All Reports", "Selected Reports"],
+        horizontal=True,
+        key="pubmed_analysis_type",
+    )
+
+    if analysis_type == "Selected Reports":
+        # Multi-select for reports
+        selected_indices = st.multiselect(
+            "Choose specific reports to analyse",
+            options=list(range(len(data))),
+            format_func=lambda x: f"{data.iloc[x]['Title']} ({data.iloc[x]['date_of_report'].strftime('%d/%m/%Y') if pd.notna(data.iloc[x]['date_of_report']) else 'No date'})",
+            key="pubmed_selected_indices",
+        )
+        selected_data = data.iloc[selected_indices] if selected_indices else None
+    else:
+        selected_data = data
+
+    # Analysis parameters
+    st.subheader("Analysis Parameters")
+    similarity_threshold = st.slider(
+        "Similarity Threshold",
+        min_value=0.3,
+        max_value=0.9,
+        value=0.65,
+        step=0.05,
+        help="Minimum similarity score for theme detection (higher = more strict)",
+        key="pubmed_similarity_threshold",
+    )
+
+    # Analysis button
+    run_analysis = st.button(
+        "Run Analysis", type="primary", key="pubmed_run_analysis"
+    )
 
 def render_bert_analysis_tabworking(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function to include enhanced metadata in results"""
@@ -3612,8 +3849,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                     st.error(f"Error creating visualization zip: {e}")
                     logging.error(f"Visualization zip error: {e}", exc_info=True)
 
-def render_pubmed_analysis_tab(data: pd.DataFrame = None):
-    pass
+
 def render_analysis_tab(data: pd.DataFrame = None):
     """Render the analysis tab with improved filters, file upload functionality, and analysis sections"""
 

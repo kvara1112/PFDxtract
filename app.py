@@ -468,7 +468,7 @@ def main():
                 "(3)📊 Scraped File Analysis",
                 "(4)📝 Topic Analysis & Summaries", 
                 "(5)🔬 Concept Annotation",
-                "(6)✨ New Ai Annotator"
+                "(6)✨ New Ai Annotator",
                 "(7)📈 Theme Analysis Dashboard"
             ],
             label_visibility="collapsed",
