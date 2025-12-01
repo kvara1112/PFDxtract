@@ -62,7 +62,9 @@ from .file_prep import (
     render_filter_data_tab,
     show_export_options
 )
-
+from .pubmed_analysis import(
+    process_selected_reports
+)
 
 # Add this to your initialize_session_state function
 def initialize_session_state():
@@ -1844,94 +1846,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     #st.subheader("Select Frameworks")
     
     # Create columns for the framework selection and custom framework upload
-    """
-    frame_col1, frame_col2 = st.columns([2, 1])
-    
-    with frame_col1:
-        # Get all available framework options
-        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
-        if custom_frameworks_key in st.session_state:
-            available_frameworks.extend(list(st.session_state[custom_frameworks_key].keys()))
-        widget_key = f"{report_key}framework_Select_{reset_counter}"
-        if widget_key not in st.session_state:
-            st.session_state[widget_key] = []
-        # Predefined framework selection - use a unique key
-        st.multiselect(
-            "Choose Frameworks to Use",
-            options=available_frameworks,
-            #default=st.session_state[selected_frameworks_key],
-            help="Select which conceptual frameworks to use for theme analysis",
-            key=widget_key#f"{report_key}framework_select_{reset_counter}"
-        )
-    
-    with frame_col2:
-        # Custom framework upload
-        
-        custom_framework_file = st.file_uploader(
-            "Upload Custom Framework",
-            type=["json", "txt"],
-            help="Upload a JSON file containing custom framework definitions",
-            key=f"{report_key}_custom_framework_uploader_{reset_counter}"
-        )
-        
-        if custom_framework_file is not None:
-            try:
-                # Read framework definition
-                custom_framework_content = custom_framework_file.read().decode("utf-8")
-                custom_framework_data = json.loads(custom_framework_content)
-                
-                # Validate framework structure
-                if isinstance(custom_framework_data, list) and all(isinstance(item, dict) and "name" in item and "keywords" in item for item in custom_framework_data):
-                    # Framework name input
-                    custom_framework_name = st.text_input(
-                        "Custom Framework Name", 
-                        f"Custom Framework {len(st.session_state[custom_frameworks_key]) + 1}",
-                        key=f"{report_key}custom_framework_name_{reset_counter}"
-                    )
-                    
-                    # Add button for the custom framework
-                    if st.button("Add Custom Framework", key=f"add_custom_framework_{reset_counter}"):
-                        # Check if name already exists
-                        if custom_framework_name in st.session_state[custom_frameworks_key]:
-                            st.warning(f"A framework with the name '{custom_framework_name}' already exists. Please choose a different name.")
-                        else:
-                            # Add to session state
-                            st.session_state[custom_frameworks_key][custom_framework_name] = custom_framework_data
-                            
-                            # Add to selected frameworks if not already there
-                            if custom_framework_name not in st.session_state[selected_frameworks_key]:
-                                st.session_state[selected_frameworks_key].append(custom_framework_name)
-                            
-                            st.success(f"Custom framework '{custom_framework_name}' with {len(custom_framework_data)} themes added successfully")
-                            st.rerun()  # Refresh to update UI
-                else:
-                    st.error("Invalid framework format. Each item must have 'name' and 'keywords' fields.")
-            except json.JSONDecodeError:
-                st.error("Invalid JSON format. Please check your file.")
-            except Exception as e:
-                st.error(f"Error processing custom framework: {str(e)}")
-                logging.error(f"Custom framework error: {e}", exc_info=True)
-    
-    # Display currently loaded custom frameworks
-    if custom_frameworks_key in st.session_state and st.session_state[custom_frameworks_key]:
-        st.subheader("Loaded Custom Frameworks")
-        for name, framework in st.session_state[custom_frameworks_key].items():
-            with st.expander(f"{name} ({len(framework)} themes)"):
-                # Display the first few themes as an example
-                for i, theme in enumerate(framework[:5]):
-                    st.markdown(f"**{theme['name']}**: {', '.join(theme['keywords'][:5])}...")
-                    if i >= 4 and len(framework) > 5:
-                        st.markdown(f"*... and {len(framework) - 5} more themes*")
-                        break
-                
-                # Add option to remove this framework
-                if st.button("Remove Framework", key=f"remove_{name}_{reset_counter}"):
-                    del st.session_state[custom_frameworks_key][name]
-                    if name in st.session_state[selected_frameworks_key]:
-                        st.session_state[selected_frameworks_key].remove(name)
-                    st.success(f"Removed framework '{name}'")
-                    st.rerun()  # Refresh to update UI
-    """
+   
     # Column selection for analysis
     st.subheader("Select Analysis Column")
 
@@ -1994,6 +1909,53 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     run_analysis = st.button(
         "Run Analysis", type="primary", key="pubmed_run_analysis"
     )
+    if run_analysis:
+
+        if selected_data is None or selected_data.empty:
+            st.error("No reports selected.")
+        else:
+            with st.spinner("Running analysis..."):
+                results_df = process_selected_reports(
+                    selected_data,
+                    content_column,
+                    similarity_threshold
+                )
+
+            st.subheader("Analysis Results")
+            st.dataframe(results_df)
+
+            # CSV Download
+            st.download_button(
+                "Download CSV",
+                data=results_df.to_csv(index=False),
+                file_name="theme_analysis_results.csv",
+                mime="text/csv"
+            )
+
+            # Build HTML annotated report
+            html = "<h1>Annotated Theme Report</h1>"
+            for _, row in results_df.iterrows():
+                html += f"<h2>{row['Title']} — ({row['Theme']})</h2>"
+                html += f"<p><strong>Framework:</strong> {row['Framework']}</p>"
+                html += f"<p><strong>Confidence:</strong> {row['Confidence']}</p>"
+                html += f"<p><strong>Combined Score:</strong> {row['Combined Score']}</p>"
+                html += f"<p><strong>Matched Keywords:</strong> {row['Matched Keywords']}</p>"
+                html += "<h3>Matched Sentences:</h3><ul>"
+                for s in row["Matched Sentences"].split(" | "):
+                    html += f"<li>{s}</li>"
+                html += "</ul><hr>"
+
+            st.download_button(
+                "Download HTML Report",
+                data=html,
+                file_name="annotated_theme_report.html",
+                mime="text/html"
+            )
+
+            st.success("Analysis complete!")
+
+
+
 
 def render_bert_analysis_tabworking(data: pd.DataFrame = None):
     """Modified render_bert_analysis_tab function to include enhanced metadata in results"""
