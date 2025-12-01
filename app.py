@@ -468,7 +468,8 @@ def main():
                 "(3)📊 Scraped File Analysis",
                 "(4)📝 Topic Analysis & Summaries", 
                 "(5)🔬 Concept Annotation",
-                "(6)📈 Theme Analysis Dashboard"
+                "(6)📈 Theme Analysis Dashboard",
+                "(7)✨ New Ai Annotator"
             ],
             label_visibility="collapsed",
             horizontal=True,
@@ -578,6 +579,16 @@ def main():
                     """
                 )
                 render_theme_analysis_dashboard(True, st.session_state.current_data)
+            
+            elif current_tab == "(7)✨ New Ai Annotator":
+                st.markdown(
+                    """
+                    New Ai annotator, uses trained pubmed model to anotate PFD reports and generates a HTML report, as well as an annotations 
+                    excel file for the user to make any changes to incorrectly annotated themes and simply for personal use. 
+
+                    Note: Please upload the newly edited file below for our research purposes
+                    """
+                )
             # Sidebar data management
             with st.sidebar:
                 st.header("Data Management")
