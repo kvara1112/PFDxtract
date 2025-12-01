@@ -35,6 +35,7 @@ from modules.streamlit_components import (
     render_scraping_tab,
     render_bert_file_merger,
     render_bert_analysis_tab,
+    render_pubmed_analysis_tab,
     render_theme_analysis_dashboard,
     non_pfd_tab
 )
@@ -589,6 +590,7 @@ def main():
                     Note: Please upload the newly edited file below for our research purposes
                     """
                 )
+                render_pubmed_analysis_tab(True, st.session_state.current_data)
             # Sidebar data management
             with st.sidebar:
                 st.header("Data Management")
