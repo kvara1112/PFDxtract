@@ -1896,7 +1896,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     # Analysis parameters
     st.subheader("Analysis Parameters")
     confidenceScore = st.slider(
-        "Similarity Threshold",
+        "Confidence Score",
         min_value=0.3,
         max_value=0.9,
         value=0.65,
