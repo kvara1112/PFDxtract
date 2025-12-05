@@ -14,16 +14,24 @@ st.set_page_config(page_title="PubMedBERT Theme Annotation", layout="wide")
 # -------------------------------
 # Initialize model and tokenizer
 # -------------------------------
+
 MODEL_NAME = "kvara03/pubmedbert_theme_classifier_iteration4"
 
+# Load tokenizer + model directly from HF
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModel.from_pretrained(MODEL_NAME)
 lemmatizer = WordNetLemmatizer()
 
-# Load pipeline and label encoder
+# Load classification pipeline
 clf = pipeline("text-classification", model=MODEL_NAME, tokenizer=MODEL_NAME)
-label_path = joblib.load("label_encoder.pkl") if os.path.exists("label_encoder.pkl") else None
-le = joblib.load("label_encoder.pkl") if os.path.exists("label_encoder.pkl") else None
+
+# Download label encoder from HF and load it
+label_path = hf_hub_download(
+    repo_id=MODEL_NAME,
+    filename="label_encoder.pkl"
+)
+
+le = joblib.load(label_path)
 
 # -------------------------------
 # Negation detection
