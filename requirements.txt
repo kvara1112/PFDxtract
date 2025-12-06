@@ -55,4 +55,5 @@ pyvis>=0.3.2
 webdriver-manager>=4.0.2
 pymupdf>=1.26.3
 streamlit-modal>=0.1.2
+huggingface_hub>=0.22.2
 

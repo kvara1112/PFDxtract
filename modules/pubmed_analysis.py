@@ -6,6 +6,7 @@ import nltk
 from nltk.stem import WordNetLemmatizer
 from transformers import pipeline, AutoTokenizer, AutoModel
 import joblib
+from huggingface_hub import hf_hub_download
 
 nltk.download("punkt")
 
