@@ -1938,7 +1938,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 html += f"<h2>{row['Title']} — ({row['Theme']})</h2>"
                 html += f"<p><strong>Framework:</strong> {row['Framework']}</p>"
                 html += f"<p><strong>Confidence:</strong> {row['Confidence']}</p>"
-                html += f"<p><strong>Combined Score:</strong> {row['Combined Score']}</p>"
+                #html += f"<p><strong>Combined Score:</strong> {row['Combined Score']}</p>"
                 html += f"<p><strong>Matched Keywords:</strong> {row['Matched Keywords']}</p>"
                 html += "<h3>Matched Sentences:</h3><ul>"
                 for s in row["Matched Sentences"].split(" | "):
