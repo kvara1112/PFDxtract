@@ -130,7 +130,7 @@ THEME_COLORS = {
 
 def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> str:
 
-    html_out = "<html><head><meta charset='UTF-8'><title>Annotated Theme Report</title></head><body>"
+    html_out = "<html><head><meta charset='UTF-8'><title>Annotated Theme Report</title></head><body style= color: powderblue;>"
     html_out += "<h1>Annotated Theme Report</h1>"
 
     # Legend Table
@@ -141,35 +141,8 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
     THEME_COLORS_LOWER = {k.lower(): v for k, v in THEME_COLORS.items()}
 
 
-    # Legend Table heading
-    html_out += "<h2>Theme Legend</h2>"
-
-    # Split THEME_COLORS into two halves
-    items = list(THEME_COLORS.items())
-    mid = len(items) // 2
-    left = items[:mid]
-    right = items[mid:]
-
-    # Start container div for side-by-side tables
-    html_out += "<div style='display: flex; gap: 50px;'>"
-
-    # Left table
-    html_out += "<table border='1' cellpadding='6'>"
-    html_out += "<tr><th>Theme</th><th>Color</th></tr>"
-    for theme, color in left:
-        html_out += f"<tr><td>{theme}</td><td style='background:{color}; width:50px;'>&nbsp;</td></tr>"
-    html_out += "</table>"
-
-    # Right table
-    html_out += "<table border='1' cellpadding='6'>"
-    html_out += "<tr><th>Theme</th><th>Color</th></tr>"
-    for theme, color in right:
-        html_out += f"<tr><td>{theme}</td><td style='background:{color}; width:50px;'>&nbsp;</td></tr>"
-    html_out += "</table>"
-
-    # Close container and HTML
-    html_out += "</div></body></html>"
-
+    for theme, color in THEME_COLORS.items():
+        html_out += f"<tr><td>{theme}</td><td style='background:{color};'>&nbsp;&nbsp;&nbsp;</td></tr>"
 
     html_out += "</table><hr>"
 
