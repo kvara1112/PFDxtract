@@ -133,7 +133,6 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
     html_out = "<html><head><meta charset='UTF-8'><title>Annotated Theme Report</title></head><body>"
     html_out += "<h1>Annotated Theme Report</h1>"
 
-    
     # Legend Table
     html_out += "<h2>Theme Legend</h2><table border='1' cellpadding='6'>"
     html_out += "<tr><th>Theme</th><th>Color</th></tr>"
@@ -141,14 +140,19 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
     for theme, color in THEME_COLORS.items():
         html_out += f"<tr><td>{theme}</td><td style='background:{color};'>&nbsp;&nbsp;&nbsp;</td></tr>"
 
-        html_out += "</table><hr>"
+    html_out += "</table><hr>"
 
+    # ====== PROCESS EACH REPORT GROUP ======
+    for title, group in results_df.groupby("Title"):
 
-        for title, group in results_df.groupby("Title"):
-            html_out += f"<h2>{html.escape(str(title))}</h2>"
-            full_text = group["Full Text"].iloc[0]
+        html_out += f"<h2>{html.escape(str(title))}</h2>"
 
+        # Extract the full text
+        full_text = group["Full Text"].iloc[0]
+
+        # -----------------------------------------
         # Build list of (sentence, color) pairs
+        # -----------------------------------------
         sentence_color_pairs = []
         for _, row in group.iterrows():
             theme = str(row["Theme"]).strip()
@@ -160,7 +164,9 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
                 if sent_clean:
                     sentence_color_pairs.append((sent_clean, color))
 
-        # Highlight sentences inside paragraph
+        # -----------------------------------------
+        # Highlight sentences inside the paragraph
+        # -----------------------------------------
         highlighted_text = full_text
         for sent, color in sentence_color_pairs:
             highlighted_text = re.sub(
@@ -170,15 +176,18 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
                 count=1
             )
 
-        # Display highlighted full content
+        # -----------------------------------------
+        # Output highlighted content block
+        # -----------------------------------------
         html_out += f"<p><strong>Content:</strong><br>{highlighted_text}</p>"
-            # text (full text of the report of extracted concerns)
 
-        # Each theme hit block
+        # -----------------------------------------
+        # Output each theme block
+        # -----------------------------------------
         for _, row in group.iterrows():
             theme = str(row["Theme"]).strip()
             theme_key = theme.lower()
-            color = THEME_COLORS.get(theme, "#f0f0f0")
+            color = THEME_COLORS.get(theme_key, "#f0f0f0")
 
             html_out += f"""
                 <div style="border-left: 5px solid {color};
@@ -192,9 +201,11 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
             """
 
             matched_sentences = row["Matched Sentences"].split(" | ")
-
             for s in matched_sentences:
-                html_out += f"<li style='background:{color}; padding:4px; border-radius:4px;'>{html.escape(s)}</li>"
+                html_out += (
+                    f"<li style='background:{color}; padding:4px; "
+                    f"border-radius:4px;'>{html.escape(s)}</li>"
+                )
 
             html_out += "</ul></div>"
 
