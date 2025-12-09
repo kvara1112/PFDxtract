@@ -130,7 +130,7 @@ THEME_COLORS = {
 
 def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> str:
 
-    html_out = "<html><head><meta charset='UTF-8'><title>Annotated Theme Report</title></head><body style= color: powderblue;>"
+    html_out = "<html><head><meta charset='UTF-8'><title>Annotated Theme Report</title></head><body>"
     html_out += "<h1>Annotated Theme Report</h1>"
 
     # Legend Table
