@@ -141,20 +141,38 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
     for theme, color in THEME_COLORS.items():
         html_out += f"<tr><td>{theme}</td><td style='background:{color};'>&nbsp;&nbsp;&nbsp;</td></tr>"
 
-    html_out += "</table><hr>"
+        html_out += "</table><hr>"
 
 
-    for title, group in results_df.groupby("Title"):
-        html_out += f"<h2>{html.escape(str(title))}</h2>"
+        for title, group in results_df.groupby("Title"):
+            html_out += f"<h2>{html.escape(str(title))}</h2>"
+            full_text = group["Full Text"].iloc[0]
 
-        # text (full text of the report of extracted concerns)
-        if text_column in group.columns:
-            extracted_text = group[text_column].iloc[0]
-            html_out += f"<p><strong>Content:</strong><br>{html.escape(str(extracted_text))}</p>"
-        else:
-            html_out += "<p><em>No text available.</em></p>"
+        # Build list of (sentence, color) pairs
+        sentence_color_pairs = []
+        for _, row in group.iterrows():
+            theme = str(row["Theme"]).strip()
+            theme_key = theme.lower()
+            color = THEME_COLORS.get(theme_key, "#f0f0f0")
 
-        html_out += "<h3>Theme Matches</h3>"
+            for sent in row["Matched Sentences"].split(" | "):
+                sent_clean = sent.strip()
+                if sent_clean:
+                    sentence_color_pairs.append((sent_clean, color))
+
+        # Highlight sentences inside paragraph
+        highlighted_text = full_text
+        for sent, color in sentence_color_pairs:
+            highlighted_text = re.sub(
+                re.escape(sent),
+                rf"<span style='background:{color}; padding:2px; border-radius:3px;'>{sent}</span>",
+                highlighted_text,
+                count=1
+            )
+
+        # Display highlighted full content
+        html_out += f"<p><strong>Content:</strong><br>{highlighted_text}</p>"
+            # text (full text of the report of extracted concerns)
 
         # Each theme hit block
         for _, row in group.iterrows():
