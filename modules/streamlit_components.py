@@ -63,7 +63,8 @@ from .file_prep import (
     show_export_options
 )
 from .pubmed_analysis import(
-    process_selected_reports
+    process_selected_reports,
+    generate_html_report
 )
 
 # Add this to your initialize_session_state function
@@ -1933,17 +1934,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             )
 
             # Build HTML annotated report
-            html = "<h1>Annotated Theme Report</h1>"
-            for _, row in results_df.iterrows():
-                html += f"<h2>{row['Title']} — ({row['Theme']})</h2>"
-                html += f"<p><strong>Framework:</strong> {row['Framework']}</p>"
-                html += f"<p><strong>Confidence:</strong> {row['Confidence']}</p>"
-                #html += f"<p><strong>Combined Score:</strong> {row['Combined Score']}</p>"
-                html += f"<p><strong>Matched Keywords:</strong> {row['Matched Keywords']}</p>"
-                html += "<h3>Matched Sentences:</h3><ul>"
-                for s in row["Matched Sentences"].split(" | "):
-                    html += f"<li>{s}</li>"
-                html += "</ul><hr>"
+            html = generate_html_report(results_df)
 
             st.download_button(
                 "Download HTML Report",

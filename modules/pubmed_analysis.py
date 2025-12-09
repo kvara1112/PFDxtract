@@ -7,6 +7,7 @@ from nltk.stem import WordNetLemmatizer
 from transformers import pipeline, AutoTokenizer, AutoModel
 import joblib
 from huggingface_hub import hf_hub_download
+import html
 
 nltk.download("punkt")
 
@@ -90,6 +91,7 @@ def process_selected_reports(df, text_column, confidenceScore):
             final_rows.append({
                 "Record ID": idx,
                 "Title": report_name,
+                "Full Text": text,
                 "Framework": hit["framework"],
                 "Theme": hit["theme"],
                 "Confidence": hit["confidence"],
@@ -102,3 +104,83 @@ def process_selected_reports(df, text_column, confidenceScore):
                 "Matched Sentences": " | ".join(hit["matched_sentences"]),
             })
     return pd.DataFrame(final_rows)
+THEME_COLORS = {
+        "Situational- Team Factors": "#F54927",
+        "Situational- Individual Staff Factors": "#F56F27", 
+        "Situational- Task Characteristics": "#F5273C",
+        "Situational- Patient Factors": "#273CF5",
+        "Local Working Conditions- Workload and Staffing Issues": "#D6F527",
+        "Local Working Conditions- Supervision and Leadership": "#95F527",
+        "Local Working Conditions- Drugs, Equipment and Supplies": "#27556C",
+        "Local Working Conditions- Lines of Responsibility": "#780BF4",
+        "Local Working Conditions- Management of Staff and Staffing Levels": "#B727F5",
+        "Organisational Factors- Physical Environment": "#2795F5",
+        "Organisational Factors- Support from other departments": "#38F527",
+        "Organisational Factors- Care Planning": "#F5B727",
+        "Organisational Factors- Staff Training and Education": "#C809BB",
+        "Organisational Factors- Policies and Procedures": "#700505",
+        "Organisational Factors- Escalation/referral factor": "#F40BC1",
+        "External Factors- Design of Equipment, Supplies and Drugs": "#275EF1",
+        "External Factors- National Policies": "#09C83C",
+        "Communication and Culture- Safety Culture": "",
+        "Communication and Culture- Verbal and Written Communication": "#505287",
+        "Human Error- Slips or Lapses": "#E06F1F",
+        "Human Error- Violations": "#47E6B9"
+    }
+
+def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> str:
+
+    html_out = "<html><head><meta charset='UTF-8'><title>Annotated Theme Report</title></head><body>"
+    html_out += "<h1>Annotated Theme Report</h1>"
+
+    
+    # Legend Table
+    html_out += "<h2>Theme Legend</h2><table border='1' cellpadding='6'>"
+    html_out += "<tr><th>Theme</th><th>Color</th></tr>"
+
+    for theme, color in THEME_COLORS.items():
+        html_out += f"<tr><td>{theme}</td><td style='background:{color};'>&nbsp;&nbsp;&nbsp;</td></tr>"
+
+    html_out += "</table><hr>"
+
+
+    for title, group in results_df.groupby("Title"):
+        html_out += f"<h2>{html.escape(str(title))}</h2>"
+
+        # text (full text of the report of extracted concerns)
+        if text_column in group.columns:
+            extracted_text = group[text_column].iloc[0]
+            html_out += f"<p><strong>Content:</strong><br>{html.escape(str(extracted_text))}</p>"
+        else:
+            html_out += "<p><em>No text available.</em></p>"
+
+        html_out += "<h3>Theme Matches</h3>"
+
+        # Each theme hit block
+        for _, row in group.iterrows():
+            theme = str(row["Theme"]).strip()
+            theme_key = theme.lower()
+            color = THEME_COLORS.get(theme, "#f0f0f0")
+
+            html_out += f"""
+                <div style="border-left: 5px solid {color};
+                            padding: 10px; margin: 12px 0;
+                            background:{color}33; border-radius:6px;">
+                    <p><strong>Theme:</strong> {html.escape(str(theme))}</p>
+                    <p><strong>Framework:</strong> {html.escape(str(row['Framework']))}</p>
+                    <p><strong>Confidence:</strong> {row['Confidence']:.4f}</p>
+                    <h4>Matched Sentences:</h4>
+                    <ul>
+            """
+
+            matched_sentences = row["Matched Sentences"].split(" | ")
+
+            for s in matched_sentences:
+                html_out += f"<li style='background:{color}; padding:4px; border-radius:4px;'>{html.escape(s)}</li>"
+
+            html_out += "</ul></div>"
+
+        html_out += "<hr>"
+
+    html_out += "</body></html>"
+    return html_out
