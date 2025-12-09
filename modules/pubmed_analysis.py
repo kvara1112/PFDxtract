@@ -94,7 +94,7 @@ def process_selected_reports(df, text_column, confidenceScore):
                 "Theme": hit["theme"],
                 "Confidence": hit["confidence"],
                 #"Combined Score": hit["combined_score"],
-                "Matched Keywords": ", ".join(hit["matched_keywords"]),
+                #"Matched Keywords": ", ".join(hit["matched_keywords"]),
                 "coroner_name": row.get("coroner_name", ""),
                 "coroner_area": row.get("coroner_area", ""),
                 "year": row.get("year", ""),
