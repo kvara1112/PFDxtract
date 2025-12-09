@@ -137,6 +137,10 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
     html_out += "<h2>Theme Legend</h2><table border='1' cellpadding='6'>"
     html_out += "<tr><th>Theme</th><th>Color</th></tr>"
 
+    # Create a lowercase key version of your theme colors
+    THEME_COLORS_LOWER = {k.lower(): v for k, v in THEME_COLORS.items()}
+
+
     for theme, color in THEME_COLORS.items():
         html_out += f"<tr><td>{theme}</td><td style='background:{color};'>&nbsp;&nbsp;&nbsp;</td></tr>"
 
@@ -157,7 +161,8 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
         for _, row in group.iterrows():
             theme = str(row["Theme"]).strip()
             theme_key = theme.lower()
-            color = THEME_COLORS.get(theme_key, "#f0f0f0")
+            color = THEME_COLORS_LOWER.get(theme_key, "#f0f0f0")  # fallback color
+
 
             for sent in row["Matched Sentences"].split(" | "):
                 sent_clean = sent.strip()
@@ -187,7 +192,7 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
         for _, row in group.iterrows():
             theme = str(row["Theme"]).strip()
             theme_key = theme.lower()
-            color = THEME_COLORS.get(theme_key, "#f0f0f0")
+            color = THEME_COLORS_LOWER.get(theme_key, "#f0f0f0")
 
             html_out += f"""
                 <div style="border-left: 5px solid {color};
