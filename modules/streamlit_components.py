@@ -1924,24 +1924,27 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
 
             st.subheader("Analysis Results")
             st.dataframe(results_df)
-
+        if results_df is not None:
+            col1, col2 = st.columns(2)
+            with col1:
             # CSV Download
-            st.download_button(
-                "Download CSV",
-                data=results_df.to_csv(index=False),
-                file_name="theme_analysis_results.csv",
-                mime="text/csv"
-            )
+                st.download_button(
+                    "Download CSV",
+                    data=results_df.to_csv(index=False),
+                    file_name="theme_analysis_results.csv",
+                    mime="text/csv"
+                )
 
+            with col2:
             # Build HTML annotated report
-            html = generate_html_report(results_df)
+                html = generate_html_report(results_df)
 
-            st.download_button(
-                "Download HTML Report",
-                data=html,
-                file_name="annotated_theme_report.html",
-                mime="text/html"
-            )
+                st.download_button(
+                    "Download HTML Report",
+                    data=html,
+                    file_name="annotated_theme_report.html",
+                    mime="text/html"
+                )
 
             st.success("Analysis complete!")
 

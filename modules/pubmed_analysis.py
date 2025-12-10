@@ -13,9 +13,9 @@ nltk.download("punkt")
 
 st.set_page_config(page_title="PubMedBERT Theme Annotation", layout="wide")
 
-# -------------------------------
+
 # Initialize model and tokenizer
-# -------------------------------
+
 
 MODEL_NAME = "kvara03/pubmedbert_theme_classifier_iteration4"
 
@@ -35,9 +35,9 @@ label_path = hf_hub_download(
 
 le = joblib.load(label_path)
 
-# -------------------------------
+
 # Negation detection
-# -------------------------------
+
 EXPLICIT_NEGATIONS = ["no", "not", "never", "none", "without", "cannot", "can't", "didn't", "doesn't"]
 IMPLICIT_NEGATIONS = ["lack", "absence", "fail", "missing", "decline"]
 
@@ -50,9 +50,9 @@ def find_negated_sentences_in_text(text: str):
     sentences = nltk.sent_tokenize(text)
     return [s for s in sentences if contains_negation(s)]
 
-# -------------------------------
+
 # Pretrained annotator
-# -------------------------------
+
 def pretrained_annotator(negated_sentences, report_name, confidence):
     hits = []
     for sentence in negated_sentences:
@@ -76,9 +76,9 @@ def pretrained_annotator(negated_sentences, report_name, confidence):
             print(f"⚠️ Error processing sentence in {report_name}: {e}")
     return hits
 
-# -------------------------------
+
 # Processing function
-# -------------------------------
+
 def process_selected_reports(df, text_column, confidenceScore):
     final_rows = []
     for idx, row in df.iterrows():
@@ -146,7 +146,7 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
 
     html_out += "</table><hr>"
 
-    # ====== PROCESS EACH REPORT GROUP ======
+    #PROCESS EACH REPORT GROUP 
     for title, group in results_df.groupby("Title"):
 
         html_out += f"<h2>{html.escape(str(title))}</h2>"
@@ -154,9 +154,9 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
         # Extract the full text
         full_text = group["Full Text"].iloc[0]
 
-        # -----------------------------------------
+        
         # Build list of (sentence, color) pairs
-        # -----------------------------------------
+        
         sentence_color_pairs = []
         for _, row in group.iterrows():
             theme = str(row["Theme"]).strip()
@@ -169,9 +169,9 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
                 if sent_clean:
                     sentence_color_pairs.append((sent_clean, color))
 
-        # -----------------------------------------
+        
         # Highlight sentences inside the paragraph
-        # -----------------------------------------
+        
         highlighted_text = full_text
         for sent, color in sentence_color_pairs:
             highlighted_text = re.sub(
@@ -181,14 +181,14 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
                 count=1
             )
 
-        # -----------------------------------------
+    
         # Output highlighted content block
-        # -----------------------------------------
+        
         html_out += f"<p><strong>Content:</strong><br>{highlighted_text}</p>"
 
-        # -----------------------------------------
+        
         # Output each theme block
-        # -----------------------------------------
+        
         for _, row in group.iterrows():
             theme = str(row["Theme"]).strip()
             theme_key = theme.lower()
