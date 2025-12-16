@@ -245,7 +245,7 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
 
     html_out += """
     <div class="legend-container">
-        <div class="legend-title">Theme Legend</div>
+        <div class="legend-title">Extended Yorkshire Contributory Factors Framework</div>
         <table class="theme-info">
             <tr>
                 <th>Theme</th>
