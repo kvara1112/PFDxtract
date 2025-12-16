@@ -314,7 +314,7 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
                         <th>Framework</th>
                         <th>Confidence</th>
                     </tr>
-                    <tr style="background-color:{color};">
+                    <tr>
                         <td>{html.escape(row["Framework"])}</td>
                         <td>{row["Confidence"]:.4f}</td>
                     </tr>
