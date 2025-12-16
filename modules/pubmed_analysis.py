@@ -324,12 +324,12 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
                 <ul>
             """
 
-            # for s in str(row["Matched Sentences"]).split(" | "):
-            #     html_out += f"""
-            #         <li style="background-color:{color}; padding:6px; margin-bottom:6px; border-radius:4px;">
-            #             {html.escape(s)}
-            #         </li>
-            #     """
+            for s in str(row["Matched Sentences"]).split(" | "):
+                html_out += f"""
+                    <li padding:6px; margin-bottom:6px; border-radius:4px;">
+                        {html.escape(s)}
+                    </li>
+                """
 
             html_out += "</ul></div>"
 
