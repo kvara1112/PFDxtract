@@ -2292,8 +2292,9 @@ def render_evaluations_tab(isPFD: bool):
 
     CORRELATION_COLOR_SCALE = px.colors.diverging.RdBu_r
     TEXT_AUTO_FORMAT = ".2f"
-    st.title("Prediction Confusion Matrix")
+    
     if uploaded_file is not None:
+        st.title("Prediction Accuracy Confusion Matrix")
         try:
             df = pd.read_csv(uploaded_file)
 
@@ -2303,8 +2304,8 @@ def render_evaluations_tab(isPFD: bool):
                 st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
                 st.stop()
 
-            y_pred = df["PREDICTED LABEL"]
-            y_true = df["HUMAN LABEL"]
+            y_pred = df["PREDICTED LABEL"].astype(str).fillna("Unknown")
+            y_true = df["HUMAN LABEL"].astype(str).fillna("Unknown")
 
             # Get all unique labels for consistent ordering
             labels = sorted(list(set(y_pred) | set(y_true)))
