@@ -1965,7 +1965,8 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         st.markdown("""
             ### Unsatisfied with the results?
             Download the csv file and reupload corrected annotations in a new column, under the title HUMAN LABEL.
-            Note: Corrected annotations must be from the Extended Yorkshire Contributory Factors Framework.
+            - Note: Corrected annotations must be from the Extended Yorkshire Contributory Factors Framework.
+                    
             This will help contribute to the continuous improvement of our model.
                     """)
         corrected_file = st.file_uploader(
@@ -1985,7 +1986,9 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                         st.error("Uploaded CSV must contain a column named 'HUMAN LABEL'.")
                         st.stop()
 
-                    encoded = base64.b64encode(content).decode("utf-8")
+                    
+                    csv_bytes = df.to_csv(index=False).encode('utf-8')
+                    encoded = base64.b64encode(csv_bytes).decode("utf-8")
                     filename = f"Theme_analysis_human_corrected/{datetime.now().strftime('%Y%m%d_%H%M%S')}_annotations.csv"
 
                     # GitHub API URL
