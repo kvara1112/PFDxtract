@@ -1776,7 +1776,11 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     pubmed_initialized_key = f"{report_key}_pubmed_initialised"
     if pubmed_initialized_key not in st.session_state:
         st.session_state[pubmed_initialized_key] = False
-    
+
+    pubmed_results_df_key = f"{report_key}_pubmed_results_df"
+    if pubmed_results_df_key not in st.session_state:
+        st.session_state[pubmed_results_df_key] = None
+
     # Initialize custom frameworks dictionary if not present
     # custom_frameworks_key = f"{report_key}_custom_frameworks"
     # if custom_frameworks_key not in st.session_state:
@@ -1921,10 +1925,13 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     content_column,
                     confidenceScore
                 )
-
+            st.session_state[pubmed_results_df_key] = results_df
+            st.success("Analysis complete!")
+            #st.dataframe(st.session_state[pubmed_results_df_key])
+        results_df = st.session_state.get(pubmed_results_df_key)
+        if results_df is not None and not results_df.empty:
             st.subheader("Analysis Results")
             st.dataframe(results_df)
-        if results_df is not None:
             col1, col2 = st.columns(2)
             with col1:
             # CSV Download
@@ -1932,7 +1939,8 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     "Download CSV",
                     data=results_df.to_csv(index=False),
                     file_name="theme_analysis_results.csv",
-                    mime="text/csv"
+                    mime="text/csv",
+                    key="download_csv"
                 )
 
             with col2:
@@ -1943,7 +1951,8 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     "Download HTML Report",
                     data=html,
                     file_name="annotated_theme_report.html",
-                    mime="text/html"
+                    mime="text/html",
+                    key="download_html"
                 )
 
             st.success("Analysis complete!")
