@@ -27,6 +27,8 @@ import os
 import uuid
 import logging
 import pdfplumber
+import requests
+import base64
 from nltk.stem import PorterStemmer
 # Import our modules
 from .core_utils import (
@@ -66,6 +68,10 @@ from .pubmed_analysis import(
     process_selected_reports,
     generate_html_report
 )
+
+
+st.secrets["GITHUB_TOKEN"]
+st.secrets["GITHUB_REPO"]
 
 # Add this to your initialize_session_state function
 def initialize_session_state():
@@ -1956,8 +1962,57 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             )
 
         st.success("Analysis complete!")
+        st.markdown("""
+            ### Unsatisfied with the results?
+            Download the csv file and reupload corrected annotations in a new column, under the title HUMAN LABEL.
+            Note: Corrected annotations must be from the Extended Yorkshire Contributory Factors Framework.
+            This will help contribute to the continuous improvement of our model.
+                    """)
+        corrected_file = st.file_uploader(
+            "Upload corrected CSV",
+            type=["csv"],
+            key="human_label_upload"
+        )
+        send_to_dev = st.button("Send to Developer")
+        if send_to_dev:
+            if corrected_file is None:
+                st.error("Please upload a corrected CSV before sending.")
+            else:
+                try:
+                    content = corrected_file.read()
+                    df = pd.read_csv(corrected_file)
+                    if "HUMAN LABEL" not in df.columns:
+                        st.error("Uploaded CSV must contain a column named 'HUMAN LABEL'.")
+                        st.stop()
 
+                    encoded = base64.b64encode(content).decode("utf-8")
+                    filename = f"Theme_analysis_human_corrected/{datetime.now().strftime('%Y%m%d_%H%M%S')}_annotations.csv"
 
+                    # GitHub API URL
+                    url = f"https://api.github.com/repos/{st.secrets['GITHUB_REPO']}/contents/{filename}"
+
+                    # Headers with token
+                    headers = {
+                        "Authorization": f"token {st.secrets['GITHUB_TOKEN']}",
+                        "Accept": "application/vnd.github.v3+json",
+                    }
+
+                    # Payload for creating the file
+                    payload = {
+                        "message": "Add human-labelled annotations",
+                        "content": encoded
+                    }
+
+                    # Send request
+                    response = requests.put(url, json=payload, headers=headers)
+
+                    if response.status_code in [200, 201]:
+                        st.success(f"File successfully sent to developers: `{filename}`")
+                    else:
+                        st.error(f"Failed to upload file to GitHub. Status code: {response.status_code}")
+                        st.json(response.json())
+                except Exception as e:
+                    st.error(f"Error processing the file: {str(e)}")
 
 
 def render_bert_analysis_tabworking(data: pd.DataFrame = None):
