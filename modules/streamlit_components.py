@@ -29,7 +29,12 @@ import logging
 import pdfplumber
 import requests
 import base64
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
 from nltk.stem import PorterStemmer
+
+
 # Import our modules
 from .core_utils import (
     process_scraped_data, 
@@ -2287,19 +2292,19 @@ def render_evaluations_tab(isPFD: bool):
 
     CORRELATION_COLOR_SCALE = px.colors.diverging.RdBu_r
     TEXT_AUTO_FORMAT = ".2f"
-
+    st.title("Prediction Confusion Matrix")
     if uploaded_file is not None:
         try:
             df = pd.read_csv(uploaded_file)
 
             # Check required columns exist
-            required_cols = ["PREDICTED THEME", "HUMAN THEME"]
+            required_cols = ["PREDICTED LABEL", "HUMAN LABEL"]
             if not all(col in df.columns for col in required_cols):
                 st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
                 st.stop()
 
-            y_pred = df["PREDICTED THEME"]
-            y_true = df["HUMAN THEME"]
+            y_pred = df["PREDICTED LABEL"]
+            y_true = df["HUMAN LABEL"]
 
             # Get all unique labels for consistent ordering
             labels = sorted(list(set(y_pred) | set(y_true)))
