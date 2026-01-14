@@ -2294,6 +2294,7 @@ def render_evaluations_tab(isPFD: bool):
     TEXT_AUTO_FORMAT = ".2f"
     
     if uploaded_file is not None:
+        # shows how often one AI theme was actually another theme
         st.title("Prediction Accuracy Confusion Matrix")
         try:
             df = pd.read_csv(uploaded_file)
@@ -2310,7 +2311,7 @@ def render_evaluations_tab(isPFD: bool):
             y_true = df["HUMAN LABEL"].astype(str)
 
             # Get all unique labels for consistent ordering
-            labels = sorted(list(set(y_pred) | set(y_true)))
+            labels = sorted(set(y_pred) | set(y_true))
 
             # Compute confusion matrix
             cm_counts = confusion_matrix(y_true, y_pred, labels=labels)
@@ -2325,9 +2326,13 @@ def render_evaluations_tab(isPFD: bool):
             # Heatmap
             st.subheader("Confusion Correlation Heatmap")
             fig, ax = plt.subplots(figsize=(15, 12))
+            fig.patch.set_facecolor('none')
+            ax.set_facecolor('none')
             sns.heatmap(cm_corr, annot=True, fmt=".2f", cmap="coolwarm", vmin=0, vmax=1, ax=ax, linewidths=0.5, linecolor='white')
             ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center', fontsize=10)
             ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
+            ax.set_xlabel("AI Annotations")
+            ax.set_ylabel("Human Annotations")
             st.pyplot(fig)
 
             # Optional download
