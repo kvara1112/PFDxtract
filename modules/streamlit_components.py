@@ -2293,13 +2293,13 @@ def render_evaluations_tab(isPFD: bool):
             df = pd.read_csv(uploaded_file)
 
             # Check required columns exist
-            required_cols = ["PREDICTED_THEME", "HUMAN_THEME"]
+            required_cols = ["PREDICTED THEME", "HUMAN THEME"]
             if not all(col in df.columns for col in required_cols):
                 st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
                 st.stop()
 
-            y_pred = df["PREDICTED_THEME"]
-            y_true = df["HUMAN_THEME"]
+            y_pred = df["PREDICTED THEME"]
+            y_true = df["HUMAN THEME"]
 
             # Get all unique labels for consistent ordering
             labels = sorted(list(set(y_pred) | set(y_true)))
