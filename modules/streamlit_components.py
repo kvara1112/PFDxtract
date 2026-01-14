@@ -2304,8 +2304,10 @@ def render_evaluations_tab(isPFD: bool):
                 st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
                 st.stop()
 
-            y_pred = df["PREDICTED LABEL"].astype(str).fillna("Unknown")
-            y_true = df["HUMAN LABEL"].astype(str).fillna("Unknown")
+            df = df[df["HUMAN LABEL"].notna() & (df["HUMAN LABEL"].str.strip() != "")]
+
+            y_pred = df["PREDICTED LABEL"].astype(str)
+            y_true = df["HUMAN LABEL"].astype(str)
 
             # Get all unique labels for consistent ordering
             labels = sorted(list(set(y_pred) | set(y_true)))
