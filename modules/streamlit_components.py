@@ -1837,9 +1837,9 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             st.error(f"Error uploading file: {str(e)}")
             return
         
-    if uploaded_file is None and data is None:
-        if pubmed_results_key in st.session_state:
-            del st.session_state[pubmed_results_key]
+    # if uploaded_file is None and data is None:
+    #     if pubmed_results_key in st.session_state:
+    #         del st.session_state[pubmed_results_key]
    
     if data is None or len(data) == 0:
         st.warning(
@@ -1928,34 +1928,34 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             st.session_state[pubmed_results_df_key] = results_df
             st.success("Analysis complete!")
             #st.dataframe(st.session_state[pubmed_results_df_key])
-        results_df = st.session_state.get(pubmed_results_df_key)
-        if results_df is not None and not results_df.empty:
-            st.subheader("Analysis Results")
-            st.dataframe(results_df)
-            col1, col2 = st.columns(2)
-            with col1:
-            # CSV Download
-                st.download_button(
-                    "Download CSV",
-                    data=results_df.to_csv(index=False),
-                    file_name="theme_analysis_results.csv",
-                    mime="text/csv",
-                    key="download_csv"
-                )
+    results_df = st.session_state.get(pubmed_results_df_key)
+    if results_df is not None and not results_df.empty:
+        st.subheader("Analysis Results")
+        st.dataframe(results_df)
+        col1, col2 = st.columns(2)
+        with col1:
+        # CSV Download
+            st.download_button(
+                "Download CSV",
+                data=results_df.to_csv(index=False),
+                file_name="theme_analysis_results.csv",
+                mime="text/csv",
+                key="download_csv"
+            )
 
-            with col2:
-            # Build HTML annotated report
-                html = generate_html_report(results_df)
+        with col2:
+        # Build HTML annotated report
+            html = generate_html_report(results_df)
 
-                st.download_button(
-                    "Download HTML Report",
-                    data=html,
-                    file_name="annotated_theme_report.html",
-                    mime="text/html",
-                    key="download_html"
-                )
+            st.download_button(
+                "Download HTML Report",
+                data=html,
+                file_name="annotated_theme_report.html",
+                mime="text/html",
+                key="download_html"
+            )
 
-            st.success("Analysis complete!")
+        st.success("Analysis complete!")
 
 
 
