@@ -1980,7 +1980,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 st.error("Please upload a corrected CSV before sending.")
             else:
                 try:
-                    content = corrected_file.read()
+                    #content = corrected_file.read()
                     df = pd.read_csv(corrected_file)
                     if "HUMAN LABEL" not in df.columns:
                         st.error("Uploaded CSV must contain a column named 'HUMAN LABEL'.")
