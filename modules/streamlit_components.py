@@ -2265,6 +2265,73 @@ if "button_clicked" not in st.session_state:
 def go_to_page(page):
     st.session_state.button_clicked = page
 
+
+def render_evaluations_tab(isPFD: bool):
+    st.subheader("Upload theme Analysis CSV")
+    uploaded_file = st.file_uploader(
+        "Upload a CSV file for AI Evaluations",
+        type=["csv"],
+        key ="ai_evaluation_upload"
+    )
+    PLOT_HEIGHT = 800
+    PLOT_WIDTH = 850
+    TOP_MARGIN = 80
+    BOTTOM_MARGIN = 220
+    LEFT_MARGIN = 200
+    RIGHT_MARGIN = 80
+
+    FONT_COLOR = "white"
+    GRID_COLOR = "rgba(255,255,255,0.1)"
+    BG_COLOR = "rgba(0,0,0,0)"
+    COLORBAR_TITLE_COLOR = "white"
+
+    CORRELATION_COLOR_SCALE = px.colors.diverging.RdBu_r
+    TEXT_AUTO_FORMAT = ".2f"
+
+    if uploaded_file is not None:
+        try:
+            df = pd.read_csv(uploaded_file)
+
+            # Check required columns exist
+            required_cols = ["PREDICTED_THEME", "HUMAN_THEME"]
+            if not all(col in df.columns for col in required_cols):
+                st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
+                st.stop()
+
+            y_pred = df["PREDICTED_THEME"]
+            y_true = df["HUMAN_THEME"]
+
+            # Get all unique labels for consistent ordering
+            labels = sorted(list(set(y_pred) | set(y_true)))
+
+            # Compute confusion matrix
+            cm = confusion_matrix(y_true, y_pred, labels=labels)
+
+            # Convert to DataFrame for display
+            cm_df = pd.DataFrame(cm, index=labels, columns=labels)
+
+            st.subheader("Confusion Matrix (rows = Human, columns = AI)")
+            st.dataframe(cm_df)
+
+            # Plot heatmap
+            st.subheader("Confusion Matrix Heatmap")
+            fig, ax = plt.subplots(figsize=(10, 8))
+            sns.heatmap(cm_df, annot=True, fmt="d", cmap="Blues", ax=ax)
+            ax.set_xlabel("AI-Predicted Theme")
+            ax.set_ylabel("Human Theme")
+            st.pyplot(fig)
+
+            # Optional: download confusion matrix
+            st.download_button(
+                "Download Confusion Matrix CSV",
+                cm_df.to_csv(index=True),
+                "confusion_matrix.csv",
+                "text/csv"
+            )
+
+        except Exception as e:
+            st.error(f"Error processing file: {str(e)}")
+
 def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     """
     Render a comprehensive dashboard for analysing themes by various metadata fields

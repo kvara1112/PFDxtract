@@ -37,6 +37,7 @@ from modules.streamlit_components import (
     render_bert_analysis_tab,
     render_pubmed_analysis_tab,
     render_theme_analysis_dashboard,
+    render_evaluations_tab,
     non_pfd_tab
 )
 
@@ -571,8 +572,9 @@ def main():
                 3. **(Step 3) 📊 Scraped File Analysis**: Visualise and analyse basic report patterns
                 4. **(Step 4) 📝 Topic Analysis & Summaries**: Generate basic themes from report content
                 5. **(Step 5) 🔬 Concept Annotation**: Conduct advanced theme analysis with AI
-                6. **(Step 6) 📈 Theme Analysis Dashboard**: Explore comprehensive theme visualisations
-                7. **(Step 7) 📃 Non PFD Analysis**: Analyse reports that are not PFD reports 
+                6. **(Step 6) ✨ New Ai Annotator**: Uses a hybrid trained pubmed bert model to concept annotate"
+                7. **(Step 7) 📈 Theme Analysis Dashboard**: Explore comprehensive theme visualisations
+                8. **(Step 8) 🕵️‍♀️ AI Annotations Evaluator**: Visualise and analyse the accuracy of an AI model
                 
                 Select each numbered tab in sequence to move through the complete analysis pipeline.
                 
@@ -594,7 +596,8 @@ def main():
                 "(4)📝 Topic Analysis & Summaries", 
                 "(5)🔬 Concept Annotation",
                 "(6)✨ New Ai Annotator",
-                "(7)📈 Theme Analysis Dashboard"
+                "(7)📈 Theme Analysis Dashboard",
+                "(8)🕵️‍♀️ AI Annotations Evaluator"
             ],
             label_visibility="collapsed",
             horizontal=True,
@@ -713,7 +716,17 @@ def main():
                     """
                 )
                 render_theme_analysis_dashboard(True, st.session_state.current_data)
-            
+            elif current_tab == "(8)🕵️‍♀️ AI Annotations Evaluator":
+                st.markdown(
+                    """
+                    Compare the accuracy of Ai annotations to Human Annotations when annotating PFD reports
+
+                    - Upload a file of annotations ensuring each report name is present, along with a PREDICTED LABEL AND HUMAN LABEL column.
+                    - File of corrections from step 6 is perfect for this section.
+
+                    """
+                )
+                render_evaluations_tab(True)
             elif current_tab == "(6)✨ New Ai Annotator":
                 st.markdown(
                     """
