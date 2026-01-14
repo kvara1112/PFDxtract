@@ -2328,11 +2328,12 @@ def render_evaluations_tab(isPFD: bool):
             fig, ax = plt.subplots(figsize=(15, 12))
             fig.patch.set_facecolor('none')
             ax.set_facecolor('none')
-            sns.heatmap(cm_corr, annot=True, fmt=".2f", cmap="coolwarm", vmin=0, vmax=1, ax=ax, linewidths=0.5, linecolor='white')
+            sns.heatmap(cm_corr, annot=True, fmt=".2f", cmap="coolwarm", vmin=0, vmax=1, ax=ax, annot_kws={"color": "white"}, linewidths=0.5, linecolor='white')
             ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center', fontsize=10)
             ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
-            ax.set_xlabel("AI Annotations")
-            ax.set_ylabel("Human Annotations")
+            ax.set_xlabel("AI Annotations", color="white")
+            ax.set_ylabel("Human Annotations", color="white")
+            ax.tick_params(colors='white', which='both')
             st.pyplot(fig)
 
             # Optional download
