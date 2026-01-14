@@ -62,7 +62,131 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s: %(message)s",
 )
 
+ycff_text ="""
+    Situational- Team Factors
+    Situational- Individual Staff Factors
+    Situational- Task Characteristics
+    Situational- Patient Factors
+    Local Working Conditions- Workload and Staffing ssues
+    Local Working Conditions- Supervision and Leadership
+    Local Working Conditions- Drugs, Equipment and Supplies
+    Local Working Conditions- Lines of Responsibility
+    Local Working Conditions- Management of Staff and Staffing Levels
+    Organisational Factors- Physical Environment
+    Organisational Factors- Support from other Departments
+    Organisational Factors- Care Planning
+    Organisational Factors- Staff Training and Education
+    Organisational Factors- Policies and Procedures
+    Organisational Factors- Escalation/Referral Factor
+    External Factors- Design of Equipment, Supplies and Drugs
+    External Factors- National Policies
+    Communication and Culture- Safety Culture
+    Communication and Culture- Verbal and Written Communication
+    Human Error- Slips or Lapses
+    Human Error- Violations
 
+
+    """
+ycffthemes = [
+    line.strip()
+    for line in ycff_text.splitlines()
+    if line.strip()
+]
+ycff_df = pd.DataFrame(ycffthemes, columns=["Theme"])
+
+isirch_text="""
+    External - Policy factor
+    External - Societal factor
+    External - Economic factor
+    External - COVID ✓
+    External - Geographical factor (e.g. Location of patient)
+    Internal - Physical layout and Environment
+    Internal - Acuity (e.g., capacity of the maternity unit as a whole)
+    Internal - Availability (e.g., operating theatres)
+    Internal - Time of day (e.g., night working or day of the week)
+    Organisation - Team culture factor (e.g., patient safety culture)
+    Organisation - Incentive factor (e.g., performance evaluation)
+    Organisation - Teamworking
+    Organisation - Communication factor
+    Organisation - Communication factor - Between staff
+    Organisation - Communication factor - Between staff and patient (verbal)
+    Organisation - Documentation
+    Organisation - Escalation/referral factor (including fresh eyes reviews)
+    Organisation - National and/or local guidance
+    Organisation - Language barrier
+    Jobs/Task - Assessment, investigation, testing, screening (e.g., holistic review)
+    Jobs/Task - Care planning
+    Jobs/Task - Dispensing, administering
+    Jobs/Task - Monitoring
+    Jobs/Task - Risk assessment
+    Jobs/Task - Situation awareness (e.g., loss of helicopter view
+    Jobs/Task - Obstetric review
+    Technologies - Issues
+    Technologies - Interpretation (e.g., CTG)
+    Person - Patient (characteristics and performance)
+    Person - Patient (characteristics and performance) - Characteristics
+    Person - Patient (characteristics and performance) - Characteristics - Physical characteristics
+    Person - Patient (characteristics and performance) - Characteristics - Psychological characteristics (e.g., stress, mental health)
+    Person - Patient (characteristics and performance) - Characteristics - Language competence (English)
+    Person - Patient (characteristics and performance) - Characteristics - Disability (e.g., hearing problems)
+    Person - Patient (characteristics and performance) - Characteristics - Training and education (e.g., attendance at ante-natal classes)
+    Person - Patient (characteristics and performance) - Characteristics - Record of attendance (e.g., failure to attend antenatal classes)
+    Person - Patient (characteristics and performance) - Performance
+    Person - Staff (characteristics and performance)
+    Person - Staff (characteristics and performance) - Characteristics
+    Person - Staff (characteristics and performance) - Performance
+"""
+isirchthemes = [
+    line.strip()
+    for line in isirch_text.splitlines()
+    if line.strip()
+]
+isirch_df = pd.DataFrame(isirchthemes, columns=["Theme"])
+
+hoc_text="""
+    Communication
+    Fragmented Care
+    Guidance Gaps
+    Pre-existing Conditions and Comorbidities
+    Inadequate Maternity Care
+    Care Quality and Access Issues
+    Socioeconomic Factors and Deprivation
+    Biases and Stereotyping
+    Consent/Agency
+    Dignity/Respect
+"""
+hocthemes = [
+    line.strip()
+    for line in hoc_text.splitlines()
+    if line.strip()
+]
+hoc_df = pd.DataFrame(hocthemes, columns=["Themes"])
+
+EA_text = """
+    Procedural and Process Failures
+    Medication safety
+    Resource allocation
+    Facility and Equipment Issues
+    Emergency preparedness
+    Staff Wellbeing and Burnout
+    Ethical considerations
+    Diagnostic process
+    Post-Event Learning and Improvement
+    Electronic Health Record Issues
+    Time-Critical Interventions
+    Human Factors and Cognitive Aspects
+    Service Design and Patient Flow
+    Maternal and Neonatal Risk Factors
+    Private vs. NHS Care Integration
+    Peer Support and Supervision
+    Diagnostic Testing and Specimen Handling
+"""
+EAthemes = [
+    line.strip()
+    for line in EA_text.splitlines()
+    if line.strip()
+]
+EA_df = pd.DataFrame(EAthemes, columns=["Themes"])
 
 def render_analysis_tab(data=None, data_source=None):
     """Render the analysis tab with improved filters and visualizations"""
@@ -565,6 +689,15 @@ def main():
                     - Download colour highlighted sentences based on theme colours in a html report
                     """
                 )
+                with st.expander("View I-SIRch Framework 📕"):
+                    st.dataframe(isirch_df, use_container_width=True)
+                with st.expander("View House of Commons Framework 📗"):
+                    st.dataframe(hoc_df, use_container_width=True)
+                with st.expander("View Extended Analysis Framework 📙"):
+                    st.dataframe(EA_df, use_container_width=True)
+                with st.expander("View Extended Yorkshire Contributory Factors 📘"):
+                    st.dataframe(ycff_df, use_container_width=True)
+
                 render_bert_analysis_tab(True, st.session_state.current_data)
                 
             elif current_tab == "(7)📈 Theme Analysis Dashboard":
@@ -587,10 +720,13 @@ def main():
                     New Ai annotator, uses trained pubmed model to anotate PFD reports and generates a HTML report, as well as an annotations 
                     excel file for the user to make any changes to incorrectly annotated themes and simply for personal use. 
 
-                    For the Yorkshire Contributory Factors Framework only.
+                    Uses an extended version of the Yorkshire Contributory Factors Framework.
                     Note: Please upload the newly edited file below for our research purposes
                     """
                 )
+                with st.expander("View Extended Yorkshire Contributory Factors 📘"):
+                    st.dataframe(ycff_df, use_container_width=True)
+
                 render_pubmed_analysis_tab(True, st.session_state.current_data)
             # Sidebar data management
             with st.sidebar:
