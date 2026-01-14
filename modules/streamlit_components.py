@@ -2272,7 +2272,7 @@ def go_to_page(page):
 
 
 def render_evaluations_tab(isPFD: bool):
-    st.subheader("Upload theme Analysis CSV")
+    st.subheader("Upload File for Evaluation Analysis (CSV)")
     uploaded_file = st.file_uploader(
         "Upload a CSV file for AI Evaluations",
         type=["csv"],
@@ -2311,27 +2311,28 @@ def render_evaluations_tab(isPFD: bool):
             labels = sorted(list(set(y_pred) | set(y_true)))
 
             # Compute confusion matrix
-            cm = confusion_matrix(y_true, y_pred, labels=labels)
+            cm_counts = confusion_matrix(y_true, y_pred, labels=labels)
+            cm_df = pd.DataFrame(cm_counts, index=labels, columns=labels)
 
-            # Convert to DataFrame for display
-            cm_df = pd.DataFrame(cm, index=labels, columns=labels)
+            # Normalize rows to get correlation scores 0-1
+            cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)
 
-            st.subheader("Confusion Matrix (rows = Human, columns = AI)")
-            st.dataframe(cm_df)
+            # st.subheader("Confusion Correlation Matrix (0 = never, 1 = always)")
+            # st.dataframe(cm_corr.style.format("{:.2f}"))
 
-            # Plot heatmap
-            st.subheader("Confusion Matrix Heatmap")
-            fig, ax = plt.subplots(figsize=(10, 8))
-            sns.heatmap(cm_df, annot=True, fmt="d", cmap="Blues", ax=ax)
-            ax.set_xlabel("AI-Predicted Theme")
-            ax.set_ylabel("Human Theme")
+            # Heatmap
+            st.subheader("Confusion Correlation Heatmap")
+            fig, ax = plt.subplots(figsize=(15, 12))
+            sns.heatmap(cm_corr, annot=True, fmt=".2f", cmap="coolwarm", vmin=0, vmax=1, ax=ax, linewidths=0.5, linecolor='white')
+            ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center', fontsize=10)
+            ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
             st.pyplot(fig)
 
-            # Optional: download confusion matrix
+            # Optional download
             st.download_button(
-                "Download Confusion Matrix CSV",
-                cm_df.to_csv(index=True),
-                "confusion_matrix.csv",
+                "Download Confusion Correlation CSV",
+                cm_corr.to_csv(index=True),
+                "confusion_correlation_matrix.csv",
                 "text/csv"
             )
 
