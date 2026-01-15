@@ -2296,54 +2296,71 @@ def render_evaluations_tab(isPFD: bool):
     if uploaded_file is not None:
         # shows how often one AI theme was actually another theme
         st.title("Prediction Accuracy Confusion Matrix")
+        tab1, tab2 = st.tabs([
+            "Visuals",
+            "Metrics"
+        ])
         try:
-            df = pd.read_csv(uploaded_file)
+            with tab1:
+                df = pd.read_csv(uploaded_file)
 
-            # Check required columns exist
-            required_cols = ["PREDICTED LABEL", "HUMAN LABEL"]
-            if not all(col in df.columns for col in required_cols):
-                st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
-                st.stop()
+                # Check required columns exist
+                required_cols = ["PREDICTED LABEL", "HUMAN LABEL"]
+                if not all(col in df.columns for col in required_cols):
+                    st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
+                    st.stop()
 
-            df = df[df["HUMAN LABEL"].notna() & (df["HUMAN LABEL"].str.strip() != "")]
+                df = df[df["HUMAN LABEL"].notna() & (df["HUMAN LABEL"].str.strip() != "")]
 
-            y_pred = df["PREDICTED LABEL"].astype(str)
-            y_true = df["HUMAN LABEL"].astype(str)
+                y_pred = df["PREDICTED LABEL"].astype(str)
+                y_true = df["HUMAN LABEL"].astype(str)
 
-            # Get all unique labels for consistent ordering
-            labels = sorted(set(y_pred) | set(y_true))
+                # Get all unique labels for consistent ordering
+                labels = sorted(set(y_pred) | set(y_true))
 
-            # Compute confusion matrix
-            cm_counts = confusion_matrix(y_true, y_pred, labels=labels)
-            cm_df = pd.DataFrame(cm_counts, index=labels, columns=labels)
+                # Compute confusion matrix
+                cm_counts = confusion_matrix(y_true, y_pred, labels=labels)
+                cm_df = pd.DataFrame(cm_counts, index=labels, columns=labels)
 
-            # Normalize rows to get correlation scores 0-1
-            cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)
+                # Normalize rows to get correlation scores 0-1
+                cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)
 
-            # st.subheader("Confusion Correlation Matrix (0 = never, 1 = always)")
-            # st.dataframe(cm_corr.style.format("{:.2f}"))
+                # st.subheader("Confusion Correlation Matrix (0 = never, 1 = always)")
+                # st.dataframe(cm_corr.style.format("{:.2f}"))
 
-            # Heatmap
-            st.subheader("Confusion Correlation Heatmap")
-            fig, ax = plt.subplots(figsize=(15, 12))
-            fig.patch.set_facecolor('none')
-            ax.set_facecolor('none')
-            sns.heatmap(cm_corr, annot=True, fmt=".2f", cmap="coolwarm", vmin=0, vmax=1, ax=ax, annot_kws={"color": "white"}, linewidths=0.5, linecolor='white')
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center', fontsize=10)
-            ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
-            ax.set_xlabel("AI Annotations", color="white")
-            ax.set_ylabel("Human Annotations", color="white")
-            ax.tick_params(colors='white', which='both')
-            st.pyplot(fig)
+                # Heatmap
+                st.subheader("Confusion Correlation Heatmap")
+                fig, ax = plt.subplots(figsize=(15, 12))
+                fig.patch.set_facecolor('none')
+                ax.set_facecolor('none')
+                sns.heatmap(cm_corr, annot=True, fmt=".2f", cmap="coolwarm", vmin=0, vmax=1, ax=ax, annot_kws={"color": "white"}, linewidths=0.5, linecolor='white')
+                ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center', fontsize=10)
+                ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
+                ax.set_xlabel("AI Annotations", color="white")
+                ax.set_ylabel("Human Annotations", color="white")
+                ax.tick_params(colors='white', which='both')
+                st.pyplot(fig)
 
-            # Optional download
-            st.download_button(
-                "Download Confusion Correlation CSV",
-                cm_corr.to_csv(index=True),
-                "confusion_correlation_matrix.csv",
-                "text/csv"
-            )
-
+                # Optional download
+                st.download_button(
+                    "Download Confusion Correlation CSV",
+                    cm_corr.to_csv(index=True),
+                    "confusion_correlation_matrix.csv",
+                    "text/csv"
+                )
+            with tab2:
+                st.title("Evaluation Metrics")
+                st.subheader("Precision")
+                df = pd.read_csv(uploaded_file)
+                # ignoring all the blank filled boxes
+                total_predictions = df["HUMAN LABEL"].astype(str).str.strip().replace("",pd.NA).notna().sum()
+                # now counting correct prediction where rows in both are the same 
+                human = df["HUMAN LABEL"].astype(str).str.strip()
+                pred = df["PREDICTED LABEL"].astype(str).str.strip()
+                matches = human == pred
+                num_matches = matches.sum()
+                precision = num_matches/total_predictions
+                st.write("Precision = ", precision)
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
 
