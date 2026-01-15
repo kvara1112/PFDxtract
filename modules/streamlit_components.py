@@ -2294,46 +2294,40 @@ def render_evaluations_tab(isPFD: bool):
     TEXT_AUTO_FORMAT = ".2f"
     
     if uploaded_file is not None:
-        # shows how often one AI theme was actually another theme
-        st.title("Prediction Accuracy Confusion Matrix")
-        tab1, tab2 = st.tabs([
-            "Visuals",
-            "Metrics"
-        ])
         try:
+            # Read CSV once
+            df = pd.read_csv(uploaded_file)
+
+            # Check required columns exist
+            required_cols = ["PREDICTED LABEL", "HUMAN LABEL"]
+            if not all(col in df.columns for col in required_cols):
+                st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
+                st.stop()
+
+            tab1, tab2 = st.tabs(["Visuals", "Metrics"])
+
+            # Filter out blank human labels
+            df_filtered = df[df["HUMAN LABEL"].notna() & (df["HUMAN LABEL"].str.strip() != "")]
+
+            
             with tab1:
-                df = pd.read_csv(uploaded_file)
+                y_pred = df_filtered["PREDICTED LABEL"].astype(str).str.strip()
+                y_true = df_filtered["HUMAN LABEL"].astype(str).str.strip()
 
-                # Check required columns exist
-                required_cols = ["PREDICTED LABEL", "HUMAN LABEL"]
-                if not all(col in df.columns for col in required_cols):
-                    st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
-                    st.stop()
-
-                df = df[df["HUMAN LABEL"].notna() & (df["HUMAN LABEL"].str.strip() != "")]
-
-                y_pred = df["PREDICTED LABEL"].astype(str)
-                y_true = df["HUMAN LABEL"].astype(str)
-
-                # Get all unique labels for consistent ordering
                 labels = sorted(set(y_pred) | set(y_true))
-
-                # Compute confusion matrix
                 cm_counts = confusion_matrix(y_true, y_pred, labels=labels)
                 cm_df = pd.DataFrame(cm_counts, index=labels, columns=labels)
-
-                # Normalize rows to get correlation scores 0-1
                 cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)
 
-                # st.subheader("Confusion Correlation Matrix (0 = never, 1 = always)")
-                # st.dataframe(cm_corr.style.format("{:.2f}"))
-
-                # Heatmap
                 st.subheader("Confusion Correlation Heatmap")
                 fig, ax = plt.subplots(figsize=(15, 12))
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('none')
-                sns.heatmap(cm_corr, annot=True, fmt=".2f", cmap="coolwarm", vmin=0, vmax=1, ax=ax, annot_kws={"color": "white"}, linewidths=0.5, linecolor='white')
+                sns.heatmap(
+                    cm_corr, annot=True, fmt=".2f", cmap="coolwarm",
+                    vmin=0, vmax=1, ax=ax,
+                    annot_kws={"color": "white"}, linewidths=0.5, linecolor='white'
+                )
                 ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center', fontsize=10)
                 ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
                 ax.set_xlabel("AI Annotations", color="white")
@@ -2341,33 +2335,25 @@ def render_evaluations_tab(isPFD: bool):
                 ax.tick_params(colors='white', which='both')
                 st.pyplot(fig)
 
-                # Optional download
                 st.download_button(
                     "Download Confusion Correlation CSV",
                     cm_corr.to_csv(index=True),
                     "confusion_correlation_matrix.csv",
                     "text/csv"
                 )
+
+            
             with tab2:
                 st.title("Evaluation Metrics")
                 st.subheader("Report Batch Precision")
-                df = pd.read_csv(uploaded_file)
-                # Check required columns exist
-                required_cols = ["PREDICTED LABEL", "HUMAN LABEL"]
-                if not all(col in df.columns for col in required_cols):
-                    st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
-                    st.stop()
 
-                # Convert to string and strip spaces
-                human = df["HUMAN LABEL"].astype(str).str.strip()
-                pred = df["PREDICTED LABEL"].astype(str).str.strip()
+                human = df_filtered["HUMAN LABEL"].astype(str).str.strip()
+                pred = df_filtered["PREDICTED LABEL"].astype(str).str.strip()
 
-                # Filter out blank human labels safely
                 valid_rows = human.replace("", pd.NA).notna()
                 human = human[valid_rows]
                 pred = pred[valid_rows]
 
-                # Compute precision
                 matches = human == pred
                 num_matches = matches.sum()
                 total_predictions = len(human)
