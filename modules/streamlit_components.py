@@ -2352,22 +2352,29 @@ def render_evaluations_tab(isPFD: bool):
                 st.title("Evaluation Metrics")
                 st.subheader("Report Batch Precision")
                 df = pd.read_csv(uploaded_file)
+                # Check required columns exist
                 required_cols = ["PREDICTED LABEL", "HUMAN LABEL"]
                 if not all(col in df.columns for col in required_cols):
                     st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
                     st.stop()
 
-                df = df[df["HUMAN LABEL"].notna() & (df["HUMAN LABEL"].str.strip() != "")]
-                
-                # ignoring all the blank filled boxes
-                total_predictions = df["HUMAN LABEL"].astype(str).str.strip().replace("",pd.NA).notna().sum()
-                # now counting correct prediction where rows in both are the same 
+                # Convert to string and strip spaces
                 human = df["HUMAN LABEL"].astype(str).str.strip()
                 pred = df["PREDICTED LABEL"].astype(str).str.strip()
+
+                # Filter out blank human labels safely
+                valid_rows = human.replace("", pd.NA).notna()
+                human = human[valid_rows]
+                pred = pred[valid_rows]
+
+                # Compute precision
                 matches = human == pred
                 num_matches = matches.sum()
-                precision = num_matches/total_predictions
-                st.write("Precision = ", precision)
+                total_predictions = len(human)
+                precision = num_matches / total_predictions if total_predictions > 0 else 0
+
+                st.write("Precision =", precision)
+
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
 
