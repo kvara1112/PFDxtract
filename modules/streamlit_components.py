@@ -2350,8 +2350,15 @@ def render_evaluations_tab(isPFD: bool):
                 )
             with tab2:
                 st.title("Evaluation Metrics")
-                st.subheader("Precision")
+                st.subheader("Report Batch Precision")
                 df = pd.read_csv(uploaded_file)
+                required_cols = ["PREDICTED LABEL", "HUMAN LABEL"]
+                if not all(col in df.columns for col in required_cols):
+                    st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
+                    st.stop()
+
+                df = df[df["HUMAN LABEL"].notna() & (df["HUMAN LABEL"].str.strip() != "")]
+                
                 # ignoring all the blank filled boxes
                 total_predictions = df["HUMAN LABEL"].astype(str).str.strip().replace("",pd.NA).notna().sum()
                 # now counting correct prediction where rows in both are the same 
