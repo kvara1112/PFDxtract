@@ -2380,10 +2380,10 @@ def render_evaluations_tab(isPFD: bool):
                 precision_per_report_sorted = precision_per_report.sort_values(by="Precision", ascending=False)
                 fig = px.bar(
                     precision_per_report_sorted,
-                    x="Report",
+                    x="Title",
                     y="Precision",
                     text="Precision",
-                    labels={"Title": "Report Title", "Precision": "Precision"},
+                    labels={"Title": "Title", "Precision": "Precision"},
                     title = "Per Report Precision",
                     color="Precision",
                     color_continuous_scale="Viridis"
