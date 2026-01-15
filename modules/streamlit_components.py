@@ -2361,6 +2361,64 @@ def render_evaluations_tab(isPFD: bool):
 
                 st.write("Precision =", precision)
 
+                #per report precision
+                st.subheader("Per Report Precision")
+                report_name = df_filtered["Title"].astype(str).str.strip()
+
+                df_metrics = pd.DataFrame({
+                    "Title": report_name,
+                    "HUMAN": human,
+                    "PREDICTED": pred
+                })
+
+                precision_per_report = (
+                    df_metrics.groupby("Title")
+                    .apply(lambda x: (x["HUMAN"] ==X["predicted"]).sum() / len(x))
+                    .reset_index(name="Precision")
+                )
+                st.dataframe(precision_per_report)
+                precision_per_report_sorted = precision_per_report.sort_values(by="Precision", ascending=False)
+                fig = px.bar(
+                    precision_per_report_sorted,
+                    x="Report",
+                    y="Precision",
+                    text="Precision",
+                    labels={"Title": "Report Title", "Precision": "Precision"},
+                    title = "Per Report Precision",
+                    color="Precision",
+                    color_continuous_scale="Viridis"
+                )
+
+                fig.update_layout(
+                    xaxis_title="Report Title",       # X-axis shows report names
+                    yaxis_title="Precision",          # Y-axis shows precision (0-1)
+                    yaxis=dict(range=[0, 1]),         # Ensure precision is 0-1
+                    font=dict(family="Arial, sans-serif", color="white"),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(l=250, r=40, t=80, b=120)  # left/bottom margin for long report names
+                )
+
+                # Update X-axis for dark mode
+                fig.update_xaxes(
+                    title_font=dict(color="white"),
+                    tickfont=dict(color="white"),
+                    tickangle=45,                        # Rotate X labels for readability
+                    tickmode="linear",
+                    gridcolor="rgba(255,255,255,0.1)"
+                )
+
+                # Update Y-axis for dark mode
+                fig.update_yaxes(
+                    title_font=dict(color="white"),
+                    tickfont=dict(color="white"),
+                    gridcolor="rgba(255,255,255,0.1)",
+                    automargin=True
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+
+
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
 
