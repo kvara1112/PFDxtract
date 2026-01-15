@@ -2380,40 +2380,32 @@ def render_evaluations_tab(isPFD: bool):
                 precision_per_report_sorted = precision_per_report.sort_values(by="Precision", ascending=False)
                 fig = px.bar(
                     precision_per_report_sorted,
-                    x="Title",
-                    y="Precision",
-                    text="Precision",
-                    labels={"Title": "Title", "Precision": "Precision"},
-                    title = "Per Report Precision",
+                    y="Title",          # report names on Y-axis
+                    x="Precision",      # precision on X-axis
+                    text="Precision",   # show values on bars
+                    orientation="h",    # horizontal bars
                     color="Precision",
-                    color_continuous_scale="Viridis"
+                    color_continuous_scale="Viridis",
+                    labels={"Title": "Report Title", "Precision": "Precision"},
+                    title="Per Report Precision"
                 )
+                fig.update_xaxes(range=[0, 1], title_font=dict(color="white"), tickfont=dict(color="white"), gridcolor="rgba(255,255,255,0.1)")
 
-                fig.update_layout(
-                    xaxis_title="Report Title",       # X-axis shows report names
-                    yaxis_title="Precision",          # Y-axis shows precision (0-1)
-                    yaxis=dict(range=[0, 1]),         # Ensure precision is 0-1
-                    font=dict(family="Arial, sans-serif", color="white"),
-                    paper_bgcolor="rgba(0,0,0,0)",
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=250, r=40, t=80, b=120)  # left/bottom margin for long report names
-                )
-
-                # Update X-axis for dark mode
-                fig.update_xaxes(
-                    title_font=dict(color="white"),
-                    tickfont=dict(color="white"),
-                    tickmode="linear",
-                    gridcolor="rgba(255,255,255,0.1)"
-                )
-
-                # Update Y-axis for dark mode
+                # Y-axis styling
                 fig.update_yaxes(
                     title_font=dict(color="white"),
                     tickfont=dict(color="white"),
-                    gridcolor="rgba(255,255,255,0.1)",
-                    automargin=True
+                    automargin=True     # ensures long report names fit
                 )
+
+                # Layout styling for dark mode
+                fig.update_layout(
+                    font=dict(family="Arial, sans-serif", color="white"),
+                    paper_bgcolor="rgba(0,0,0,0)",
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    margin=dict(l=300, r=40, t=80, b=60)  # increase left margin for long report names
+                )
+                
 
                 st.plotly_chart(fig, use_container_width=True)
 
