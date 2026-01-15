@@ -2373,7 +2373,7 @@ def render_evaluations_tab(isPFD: bool):
 
                 precision_per_report = (
                     df_metrics.groupby("Title")
-                    .apply(lambda x: (x["HUMAN"] ==X["predicted"]).sum() / len(x))
+                    .apply(lambda x: (x["HUMAN"] ==x["predicted"]).sum() / len(x))
                     .reset_index(name="Precision")
                 )
                 st.dataframe(precision_per_report)
