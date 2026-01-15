@@ -2359,7 +2359,7 @@ def render_evaluations_tab(isPFD: bool):
                 total_predictions = len(human)
                 precision = num_matches / total_predictions if total_predictions > 0 else 0
 
-                st.write("Precision =", precision)
+                st.write("Precision = {precision:.2f}")
 
                 #per report precision
                 st.subheader("Per Report Precision")
@@ -2403,7 +2403,6 @@ def render_evaluations_tab(isPFD: bool):
                 fig.update_xaxes(
                     title_font=dict(color="white"),
                     tickfont=dict(color="white"),
-                    tickangle=45,                        # Rotate X labels for readability
                     tickmode="linear",
                     gridcolor="rgba(255,255,255,0.1)"
                 )
@@ -2418,6 +2417,12 @@ def render_evaluations_tab(isPFD: bool):
 
                 st.plotly_chart(fig, use_container_width=True)
 
+                #average of per report precision
+                st.dataframe(precision_per_report.sort_values(by="Precision", ascending=False))
+
+                # Show average across reports
+                avg_precision = precision_per_report["Precision"].mean()
+                st.write("Average Precision across reports: {avg_precision:.2f}")
 
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
