@@ -2317,7 +2317,7 @@ def render_evaluations_tab(isPFD: bool):
                 y_true = df_filtered["HUMAN LABEL"].astype(str).str.strip()
 
                 labels = sorted(set(y_pred) | set(y_true))
-                cm_counts = confusion_matrix(y_true, y_pred, labels=labels)
+                cm_counts = confusion_matrix(y_pred, y_true, labels=labels)
                 cm_df = pd.DataFrame(cm_counts, index=labels, columns=labels)
                 cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)
 
@@ -2332,8 +2332,8 @@ def render_evaluations_tab(isPFD: bool):
                 )
                 ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center', fontsize=10)
                 ax.set_yticklabels(ax.get_yticklabels(), rotation=0, fontsize=10)
-                ax.set_xlabel("AI Annotations", color="white")
-                ax.set_ylabel("Human Annotations", color="white")
+                ax.set_xlabel("Human Annotations", color="white")
+                ax.set_ylabel("AI Annotations", color="white")
                 ax.tick_params(colors='white', which='both')
                 st.pyplot(fig)
 
@@ -2384,16 +2384,24 @@ def render_evaluations_tab(isPFD: bool):
                 st.subheader("Per Report Theme Accuracy Summary")
                 st.dataframe(df_report_metrics)
 
-                precision_per_report_sorted = df_report_metrics.sort_values(by="Precision", ascending=False)
+                st.download_button(
+                    label="Download Report-Level Precision CSV",
+                    data=df_report_metrics.to_csv(index=False),
+                    file_name="report_level_precision_summary.csv",
+                    mime="text/csv"
+                )
+
+
+                precision_per_report_sorted = df_report_metrics.sort_values(by="Report Precision", ascending=False).copy()
                 fig = px.bar(
-                    precision_per_report_sorted,
+                    precision_per_report_sorted.round(2),
                     y="Title",          # report names on Y-axis
-                    x="Precision",      # precision on X-axis
-                    text="Precision",   # show values on bars
+                    x="Report Precision",      # precision on X-axis
+                    text="Report Precision",   # show values on bars
                     orientation="h",    # horizontal bars
-                    color="Precision",
+                    color="Report Precision",
                     color_continuous_scale="Viridis",
-                    labels={"Title": "Report Title", "Precision": "Precision"},
+                    labels={"Title": "Report Title", "Report Precision": "Precision"},
                     title="Per Report Precision"
                 )
                 fig.update_xaxes(range=[0, 1], title_font=dict(color="white"), tickfont=dict(color="white"), gridcolor="rgba(255,255,255,0.1)")
@@ -2419,7 +2427,7 @@ def render_evaluations_tab(isPFD: bool):
 
                 #average of per report precision
                 # Show average across reports
-                avg_precision = df_report_metrics["Precision"].mean()
+                avg_precision = df_report_metrics["Report Precision"].mean()
                 st.write("Average Precision across reports: ",avg_precision)
 
         except Exception as e:
