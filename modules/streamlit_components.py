@@ -2419,7 +2419,7 @@ def render_evaluations_tab(isPFD: bool):
 
                 #average of per report precision
                 # Show average across reports
-                avg_precision = precision_per_report["Precision"].mean()
+                avg_precision = df_report_metrics["Precision"].mean()
                 st.write("Average Precision across reports: ",avg_precision)
 
         except Exception as e:
