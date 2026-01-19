@@ -30,6 +30,7 @@ import pdfplumber
 import requests
 import base64
 from sklearn.metrics import confusion_matrix
+from matplotlib.patches import Rectangle
 import seaborn as sns
 import matplotlib.pyplot as plt
 from nltk.stem import PorterStemmer
@@ -2335,6 +2336,16 @@ def render_evaluations_tab(isPFD: bool):
                 ax.set_xlabel("Human Annotations", color="white")
                 ax.set_ylabel("AI Annotations", color="white")
                 ax.tick_params(colors='white', which='both')
+
+                for i in range(len(labels)):
+                    ax.add_patch(Rectangle(
+                        (i,i),
+                        1,1,
+                        fill = False,
+                        edgecolor = 'black',
+                        lw=2
+                    )
+                    )
 
                 cbar = ax.collections[0].colorbar
                 cbar.ax.set_ylabel("Proportion of predictions", rotation=-90, labelpad=25, color='white')
