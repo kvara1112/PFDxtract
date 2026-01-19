@@ -2335,6 +2335,14 @@ def render_evaluations_tab(isPFD: bool):
                 ax.set_xlabel("Human Annotations", color="white")
                 ax.set_ylabel("AI Annotations", color="white")
                 ax.tick_params(colors='white', which='both')
+
+                cbar = ax.collections[0].colorbar
+                cbar.ax.set_ylabel("Proportion of predictions", rotation=-90, labelpad=25, color='white')
+                cbar.ax.set_yticklabels([f"{t:.2f}" for t in cbar.get_ticks()], color='white')  # keep 2dp
+
+                cbar.ax.text(0.5, 1.05, 'Always Predicted', ha='center', va='bottom', color='white', transform=cbar.ax.transAxes)
+                cbar.ax.text(0.5, -0.1, 'Not Predicted', ha='center', va='top', color='white', transform=cbar.ax.transAxes)
+
                 st.pyplot(fig)
 
                 st.download_button(
