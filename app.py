@@ -68,7 +68,7 @@ ycff_text ="""
     Situational- Individual Staff Factors
     Situational- Task Characteristics
     Situational- Patient Factors
-    Local Working Conditions- Workload and Staffing ssues
+    Local Working Conditions- Workload and Staffing Issues
     Local Working Conditions- Supervision and Leadership
     Local Working Conditions- Drugs, Equipment and Supplies
     Local Working Conditions- Lines of Responsibility
@@ -723,7 +723,7 @@ def main():
 
                     - Upload a file of annotated sentences with table format Report Name, Sentence, PREDICTED LABEL, HUMAN LABEL. Column titles must be the exact same.
                     - Navigate through Report level and Theme level analysis tabs
-                     
+
                     Note: File of corrections from step 6 can be used for this section.
 
                     """

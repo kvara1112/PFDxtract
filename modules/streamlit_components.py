@@ -2363,6 +2363,34 @@ def render_evaluations_tab(isPFD: bool):
                     "text/csv"
                 )
 
+                st.subheader("Theme Evaluator")
+                theme_chosen = st.selectbox(
+                    "Pick a theme to analyse",
+                    ("Situational- Team Factors",
+                    "Situational- Individual Staff Factors",
+                    "Situational- Task Characteristics",
+                    "Situational- Patient Factors",
+                    "Local Working Conditions- Workload and Staffing Issues",
+                    "Local Working Conditions- Supervision and Leadership",
+                    "Local Working Conditions- Drugs, Equipment and Supplies",
+                    "Local Working Conditions- Lines of Responsibility",
+                    "Local Working Conditions- Management of Staff and Staffing Levels",
+                    "Organisational Factors- Physical Environment",
+                    "Organisational Factors- Support from other Departments",
+                    "Organisational Factors- Care Planning",
+                    "Organisational Factors- Staff Training and Education",
+                    "Organisational Factors- Policies and Procedures",
+                    "Organisational Factors- Escalation/Referral Factor",
+                    "External Factors- Design of Equipment, Supplies and Drugs",
+                    "External Factors- National Policies",
+                    "Communication and Culture- Safety Culture",
+                    "Communication and Culture- Verbal and Written Communication",
+                    "Human Error- Slips or Lapses",
+                    "Human Error- Violations"
+                    )
+                )
+                st.write("Theme:", theme_chosen)
+
             
             with tab2:
                 st.subheader("Report Batch Precision")
