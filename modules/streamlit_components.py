@@ -2354,6 +2354,15 @@ def render_evaluations_tab(isPFD: bool):
                 valid_rows = human.replace("", pd.NA).notna()
                 human = human[valid_rows]
                 pred = pred[valid_rows]
+
+                matches = human == pred
+                num_matches = matches.sum()
+                total_predictions = len(human)
+
+                overall_precision = round(num_matches / total_predictions, 2) if total_predictions > 0 else 0
+
+                st.write(f"Overall Precision (excluding empty fields): {overall_precision}")
+
                 report_name = df_filtered.loc[valid_rows, "Title"].astype(str).str.strip()
 
                 is_correct = human == pred
