@@ -2270,6 +2270,8 @@ if "button_clicked" not in st.session_state:
 def go_to_page(page):
     st.session_state.button_clicked = page
 
+def comma_separated(series):
+    return ", ".join(sorted(series.unique()))
 
 def render_evaluations_tab(isPFD: bool):
     st.subheader("Upload File for Evaluation Analysis (CSV)")
@@ -2304,7 +2306,7 @@ def render_evaluations_tab(isPFD: bool):
                 st.error(f"CSV must contain these columns: {', '.join(required_cols)}")
                 st.stop()
 
-            tab1, tab2 = st.tabs(["Visuals", "Metrics"])
+            tab1, tab2 = st.tabs(["Theme Level Analysis", "Report Level Analysis"])
 
             # Filter out blank human labels
             df_filtered = df[df["HUMAN LABEL"].notna() & (df["HUMAN LABEL"].str.strip() != "")]
@@ -2344,7 +2346,6 @@ def render_evaluations_tab(isPFD: bool):
 
             
             with tab2:
-                st.title("Evaluation Metrics")
                 st.subheader("Report Batch Precision")
 
                 human = df_filtered["HUMAN LABEL"].astype(str).str.strip()
@@ -2353,31 +2354,37 @@ def render_evaluations_tab(isPFD: bool):
                 valid_rows = human.replace("", pd.NA).notna()
                 human = human[valid_rows]
                 pred = pred[valid_rows]
+                report_name = df_filtered.loc[valid_rows, "Title"].astype(str).str.strip()
 
-                matches = human == pred
-                num_matches = matches.sum()
-                total_predictions = len(human)
-                precision = num_matches / total_predictions if total_predictions > 0 else 0
+                is_correct = human == pred
 
-                st.write("Precision = ",precision)
-
-                #per report precision
-                st.subheader("Per Report Precision")
-                report_name = df_filtered["Title"].astype(str).str.strip()
-
-                df_metrics = pd.DataFrame({
+                df_row = pd.DataFrame({
                     "Title": report_name,
-                    "HUMAN": human,
-                    "PREDICTED": pred
+                    "Human Theme": human,
+                    "Predicted Theme": pred,
+                    "Correct": is_correct
                 })
 
-                precision_per_report = (
-                    df_metrics.groupby("Title")
-                    .apply(lambda x: (x["HUMAN"] ==x["PREDICTED"]).sum() / len(x))
-                    .reset_index(name="Precision")
+                df_report_metrics = (
+                df_row
+                .groupby("Title")
+                .apply(lambda g: pd.Series({
+                    "Correct Themes": comma_separated(
+                        g.loc[g["Correct"], "Human Theme"]
+                    ),
+                    "Incorrect Themes": comma_separated(
+                        g.loc[~g["Correct"], "Human Theme"]
+                    ),
+                    "Report Precision": round(g["Correct"].mean(), 2)
+                }))
+                .reset_index()
                 )
-                st.dataframe(precision_per_report)
-                precision_per_report_sorted = precision_per_report.sort_values(by="Precision", ascending=False)
+
+
+                st.subheader("Per Report Theme Accuracy Summary")
+                st.dataframe(df_report_metrics)
+
+                precision_per_report_sorted = df_report_metrics.sort_values(by="Precision", ascending=False)
                 fig = px.bar(
                     precision_per_report_sorted,
                     y="Title",          # report names on Y-axis
@@ -2403,7 +2410,8 @@ def render_evaluations_tab(isPFD: bool):
                     font=dict(family="Arial, sans-serif", color="white"),
                     paper_bgcolor="rgba(0,0,0,0)",
                     plot_bgcolor="rgba(0,0,0,0)",
-                    margin=dict(l=300, r=40, t=80, b=60)  # increase left margin for long report names
+                    margin=dict(l=400, r=40, t=80, b=60),  # increase left margin for long report names
+                    height = 50*len(precision_per_report_sorted)               
                 )
                 
 

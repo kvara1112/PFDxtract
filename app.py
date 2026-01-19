@@ -721,8 +721,10 @@ def main():
                     """
                     Compare the accuracy of Ai annotations to Human Annotations when annotating PFD reports
 
-                    - Upload a file of annotations ensuring each report name is present, along with a PREDICTED LABEL AND HUMAN LABEL column.
-                    - File of corrections from step 6 is perfect for this section.
+                    - Upload a file of annotated sentences with table format Report Name, Sentence, PREDICTED LABEL, HUMAN LABEL. Column titles must be the exact same.
+                    - Navigate through Report level and Theme level analysis tabs
+                     
+                    Note: File of corrections from step 6 can be used for this section.
 
                     """
                 )
