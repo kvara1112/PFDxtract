@@ -2387,7 +2387,9 @@ def render_evaluations_tab(isPFD: bool):
                     "Communication and Culture- Verbal and Written Communication",
                     "Human Error- Slips or Lapses",
                     "Human Error- Violations"
-                    )
+                    ),
+                    index=None,
+                    placeholder="Select theme to evaluate...",
                 )
                 st.write("Theme:", theme_chosen)
 
