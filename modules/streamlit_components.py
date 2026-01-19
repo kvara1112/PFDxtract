@@ -2436,8 +2436,8 @@ def render_evaluations_tab(isPFD: bool):
 
                 #average of per report precision
                 # Show average across reports
-                avg_precision = df_report_metrics["Report Precision"].mean()
-                st.write("Average Precision across reports: ",avg_precision)
+                avg_precision = df_report_metrics["Report Precision"].mean().round(2)
+                st.write(f"Average Precision across reports:  {avg_precision}")
 
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
