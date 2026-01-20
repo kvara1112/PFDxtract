@@ -2365,13 +2365,20 @@ def render_evaluations_tab(isPFD: bool):
 
                 st.title("Each Themes Precision")
 
-                themes = df["HUMAN LABEL"].unique()
+                df["HUMAN LABEL"] = df["HUMAN LABEL"].astype(str).str.strip()
+                df["PREDICTED LABEL"] = df["PREDICTED LABEL"].astype(str).str.strip()
+
+                # Optional: replace 'nan' strings back to actual NaN if needed
+                df.replace({"HUMAN LABEL": {"nan": pd.NA}, "PREDICTED LABEL": {"nan": pd.NA}}, inplace=True)
+
+                # Calculate precision per theme
+                themes = df["HUMAN LABEL"].dropna().unique()  # ignore NaN themes
                 precision_data = []
 
                 for theme in themes:
                     theme_lower = theme.lower()
-                    true_positive = ((df["PREDICTED LABEL"] == theme_lower) & (df["HUMAN LABEL"] == theme_lower)).sum()
-                    false_positive = ((df["PREDICTED LABEL"] == theme_lower) & (df["HUMAN LABEL"] != theme_lower)).sum()
+                    true_positive = ((df["PREDICTED LABEL"].str.lower() == theme_lower) & (df["HUMAN LABEL"].str.lower() == theme_lower)).sum()
+                    false_positive = ((df["PREDICTED LABEL"].str.lower() == theme_lower) & (df["HUMAN LABEL"].str.lower() != theme_lower)).sum()
                     precision = (true_positive / (true_positive + false_positive) * 100) if (true_positive + false_positive) > 0 else 0
                     precision_data.append({"Theme": theme, "Precision (%)": precision})
 
