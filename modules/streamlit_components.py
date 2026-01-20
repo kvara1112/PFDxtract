@@ -2391,7 +2391,7 @@ def render_evaluations_tab(isPFD: bool):
                     index=None,
                     placeholder="Select a theme to evaluate...",
                 )
-                if theme_chosen != "Select a theme to evaluate...":
+                if theme_chosen != "Select a theme to evaluate..." or theme_chosen != None:
                     st.write("Theme:", theme_chosen)
                     theme_chosen_lower = theme_chosen.lower()
                     # calculating theme precision
@@ -2413,7 +2413,7 @@ def render_evaluations_tab(isPFD: bool):
                     mistaken_for_percent = mistaken_for / mistaken_for.sum() * 100
 
                     if not mistaken_for.empty:
-                        fig, ax = plt.subplots(figsize=(8, 5))  # adjust size
+                        fig, ax = plt.subplots(figsize=(4, 2))  # adjust size
 
                         # Plot bars with custom color
                         mistaken_for_percent.plot(
@@ -2435,21 +2435,21 @@ def render_evaluations_tab(isPFD: bool):
                         ax.spines['bottom'].set_visible(True)  # show x-axis line
 
                         # Rotate x-axis labels if needed
-                        plt.xticks(rotation=30, ha='right')
+                        plt.xticks(rotation=90, ha='right')
 
                         # Add percentage labels above bars
                         for i, val in enumerate(mistaken_for_percent):
-                            ax.text(i, val + 0.5, f"{val:.1f}%", ha='center', fontname='Arial', fontsize=10)
+                            ax.text(i, val + 0.5, f"{val:.1f}%", ha='center', fontname='Arial', fontsize=6, color='white')
 
                         # Titles and labels with consistent font
                         ax.set_title(
                             f"When predicted as '{theme_chosen}', the actual theme was",
-                            fontsize=14,
+                            fontsize=10,
                             fontname='Arial',
                             color='white'
                         )
-                        ax.set_xlabel("Human (Actual) Theme", fontsize=12, fontname='Arial', color='white')
-                        ax.set_ylabel("Percentage of misclassifications (%)", fontsize=12, fontname='Arial',color='white')
+                        ax.set_xlabel("Correct Human Annotated Theme", fontsize=6, fontname='Arial', color='white')
+                        ax.set_ylabel("Percentage of misclassifications (%)", fontsize=6, fontname='Arial',color='white')
 
                         # Make x and y ticks match font
                         ax.tick_params(axis='x', labelsize=10)
