@@ -2414,49 +2414,36 @@ def render_evaluations_tab(isPFD: bool):
 
                     if not mistaken_for.empty:
                         fig, ax = plt.subplots(figsize=(4, 2))  # adjust size
+                        bars = ax.bar(mistaken_for_percent.index, mistaken_for_percent.values, color="#b41f60")
 
-                        # Plot bars with custom color
-                        mistaken_for_percent.plot(
-                            kind="bar",
-                            ax=ax,
-                            color="#b41f60",  # pick a color that matches your app theme
-                            edgecolor='black'  # optional: outline for bars
-                        )
+                       
 
                         # Remove background and grid
                         ax.set_facecolor('none')
                         fig.patch.set_facecolor('none')
                         ax.grid(False)
+                        # Axis labels and ticks
+                        ax.set_xlabel("Human (Actual) Theme", color='white', fontsize=12)
+                        ax.set_ylabel("Percentage (%)", color='white', fontsize=12)
+                        ax.tick_params(axis='x', rotation=45, labelcolor='white')
+                        ax.tick_params(axis='y', labelcolor='white')
+                        
+                        # Annotate bars with percentages
+                        for bar, value in zip(bars, mistaken_for_percent.values):
+                            ax.text(
+                                bar.get_x() + bar.get_width()/2,
+                                value + 0.5,
+                                f"{value:.1f}%",
+                                ha='center',
+                                color='white',
+                                fontsize=10
+                            )
 
-                        # Remove top/right spines, keep x-axis line
-                        ax.spines['top'].set_visible(False)
-                        ax.spines['right'].set_visible(False)
-                        ax.spines['left'].set_visible(False)
-                        ax.spines['bottom'].set_visible(True)  # show x-axis line
-
-                        # Rotate x-axis labels if needed
-                        plt.xticks(rotation=90, ha='right')
-
-                        # Add percentage labels above bars
-                        for i, val in enumerate(mistaken_for_percent):
-                            ax.text(i, val + 0.5, f"{val:.1f}%", ha='center', fontname='Arial', fontsize=6, color='white')
-
-                        # Titles and labels with consistent font
-                        ax.set_title(
-                            f"When predicted as '{theme_chosen}', the actual theme was",
-                            fontsize=10,
-                            fontname='Arial',
-                            color='white'
-                        )
-                        ax.set_xlabel("Correct Human Annotated Theme", fontsize=6, fontname='Arial', color='white')
-                        ax.set_ylabel("Percentage of misclassifications (%)", fontsize=6, fontname='Arial',color='white')
-
-                        # Make x and y ticks match font
-                        ax.tick_params(axis='x', labelsize=10)
-                        ax.tick_params(axis='y', labelsize=10)
+                        ax.set_title(f"When predicted as '{theme_chosen}', the actual theme was", color='white', fontsize=14)
 
                         st.write(f"The data below shows which themes the model most commonly confused {theme_chosen} for")
                         # Show plot in Streamlit
+                        plt.tight_layout()
                         st.pyplot(fig)
 
                         
