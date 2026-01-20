@@ -2363,7 +2363,7 @@ def render_evaluations_tab(isPFD: bool):
                     "text/csv"
                 )
 
-                st.subheader("Theme Evaluator")
+                st.title("Theme Evaluator")
                 theme_chosen = st.selectbox(
                     "Pick a theme to analyse",
                     ("Situational- Team Factors",
@@ -2389,11 +2389,41 @@ def render_evaluations_tab(isPFD: bool):
                     "Human Error- Violations"
                     ),
                     index=None,
-                    placeholder="Select theme to evaluate...",
+                    placeholder="Select a theme to evaluate...",
                 )
-                st.write("Theme:", theme_chosen)
-                total_theme_pred = y_pred[y_pred == theme_chosen.lower()]
-                st.write(len(total_theme_pred))
+                if theme_chosen != "Select a theme to evaluate...":
+                    st.write("Theme:", theme_chosen)
+                    # calculating theme precision
+                    total_theme_pred = len(y_pred[y_pred == theme_chosen.lower()])
+                    correct_theme_pred = (
+                        (df["PREDICTED LABEL"] == theme_chosen) &
+                        (df["HUMAN LABEL"] == theme_chosen)
+                        ).sum()
+                    theme_precision = round(correct_theme_pred/total_theme_pred, 2)
+                    theme_precision_percent = theme_precision*100
+                    st.subheader("Precision")
+                    st.write(f"{theme_chosen} was correctly identified by the model {theme_precision_percent}'%' of the time.")
+                    mistaken_for = (
+                        df[
+                            (df["PREDICTED LABEL"] == theme_chosen) &
+                            (df["HUMAN LABEL"] != theme_chosen)
+                           ]["HUMAN LABEL"].value_counts()
+                    )
+                    mistaken_for_percent = mistaken_for / mistaken_for.sum() * 100
+
+                    if not mistaken_for.empty:
+                        fig, ax = plt.subplots()
+                        mistaken_for_percent.plot(kind="bar", ax=ax)
+                        ax.set_title(
+                            f"When predicted as '{theme_chosen}', the actual theme was"
+                        )
+                        ax.set_xlabel("Human (Actual) Theme")
+                        ax.set_ylabel("Percentage of misclassifications (%)")
+                        st.subheader("Precision Analysis")
+                        st.write(f"The data below shows which themes the model most commonly confused {theme_chosen} for")
+                        st.pyplot(fig)
+                    else:
+                        st.write("No false positives for this theme")
                 
 
             with tab2:
