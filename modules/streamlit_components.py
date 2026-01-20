@@ -2392,8 +2392,10 @@ def render_evaluations_tab(isPFD: bool):
                     placeholder="Select theme to evaluate...",
                 )
                 st.write("Theme:", theme_chosen)
+                total_theme_pred = y_pred[theme_chosen]
+                st.write(total_theme_pred)
+                
 
-            
             with tab2:
                 st.subheader("Report Batch Precision")
 
