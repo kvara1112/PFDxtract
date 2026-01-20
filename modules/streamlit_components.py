@@ -2363,6 +2363,44 @@ def render_evaluations_tab(isPFD: bool):
                     "text/csv"
                 )
 
+                st.title("Each Themes Precision")
+
+                themes = df["HUMAN LABEL"].unique()
+                precision_data = []
+
+                for theme in themes:
+                    theme_lower = theme.lower()
+                    true_positive = ((df["PREDICTED LABEL"] == theme_lower) & (df["HUMAN LABEL"] == theme_lower)).sum()
+                    false_positive = ((df["PREDICTED LABEL"] == theme_lower) & (df["HUMAN LABEL"] != theme_lower)).sum()
+                    precision = (true_positive / (true_positive + false_positive) * 100) if (true_positive + false_positive) > 0 else 0
+                    precision_data.append({"Theme": theme, "Precision (%)": precision})
+
+                precision_df = pd.DataFrame(precision_data).sort_values("Precision (%)", ascending=False)
+
+                # Plot using Plotly Express
+                fig = px.bar(
+                    precision_df,
+                    x="Theme",
+                    y="Precision (%)",
+                    text=precision_df["Precision (%)"].apply(lambda x: f"{x:.1f}%"),
+                    color="Precision (%)",
+                    color_continuous_scale="RdPu",
+                    title="Precision per Theme"
+                )
+
+                fig.update_layout(
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    xaxis_tickangle=-45,
+                    xaxis=dict(title_font=dict(color='white', size=12), tickfont=dict(color='white')),
+                    yaxis=dict(title_font=dict(color='white', size=12), tickfont=dict(color='white')),
+                    title=dict(font=dict(color='white', size=14)),
+                    margin=dict(l=20, r=20, t=40, b=20)
+                )
+
+                # Show in Streamlit
+                st.plotly_chart(fig, use_container_width=True)
+                
                 st.title("Theme Evaluator")
                 theme_chosen = st.selectbox(
                     "Pick a theme to analyse",
@@ -2413,38 +2451,30 @@ def render_evaluations_tab(isPFD: bool):
                     mistaken_for_percent = mistaken_for / mistaken_for.sum() * 100
 
                     if not mistaken_for.empty:
-                        fig, ax = plt.subplots(figsize=(4, 2))  # adjust size
-                        bars = ax.bar(mistaken_for_percent.index, mistaken_for_percent.values, color="#b41f60")
+                        fig = px.bar(
+                            x=mistaken_for_percent.index,
+                            y=mistaken_for_percent.values,
+                            text=[f"{v:.1f}%" for v in mistaken_for_percent.values],  # Add annotations
+                            labels={"x": "Human (Actual) Theme", "y": "Percentage (%)"},
+                            color_discrete_sequence=["#b41f60"],  # bar color
+                            title=f"When predicted as '{theme_chosen}', the actual theme was"
+                        )
 
-                       
-
-                        # Remove background and grid
-                        ax.set_facecolor('none')
-                        fig.patch.set_facecolor('none')
-                        ax.grid(False)
-                        # Axis labels and ticks
-                        ax.set_xlabel("Human (Actual) Theme", color='white', fontsize=12)
-                        ax.set_ylabel("Percentage (%)", color='white', fontsize=12)
-                        ax.tick_params(axis='x', rotation=45, labelcolor='white')
-                        ax.tick_params(axis='y', labelcolor='white')
-                        
-                        # Annotate bars with percentages
-                        for bar, value in zip(bars, mistaken_for_percent.values):
-                            ax.text(
-                                bar.get_x() + bar.get_width()/2,
-                                value + 0.5,
-                                f"{value:.1f}%",
-                                ha='center',
-                                color='white',
-                                fontsize=10
-                            )
-
-                        ax.set_title(f"When predicted as '{theme_chosen}', the actual theme was", color='white', fontsize=14)
-
+                        # Update layout for background, axes, and text
+                        fig.update_layout(
+                            plot_bgcolor='rgba(0,0,0,0)',  # transparent background
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            xaxis_tickangle=-45,
+                            xaxis=dict(title_font=dict(color='white', size=10), tickfont=dict(color='white')),
+                            yaxis=dict(title_font=dict(color='white', size=10), tickfont=dict(color='white')),
+                            title=dict(font=dict(color='white', size=12)),
+                            margin=dict(l=20, r=20, t=40, b=20)
+                        )
+                                
                         st.write(f"The data below shows which themes the model most commonly confused {theme_chosen} for")
                         # Show plot in Streamlit
-                        plt.tight_layout()
-                        st.pyplot(fig)
+
+                        st.pyplot(fig, use_container_width=True)
 
                         
                 
