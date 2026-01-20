@@ -2414,17 +2414,31 @@ def render_evaluations_tab(isPFD: bool):
 
                     if not mistaken_for.empty:
                         fig, ax = plt.subplots()
-                        mistaken_for_percent.plot(kind="bar", ax=ax)
-                        ax.set_title(
-                            f"When predicted as '{theme_chosen}', the actual theme was"
-                        )
+
+                        # Plot bars
+                        mistaken_for_percent.plot(kind="bar", ax=ax, color="#1f77b4")
+
+                        # Remove spines (top, right, left, bottom)
+                        ax.spines['top'].set_visible(False)
+                        ax.spines['right'].set_visible(False)
+                        ax.spines['left'].set_visible(False)
+                        ax.spines['bottom'].set_visible(False)
+
+                        # Remove grid
+                        ax.grid(False)
+
+                        # Remove background color
+                        ax.set_facecolor('none')
+                        fig.patch.set_facecolor('none')
+
+                        # Titles and labels
+                        ax.set_title(f"When predicted as '{theme_chosen}', the actual theme was")
                         ax.set_xlabel("Human (Actual) Theme")
                         ax.set_ylabel("Percentage of misclassifications (%)")
-                        st.subheader("Precision Analysis")
                         st.write(f"The data below shows which themes the model most commonly confused {theme_chosen} for")
+
                         st.pyplot(fig)
-                    else:
-                        st.write("No false positives for this theme")
+                        
                 
 
             with tab2:
