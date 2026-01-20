@@ -2393,11 +2393,12 @@ def render_evaluations_tab(isPFD: bool):
                 )
                 if theme_chosen != "Select a theme to evaluate...":
                     st.write("Theme:", theme_chosen)
+                    theme_chosen_lower = theme_chosen.lower()
                     # calculating theme precision
-                    total_theme_pred = len(y_pred[y_pred == theme_chosen.lower()])
+                    total_theme_pred = len(y_pred[y_pred == theme_chosen_lower])
                     correct_theme_pred = (
-                        (df["PREDICTED LABEL"] == theme_chosen) &
-                        (df["HUMAN LABEL"] == theme_chosen)
+                        (df["PREDICTED LABEL"] == theme_chosen_lower) &
+                        (df["HUMAN LABEL"] == theme_chosen_lower)
                         ).sum()
                     theme_precision = round(correct_theme_pred/total_theme_pred, 2)
                     theme_precision_percent = theme_precision*100
@@ -2405,8 +2406,8 @@ def render_evaluations_tab(isPFD: bool):
                     st.write(f"{theme_chosen} was correctly identified by the model {theme_precision_percent}'%' of the time.")
                     mistaken_for = (
                         df[
-                            (df["PREDICTED LABEL"] == theme_chosen) &
-                            (df["HUMAN LABEL"] != theme_chosen)
+                            (df["PREDICTED LABEL"] == theme_chosen_lower) &
+                            (df["HUMAN LABEL"] != theme_chosen_lower)
                            ]["HUMAN LABEL"].value_counts()
                     )
                     mistaken_for_percent = mistaken_for / mistaken_for.sum() * 100
