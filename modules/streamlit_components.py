@@ -2436,7 +2436,7 @@ def render_evaluations_tab(isPFD: bool):
                     index=None,
                     placeholder="Select a theme to evaluate...",
                 )
-                if theme_chosen != "Select a theme to evaluate..." or theme_chosen != None:
+                if theme_chosen != "Select a theme to evaluate..." and theme_chosen != None:
                     st.write("Theme:", theme_chosen)
                     theme_chosen_lower = theme_chosen.lower()
                     # calculating theme precision
@@ -2448,6 +2448,8 @@ def render_evaluations_tab(isPFD: bool):
                     theme_precision = round(correct_theme_pred/total_theme_pred, 2)
                     theme_precision_percent = theme_precision*100
                     st.subheader("Precision")
+                    st.write(f"The data below shows which themes the model most commonly confused {theme_chosen} for.")
+
                     st.write(f"{theme_chosen} was correctly identified by the model {theme_precision_percent}'%' of the time.")
                     mistaken_for = (
                         df[
@@ -2478,7 +2480,6 @@ def render_evaluations_tab(isPFD: bool):
                             margin=dict(l=20, r=20, t=40, b=20)
                         )
                                 
-                        st.write(f"The data below shows which themes the model most commonly confused {theme_chosen} for")
                         # Show plot in Streamlit
 
                         st.plotly_chart(fig, use_container_width=True)
