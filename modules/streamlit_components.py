@@ -2481,7 +2481,7 @@ def render_evaluations_tab(isPFD: bool):
                         st.write(f"The data below shows which themes the model most commonly confused {theme_chosen} for")
                         # Show plot in Streamlit
 
-                        st.pyplot(fig, use_container_width=True)
+                        st.plotly_chart(fig, use_container_width=True)
 
                         
                 
