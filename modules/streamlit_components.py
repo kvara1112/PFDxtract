@@ -1970,11 +1970,11 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         st.success("Analysis complete!")
         st.markdown("""
             ### Unsatisfied with the results?
-            Download the csv file and reupload corrected annotations in a new column, under the title HUMAN LABEL.
-            - Note: Corrected annotations must be from the Extended Yorkshire Contributory Factors Framework.
-                    
+            Review the annotations below and make any changes to any incorrectly annotated themes.
             This will help contribute to the continuous improvement of our model.
                     """)
+        
+        # changing column name for easy comparison
         if "Theme" in results_df.columns:
             results_df = results_df.rename(columns={"Theme": "PREDICTED LABEL"})
         change_annotations = st.checkbox("Make Corrections")
