@@ -2391,7 +2391,7 @@ def render_evaluations_tab(isPFD: bool):
                     y="Precision (%)",
                     text=precision_df["Precision (%)"].apply(lambda x: f"{x:.1f}%"),
                     color="Precision (%)",
-                    color_continuous_scale="coolwarm",
+                    color_continuous_scale="bluered",
                     title="Precision per Theme"
                 )
 
