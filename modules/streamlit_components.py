@@ -2005,55 +2005,55 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             TEXT_COL = "Matched Sentences"
             PRED_COL = "Theme"
             if "human_labels" not in st.session_state:
-
-                st.subheader("Human Annotation Review")
-
                 st.session_state.human_labels = {}
+            st.subheader("Human Annotation Review")
 
-                h1, h2, h3 = st.columns([4, 3, 3])
-                h1.markdown("**Text**" if TEXT_COL else "")
-                h2.markdown("**PREDICTED LABEL**")
-                h3.markdown("**HUMAN LABEL**")
+            
 
-                st.divider()
+            h1, h2, h3 = st.columns([4, 3, 3])
+            h1.markdown("**Text**")
+            h2.markdown("**PREDICTED LABEL**")
+            h3.markdown("**HUMAN LABEL**")
 
-                for idx, row in results_df.iterrows():
-                    c1, c2, c3 = st.columns([4,3,3])
-                    
-                    c1.write(row[TEXT_COL])
-                    c2.write(row[PRED_COL])
+            st.divider()
 
-                    default_value = st.session_state.human_labels.get(
-                        idx, row[PRED_COL]
+            for idx, row in results_df.iterrows():
+                c1, c2, c3 = st.columns([4,3,3])
+                
+                c1.write(row[TEXT_COL])
+                c2.write(row[PRED_COL])
+
+                default_value = st.session_state.human_labels.get(
+                    idx, row[PRED_COL]
+                )
+
+                selected_theme = c3.selectbox(
+                    label ="",
+                    options = all_themes,
+                    index=all_themes.index(default_value),
+                    key= f"human_{idx}"
+                )
+
+                st.session_state.human_labels[idx] = selected_theme
+
+            st.divider()
+            if st.button("Save Human Annotations"):
+                results_df["HUMAN LABEL"] = results_df.index.map(
+                    lambda i: ("" if st.session_state.human_labels.get(i) == "No Theme" 
+                        else st.session_state.human_labels.get(i).lower()
                     )
+                )
+                st.success("Human labels saved")
+                st.dataframe(results_df, use_container_width = True)
+                buffer = io.StringIO()
+                results_df.to_csv(buffer, index=False)
 
-                    selected_theme = c3.selectbox(
-                        label ="",
-                        options = all_themes,
-                        index=all_themes.index(default_value),
-                        key= f"human_{idx}"
-                    )
-
-                    st.session_state.human_labels[idx] = selected_theme
-
-                st.divider()
-                if st.button("Save Human Annotations"):
-                    results_df["HUMAN LABEL"] = results_df.index.map(
-                        lambda i: ("" if st.session_state.human_labels.get(i) == "No Theme" 
-                            else st.session_state.human_labels.get(i).lower()
-                        )
-                    )
-                    st.success("Human labels saved")
-                    st.dataframe(results_df, use_container_width = True)
-                    buffer = io.StringIO()
-                    results_df.to_csv(buffer, index=False)
-
-                    st.download_button(
-                        label="Download Updated Annotations",
-                        data=buffer.getvalue(),
-                        file_name="AI_and_human_annotations.csv",
-                        mime="text/csv"
-                    )
+                st.download_button(
+                    label="Download Updated Annotations",
+                    data=buffer.getvalue(),
+                    file_name="AI_and_human_annotations.csv",
+                    mime="text/csv"
+                )
         # corrected_file = st.file_uploader(
         #     "Upload corrected CSV",
         #     type=["csv"],
