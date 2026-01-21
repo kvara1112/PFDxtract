@@ -1975,6 +1975,83 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     
             This will help contribute to the continuous improvement of our model.
                     """)
+        change_annotations = st.button("Make Corrections")
+
+        all_themes = [
+            "Situational- Team Factors",
+            "Situational- Individual Staff Factors",
+            "Situational- Task Characteristics",
+            "Situational- Patient Factors",
+            "Local Working Conditions- Workload and Staffing Issues",
+            "Local Working Conditions- Supervision and Leadership",
+            "Local Working Conditions- Drugs, Equipment and Supplies",
+            "Local Working Conditions- Lines of Responsibility",
+            "Local Working Conditions- Management of Staff and Staffing Levels",
+            "Organisational Factors- Physical Environment",
+            "Organisational Factors- Support from other Departments",
+            "Organisational Factors- Care Planning",
+            "Organisational Factors- Staff Training and Education",
+            "Organisational Factors- Policies and Procedures",
+            "Organisational Factors- Escalation/Referral Factor",
+            "External Factors- Design of Equipment, Supplies and Drugs",
+            "External Factors- National Policies",
+            "Communication and Culture- Safety Culture",
+            "Communication and Culture- Verbal and Written Communication",
+            "Human Error- Slips or Lapses",
+            "Human Error- Violations"
+        ]
+        if change_annotations:
+            TEXT_COL = "Matched Sentences"
+            PRED_COL = "Theme"
+            if "human_labels" not in st.session_state:
+                st.session_state.human_labels = {}
+                cols = st.columns([4, 3, 3])
+                cols[0].markdown("**Text**" if TEXT_COL else "")
+                cols[1].markdown("**PREDICTED LABEL**")
+                cols[2].markdown("**HUMAN LABEL**")
+
+                st.divider()
+
+                for idx, row in df.iterrows():
+                    c1, c2, c3, c4 = st.columns([4,3,3,3])
+                    if TEXT_COL:
+                        c1.write(row[TEXT_COL])
+
+                    c2.write(row[PRED_COL])
+                    default_value = st.session_state.human_labels.get(
+                        idx, row[PRED_COL]
+                    )
+
+                    selected_theme = c3.selectbox(
+                        label ="",
+                        options = all_themes.lower(),
+                        index=all_themes.index(default_value),
+                        key= f"human_{idx}"
+                    )
+
+                    st.session_state.human_labels[idx] = selected_theme
+
+                st.divider()
+                if st.button("Save Human Annotations"):
+                    df["HUMAN LABEL"] = df.index.map(
+                        lambda i: st.session_state.human_labels.get(i)
+                    )
+                    st.success("Human labels saved")
+                    st.dataframe(df, use_container_width = True)
+                    if st.button("Download Updated Annotations"):
+                        df["HUMAN LABEL"] = df.index.map(
+                            lambda i: st.session_state.human_labels.get(i)
+                        )
+
+                        buffer = io.StringIO()
+                        df.to_csv(buffer, index=False)
+
+                        st.download_button(
+                            label="Download CSV",
+                            data=buffer.getvalue(),
+                            file_name="AI_and_human_annotations.csv",
+                            mime="text/csv"
+                        )
         corrected_file = st.file_uploader(
             "Upload corrected CSV",
             type=["csv"],
