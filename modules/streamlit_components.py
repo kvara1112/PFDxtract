@@ -2005,7 +2005,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         ]
         if change_annotations:
             TEXT_COL = "Matched Sentences"
-            PRED_COL = "Theme"
+            PRED_COL = "PREDICTED LABEL"
             if "human_labels" not in st.session_state:
                 st.session_state.human_labels = {}
             st.subheader("Human Annotation Review")
