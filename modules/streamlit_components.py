@@ -1975,7 +1975,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     
             This will help contribute to the continuous improvement of our model.
                     """)
-        change_annotations = st.button("Make Corrections")
+        change_annotations = st.checkbox("Make Corrections")
 
         all_themes = [
             "Situational- Team Factors",
