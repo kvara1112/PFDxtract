@@ -2490,7 +2490,7 @@ def render_evaluations_tab(isPFD: bool):
                     color_continuous_scale="blues",
                     title="Precision per Theme"
                 )
-                fig.update_yaxes(range = [0,100])
+                fig.update_coloraxes(cmin=0, cmax=100)
                 fig.update_layout(
                     plot_bgcolor='rgba(0,0,0,0)',
                     paper_bgcolor='rgba(0,0,0,0)',
