@@ -1975,6 +1975,8 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     
             This will help contribute to the continuous improvement of our model.
                     """)
+        if "Theme" in results_df.columns:
+            results_df = results_df.rename(columns={"Theme": "PREDICTED LABEL"})
         change_annotations = st.checkbox("Make Corrections")
 
         all_themes = [
@@ -2041,13 +2043,23 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
 
             st.divider()
             if st.button("Save Human Annotations"):
-                results_df["HUMAN LABEL"] = results_df.index.map(
-                    lambda i: ("" if st.session_state.human_labels.get(i) == "No Theme" 
-                        else st.session_state.human_labels.get(i).lower()
-                    )
-                )
+                def get_human_label(idx):
+                    selected = st.session_state.human_labels.get(idx)
+                    predicted = results_df.loc[idx, PRED_COL]
+
+                    if selected == "No Theme":
+                        return ""                 # blank for No Theme
+                    elif selected == predicted:
+                        return predicted          # unchanged, copy predicted
+                    else:
+                        return selected.lower()   # changed by user
+
+                results_df["HUMAN LABEL"] = results_df.index.map(get_human_label)
+
                 st.success("Human labels saved")
-                st.dataframe(results_df, use_container_width = True)
+                st.dataframe(results_df, use_container_width=True)
+
+                # Prepare CSV for download
                 buffer = io.StringIO()
                 results_df.to_csv(buffer, index=False)
 
