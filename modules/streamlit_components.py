@@ -2327,7 +2327,7 @@ def render_evaluations_tab(isPFD: bool):
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('none')
                 sns.heatmap(
-                    cm_corr, annot=True, fmt=".2f", cmap="coolwarms",
+                    cm_corr, annot=True, fmt=".2f", cmap="coolwarm",
                     vmin=0, vmax=1, ax=ax,
                     annot_kws={"color": "white"}, linewidths=0.5, linecolor='white'
                 )
@@ -2391,7 +2391,7 @@ def render_evaluations_tab(isPFD: bool):
                     y="Precision (%)",
                     text=precision_df["Precision (%)"].apply(lambda x: f"{x:.1f}%"),
                     color="Precision (%)",
-                    color_continuous_scale="coolwarms",
+                    color_continuous_scale="coolwarm",
                     title="Precision per Theme"
                 )
 
