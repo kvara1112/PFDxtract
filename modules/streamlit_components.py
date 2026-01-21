@@ -2484,6 +2484,62 @@ def render_evaluations_tab(isPFD: bool):
 
                         st.plotly_chart(fig, use_container_width=True)
 
+                    total_theme_actual = (df["HUMAN LABEL"]==theme_chosen_lower).sum()
+
+                    correct_theme_recall = (
+                        (df["HUMAN LABEL"] == theme_chosen_lower) &
+                        (df["PREDICTED LABEL"] == theme_chosen_lower)
+                    ).sum()
+
+                    theme_recall = (
+                        round(correct_theme_recall / total_theme_actual, 2)
+                        if total_theme_actual > 0 else 0
+                    )
+
+                    theme_recall_percent = theme_recall * 100
+
+                    st.subheader("Recall")
+                    st.write(f"The data below shows which themes {theme_chosen} kept getting mistaken for")
+                    st.write(
+                        f"{theme_chosen} was correctly identified by the model "
+                        f"{theme_recall_percent}% of the time"
+                    )
+
+                    missed_as = (
+                        df[
+                            (df["HUMAN LABEL"] == theme_chosen_lower) &
+                            (df["PREDICTED LABEL"] != theme_chosen_lower)
+                        ]["PREDICTED LABEL"]
+                        .value_counts()
+                    )
+
+                    missed_as_percent = missed_as / missed_as.sum() * 100
+
+                    if not missed_as.empty:
+                        fig = px.bar(
+                            x=missed_as_percent.index,
+                            y=missed_as_percent.values,
+                            text=[f"{v:.1f}%" for v in missed_as_percent.values],
+                            labels={"x": "Predicted Theme", "y": "Percentage (%)"},
+                            color_discrete_sequence=["#b41f99"],
+                            title=f"When the actual theme was '{theme_chosen}', the model predicted"
+                        )
+
+                        fig.update_layout(
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            xaxis_tickangle=-45,
+                            xaxis=dict(title_font=dict(color='white', size=10),
+                                    tickfont=dict(color='white')),
+                            yaxis=dict(title_font=dict(color='white', size=10),
+                                    tickfont=dict(color='white')),
+                            title=dict(font=dict(color='white', size=12)),
+                            margin=dict(l=20, r=20, t=40, b=20)
+                        )
+
+                        st.plotly_chart(fig, use_container_width=True)
+                    
+
                         
                 
 
