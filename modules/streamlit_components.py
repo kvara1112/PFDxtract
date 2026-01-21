@@ -2023,14 +2023,17 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 c1.write(row[TEXT_COL])
                 c2.write(row[PRED_COL])
 
-                default_value = st.session_state.human_labels.get(
-                    idx, row[PRED_COL]
-                )
+                default_value = st.session_state.human_labels.get(idx, row[PRED_COL])
+                try:
+                    default_index = [t.lower() for t in all_themes].index(default_value.lower())
+                except ValueError:
+                    default_index = 0
+                
 
                 selected_theme = c3.selectbox(
                     label ="",
                     options = all_themes,
-                    index=all_themes.index(default_value),
+                    index=default_index,
                     key= f"human_{idx}"
                 )
 
