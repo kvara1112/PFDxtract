@@ -1977,6 +1977,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         # changing column name for easy comparison
         if "Theme" in results_df.columns:
             results_df = results_df.rename(columns={"Theme": "PREDICTED LABEL"})
+
         change_annotations = st.checkbox("Make Corrections")
 
         all_themes = [
@@ -2464,6 +2465,7 @@ def render_evaluations_tab(isPFD: bool):
 
                 # Optional: replace 'nan' strings back to actual NaN if needed
                 df.replace({"HUMAN LABEL": {"nan": pd.NA}, "PREDICTED LABEL": {"nan": pd.NA}}, inplace=True)
+                df = df[df["HUMAN LABEL"].notna() & (df["HUMAN LABEL"] != "")]
 
                 # Calculate precision per theme
                 themes = df["HUMAN LABEL"].dropna().unique()  # ignore NaN themes
