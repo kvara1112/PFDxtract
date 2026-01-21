@@ -2327,7 +2327,7 @@ def render_evaluations_tab(isPFD: bool):
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('none')
                 sns.heatmap(
-                    cm_corr, annot=True, fmt=".2f", cmap="RdGy",
+                    cm_corr, annot=True, fmt=".2f", cmap="coolwarms",
                     vmin=0, vmax=1, ax=ax,
                     annot_kws={"color": "white"}, linewidths=0.5, linecolor='white'
                 )
@@ -2391,7 +2391,7 @@ def render_evaluations_tab(isPFD: bool):
                     y="Precision (%)",
                     text=precision_df["Precision (%)"].apply(lambda x: f"{x:.1f}%"),
                     color="Precision (%)",
-                    color_continuous_scale="RdPu",
+                    color_continuous_scale="coolwarms",
                     title="Precision per Theme"
                 )
 
@@ -2465,7 +2465,7 @@ def render_evaluations_tab(isPFD: bool):
                             y=mistaken_for_percent.values,
                             text=[f"{v:.1f}%" for v in mistaken_for_percent.values],  # Add annotations
                             labels={"x": "Human (Actual) Theme", "y": "Percentage (%)"},
-                            color_discrete_sequence=["#b41f60"],  # bar color
+                            color_discrete_sequence=["#21c8c8"],  # bar color
                             title=f"When predicted as '{theme_chosen}', the actual theme was"
                         )
 
@@ -2521,7 +2521,7 @@ def render_evaluations_tab(isPFD: bool):
                             y=missed_as_percent.values,
                             text=[f"{v:.1f}%" for v in missed_as_percent.values],
                             labels={"x": "Predicted Theme", "y": "Percentage (%)"},
-                            color_discrete_sequence=["#b41f99"],
+                            color_discrete_sequence=["#21c8c8"],
                             title=f"When the actual theme was '{theme_chosen}', the model predicted"
                         )
 
