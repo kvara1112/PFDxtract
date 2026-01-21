@@ -2465,7 +2465,7 @@ def render_evaluations_tab(isPFD: bool):
                             y=mistaken_for_percent.values,
                             text=[f"{v:.1f}%" for v in mistaken_for_percent.values],  # Add annotations
                             labels={"x": "Human (Actual) Theme", "y": "Percentage (%)"},
-                            color_discrete_sequence=["#21c8c8"],  # bar color
+                            color_discrete_sequence=["#2137c8"],  # bar color
                             title=f"When predicted as '{theme_chosen}', the actual theme was"
                         )
 
@@ -2521,7 +2521,7 @@ def render_evaluations_tab(isPFD: bool):
                             y=missed_as_percent.values,
                             text=[f"{v:.1f}%" for v in missed_as_percent.values],
                             labels={"x": "Predicted Theme", "y": "Percentage (%)"},
-                            color_discrete_sequence=["#21c8c8"],
+                            color_discrete_sequence=["#216cc8"],
                             title=f"When the actual theme was '{theme_chosen}', the model predicted"
                         )
 
