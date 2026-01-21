@@ -1998,33 +1998,38 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             "Communication and Culture- Safety Culture",
             "Communication and Culture- Verbal and Written Communication",
             "Human Error- Slips or Lapses",
-            "Human Error- Violations"
+            "Human Error- Violations",
+            "No Theme"
         ]
         if change_annotations:
             TEXT_COL = "Matched Sentences"
             PRED_COL = "Theme"
             if "human_labels" not in st.session_state:
+
+                st.subheader("Human Annotation Review")
+
                 st.session_state.human_labels = {}
-                cols = st.columns([4, 3, 3])
-                cols[0].markdown("**Text**" if TEXT_COL else "")
-                cols[1].markdown("**PREDICTED LABEL**")
-                cols[2].markdown("**HUMAN LABEL**")
+
+                h1, h2, h3 = st.columns([4, 3, 3])
+                h1.markdown("**Text**" if TEXT_COL else "")
+                h2.markdown("**PREDICTED LABEL**")
+                h3.markdown("**HUMAN LABEL**")
 
                 st.divider()
 
-                for idx, row in df.iterrows():
-                    c1, c2, c3, c4 = st.columns([4,3,3,3])
-                    if TEXT_COL:
-                        c1.write(row[TEXT_COL])
-
+                for idx, row in results_df.iterrows():
+                    c1, c2, c3 = st.columns([4,3,3])
+                    
+                    c1.write(row[TEXT_COL])
                     c2.write(row[PRED_COL])
+
                     default_value = st.session_state.human_labels.get(
                         idx, row[PRED_COL]
                     )
 
                     selected_theme = c3.selectbox(
                         label ="",
-                        options = all_themes.lower(),
+                        options = all_themes,
                         index=all_themes.index(default_value),
                         key= f"human_{idx}"
                     )
@@ -2033,25 +2038,22 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
 
                 st.divider()
                 if st.button("Save Human Annotations"):
-                    df["HUMAN LABEL"] = df.index.map(
-                        lambda i: st.session_state.human_labels.get(i)
+                    results_df["HUMAN LABEL"] = results_df.index.map(
+                        lambda i: ("" if st.session_state.human_labels.get(i) == "No Theme" 
+                            else st.session_state.human_labels.get(i).lower()
+                        )
                     )
                     st.success("Human labels saved")
-                    st.dataframe(df, use_container_width = True)
-                    if st.button("Download Updated Annotations"):
-                        df["HUMAN LABEL"] = df.index.map(
-                            lambda i: st.session_state.human_labels.get(i)
-                        )
+                    st.dataframe(results_df, use_container_width = True)
+                    buffer = io.StringIO()
+                    results_df.to_csv(buffer, index=False)
 
-                        buffer = io.StringIO()
-                        df.to_csv(buffer, index=False)
-
-                        st.download_button(
-                            label="Download CSV",
-                            data=buffer.getvalue(),
-                            file_name="AI_and_human_annotations.csv",
-                            mime="text/csv"
-                        )
+                    st.download_button(
+                        label="Download Updated Annotations",
+                        data=buffer.getvalue(),
+                        file_name="AI_and_human_annotations.csv",
+                        mime="text/csv"
+                    )
         corrected_file = st.file_uploader(
             "Upload corrected CSV",
             type=["csv"],
