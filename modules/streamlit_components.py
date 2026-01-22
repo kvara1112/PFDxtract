@@ -2075,10 +2075,12 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 type=["csv"],
                 key="human_label_upload"
             )
+            st.subheader("Send Updated Annotations to Developer")
+            st.write("Please upload the updated annotations file and send it to the developer. This will help us further improve the model.")
             send_to_dev = st.button("Send to Developer")
             if send_to_dev:
                 if corrected_file is None:
-                    st.error("Please upload the corrected CSV from above before sending.")
+                    st.error("Please upload the corrected CSV from above.")
                 else:
                     try:
                         #content = corrected_file.read()
