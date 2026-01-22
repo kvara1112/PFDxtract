@@ -2070,53 +2070,53 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     file_name="AI_and_human_annotations.csv",
                     mime="text/csv"
                 )
-        # corrected_file = st.file_uploader(
-        #     "Upload corrected CSV",
-        #     type=["csv"],
-        #     key="human_label_upload"
-        # )
-        # send_to_dev = st.button("Send to Developer")
-        # if send_to_dev:
-        #     if corrected_file is None:
-        #         st.error("Please upload a corrected CSV before sending.")
-        #     else:
-        #         try:
-        #             #content = corrected_file.read()
-        #             df = pd.read_csv(corrected_file)
-        #             if "HUMAN LABEL" not in df.columns:
-        #                 st.error("Uploaded CSV must contain a column named 'HUMAN LABEL'.")
-        #                 st.stop()
+            corrected_file = st.file_uploader(
+                "Upload downloaded CSV",
+                type=["csv"],
+                key="human_label_upload"
+            )
+            send_to_dev = st.button("Send to Developer")
+            if send_to_dev:
+                if corrected_file is None:
+                    st.error("Please upload the corrected CSV from above before sending.")
+                else:
+                    try:
+                        #content = corrected_file.read()
+                        df = pd.read_csv(corrected_file)
+                        if "HUMAN LABEL" not in df.columns:
+                            st.error("Uploaded CSV must contain a column named 'HUMAN LABEL'.")
+                            st.stop()
 
-                    
-        #             csv_bytes = df.to_csv(index=False).encode('utf-8')
-        #             encoded = base64.b64encode(csv_bytes).decode("utf-8")
-        #             filename = f"Theme_analysis_human_corrected/{datetime.now().strftime('%Y%m%d_%H%M%S')}_annotations.csv"
+                        
+                        csv_bytes = df.to_csv(index=False).encode('utf-8')
+                        encoded = base64.b64encode(csv_bytes).decode("utf-8")
+                        filename = f"Theme_analysis_human_corrected/{datetime.now().strftime('%Y%m%d_%H%M%S')}_annotations.csv"
 
-        #             # GitHub API URL
-        #             url = f"https://api.github.com/repos/{st.secrets['GITHUB_REPO']}/contents/{filename}"
+                        # GitHub API URL
+                        url = f"https://api.github.com/repos/{st.secrets['GITHUB_REPO']}/contents/{filename}"
 
-        #             # Headers with token
-        #             headers = {
-        #                 "Authorization": f"token {st.secrets['GITHUB_TOKEN']}",
-        #                 "Accept": "application/vnd.github.v3+json",
-        #             }
+                        # Headers with token
+                        headers = {
+                            "Authorization": f"token {st.secrets['GITHUB_TOKEN']}",
+                            "Accept": "application/vnd.github.v3+json",
+                        }
 
-        #             # Payload for creating the file
-        #             payload = {
-        #                 "message": "Add human-labelled annotations",
-        #                 "content": encoded
-        #             }
+                        # Payload for creating the file
+                        payload = {
+                            "message": "Add human-labelled annotations",
+                            "content": encoded
+                        }
 
-        #             # Send request
-        #             response = requests.put(url, json=payload, headers=headers)
+                        # Send request
+                        response = requests.put(url, json=payload, headers=headers)
 
-        #             if response.status_code in [200, 201]:
-        #                 st.success(f"File successfully sent to developers: `{filename}`")
-        #             else:
-        #                 st.error(f"Failed to upload file to GitHub. Status code: {response.status_code}")
-        #                 st.json(response.json())
-        #         except Exception as e:
-        #             st.error(f"Error processing the file: {str(e)}")
+                        if response.status_code in [200, 201]:
+                            st.success(f"File successfully sent to developers: `{filename}`")
+                        else:
+                            st.error(f"Failed to upload file to GitHub. Status code: {response.status_code}")
+                            st.json(response.json())
+                    except Exception as e:
+                        st.error(f"Error processing the file: {str(e)}")
 
 
 def render_bert_analysis_tabworking(data: pd.DataFrame = None):
