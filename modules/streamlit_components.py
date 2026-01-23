@@ -2429,7 +2429,7 @@ def render_evaluations_tab(isPFD: bool):
                 ax.set_facecolor('none')
                 sns.heatmap(
                     cm_corr, annot=cm_percent, cmap="coolwarm",
-                    vmin=0, vmax=1, ax=ax,
+                    vmin=0, vmax=100, ax=ax,
                     annot_kws={"color": "white"}, linewidths=0.5, linecolor='white'
                 )
                 ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center', fontsize=10)
@@ -2450,7 +2450,7 @@ def render_evaluations_tab(isPFD: bool):
 
                 cbar = ax.collections[0].colorbar
                 cbar.ax.set_ylabel("Proportion of predictions", rotation=-90, labelpad=25, color='white')
-                cbar.ax.set_yticklabels([f"{t:.2f}" for t in cbar.get_ticks()], color='white')  # keep 2dp
+                cbar.ax.set_yticklabels([f"{t:.0f}" for t in cbar.get_ticks()], color='white')  # keep 2dp
 
                 cbar.ax.text(0.5, 1.05, 'Always Predicted', ha='center', va='bottom', color='white', transform=cbar.ax.transAxes)
                 cbar.ax.text(0.5, -0.1, 'Not Predicted', ha='center', va='top', color='white', transform=cbar.ax.transAxes)
