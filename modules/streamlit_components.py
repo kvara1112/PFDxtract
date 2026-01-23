@@ -2419,17 +2419,15 @@ def render_evaluations_tab(isPFD: bool):
                 labels = sorted(set(y_pred) | set(y_true))
                 cm_counts = confusion_matrix(y_pred, y_true, labels=labels)
                 cm_df = pd.DataFrame(cm_counts, index=labels, columns=labels)
-                cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)*100
-                cm_corr = cm_corr.round(2)
-                cm_percent = cm_corr.applymap(lambda x: f"{x:.2f}%").to_numpy()
+                cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)
 
                 st.subheader("Confusion Correlation Heatmap")
                 fig, ax = plt.subplots(figsize=(15, 12))
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('none')
                 sns.heatmap(
-                    cm_corr.to_numpy(), annot=cm_percent, cmap="coolwarm",
-                    vmin=0, vmax=100, ax=ax,
+                    (cm_corr*100), annot=True, fmt=".2f", cmap="coolwarm",
+                    vmin=0, vmax=1, ax=ax,
                     annot_kws={"color": "white"}, linewidths=0.5, linecolor='white'
                 )
                 ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center', fontsize=10)
@@ -2450,8 +2448,8 @@ def render_evaluations_tab(isPFD: bool):
 
                 cbar = ax.collections[0].colorbar
                 cbar.ax.set_ylabel("Proportion of predictions", rotation=-90, labelpad=25, color='white')
-                cbar.set_ticks(np.linspace(0, 100, 6))
-                cbar.set_ticklabels([f"{int(t)}%" for t in cbar.get_ticks()])
+                cbar.ax.set_yticklabels([f"{t:.2f}%" for t in cbar.get_ticks()], color='white')  # keep 2dp
+
                 cbar.ax.text(0.5, 1.05, 'Always Predicted', ha='center', va='bottom', color='white', transform=cbar.ax.transAxes)
                 cbar.ax.text(0.5, -0.1, 'Not Predicted', ha='center', va='top', color='white', transform=cbar.ax.transAxes)
 
