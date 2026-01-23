@@ -2427,7 +2427,7 @@ def render_evaluations_tab(isPFD: bool):
                 ax.set_facecolor('none')
                 sns.heatmap(
                     cm_corr, annot=True, fmt=".1%", cmap="coolwarm",
-                    vmin=0, vmax=100, ax=ax,
+                    vmin=0, vmax=1, ax=ax,
                     annot_kws={"color": "white"}, linewidths=0.5, linecolor='white'
                 )
                 ax.set_xticklabels(ax.get_xticklabels(), rotation=90, ha='center', fontsize=10)
