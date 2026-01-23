@@ -2428,7 +2428,7 @@ def render_evaluations_tab(isPFD: bool):
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('none')
                 sns.heatmap(
-                    cm_corr, annot=cm_percent, fmt=".2f", cmap="coolwarm",
+                    cm_corr, annot=cm_percent, cmap="coolwarm",
                     vmin=0, vmax=1, ax=ax,
                     annot_kws={"color": "white"}, linewidths=0.5, linecolor='white'
                 )
