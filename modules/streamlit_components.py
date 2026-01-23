@@ -2420,13 +2420,13 @@ def render_evaluations_tab(isPFD: bool):
                 cm_counts = confusion_matrix(y_pred, y_true, labels=labels)
                 cm_df = pd.DataFrame(cm_counts, index=labels, columns=labels)
                 cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)
-
+                annot = (cm_corr * 100).applymap(lambda x: f"{x:.2f}%")
                 st.subheader("Confusion Correlation Heatmap")
                 fig, ax = plt.subplots(figsize=(15, 12))
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('none')
                 sns.heatmap(
-                    (cm_corr*100), annot=True, fmt=".2f%", cmap="coolwarm",
+                    (cm_corr*100), annot=annot, fmt=".2f", cmap="coolwarm",
                     vmin=0, vmax=100, ax=ax,
                     annot_kws={"color": "white"}, linewidths=0.5, linecolor='white'
                 )
