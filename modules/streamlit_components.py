@@ -2070,13 +2070,15 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     file_name="AI_and_human_annotations.csv",
                     mime="text/csv"
                 )
+
+            st.subheader("Send Updated Annotations to Developer")
+            st.write("Please upload the updated annotations file and send it to the developer. This will help us further improve the model.")
             corrected_file = st.file_uploader(
                 "Upload downloaded CSV",
                 type=["csv"],
                 key="human_label_upload"
             )
-            st.subheader("Send Updated Annotations to Developer")
-            st.write("Please upload the updated annotations file and send it to the developer. This will help us further improve the model.")
+            
             send_to_dev = st.button("Send to Developer")
             if send_to_dev:
                 if corrected_file is None:
