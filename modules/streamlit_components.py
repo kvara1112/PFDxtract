@@ -2422,6 +2422,9 @@ def render_evaluations_tab(isPFD: bool):
                 cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)
                 
                 st.subheader("Confusion Correlation Heatmap")
+                st.write("""
+                         The diagonal represents both the same theme in both ai annotations and human annotations. 
+                         Therefore, a diagonal of 100% would mean that theme was always correctly identified by the AI mode.""")
                 fig, ax = plt.subplots(figsize=(15, 12))
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('none')
@@ -2448,7 +2451,7 @@ def render_evaluations_tab(isPFD: bool):
 
                 cbar = ax.collections[0].colorbar
                 cbar.ax.set_ylabel("Proportion of predictions", rotation=-90, labelpad=25, color='white')
-                cbar.ax.set_yticklabels([f"{t:.2f}%" for t in cbar.get_ticks()], color='white')  # keep 2dp
+                cbar.ax.set_yticklabels([f"{t*100:0f}%" for t in cbar.get_ticks()], color='white')  # keep 2dp
 
                 cbar.ax.text(0.5, 1.05, 'Always Predicted', ha='center', va='bottom', color='white', transform=cbar.ax.transAxes)
                 cbar.ax.text(0.5, -0.1, 'Not Predicted', ha='center', va='top', color='white', transform=cbar.ax.transAxes)
