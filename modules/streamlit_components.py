@@ -2419,8 +2419,8 @@ def render_evaluations_tab(isPFD: bool):
                 labels = sorted(set(y_pred) | set(y_true))
                 cm_counts = confusion_matrix(y_pred, y_true, labels=labels)
                 cm_df = pd.DataFrame(cm_counts, index=labels, columns=labels)
-                cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)
-                cm_corr = cm_corr *100
+                cm_corr = cm_df.div(cm_df.sum(axis=1), axis=0).fillna(0)*100
+                cm_corr = cm_corr.round(2)
                 cm_percent = cm_corr.astype(str) + "%"
 
                 st.subheader("Confusion Correlation Heatmap")
@@ -2428,7 +2428,7 @@ def render_evaluations_tab(isPFD: bool):
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('none')
                 sns.heatmap(
-                    cm_percent, annot=True, fmt=".2f", cmap="coolwarm",
+                    cm_corr, annot=cm_percent, fmt=".2f", cmap="coolwarm",
                     vmin=0, vmax=1, ax=ax,
                     annot_kws={"color": "white"}, linewidths=0.5, linecolor='white'
                 )
