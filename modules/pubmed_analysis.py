@@ -65,7 +65,7 @@ def pretrained_annotator(negated_sentences, report_name, confidence):
             score = pred["score"]
             if score >= confidence:
                 hits.append({
-                    "framework": "PubMed-Theme",
+                    "framework": "Extended Yorkshire Contributory",
                     "theme": theme,
                     "confidence": score,
                     #"combined_score": score,

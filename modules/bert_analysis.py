@@ -1405,7 +1405,7 @@ class ThemeAnalyzer:
             "I-SIRch": self._get_isirch_framework(),
             "House of Commons": self._get_house_of_commons_themes(),
             "Extended Analysis": self._get_extended_themes(),
-            "Yorkshire Contributory":self._get_yorkshire_framework(),
+            "EExtebded Yorkshire Contributory":self._get_yorkshire_framework(),
         }
 
         # Color mapping for themes
