@@ -587,22 +587,69 @@ def main():
             
 
         # The radio button selection remains outside the expander
-        current_tab = st.radio(
-            "Select section:",
+        group = st.radio(
+            "Select Process:",
             [
-                "(1)🔍 Scrape Reports",
-                "(2)📂 Scraped File Preparation",
-                "(3)📊 Scraped File Analysis",
-                "(4)📝 Topic Analysis & Summaries", 
-                "(5)🔬 Concept Annotation",
-                "(6)✨ YCFF AI Annotator",
-                "(7)📈 Theme Analysis Dashboard",
-                "(8)🕵️‍♀️ AI Annotations Evaluator"
+                "Scraping and File Prep  (1-3)",
+                "Topic Analysis (4)",
+                "Theme Annotation (5-6)",
+                "Theme Dashoard (7)",
+                "Evaluation (8)"
             ],
-            label_visibility="collapsed",
-            horizontal=True,
-            key="main_tab_selector",
+            horizontal =True,
+            label_visibility = "collapsed",
+            key = "group_selector",
         )
+        if group == "Scraping & Prep (1-3)":
+            current_tab = st.radio(
+                "Select section:",
+                [
+                    "(1)🔍 Scrape Reports",
+                    "(2)📂 Scraped File Preparation",
+                    "(3)📊 Scraped File Analysis",
+                ],
+                horizontal=True,
+                label_visibility="collapsed",
+                key="group_123",
+            )
+
+        elif group == "Topic Analysis (4)":
+            current_tab = "(4)📝 Topic Analysis & Summaries"
+
+        elif group == "Annotation (5-6)":
+            current_tab = st.radio(
+                "Select section:",
+                [
+                    "(5)🔬 Concept Annotation",
+                    "(6)✨ YCFF AI Annotator",
+                ],
+                horizontal=True,
+                label_visibility="collapsed",
+                key="group_56",
+            )
+
+        elif group == "Theme Dashboard (7)":
+            current_tab = "(7)📈 Theme Analysis Dashboard"
+
+        else:
+            current_tab = "(8)🕵️‍♀️ AI Annotations Evaluator"
+
+        # current_tab = st.radio(
+        #     "Select section:",
+        #     [
+        #         "(1)🔍 Scrape Reports",
+        #         "(2)📂 Scraped File Preparation",
+        #         "(3)📊 Scraped File Analysis",
+        #         "(4)📝 Topic Analysis & Summaries", 
+        #         "(5)🔬 Concept Annotation",
+        #         "(6)✨ YCFF AI Annotator",
+        #         "(7)📈 Theme Analysis Dashboard",
+        #         "(8)🕵️‍♀️ AI Annotations Evaluator"
+        #     ],
+        #     label_visibility="collapsed",
+        #     horizontal=True,
+        #     key="main_tab_selector",
+        # )
         st.markdown("---")
 
         try:
