@@ -3990,19 +3990,15 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             # Add nodes (themes) with formatted display names
             for theme in top_theme_corr.columns:
                 
-                G.add_node(theme.lower(), display_name=theme)
+                G.add_node(theme, display_name=theme)
                 
-
-            theme_display_map2 = {k.lower(): v for k, v in theme_display_map2.items()}
-            group_map = {k.lower(): v for k, v in group_map.items()}
-
             # Add edges (correlations above threshold)
             for i, theme1 in enumerate(top_theme_corr.columns):
                 for j, theme2 in enumerate(top_theme_corr.columns):
                     if i < j:  # Only process each pair once
                         correlation = top_theme_corr.loc[theme1, theme2]
                         if correlation >= corr_threshold:
-                            G.add_edge(theme1.lower(), theme2.lower(), weight=correlation)
+                            G.add_edge(theme1, theme2, weight=correlation)
                             
             
             # Check if we have any edges
