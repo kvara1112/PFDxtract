@@ -3990,7 +3990,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             # Add nodes (themes) with formatted display names
             for theme in top_theme_corr.columns:
                 
-                G.add_node(theme, display_name=theme)
+                G.add_node(theme.lower(), display_name=theme)
                 
             # Add edges (correlations above threshold)
             for i, theme1 in enumerate(top_theme_corr.columns):
@@ -3998,7 +3998,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                     if i < j:  # Only process each pair once
                         correlation = top_theme_corr.loc[theme1, theme2]
                         if correlation >= corr_threshold:
-                            G.add_edge(theme1, theme2, weight=correlation)
+                            G.add_edge(theme1.lower(), theme2.lower(), weight=correlation)
                             
             
             # Check if we have any edges
@@ -4033,8 +4033,8 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                     connection_text = "\n".join(connections)
                     title = f"{theme_display_map2[node]}\nConnections:{len(connections)}\n{connection_text}"
                     
-                    node_key = node.strip().lower()
-                    group = group_map.get(node_key, "Other")
+                    #node_key = node.strip().lower()
+                    group = group_map.get(node, "Other")
                     node_color = group_colours.get(group, "gray")
                     x, y = positions[node]
 
