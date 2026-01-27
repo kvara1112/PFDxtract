@@ -1332,14 +1332,14 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     # Safer initialization with validation
     selected_frameworks_key = f"{report_key}_selected_frameworks"
     if selected_frameworks_key not in st.session_state:
-        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Extended Yorkshire Contributory"]
         st.session_state[selected_frameworks_key] = default_frameworks
     if selected_frameworks_key not in st.session_state:
         # Only include frameworks that actually exist
-        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
+        default_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Extended Yorkshire Contributory"]
         st.session_state[selected_frameworks_key] = default_frameworks
     else:
-        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"] + list(st.session_state.get(custom_frameworks_key, {}).keys())
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Extended Yorkshire Contributory"] + list(st.session_state.get(custom_frameworks_key, {}).keys())
         # Keep only valid frameworks
         st.session_state[selected_frameworks_key] = [f for f in st.session_state[selected_frameworks_key] if f in available_frameworks]
         # Optionally add any new frameworks that aren’t in the selection yet
@@ -1401,7 +1401,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     
     with frame_col1:
         # Get all available framework options
-        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Yorkshire Contributory"]
+        available_frameworks = ["I-SIRch", "House of Commons", "Extended Analysis", "Extended Yorkshire Contributory"]
         if custom_frameworks_key in st.session_state:
             available_frameworks.extend(list(st.session_state[custom_frameworks_key].keys()))
         widget_key = f"{report_key}framework_Select_{reset_counter}"
@@ -1611,7 +1611,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                     elif framework == "Extended Analysis":
                         #filtered_frameworks["Extended Analysis"] = theme_analyzer._get_extended_themes()
                         fw = theme_analyzer._get_extended_themes()                    
-                    elif framework == "Yorkshire Contributory":
+                    elif framework == "Extended Yorkshire Contributory":
                         #filtered_frameworks["Yorkshire Contributory"] = theme_analyzer._get_yorkshire_framework()
                         fw = theme_analyzer._get_yorkshire_framework()
                     elif framework in st.session_state[custom_frameworks_key]:
@@ -3064,7 +3064,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                             "I-SIRch": "orange",
                             "House of Commons": "royalblue",
                             "Extended Analysis": "firebrick",
-                            "Yorkshire Contributory": "green"
+                            "Extended Yorkshire Contributory": "green"
                         }
                     )
                     
@@ -3158,7 +3158,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                         "I-SIRch": "orange",
                         "House of Commons": "royalblue",
                         "Extended Analysis": "firebrick",
-                        "Yorkshire Contributory":"green"
+                        "Extended Yorkshire Contributory":"green"
                     }
                     
                     # Default colors for any frameworks not specifically mapped
