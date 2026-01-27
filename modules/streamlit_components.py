@@ -3898,19 +3898,19 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             }
 
             group_aliases = {
-                "Communication and Culture": "Communication",
-                "External Factor":"External",
-                "Organisational Factors": "Organisation",
-                "Local Working Conditions": "Internal",
-                "Situational":"Jobs/Task",
-                "Jobs/Task":"Jobs/Task",
-                "Organisation":"Organisation",
-                "Internal":"Internal",
-                "Person":"Person",
-                "External":"External",
-                "Human Error":"Human Error",
-                "Communication":"Communication",
-                "Other":"Other"
+                "communication and culture": "Communication",
+                "external factor":"External",
+                "organisational factors": "Organisation",
+                "local Working conditions": "Internal",
+                "situational":"Jobs/Task",
+                "jobs/task":"Jobs/Task",
+                "organisation":"Organisation",
+                "internal":"Internal",
+                "person":"Person",
+                "external":"External",
+                "human error":"Human Error",
+                "communication":"Communication",
+                "other":"Other"
             }
 
             group_map = {theme: group_aliases.get(extract_category(theme), "Other")
@@ -4024,6 +4024,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                     positions[node] = (x,y)
 
                 for node in G.nodes():
+                    node_key = node.lower()
                     degree = len(list(G.neighbors(node)))
                     size = degree * 8 + 6
                     display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=100)
@@ -4033,7 +4034,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                     connection_text = "\n".join(connections)
                     title = f"{theme_display_map2[node]}\nConnections:{len(connections)}\n{connection_text}"
                     
-                    group = group_map.get(node, "Other")
+                    group = group_map.get(node_key, "Other")
                     node_color = group_colours.get(group, "gray")
                     x, y = positions[node]
 
