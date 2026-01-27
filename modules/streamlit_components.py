@@ -1623,6 +1623,7 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
 
                     filtered_frameworks[framework] = stem_framework_keywords(fw)
 
+              
                 #st.write("Stemmed frameworks:", filtered_frameworks)
                 # Set the filtered frameworks
                 theme_analyzer.frameworks = filtered_frameworks
@@ -2981,7 +2982,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                 # Apply multi-select coroner name filter
                 filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_names)]
             
-        
+        print(filtered_df)
         # Apply multi-select confidence level filter
         filtered_df = filtered_df[filtered_df["Confidence"].isin(selected_confidence_levels)]
         
