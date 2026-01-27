@@ -94,7 +94,7 @@ def process_selected_reports(df, text_column, confidenceScore):
                 "Full Text": text,
                 "Framework": hit["framework"],
                 "Theme": hit["theme"],
-                "Combined Score": hit["confidence"],
+                "Confidence Score": hit["confidence"],
                 #"Matched Keywords": ", ".join(hit["matched_keywords"]),
                 "coroner_name": row.get("coroner_name", ""),
                 "coroner_area": row.get("coroner_area", ""),
@@ -311,11 +311,11 @@ def generate_html_report(results_df: pd.DataFrame, text_column = "Full Text")-> 
                 <table>
                     <tr>
                         <th>Framework</th>
-                        <th>Confidence</th>
+                        <th>Confidence Score</th>
                     </tr>
                     <tr>
                         <td>{html.escape(row["Framework"])}</td>
-                        <td>{row["Confidence"]:.4f}</td>
+                        <td>{row["Confidence Score"]:.4f}</td>
                     </tr>
                 </table>
 
