@@ -3990,7 +3990,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             # Add nodes (themes) with formatted display names
             for theme in top_theme_corr.columns:
                 
-                G.add_node(theme.lower(), display_name=theme)
+                G.add_node(theme, display_name=theme)
                 
             # Add edges (correlations above threshold)
             for i, theme1 in enumerate(top_theme_corr.columns):
@@ -4033,7 +4033,8 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                     connection_text = "\n".join(connections)
                     title = f"{theme_display_map2[node]}\nConnections:{len(connections)}\n{connection_text}"
                     
-                    group = group_map.get(node, "other")
+                    node_key = node.strip().lower()
+                    group = group_map.get(node, "Other")
                     node_color = group_colours.get(group, "gray")
                     x, y = positions[node]
 
