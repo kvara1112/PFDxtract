@@ -2982,7 +2982,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                 # Apply multi-select coroner name filter
                 filtered_df = filtered_df[filtered_df["coroner_name"].isin(selected_names)]
             
-        print(filtered_df)
+        print(filtered_df["Theme"])
         # Apply multi-select confidence level filter
         filtered_df = filtered_df[filtered_df["Confidence"].isin(selected_confidence_levels)]
         
