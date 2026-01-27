@@ -4034,7 +4034,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                     title = f"{theme_display_map2[node]}\nConnections:{len(connections)}\n{connection_text}"
                     
                     node_key = node.strip().lower()
-                    group = group_map.get(node, "Other")
+                    group = group_map.get(node_key, "Other")
                     node_color = group_colours.get(group, "gray")
                     x, y = positions[node]
 
