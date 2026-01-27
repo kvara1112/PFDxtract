@@ -590,8 +590,7 @@ def main():
         group = st.radio(
             "Select Process:",
             [
-                "Scraping and File Prep (1-3)",
-                "Topic Analysis (4)",
+                "Scraping and File Prep with Optional Topic Analysis(1-4)",
                 "Theme Annotation (5-6)",
                 "Theme Dashboard (7)",
                 "Evaluation (8)"
@@ -600,21 +599,20 @@ def main():
             label_visibility = "collapsed",
             key = "group_selector",
         )
-        if group == "Scraping & File Prep (1-3)":
+        if group == "Scraping and File Prep with Optional Topic Analysis(1-4)":
             current_tab = st.radio(
                 "Select section:",
                 [
                     "(1)🔍 Scrape Reports",
                     "(2)📂 Scraped File Preparation",
                     "(3)📊 Scraped File Analysis",
+                    "(4)📝 Optional: Topic Analysis & Summaries"
                 ],
                 horizontal=True,
                 label_visibility="collapsed",
                 key="group_123",
             )
 
-        elif group == "Topic Analysis (4)":
-            current_tab = "(4)📝 Topic Analysis & Summaries"
 
         elif group == "Theme Annotation (5-6)":
             current_tab = st.radio(
@@ -712,7 +710,7 @@ def main():
 
                     render_analysis_tab(data = data_to_use,data_source= st.session_state.get("data_source"))
             
-            elif current_tab == "(4)📝 Topic Analysis & Summaries":
+            elif current_tab == "(4)📝 Optional: Topic Analysis & Summaries":
                 # Add tab-specific description here
                 st.markdown(
                     """
