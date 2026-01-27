@@ -2943,7 +2943,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
         top_n_themes = st.sidebar.slider("Number of Top Themes", 5, 20, 10)
         
         # Confidence filter - MODIFIED: Multi-select instead of minimum
-        if results_df["confidence"]:
+        if "confidence" in results_df.columns:
             confidence_levels = ["High", "Medium", "Low"]
             confidence_filter_type = st.sidebar.radio("Confidence Filter Type", ["All Confidence Levels", "Select Specific Levels"])
             if confidence_filter_type == "All Confidence Levels":
@@ -2985,7 +2985,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
             
         print("removed confidence", filtered_df["Confidence"])
         # Apply multi-select confidence level filter
-        if filtered_df["confidence"]:
+        if "confidence" in filtered_df.columns:
             filtered_df = filtered_df[filtered_df["Confidence"].isin(selected_confidence_levels)]
        
         # Display filter summary
@@ -3010,7 +3010,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                         active_filters.append(f"Coroners: {', '.join(selected_names)}")
                     else:
                         active_filters.append(f"Coroners: {len(selected_names)} selected")
-            if filtered_df["confidence"]:
+            if "confidence" in filtered_df.columns:
                 if confidence_filter_type == "Select Specific Levels" and selected_confidence_levels:
                     active_filters.append(f"Confidence: {', '.join(selected_confidence_levels)}")
         #with st.sidebar:
