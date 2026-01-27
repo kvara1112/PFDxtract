@@ -4023,6 +4023,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
 
                 for node in G.nodes():
                     node_key = node.lower()
+                    print(node, node_key)
                     degree = len(list(G.neighbors(node)))
                     size = degree * 8 + 6
                     display_name = improved_truncate_text(node.split(':')[0] if ':' in node else node, max_length=100)
