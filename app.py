@@ -590,17 +590,17 @@ def main():
         group = st.radio(
             "Select Process:",
             [
-                "Scraping and File Prep  (1-3)",
+                "Scraping and File Prep (1-3)",
                 "Topic Analysis (4)",
                 "Theme Annotation (5-6)",
-                "Theme Dashoard (7)",
+                "Theme Dashboard (7)",
                 "Evaluation (8)"
             ],
             horizontal =True,
             label_visibility = "collapsed",
             key = "group_selector",
         )
-        if group == "Scraping & Prep (1-3)":
+        if group == "Scraping & File Prep (1-3)":
             current_tab = st.radio(
                 "Select section:",
                 [
@@ -616,7 +616,7 @@ def main():
         elif group == "Topic Analysis (4)":
             current_tab = "(4)📝 Topic Analysis & Summaries"
 
-        elif group == "Annotation (5-6)":
+        elif group == "Theme Annotation (5-6)":
             current_tab = st.radio(
                 "Select section:",
                 [
