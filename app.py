@@ -572,7 +572,7 @@ def main():
                 3. **(Step 3) 📊 Scraped File Analysis**: Visualise and analyse basic report patterns
                 4. **(Step 4) 📝 Topic Analysis & Summaries**: Generate basic themes from report content
                 5. **(Step 5) 🔬 Concept Annotation**: Conduct advanced theme analysis with AI
-                6. **(Step 6) ✨ New Ai Annotator**: Uses a hybrid trained pubmed bert model to concept annotate"
+                6. **(Step 6) ✨ YCFF AI Annotator**: Uses a hybrid trained pubmed bert model to concept annotate"
                 7. **(Step 7) 📈 Theme Analysis Dashboard**: Explore comprehensive theme visualisations
                 8. **(Step 8) 🕵️‍♀️ AI Annotations Evaluator**: Visualise and analyse the accuracy of an AI model
                 
@@ -595,7 +595,7 @@ def main():
                 "(3)📊 Scraped File Analysis",
                 "(4)📝 Topic Analysis & Summaries", 
                 "(5)🔬 Concept Annotation",
-                "(6)✨ New Ai Annotator",
+                "(6)✨ YCFF AI Annotator",
                 "(7)📈 Theme Analysis Dashboard",
                 "(8)🕵️‍♀️ AI Annotations Evaluator"
             ],
@@ -620,10 +620,10 @@ def main():
                     Upload your own PFD reports of filter and search for PFD reports
                     """
                 )
-                st.subheader("Upload PFD Reports")
+                st.subheader("Option 1: Upload PFD Reports")
                 upload_reports(True)
                 
-                st.subheader("Scrape PFD Reports")
+                st.subheader("Option 2: Scrape PFD Reports")
                 
                 render_scraping_tab()
             
@@ -729,10 +729,10 @@ def main():
                     """
                 )
                 render_evaluations_tab(True)
-            elif current_tab == "(6)✨ New Ai Annotator":
+            elif current_tab == "(6)✨ YCFF AI Annotator":
                 st.markdown(
                     """
-                    New Ai annotator, uses trained pubmed model to anotate PFD reports and generates a HTML report, as well as an annotations 
+                    YCFF AI annotator, uses trained pubmed model to anotate PFD reports and generates a HTML report, as well as an annotations 
                     excel file for the user to make any changes to incorrectly annotated themes and simply for personal use. 
 
                     Uses an extended version of the Yorkshire Contributory Factors Framework.
