@@ -2995,7 +2995,7 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                 active_filters.append(f"Year: {selected_years[0]}")
             else:
                 active_filters.append(f"Years: {selected_years[0]}-{selected_years[1]}")
-        print("after selection", filtered_df["Theme"])
+
         if isPFD:
             if "coroner_area" not in missing_recommended and "coroner_name" not in missing_recommended is None:
                 if area_filter_type == "Select Specific Areas" and selected_areas:
