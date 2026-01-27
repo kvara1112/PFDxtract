@@ -52,7 +52,15 @@ def find_negated_sentences_in_text(text: str):
 
 
 # Pretrained annotator
-
+def _get_confidence_label(score):
+    """Convert numerical score to confidence label"""
+    if score >= 0.7:
+        return "High"
+    elif score >= 0.5:
+        return "Medium"
+    else:
+        return "Low"
+    
 def pretrained_annotator(negated_sentences, report_name, confidence):
     hits = []
     for sentence in negated_sentences:
@@ -68,6 +76,7 @@ def pretrained_annotator(negated_sentences, report_name, confidence):
                     "framework": "Extended Yorkshire Contributory",
                     "theme": theme,
                     "confidence": score,
+                    "level": _get_confidence_label(score),
                     #"combined_score": score,
                     "matched_keywords": [],
                     "matched_sentences": [sentence],
@@ -79,6 +88,7 @@ def pretrained_annotator(negated_sentences, report_name, confidence):
 
 # Processing function
 
+    
 def process_selected_reports(df, text_column, confidenceScore):
     final_rows = []
     for idx, row in df.iterrows():
@@ -95,6 +105,7 @@ def process_selected_reports(df, text_column, confidenceScore):
                 "Framework": hit["framework"],
                 "Theme": hit["theme"],
                 "Confidence Score": hit["confidence"],
+                "Confidence": hit["level"] ,
                 #"Matched Keywords": ", ".join(hit["matched_keywords"]),
                 "coroner_name": row.get("coroner_name", ""),
                 "coroner_area": row.get("coroner_area", ""),
