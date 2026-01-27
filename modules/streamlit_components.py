@@ -3881,8 +3881,6 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                     return theme.split("-")[0].strip()
                 elif theme in known_categories:
                     return theme
-                elif theme in known_categories.lower:
-                    return theme
                 else:
                     return "Other"
             
