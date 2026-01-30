@@ -571,7 +571,7 @@ def main():
                 2. **(Step 2) 📂 Scraped File Preparation**: Process and merge your scraped reports
                 3. **(Step 3) 📊 Scraped File Analysis**: Visualise and analyse basic report patterns
                 4. **(Step 4) 📝 Topic Analysis & Summaries**: Generate basic themes from report content
-                5. **(Step 5) 🔬 Concept Annotation**: Conduct advanced theme analysis with AI
+                5. **(Step 5) 🔬 Multi-Framework Concept Annotation**: Conduct advanced theme analysis with AI
                 6. **(Step 6) ✨ YCFF AI Annotator**: Uses a hybrid trained pubmed bert model to concept annotate"
                 7. **(Step 7) 📈 Theme Analysis Dashboard**: Explore comprehensive theme visualisations
                 8. **(Step 8) 🕵️‍♀️ AI Annotations Evaluator**: Visualise and analyse the accuracy of an AI model
@@ -618,7 +618,7 @@ def main():
             current_tab = st.radio(
                 "Select section:",
                 [
-                    "(5)🔬 Concept Annotation",
+                    "(5)🔬 Multi-Framework Concept Annotation",
                     "(6)✨ YCFF AI Annotator",
                 ],
                 horizontal=True,
@@ -726,7 +726,7 @@ def main():
                 else:
                     render_topic_summary_tab(True, st.session_state.current_data, data_source= st.session_state.get("data_source"))
             
-            elif current_tab == "(5)🔬 Concept Annotation":
+            elif current_tab == "(5)🔬 Multi-Framework Concept Annotation":
                 # Add tab-specific description here
                 st.markdown(
                     """
