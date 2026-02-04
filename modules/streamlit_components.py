@@ -2426,7 +2426,7 @@ def render_evaluations_tab(isPFD: bool):
                 st.subheader("Confusion Correlation Heatmap")
                 st.write("""
                          The diagonal represents both the same theme in both ai annotations and human annotations. 
-                         Therefore, a diagonal of 100% would mean that theme was always correctly identified by the AI mode.""")
+                         Therefore, a diagonal of 100% would mean that theme was always correctly identified by the AI model.""")
                 fig, ax = plt.subplots(figsize=(15, 12))
                 fig.patch.set_facecolor('none')
                 ax.set_facecolor('none')
