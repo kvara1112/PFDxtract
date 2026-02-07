@@ -17,7 +17,7 @@ st.set_page_config(page_title="PubMedBERT Theme Annotation", layout="wide")
 # Initialize model and tokenizer
 
 
-MODEL_NAME = "kvara03/pubmedbert_theme_classifier_iteration4"
+MODEL_NAME = "kvara03/pubmedbert_theme_classifier_iteration5"
 
 # Load tokenizer + model directly from HF
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
