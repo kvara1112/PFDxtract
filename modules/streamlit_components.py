@@ -2738,7 +2738,7 @@ def render_evaluations_tab(isPFD: bool):
                     ax_word.add_patch(Rectangle((i, i), 1, 1, fill=False, edgecolor='black', lw=2))
 
                 fig_word.tight_layout()
-                fig_word.savefig("confusion_heatmap_word.png", dpi=300, facecolor='white', bbox_inches='tight')
+                #fig_word.savefig("confusion_heatmap_word.png", dpi=300, facecolor='white', bbox_inches='tight')
 
                 fig_copy = fig_word
                 #ax.set_facecolor('white')
@@ -2825,7 +2825,7 @@ def render_evaluations_tab(isPFD: bool):
                 fig_word.update_traces(textfont=dict(color='black'))  # bar labels black
 
                 # Optional: save as static image for Word
-                fig_word.write_image("precision_word.png", scale=2)
+                #fig_word.write_image("precision_word.png", scale=2)
 
                 per_report_precision_fig = fig_word
 
@@ -3093,7 +3093,7 @@ def render_evaluations_tab(isPFD: bool):
                 fig_word.update_traces(texttemplate="%{text:.2f}", textfont=dict(color="black"))
 
                 # Save static image for Word
-                fig_word.write_image("precision_per_report_word.png", scale=2)
+                #fig_word.write_image("precision_per_report_word.png", scale=2)
                 precision_per_report = fig_word
 
 
