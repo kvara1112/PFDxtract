@@ -2439,8 +2439,7 @@ def precision_confusion_chart(df, theme):
         xaxis_tickangle=-45,
         yaxis=dict(range=[0, 100])
     )
-    fig.set_facecolor('white')
-    fig.axes[0].set_facecolor('white')
+
     return fig
 
 def recall_confusion_chart(df, theme):
@@ -2468,8 +2467,7 @@ def recall_confusion_chart(df, theme):
         xaxis_tickangle=-45,
         yaxis=dict(range=[0, 100])
     )
-    fig.set_facecolor('white')
-    fig.axes[0].set_facecolor('white')
+
     return fig
 
 
@@ -2810,10 +2808,7 @@ def render_evaluations_tab(isPFD: bool):
 
                 # Show in Streamlit
                 st.plotly_chart(fig, use_container_width=True)
-                fig_copy = fig
-                fig_copy.set_facecolor('white')
-                fig_copy.axes[0].set_facecolor('white')
-                per_report_precision_fig = fig_copy
+                per_report_precision_fig = fig
 
                 st.title("Theme Evaluator")
                 theme_chosen = st.selectbox(
