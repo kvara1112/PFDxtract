@@ -2439,7 +2439,8 @@ def precision_confusion_chart(df, theme):
         xaxis_tickangle=-45,
         yaxis=dict(range=[0, 100])
     )
-
+    fig.set_facecolor('white')
+    fig.axes[0].set_facecolor('white')
     return fig
 
 def recall_confusion_chart(df, theme):
@@ -2467,19 +2468,11 @@ def recall_confusion_chart(df, theme):
         xaxis_tickangle=-45,
         yaxis=dict(range=[0, 100])
     )
-
+    fig.set_facecolor('white')
+    fig.axes[0].set_facecolor('white')
     return fig
 
-dpi = 300
-width_in = 8.27
-height_in = 11.69
-width_px = int(width_in * dpi)
-height_px = int(height_in * dpi)
-bg_color = ('#293587')  # RGB for dark gray
-bg_img = Image.new("RGB", (width_px, height_px), bg_color)
 
-# Save the background image
-bg_img.save("page_bg.png")
 
 def create_evaluation_report(
     overall_precision,
@@ -2492,7 +2485,6 @@ def create_evaluation_report(
     #st.write("Type of confusion_heatmap_fig:", type(confusion_heatmap_fig))
 
     doc = Document()
-    doc.add_picture("page_bg.png", width=Inches(width_in), height=Inches(height_in))
 
 
     try:
@@ -2762,8 +2754,10 @@ def render_evaluations_tab(isPFD: bool):
                 cbar.ax.text(0.5, -0.1, 'Not Predicted', ha='center', va='top', color='white', transform=cbar.ax.transAxes)
 
                 st.pyplot(fig)
-                fig.tight_layout()
-                confusion_fig = fig
+                fig_copy = fig
+                fig_copy.set_facecolor('white')
+                fig_copy.axes[0].set_facecolor('white')
+                confusion_fig = fig_copy
                 st.download_button(
                     "Download Confusion Correlation CSV",
                     cm_corr.to_csv(index=True),
@@ -2816,7 +2810,10 @@ def render_evaluations_tab(isPFD: bool):
 
                 # Show in Streamlit
                 st.plotly_chart(fig, use_container_width=True)
-                per_report_precision_fig = fig
+                fig_copy = fig
+                fig_copy.set_facecolor('white')
+                fig_copy.axes[0].set_facecolor('white')
+                per_report_precision_fig = fig_copy
 
                 st.title("Theme Evaluator")
                 theme_chosen = st.selectbox(
