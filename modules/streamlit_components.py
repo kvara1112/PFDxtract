@@ -2474,12 +2474,12 @@ def create_evaluation_report(
     per_report_precision_fig,
     df
 ):
-    st.write("Type of confusion_heatmap_fig:", type(confusion_heatmap_fig))
+    #st.write("Type of confusion_heatmap_fig:", type(confusion_heatmap_fig))
 
     doc = Document()
     try:
         doc.add_heading("Model Evaluation Report", level=0)
-        st.write("✅ Added report title")
+        #st.write("✅ Added report title")
     except Exception:
         st.error("Error adding report title")
         st.error(traceback.format_exc())
@@ -2489,7 +2489,7 @@ def create_evaluation_report(
         doc.add_heading("Summary Metrics", level=1)
         doc.add_paragraph(f"Overall Precision: {overall_precision}")
         doc.add_paragraph(f"Average Precision Across Reports: {avg_precision}")
-        st.write("✅ Added summary metrics")
+        #st.write("✅ Added summary metrics")
     except Exception:
         st.error("Error adding summary metrics")
         st.error(traceback.format_exc())
@@ -2502,7 +2502,7 @@ def create_evaluation_report(
             doc.add_picture(img_bytes, width=Inches(6))
 
         #doc.add_picture(fig_to_image_bytes(confusion_heatmap_fig), width=Inches(6))
-        st.write("✅ Added confusion heatmap")
+        #st.write("✅ Added confusion heatmap")
     except Exception:
         st.error("Error adding confusion heatmap")
         st.error(traceback.format_exc())
@@ -2511,7 +2511,7 @@ def create_evaluation_report(
         # Per-report precision chart
         doc.add_heading("Per Report Precision", level=1)
         doc.add_picture(plotly_to_image_bytes(per_report_precision_fig), width=Inches(6))
-        st.write("✅ Added per-report precision chart")
+        #st.write("✅ Added per-report precision chart")
     except Exception:
         st.error("Error adding per-report precision chart")
         st.error(traceback.format_exc())
@@ -2532,7 +2532,7 @@ def create_evaluation_report(
                 except Exception:
                     st.error(f"Error adding table cell: row={idx}, col={i}, value={value}")
                     row_cells[i].text = ""
-        st.write("✅ Added report metrics table")
+        #st.write("✅ Added report metrics table")
     except Exception:
         st.error("Error adding report metrics table")
         st.error(traceback.format_exc())
@@ -2541,14 +2541,14 @@ def create_evaluation_report(
         # Theme-specific evaluation
         doc.add_heading("Theme-Specific Evaluation", level=1)
         themes = sorted(df["HUMAN LABEL"].dropna().unique())
-        st.write("Themes to process:", themes)
+        #st.write("Themes to process:", themes)
     except Exception:
         st.error("Error preparing theme list")
         st.error(traceback.format_exc())
 
     for theme in themes:
         try:
-            st.write(f"Processing theme: {theme}")
+            #st.write(f"Processing theme: {theme}")
             doc.add_heading(str(theme), level=2)
 
             precision, recall = compute_theme_metrics_safe(df, theme)
@@ -2560,7 +2560,7 @@ def create_evaluation_report(
                 if prec_fig:
                     doc.add_paragraph("When predicted as this theme, the actual theme was:")
                     doc.add_picture(plotly_to_image_bytes(prec_fig), width=Inches(5.5))
-                    st.write(f"✅ Added precision chart for theme: {theme}")
+                    #st.write(f"✅ Added precision chart for theme: {theme}")
             except Exception:
                 st.error(f"Error adding precision chart for theme: {theme}")
                 st.error(traceback.format_exc())
@@ -2570,7 +2570,7 @@ def create_evaluation_report(
                 if rec_fig:
                     doc.add_paragraph("When the actual theme was this, the model predicted:")
                     doc.add_picture(plotly_to_image_bytes(rec_fig), width=Inches(5.5))
-                    st.write(f"✅ Added recall chart for theme: {theme}")
+                    #st.write(f"✅ Added recall chart for theme: {theme}")
             except Exception:
                 st.error(f"Error adding recall chart for theme: {theme}")
                 st.error(traceback.format_exc())
@@ -2584,7 +2584,7 @@ def create_evaluation_report(
         file_bytes = BytesIO()
         doc.save(file_bytes)
         file_bytes.seek(0)
-        st.write("✅ Successfully created Word report")
+        #st.write("✅ Successfully created Word report")
         return file_bytes
     except Exception:
         st.error("Error saving Word document")
