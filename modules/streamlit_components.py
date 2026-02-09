@@ -2379,11 +2379,13 @@ def comma_separated(series):
     return ", ".join(sorted(series.unique()))
 
 def fig_to_image_bytes(fig):
-    img_bytes = BytesIO()
-    fig.savefig(img_bytes, format="png", bbox_inches="tigth", dpi=200)
-    plt.close(fig)
-    img_bytes.seek(0)
-    return img_bytes
+    if fig is None:
+        return None
+
+    buf = BytesIO()
+    fig.savefig(buf, format='png', bbox_inches='tight', dpi=200)
+    buf.seek(0)
+    return buf
 
 def plotly_to_image_bytes(fig):
     img_bytes = BytesIO()
@@ -2495,7 +2497,11 @@ def create_evaluation_report(
     try:
         # Confusion heatmap
         doc.add_heading("Confusion Correlation Heatmap", level=1)
-        doc.add_picture(fig_to_image_bytes(confusion_heatmap_fig), width=Inches(6))
+        img_bytes = fig_to_image_bytes(confusion_heatmap_fig)
+        if img_bytes is not None:
+            doc.add_picture(img_bytes, width=Inches(6))
+
+        #doc.add_picture(fig_to_image_bytes(confusion_heatmap_fig), width=Inches(6))
         st.write("✅ Added confusion heatmap")
     except Exception:
         st.error("Error adding confusion heatmap")
