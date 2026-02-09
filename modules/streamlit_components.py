@@ -2439,18 +2439,7 @@ def precision_confusion_chart(df, theme):
         xaxis_tickangle=-45,
         yaxis=dict(range=[0, 100])
     )
-    #fig.update_coloraxes(cmin=0, cmax=100)
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        xaxis_tickangle=-45,
-        xaxis=dict(title_font=dict(color='white', size=10),
-                tickfont=dict(color='white')),
-        yaxis=dict(title_font=dict(color='white', size=10),
-                tickfont=dict(color='white')),
-        title=dict(font=dict(color='white', size=12)),
-        margin=dict(l=20, r=20, t=40, b=20)
-    )
+    
     return fig
 
 def recall_confusion_chart(df, theme):
@@ -2478,16 +2467,7 @@ def recall_confusion_chart(df, theme):
         xaxis_tickangle=-45,
         yaxis=dict(range=[0, 100])
     )
-    #fig.update_coloraxes(cmin=0, cmax=100)
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        xaxis_tickangle=-45,
-        xaxis=dict(title_font=dict(color='white', size=12), tickfont=dict(color='white')),
-        yaxis=dict(title_font=dict(color='white', size=12), tickfont=dict(color='white')),
-        title=dict(font=dict(color='white', size=14)),
-        margin=dict(l=20, r=20, t=40, b=20)
-    )
+    
     return fig
 
 
