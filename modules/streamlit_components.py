@@ -39,6 +39,8 @@ import traceback
 from docx import Document
 from docx.shared import Inches 
 from io import BytesIO
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
 
 # Import our modules
 from .core_utils import (
@@ -2477,6 +2479,11 @@ def create_evaluation_report(
     #st.write("Type of confusion_heatmap_fig:", type(confusion_heatmap_fig))
 
     doc = Document()
+    section = doc.sections[0]  # first section
+    shading_elm = OxmlElement('w:shd')
+    shading_elm.set(qn('w:fill'), "#293587")  # white background; change hex if you want
+    section._sectPr.append(shading_elm)
+
     try:
         doc.add_heading("Model Evaluation Report", level=0)
         #st.write("✅ Added report title")
