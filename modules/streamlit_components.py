@@ -2814,7 +2814,7 @@ def render_evaluations_tab(isPFD: bool):
                 fig_word.update_layout(
                     plot_bgcolor='white',       # white background for Word
                     paper_bgcolor='white',
-                    xaxis_tickangle=-25,
+                    xaxis_tickangle=-90,
                     xaxis=dict(
                         title_font=dict(color='black', size=12),
                         tickfont=dict(color='black')
