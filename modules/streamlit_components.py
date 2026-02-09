@@ -2392,7 +2392,8 @@ def plotly_to_image_bytes(fig):
     return img_bytes
 
 def compute_theme_metrics(df, theme):
-    theme_lower = theme.lower()
+    theme_lower = str(theme).strip().lower()
+    df = df.copy()
 
     df["PREDICTED LABEL"] = df["PREDICTED LABEL"].astype(str).str.strip().str.lower()
     df["HUMAN LABEL"] = df["HUMAN LABEL"].astype(str).str.strip().str.lower()
@@ -2412,18 +2413,17 @@ def compute_theme_metrics(df, theme):
     return precision, recall
 
 def precision_confusion_chart(df, theme):
-    theme_lower = theme.lower()
-
-    mistaken_for = (
-        df[
-            (df["PREDICTED LABEL"].str.lower() == theme_lower) &
-            (df["HUMAN LABEL"].str.lower() != theme_lower)
-        ]["HUMAN LABEL"]
-        .value_counts(normalize=True) * 100
-    )
-
-    if mistaken_for.empty:
+    theme_lower = str(theme).strip().lower()
+    subset = df[
+        (df["PREDICTED LABEL"].astype(str).str.lower() == theme_lower) &
+        (df["HUMAN LABEL"].astype(str).str.lower() != theme_lower)
+    ]["HUMAN LABEL"].astype(str)
+    
+    if subset.empty:
         return None
+    
+    mistaken_for = (subset.value_counts(normalize=True) * 100).sort_index()
+
 
     fig = px.bar(
         x=mistaken_for.index,
@@ -2432,21 +2432,26 @@ def precision_confusion_chart(df, theme):
         labels={"x": "Actual Theme", "y": "Percentage (%)"},
         title=f"When predicted as '{theme}', the actual theme was"
     )
+
+    fig.update_layout(
+        xaxis_tickangle=-45,
+        yaxis=dict(range=[0, 100])
+    )
+
     return fig
 
 def recall_confusion_chart(df, theme):
-    theme_lower = theme.lower()
+    theme_lower = str(theme).strip().lower()
 
-    missed_as = (
-        df[
-            (df["HUMAN LABEL"].str.lower() == theme_lower) &
-            (df["PREDICTED LABEL"].str.lower() != theme_lower)
-        ]["PREDICTED LABEL"]
-        .value_counts(normalize=True) * 100
-    )
-
-    if missed_as.empty:
+    subset = df[
+        (df["HUMAN LABEL"].astype(str).str.lower() == theme_lower) &
+        (df["PREDICTED LABEL"].astype(str).str.lower() != theme_lower)
+    ]["PREDICTED LABEL"].astype(str)
+    
+    if subset.empty:
         return None
+
+    missed_as = (subset.value_counts(normalize=True) * 100).sort_index()
 
     fig = px.bar(
         x=missed_as.index,
@@ -2455,6 +2460,12 @@ def recall_confusion_chart(df, theme):
         labels={"x": "Predicted Theme", "y": "Percentage (%)"},
         title=f"When actual theme was '{theme}', the model predicted"
     )
+
+    fig.update_layout(
+        xaxis_tickangle=-45,
+        yaxis=dict(range=[0, 100])
+    )
+    
     return fig
 
 def create_evaluation_report(
