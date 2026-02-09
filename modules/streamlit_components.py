@@ -35,7 +35,7 @@ from matplotlib.patches import Rectangle
 import seaborn as sns
 import matplotlib.pyplot as plt
 from nltk.stem import PorterStemmer
-
+import traceback
 from docx import Document
 from docx.shared import Inches 
 from io import BytesIO
@@ -2473,69 +2473,179 @@ def create_evaluation_report(
     df
 ):
     doc = Document()
+    try:
+        doc.add_heading("Model Evaluation Report", level=0)
+        st.write("✅ Added report title")
+    except Exception:
+        st.error("Error adding report title")
+        st.error(traceback.format_exc())
 
-    # Title
-    doc.add_heading("Model Evaluation Report", level=0)
+    try:
+        # Summary section
+        doc.add_heading("Summary Metrics", level=1)
+        doc.add_paragraph(f"Overall Precision: {overall_precision}")
+        doc.add_paragraph(f"Average Precision Across Reports: {avg_precision}")
+        st.write("✅ Added summary metrics")
+    except Exception:
+        st.error("Error adding summary metrics")
+        st.error(traceback.format_exc())
 
-    # Summary section
-    doc.add_heading("Summary Metrics", level=1)
-    doc.add_paragraph(f"Overall Precision: {overall_precision}")
-    doc.add_paragraph(f"Average Precision Across Reports: {avg_precision}")
+    try:
+        # Confusion heatmap
+        doc.add_heading("Confusion Correlation Heatmap", level=1)
+        doc.add_picture(fig_to_image_bytes(confusion_heatmap_fig), width=Inches(6))
+        st.write("✅ Added confusion heatmap")
+    except Exception:
+        st.error("Error adding confusion heatmap")
+        st.error(traceback.format_exc())
 
-    # Confusion heatmap
-    doc.add_heading("Confusion Correlation Heatmap", level=1)
-    doc.add_picture(fig_to_image_bytes(confusion_heatmap_fig), width=Inches(6))
+    try:
+        # Per-report precision chart
+        doc.add_heading("Per Report Precision", level=1)
+        doc.add_picture(plotly_to_image_bytes(per_report_precision_fig), width=Inches(6))
+        st.write("✅ Added per-report precision chart")
+    except Exception:
+        st.error("Error adding per-report precision chart")
+        st.error(traceback.format_exc())
 
-    # Per-report precision chart
-    doc.add_heading("Per Report Precision", level=1)
-    doc.add_picture(plotly_to_image_bytes(per_report_precision_fig), width=Inches(6))
+    try:
+        # Table of report metrics
+        doc.add_heading("Per Report Theme Accuracy Summary", level=1)
+        table = doc.add_table(rows=1, cols=len(df_report_metrics.columns))
+        hdr_cells = table.rows[0].cells
+        for i, col in enumerate(df_report_metrics.columns):
+            hdr_cells[i].text = str(col)
 
-    # Table of report metrics
-    doc.add_heading("Per Report Theme Accuracy Summary", level=1)
+        for idx, row in df_report_metrics.iterrows():
+            row_cells = table.add_row().cells
+            for i, value in enumerate(row):
+                try:
+                    row_cells[i].text = str(value) if value is not None else ""
+                except Exception:
+                    st.error(f"Error adding table cell: row={idx}, col={i}, value={value}")
+                    row_cells[i].text = ""
+        st.write("✅ Added report metrics table")
+    except Exception:
+        st.error("Error adding report metrics table")
+        st.error(traceback.format_exc())
 
-    table = doc.add_table(rows=1, cols=len(df_report_metrics.columns))
-    hdr_cells = table.rows[0].cells
-    for i, col in enumerate(df_report_metrics.columns):
-        hdr_cells[i].text = str(col)
-
-    for _, row in df_report_metrics.iterrows():
-        row_cells = table.add_row().cells
-        for i, value in enumerate(row):
-            row_cells[i].text = str(value) if value is not None else ""
-
-    # Theme-Specific Evaluation
-    doc.add_heading("Theme-Specific Evaluation", level=1)
-
-    themes = sorted(df["HUMAN LABEL"].dropna().unique())
+    try:
+        # Theme-specific evaluation
+        doc.add_heading("Theme-Specific Evaluation", level=1)
+        themes = sorted(df["HUMAN LABEL"].dropna().unique())
+        st.write("Themes to process:", themes)
+    except Exception:
+        st.error("Error preparing theme list")
+        st.error(traceback.format_exc())
 
     for theme in themes:
-        # Safely compute precision/recall
-        precision, recall = compute_theme_metrics_safe(df, theme)
+        try:
+            st.write(f"Processing theme: {theme}")
+            doc.add_heading(str(theme), level=2)
 
-        # Theme heading
-        doc.add_heading(theme, level=2)
+            precision, recall = compute_theme_metrics(df, theme)
+            doc.add_paragraph(f"Precision: {precision * 100:.1f}%")
+            doc.add_paragraph(f"Recall: {recall * 100:.1f}%")
 
-        doc.add_paragraph(f"Precision: {precision * 100:.1f}%")
-        doc.add_paragraph(f"Recall: {recall * 100:.1f}%")
+            try:
+                prec_fig = precision_confusion_chart(df, theme)
+                if prec_fig:
+                    doc.add_paragraph("When predicted as this theme, the actual theme was:")
+                    doc.add_picture(plotly_to_image_bytes(prec_fig), width=Inches(5.5))
+                    st.write(f"✅ Added precision chart for theme: {theme}")
+            except Exception:
+                st.error(f"Error adding precision chart for theme: {theme}")
+                st.error(traceback.format_exc())
 
-        # Precision confusion chart
-        prec_fig = precision_confusion_chart(df, theme)
-        if prec_fig is not None:
-            doc.add_paragraph("When predicted as this theme, the actual theme was:")
-            doc.add_picture(plotly_to_image_bytes(prec_fig), width=Inches(5.5))
+            try:
+                rec_fig = recall_confusion_chart(df, theme)
+                if rec_fig:
+                    doc.add_paragraph("When the actual theme was this, the model predicted:")
+                    doc.add_picture(plotly_to_image_bytes(rec_fig), width=Inches(5.5))
+                    st.write(f"✅ Added recall chart for theme: {theme}")
+            except Exception:
+                st.error(f"Error adding recall chart for theme: {theme}")
+                st.error(traceback.format_exc())
 
-        # Recall confusion chart
-        rec_fig = recall_confusion_chart(df, theme)
-        if rec_fig is not None:
-            doc.add_paragraph("When the actual theme was this, the model predicted:")
-            doc.add_picture(plotly_to_image_bytes(rec_fig), width=Inches(5.5))
+        except Exception:
+            st.error(f"Error processing theme section for: {theme}")
+            st.error(traceback.format_exc())
 
-    # Save to bytes
-    file_bytes = BytesIO()
-    doc.save(file_bytes)
-    file_bytes.seek(0)
+    try:
+        # Save document to bytes
+        file_bytes = BytesIO()
+        doc.save(file_bytes)
+        file_bytes.seek(0)
+        st.write("✅ Successfully created Word report")
+        return file_bytes
+    except Exception:
+        st.error("Error saving Word document")
+        st.error(traceback.format_exc())
+        return None
+    # # Title
+    # doc.add_heading("Model Evaluation Report", level=0)
 
-    return file_bytes
+    # # Summary section
+    # doc.add_heading("Summary Metrics", level=1)
+
+    # doc.add_paragraph(f"Overall Precision: {overall_precision}")
+
+    # doc.add_paragraph(f"Average Precision Across Reports: {avg_precision}")
+
+    # # Confusion heatmap
+    # doc.add_heading("Confusion Correlation Heatmap", level=1)
+    # doc.add_picture(fig_to_image_bytes(confusion_heatmap_fig), width=Inches(6))
+
+    # # Per-report precision chart
+    # doc.add_heading("Per Report Precision", level=1)
+    # doc.add_picture(plotly_to_image_bytes(per_report_precision_fig), width=Inches(6))
+
+    # # Table of report metrics
+    # doc.add_heading("Per Report Theme Accuracy Summary", level=1)
+
+    # table = doc.add_table(rows=1, cols=len(df_report_metrics.columns))
+    # hdr_cells = table.rows[0].cells
+    # for i, col in enumerate(df_report_metrics.columns):
+    #     hdr_cells[i].text = str(col)
+
+    # for _, row in df_report_metrics.iterrows():
+    #     row_cells = table.add_row().cells
+    #     for i, value in enumerate(row):
+    #         row_cells[i].text = str(value) if value is not None else ""
+
+    # # Theme-Specific Evaluation
+    # doc.add_heading("Theme-Specific Evaluation", level=1)
+
+    # themes = sorted(df["HUMAN LABEL"].dropna().unique())
+
+    # for theme in themes:
+    #     # Safely compute precision/recall
+    #     precision, recall = compute_theme_metrics_safe(df, theme)
+
+    #     # Theme heading
+    #     doc.add_heading(theme, level=2)
+
+    #     doc.add_paragraph(f"Precision: {precision * 100:.1f}%")
+    #     doc.add_paragraph(f"Recall: {recall * 100:.1f}%")
+
+    #     # Precision confusion chart
+    #     prec_fig = precision_confusion_chart(df, theme)
+    #     if prec_fig is not None:
+    #         doc.add_paragraph("When predicted as this theme, the actual theme was:")
+    #         doc.add_picture(plotly_to_image_bytes(prec_fig), width=Inches(5.5))
+
+    #     # Recall confusion chart
+    #     rec_fig = recall_confusion_chart(df, theme)
+    #     if rec_fig is not None:
+    #         doc.add_paragraph("When the actual theme was this, the model predicted:")
+    #         doc.add_picture(plotly_to_image_bytes(rec_fig), width=Inches(5.5))
+
+    # # Save to bytes
+    # file_bytes = BytesIO()
+    # doc.save(file_bytes)
+    # file_bytes.seek(0)
+
+    # return file_bytes
 
 
 
