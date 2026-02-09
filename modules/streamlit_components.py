@@ -2472,6 +2472,8 @@ def create_evaluation_report(
     per_report_precision_fig,
     df
 ):
+    st.write("Type of confusion_heatmap_fig:", type(confusion_heatmap_fig))
+
     doc = Document()
     try:
         doc.add_heading("Model Evaluation Report", level=0)
