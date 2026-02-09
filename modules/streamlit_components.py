@@ -2824,7 +2824,7 @@ def render_evaluations_tab(isPFD: bool):
                         tickfont=dict(color='black')
                     ),
                     title=dict(font=dict(color='black', size=14)),
-                    margin=dict(l=20, r=20, t=40, b=20)
+                    margin=dict(l=20, r=20, t=40, b=300)
                 )
                 fig_word.update_traces(textfont=dict(color='black'))  # bar labels black
 
