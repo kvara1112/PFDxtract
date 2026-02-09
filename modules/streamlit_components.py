@@ -3028,12 +3028,12 @@ def render_evaluations_tab(isPFD: bool):
                 df = df
             )
 
-            st.download_button(
-                label="Download Full Evaluation Report (Word)",
-                data=word_report,
-                file_name="model_evaluation_report.docx",
-                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            )
+                st.download_button(
+                    label="Download Full Evaluation Report (Word)",
+                    data=word_report,
+                    file_name="model_evaluation_report.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
 
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
