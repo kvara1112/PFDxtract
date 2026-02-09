@@ -2437,8 +2437,15 @@ def precision_confusion_chart(df, theme):
 
     fig.update_layout(
         xaxis_tickangle=-45,
-        yaxis=dict(range=[0, 100])
+        yaxis=dict(range=[0, 100]),
+        paper_bgcolor='white',
+        plot_bgcolor='white',
+        title_font=dict(color='black'),
+        font=dict(color='black')
     )
+    
+    fig.update_traces(textfont=dict(color='black'))  # bar label color
+
     
     return fig
 
@@ -2465,8 +2472,14 @@ def recall_confusion_chart(df, theme):
 
     fig.update_layout(
         xaxis_tickangle=-45,
-        yaxis=dict(range=[0, 100])
+        yaxis=dict(range=[0, 100]),
+        paper_bgcolor='white',
+        plot_bgcolor='white',
+        title_font=dict(color='black'),
+        font=dict(color='black')
     )
+    
+    fig.update_traces(textfont=dict(color='black'))  # bar label color
     
     return fig
 
@@ -2478,7 +2491,8 @@ def create_evaluation_report(
     df_report_metrics,
     confusion_heatmap_fig,
     per_report_precision_fig,
-    df
+    df,
+    precision_per_report
 ):
     #st.write("Type of confusion_heatmap_fig:", type(confusion_heatmap_fig))
 
@@ -2517,7 +2531,7 @@ def create_evaluation_report(
 
     try:
         # Per-report precision chart
-        doc.add_heading("Per Report Precision", level=1)
+        doc.add_heading("Each themes Precision", level=1)
         doc.add_picture(plotly_to_image_bytes(per_report_precision_fig), width=Inches(6))
         #st.write("✅ Added per-report precision chart")
     except Exception:
@@ -2586,7 +2600,15 @@ def create_evaluation_report(
         except Exception:
             st.error(f"Error processing theme section for: {theme}")
             st.error(traceback.format_exc())
+        try:
+            # Theme-specific evaluation
+            doc.add_heading("Per Report Precision", level=1)
+            doc.add_picture(plotly_to_image_bytes(precision_per_report), width=Inches(6))
 
+            #st.write("Themes to process:", themes)
+        except Exception:
+            st.error("Error preparing theme list")
+            st.error(traceback.format_exc())
     try:
         # Save document to bytes
         file_bytes = BytesIO()
@@ -2598,70 +2620,7 @@ def create_evaluation_report(
         st.error("Error saving Word document")
         st.error(traceback.format_exc())
         return None
-    # # Title
-    # doc.add_heading("Model Evaluation Report", level=0)
-
-    # # Summary section
-    # doc.add_heading("Summary Metrics", level=1)
-
-    # doc.add_paragraph(f"Overall Precision: {overall_precision}")
-
-    # doc.add_paragraph(f"Average Precision Across Reports: {avg_precision}")
-
-    # # Confusion heatmap
-    # doc.add_heading("Confusion Correlation Heatmap", level=1)
-    # doc.add_picture(fig_to_image_bytes(confusion_heatmap_fig), width=Inches(6))
-
-    # # Per-report precision chart
-    # doc.add_heading("Per Report Precision", level=1)
-    # doc.add_picture(plotly_to_image_bytes(per_report_precision_fig), width=Inches(6))
-
-    # # Table of report metrics
-    # doc.add_heading("Per Report Theme Accuracy Summary", level=1)
-
-    # table = doc.add_table(rows=1, cols=len(df_report_metrics.columns))
-    # hdr_cells = table.rows[0].cells
-    # for i, col in enumerate(df_report_metrics.columns):
-    #     hdr_cells[i].text = str(col)
-
-    # for _, row in df_report_metrics.iterrows():
-    #     row_cells = table.add_row().cells
-    #     for i, value in enumerate(row):
-    #         row_cells[i].text = str(value) if value is not None else ""
-
-    # # Theme-Specific Evaluation
-    # doc.add_heading("Theme-Specific Evaluation", level=1)
-
-    # themes = sorted(df["HUMAN LABEL"].dropna().unique())
-
-    # for theme in themes:
-    #     # Safely compute precision/recall
-    #     precision, recall = compute_theme_metrics_safe(df, theme)
-
-    #     # Theme heading
-    #     doc.add_heading(theme, level=2)
-
-    #     doc.add_paragraph(f"Precision: {precision * 100:.1f}%")
-    #     doc.add_paragraph(f"Recall: {recall * 100:.1f}%")
-
-    #     # Precision confusion chart
-    #     prec_fig = precision_confusion_chart(df, theme)
-    #     if prec_fig is not None:
-    #         doc.add_paragraph("When predicted as this theme, the actual theme was:")
-    #         doc.add_picture(plotly_to_image_bytes(prec_fig), width=Inches(5.5))
-
-    #     # Recall confusion chart
-    #     rec_fig = recall_confusion_chart(df, theme)
-    #     if rec_fig is not None:
-    #         doc.add_paragraph("When the actual theme was this, the model predicted:")
-    #         doc.add_picture(plotly_to_image_bytes(rec_fig), width=Inches(5.5))
-
-    # # Save to bytes
-    # file_bytes = BytesIO()
-    # doc.save(file_bytes)
-    # file_bytes.seek(0)
-
-    # return file_bytes
+    
 
 
 
@@ -2837,7 +2796,38 @@ def render_evaluations_tab(isPFD: bool):
 
                 # Show in Streamlit
                 st.plotly_chart(fig, use_container_width=True)
-                per_report_precision_fig = fig
+
+                fig_word = px.bar(
+                    precision_df,
+                    x="Theme",
+                    y="Precision (%)",
+                    text=precision_df["Precision (%)"].apply(lambda x: f"{x:.1f}%"),
+                    color="Precision (%)",
+                    color_continuous_scale="blues",
+                    title="Precision per Theme"
+                )
+                fig_word.update_coloraxes(cmin=0, cmax=100)
+                fig_word.update_layout(
+                    plot_bgcolor='white',       # white background for Word
+                    paper_bgcolor='white',
+                    xaxis_tickangle=-45,
+                    xaxis=dict(
+                        title_font=dict(color='black', size=12),
+                        tickfont=dict(color='black')
+                    ),
+                    yaxis=dict(
+                        title_font=dict(color='black', size=12),
+                        tickfont=dict(color='black')
+                    ),
+                    title=dict(font=dict(color='black', size=14)),
+                    margin=dict(l=20, r=20, t=40, b=20)
+                )
+                fig_word.update_traces(textfont=dict(color='black'))  # bar labels black
+
+                # Optional: save as static image for Word
+                fig_word.write_image("precision_word.png", scale=2)
+
+                per_report_precision_fig = fig_word
 
                 st.title("Theme Evaluator")
                 theme_chosen = st.selectbox(
@@ -3063,6 +3053,50 @@ def render_evaluations_tab(isPFD: bool):
 
                 st.plotly_chart(fig, use_container_width=True)
 
+                fig_word = px.bar(
+                    precision_per_report_sorted.round(2),
+                    y="Title",
+                    x="Report Precision",
+                    text="Report Precision",
+                    orientation="h",
+                    color="Report Precision",
+                    color_continuous_scale="Viridis",
+                    labels={"Title": "Report Title", "Report Precision": "Precision"},
+                    title="Per Report Precision"
+                )
+
+                # X-axis styling
+                fig_word.update_xaxes(
+                    range=[0,1],
+                    title_font=dict(color="black"),
+                    tickfont=dict(color="black"),
+                    gridcolor="rgba(0,0,0,0.1)"
+                )
+
+                # Y-axis styling
+                fig_word.update_yaxes(
+                    title_font=dict(color="black"),
+                    tickfont=dict(color="black"),
+                    automargin=True
+                )
+
+                # Layout
+                fig_word.update_layout(
+                    font=dict(family="Arial, sans-serif", color="black"),
+                    paper_bgcolor="white",
+                    plot_bgcolor="white",
+                    margin=dict(l=400, r=40, t=80, b=60),
+                    height=50*len(precision_per_report_sorted)
+                )
+
+                # Bar labels
+                fig_word.update_traces(texttemplate="%{text:.2f}", textfont=dict(color="black"))
+
+                # Save static image for Word
+                fig_word.write_image("precision_per_report_word.png", scale=2)
+                precision_per_report = fig_word
+
+
                 #average of per report precision
                 # Show average across reports
                 avg_precision = df_report_metrics["Report Precision"].mean().round(2)
@@ -3073,7 +3107,8 @@ def render_evaluations_tab(isPFD: bool):
                 df_report_metrics=df_report_metrics,
                 confusion_heatmap_fig=confusion_fig,
                 per_report_precision_fig=per_report_precision_fig,
-                df = df
+                df = df,
+                precision_per_report = precision_per_report
             )
 
                 st.download_button(
