@@ -2744,6 +2744,7 @@ def render_evaluations_tab(isPFD: bool):
                 cbar.ax.text(0.5, -0.1, 'Not Predicted', ha='center', va='top', color='white', transform=cbar.ax.transAxes)
 
                 st.pyplot(fig)
+                fig.tight_layout()
                 confusion_fig = fig
                 st.download_button(
                     "Download Confusion Correlation CSV",
