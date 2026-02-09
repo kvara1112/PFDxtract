@@ -2444,7 +2444,7 @@ def precision_confusion_chart(df, theme):
         title=dict(font=dict(color='black', size=12)),
         margin=dict(l=20, r=20, t=40, b=300)
     )
-    fig.update_xaxes(tickangle=-60)  # or -90 for vertical labels
+    fig.update_xaxes(tickangle=-90)  # or -90 for vertical labels
 
     fig.update_traces(textfont=dict(color='black'))
 
@@ -2481,7 +2481,7 @@ def recall_confusion_chart(df, theme):
         title=dict(font=dict(color='black', size=12)),
         margin=dict(l=20, r=20, t=40, b=300)
     )
-    fig.update_xaxes(tickangle=-60)  # or -90 for vertical labels
+    fig.update_xaxes(tickangle=-90)  # or -90 for vertical labels
 
     fig.update_traces(textfont=dict(color='black'))  # bar label color
     
