@@ -35,8 +35,12 @@ from matplotlib.patches import Rectangle
 import seaborn as sns
 import matplotlib.pyplot as plt
 from nltk.stem import PorterStemmer
-import docx
-st.write("python-docx loaded successfully")
+
+try:
+    from docx import Document
+    st.success("python-docx imported successfully")
+except Exception as e:
+    st.error(f"docx import failed: {e}")
 
 from docx import Document
 from docx.shared import Inches 
