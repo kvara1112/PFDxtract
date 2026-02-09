@@ -2543,7 +2543,7 @@ def create_evaluation_report(
             st.write(f"Processing theme: {theme}")
             doc.add_heading(str(theme), level=2)
 
-            precision, recall = compute_theme_metrics(df, theme)
+            precision, recall = compute_theme_metrics_safe(df, theme)
             doc.add_paragraph(f"Precision: {precision * 100:.1f}%")
             doc.add_paragraph(f"Recall: {recall * 100:.1f}%")
 
