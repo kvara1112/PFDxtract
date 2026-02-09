@@ -2391,26 +2391,22 @@ def plotly_to_image_bytes(fig):
     img_bytes.seek(0)
     return img_bytes
 
-def compute_theme_metrics(df, theme):
+def compute_theme_metrics_safe(df, theme):
     theme_lower = str(theme).strip().lower()
     df = df.copy()
-
+    
     df["PREDICTED LABEL"] = df["PREDICTED LABEL"].astype(str).str.strip().str.lower()
     df["HUMAN LABEL"] = df["HUMAN LABEL"].astype(str).str.strip().str.lower()
 
-    # True positives: predicted correctly
     tp = ((df["PREDICTED LABEL"] == theme_lower) & (df["HUMAN LABEL"] == theme_lower)).sum()
-
-    # False positives: predicted as theme but human label is different
     fp = ((df["PREDICTED LABEL"] == theme_lower) & (df["HUMAN LABEL"] != theme_lower)).sum()
-
-    # False negatives: human label is theme but predicted differently
     fn = ((df["HUMAN LABEL"] == theme_lower) & (df["PREDICTED LABEL"] != theme_lower)).sum()
 
     precision = round(tp / (tp + fp), 2) if (tp + fp) > 0 else 0.0
     recall = round(tp / (tp + fn), 2) if (tp + fn) > 0 else 0.0
 
     return precision, recall
+
 
 def precision_confusion_chart(df, theme):
     theme_lower = str(theme).strip().lower()
@@ -2465,7 +2461,7 @@ def recall_confusion_chart(df, theme):
         xaxis_tickangle=-45,
         yaxis=dict(range=[0, 100])
     )
-    
+
     return fig
 
 def create_evaluation_report(
@@ -2523,13 +2519,13 @@ def create_evaluation_report(
         doc.add_paragraph(f"Recall: {recall * 100:.1f}%")
 
         # Precision confusion chart
-        prec_fig = precision_confusion_chart_safe(df, theme)
+        prec_fig = precision_confusion_chart(df, theme)
         if prec_fig is not None:
             doc.add_paragraph("When predicted as this theme, the actual theme was:")
             doc.add_picture(plotly_to_image_bytes(prec_fig), width=Inches(5.5))
 
         # Recall confusion chart
-        rec_fig = recall_confusion_chart_safe(df, theme)
+        rec_fig = recall_confusion_chart(df, theme)
         if rec_fig is not None:
             doc.add_paragraph("When the actual theme was this, the model predicted:")
             doc.add_picture(plotly_to_image_bytes(rec_fig), width=Inches(5.5))
