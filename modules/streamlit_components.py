@@ -35,6 +35,9 @@ from matplotlib.patches import Rectangle
 import seaborn as sns
 import matplotlib.pyplot as plt
 from nltk.stem import PorterStemmer
+import docx
+st.write("python-docx loaded successfully")
+
 from docx import Document
 from docx.shared import Inches 
 from io import BytesIO
