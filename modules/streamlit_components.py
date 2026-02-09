@@ -2753,8 +2753,8 @@ def render_evaluations_tab(isPFD: bool):
 
                 st.pyplot(fig)
                 fig_copy = fig
-                fig_copy.set_facecolor('white')
-                fig_copy.axes[0].set_facecolor('white')
+                fig_copy.patch.set_facecolor('white')
+                #fig_copy.axes[0].set_facecolor('white')
                 confusion_fig = fig_copy
                 st.download_button(
                     "Download Confusion Correlation CSV",
