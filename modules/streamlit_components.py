@@ -35,7 +35,9 @@ from matplotlib.patches import Rectangle
 import seaborn as sns
 import matplotlib.pyplot as plt
 from nltk.stem import PorterStemmer
-
+from docx import Document
+from docx.shared import Inches 
+from io import BytesIO
 
 # Import our modules
 from .core_utils import (
@@ -2375,6 +2377,171 @@ def go_to_page(page):
 def comma_separated(series):
     return ", ".join(sorted(series.unique()))
 
+def fig_to_image_bytes(fig):
+    img_bytes = BytesIO()
+    fig.savefig(img_bytes, format="png", bbox_inches="tigth", dpi=200)
+    plt.close(fig)
+    img_bytes.seek(0)
+    return img_bytes
+
+def plotly_to_image_bytes(fig):
+    img_bytes = BytesIO()
+    fig.write_image(img_bytes, format="png", scale=2)
+    img_bytes.seek(0)
+    return img_bytes
+
+def compute_theme_metrics(df, theme):
+    theme_lower = theme.lower()
+
+    # Precision
+    tp = (
+        (df["PREDICTED LABEL"].str.lower() == theme_lower) &
+        (df["HUMAN LABEL"].str.lower() == theme_lower)
+    ).sum()
+
+    fp = (
+        (df["PREDICTED LABEL"].str.lower() == theme_lower) &
+        (df["HUMAN LABEL"].str.lower() != theme_lower)
+    ).sum()
+
+    precision = round(tp / (tp + fp), 2) if (tp + fp) > 0 else 0
+
+    # Recall
+    fn = (
+        (df["HUMAN LABEL"].str.lower() == theme_lower) &
+        (df["PREDICTED LABEL"].str.lower() != theme_lower)
+    ).sum()
+
+    recall = round(tp / (tp + fn), 2) if (tp + fn) > 0 else 0
+
+    return precision, recall
+
+def precision_confusion_chart(df, theme):
+    theme_lower = theme.lower()
+
+    mistaken_for = (
+        df[
+            (df["PREDICTED LABEL"].str.lower() == theme_lower) &
+            (df["HUMAN LABEL"].str.lower() != theme_lower)
+        ]["HUMAN LABEL"]
+        .value_counts(normalize=True) * 100
+    )
+
+    if mistaken_for.empty:
+        return None
+
+    fig = px.bar(
+        x=mistaken_for.index,
+        y=mistaken_for.values,
+        text=[f"{v:.1f}%" for v in mistaken_for.values],
+        labels={"x": "Actual Theme", "y": "Percentage (%)"},
+        title=f"When predicted as '{theme}', the actual theme was"
+    )
+    return fig
+
+def recall_confusion_chart(df, theme):
+    theme_lower = theme.lower()
+
+    missed_as = (
+        df[
+            (df["HUMAN LABEL"].str.lower() == theme_lower) &
+            (df["PREDICTED LABEL"].str.lower() != theme_lower)
+        ]["PREDICTED LABEL"]
+        .value_counts(normalize=True) * 100
+    )
+
+    if missed_as.empty:
+        return None
+
+    fig = px.bar(
+        x=missed_as.index,
+        y=missed_as.values,
+        text=[f"{v:.1f}%" for v in missed_as.values],
+        labels={"x": "Predicted Theme", "y": "Percentage (%)"},
+        title=f"When actual theme was '{theme}', the model predicted"
+    )
+    return fig
+
+def create_evaluation_report(
+    overall_precision,
+    avg_precision,
+    df_report_metrics,
+    confusion_heatmap_fig,
+    per_report_precision_fig,
+    df
+):
+    doc = Document()
+
+    # Title
+    doc.add_heading("Model Evaluation Report", level=0)
+
+    # Summary section
+    doc.add_heading("Summary Metrics", level=1)
+    doc.add_paragraph(f"Overall Precision: {overall_precision}")
+    doc.add_paragraph(f"Average Precision Across Reports: {avg_precision}")
+
+    # Confusion heatmap
+    doc.add_heading("Confusion Correlation Heatmap", level=1)
+    doc.add_picture(fig_to_image_bytes(confusion_heatmap_fig), width=Inches(6))
+
+    # Per-report precision chart
+    doc.add_heading("Per Report Precision", level=1)
+    doc.add_picture(plotly_to_image_bytes(per_report_precision_fig), width=Inches(6))
+
+    # Table of report metrics
+    doc.add_heading("Per Report Theme Accuracy Summary", level=1)
+
+    table = doc.add_table(rows=1, cols=len(df_report_metrics.columns))
+    hdr_cells = table.rows[0].cells
+    for i, col in enumerate(df_report_metrics.columns):
+        hdr_cells[i].text = col
+
+    for _, row in df_report_metrics.iterrows():
+        row_cells = table.add_row().cells
+        for i, value in enumerate(row):
+            row_cells[i].text = str(value)
+
+    doc.add_heading("Theme-Specific Evaluation", level=1)
+
+    themes = sorted(df["HUMAN LABEL"].dropna().unique())
+
+    for theme in themes:
+        precision, recall = compute_theme_metrics(df, theme)
+
+        # Theme heading
+        doc.add_heading(theme, level=2)
+
+        doc.add_paragraph(f"Precision: {precision * 100:.1f}%")
+        doc.add_paragraph(f"Recall: {recall * 100:.1f}%")
+
+        # Precision confusion chart
+        prec_fig = precision_confusion_chart(df, theme)
+        if prec_fig:
+            doc.add_paragraph("When predicted as this theme, the actual theme was:")
+            doc.add_picture(
+                plotly_to_image_bytes(prec_fig),
+                width=Inches(5.5)
+            )
+
+        # Recall confusion chart
+        rec_fig = recall_confusion_chart(df, theme)
+        if rec_fig:
+            doc.add_paragraph("When the actual theme was this, the model predicted:")
+            doc.add_picture(
+                plotly_to_image_bytes(rec_fig),
+                width=Inches(5.5)
+            )
+
+    # Save to bytes
+    file_bytes = BytesIO()
+    doc.save(file_bytes)
+    file_bytes.seek(0)
+
+    return file_bytes
+
+
+
+
 def render_evaluations_tab(isPFD: bool):
     st.subheader("Upload File for Evaluation Analysis (CSV)")
     uploaded_file = st.file_uploader(
@@ -2461,7 +2628,7 @@ def render_evaluations_tab(isPFD: bool):
                 cbar.ax.text(0.5, -0.1, 'Not Predicted', ha='center', va='top', color='white', transform=cbar.ax.transAxes)
 
                 st.pyplot(fig)
-
+                confusion_fig = fig
                 st.download_button(
                     "Download Confusion Correlation CSV",
                     cm_corr.to_csv(index=True),
@@ -2514,7 +2681,8 @@ def render_evaluations_tab(isPFD: bool):
 
                 # Show in Streamlit
                 st.plotly_chart(fig, use_container_width=True)
-                
+                per_report_precision_fig = fig
+
                 st.title("Theme Evaluator")
                 theme_chosen = st.selectbox(
                     "Pick a theme to analyse",
@@ -2743,6 +2911,21 @@ def render_evaluations_tab(isPFD: bool):
                 # Show average across reports
                 avg_precision = df_report_metrics["Report Precision"].mean().round(2)
                 st.write(f"Average Precision across reports:  {avg_precision}")
+                word_report = create_evaluation_report(
+                overall_precision=overall_precision,
+                avg_precision=avg_precision,
+                df_report_metrics=df_report_metrics,
+                confusion_heatmap_fig=confusion_fig,
+                per_report_precision_fig=per_report_precision_fig,
+                df = df
+            )
+
+            st.download_button(
+                label="Download Full Evaluation Report (Word)",
+                data=word_report,
+                file_name="model_evaluation_report.docx",
+                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            )
 
         except Exception as e:
             st.error(f"Error processing file: {str(e)}")
