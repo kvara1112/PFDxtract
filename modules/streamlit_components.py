@@ -2436,15 +2436,17 @@ def precision_confusion_chart(df, theme):
     )
 
     fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',  # transparent background
+        paper_bgcolor='rgba(0,0,0,0)',
         xaxis_tickangle=-45,
-        yaxis=dict(range=[0, 100]),
-        paper_bgcolor='white',
-        plot_bgcolor='white',
-        title_font=dict(color='black'),
-        font=dict(color='black')
+        xaxis=dict(title_font=dict(color='black', size=10), tickfont=dict(color='black')),
+        yaxis=dict(title_font=dict(color='black', size=10), tickfont=dict(color='black')),
+        title=dict(font=dict(color='black', size=12)),
+        margin=dict(l=20, r=20, t=40, b=300)
     )
-    
-    fig.update_traces(textfont=dict(color='black'))  # bar label color
+    fig.update_xaxes(tickangle=-60)  # or -90 for vertical labels
+
+    fig.update_traces(textfont=dict(color='black'))
 
     
     return fig
