@@ -41,6 +41,8 @@ from docx.shared import Inches
 from io import BytesIO
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from PIL import Image
+
 
 # Import our modules
 from .core_utils import (
@@ -2468,6 +2470,17 @@ def recall_confusion_chart(df, theme):
 
     return fig
 
+dpi = 300
+width_in = 8.27
+height_in = 11.69
+width_px = int(width_in * dpi)
+height_px = int(height_in * dpi)
+bg_color = ('#293587')  # RGB for dark gray
+bg_img = Image.new("RGB", (width_px, height_px), bg_color)
+
+# Save the background image
+bg_img.save("page_bg.png")
+
 def create_evaluation_report(
     overall_precision,
     avg_precision,
@@ -2479,10 +2492,8 @@ def create_evaluation_report(
     #st.write("Type of confusion_heatmap_fig:", type(confusion_heatmap_fig))
 
     doc = Document()
-    section = doc.sections[0]  # first section
-    shading_elm = OxmlElement('w:shd')
-    shading_elm.set(qn('w:fill'), "#293587")  # white background; change hex if you want
-    section._sectPr.append(shading_elm)
+    doc.add_picture("page_bg.png", width=Inches(width_in), height=Inches(height_in))
+
 
     try:
         doc.add_heading("Model Evaluation Report", level=0)
