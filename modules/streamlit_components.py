@@ -36,12 +36,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from nltk.stem import PorterStemmer
 
-try:
-    from docx import Document
-    st.success("python-docx imported successfully")
-except Exception as e:
-    st.error(f"docx import failed: {e}")
-
 from docx import Document
 from docx.shared import Inches 
 from io import BytesIO
