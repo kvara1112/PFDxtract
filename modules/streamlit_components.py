@@ -2394,26 +2394,20 @@ def plotly_to_image_bytes(fig):
 def compute_theme_metrics(df, theme):
     theme_lower = theme.lower()
 
-    # Precision
-    tp = (
-        (df["PREDICTED LABEL"].str.lower() == theme_lower) &
-        (df["HUMAN LABEL"].str.lower() == theme_lower)
-    ).sum()
+    df["PREDICTED LABEL"] = df["PREDICTED LABEL"].astype(str).str.strip().str.lower()
+    df["HUMAN LABEL"] = df["HUMAN LABEL"].astype(str).str.strip().str.lower()
 
-    fp = (
-        (df["PREDICTED LABEL"].str.lower() == theme_lower) &
-        (df["HUMAN LABEL"].str.lower() != theme_lower)
-    ).sum()
+    # True positives: predicted correctly
+    tp = ((df["PREDICTED LABEL"] == theme_lower) & (df["HUMAN LABEL"] == theme_lower)).sum()
 
-    precision = round(tp / (tp + fp), 2) if (tp + fp) > 0 else 0
+    # False positives: predicted as theme but human label is different
+    fp = ((df["PREDICTED LABEL"] == theme_lower) & (df["HUMAN LABEL"] != theme_lower)).sum()
 
-    # Recall
-    fn = (
-        (df["HUMAN LABEL"].str.lower() == theme_lower) &
-        (df["PREDICTED LABEL"].str.lower() != theme_lower)
-    ).sum()
+    # False negatives: human label is theme but predicted differently
+    fn = ((df["HUMAN LABEL"] == theme_lower) & (df["PREDICTED LABEL"] != theme_lower)).sum()
 
-    recall = round(tp / (tp + fn), 2) if (tp + fn) > 0 else 0
+    precision = round(tp / (tp + fp), 2) if (tp + fp) > 0 else 0.0
+    recall = round(tp / (tp + fn), 2) if (tp + fn) > 0 else 0.0
 
     return precision, recall
 
