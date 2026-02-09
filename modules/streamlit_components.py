@@ -2439,7 +2439,7 @@ def precision_confusion_chart(df, theme):
         xaxis_tickangle=-45,
         yaxis=dict(range=[0, 100])
     )
-    fig.update_coloraxes(cmin=0, cmax=100)
+    #fig.update_coloraxes(cmin=0, cmax=100)
     fig.update_layout(
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
@@ -2478,7 +2478,7 @@ def recall_confusion_chart(df, theme):
         xaxis_tickangle=-45,
         yaxis=dict(range=[0, 100])
     )
-    fig.update_coloraxes(cmin=0, cmax=100)
+    #fig.update_coloraxes(cmin=0, cmax=100)
     fig.update_layout(
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
