@@ -2489,19 +2489,21 @@ def create_evaluation_report(
     table = doc.add_table(rows=1, cols=len(df_report_metrics.columns))
     hdr_cells = table.rows[0].cells
     for i, col in enumerate(df_report_metrics.columns):
-        hdr_cells[i].text = col
+        hdr_cells[i].text = str(col)
 
     for _, row in df_report_metrics.iterrows():
         row_cells = table.add_row().cells
         for i, value in enumerate(row):
-            row_cells[i].text = str(value)
+            row_cells[i].text = str(value) if value is not None else ""
 
+    # Theme-Specific Evaluation
     doc.add_heading("Theme-Specific Evaluation", level=1)
 
     themes = sorted(df["HUMAN LABEL"].dropna().unique())
 
     for theme in themes:
-        precision, recall = compute_theme_metrics(df, theme)
+        # Safely compute precision/recall
+        precision, recall = compute_theme_metrics_safe(df, theme)
 
         # Theme heading
         doc.add_heading(theme, level=2)
@@ -2510,22 +2512,16 @@ def create_evaluation_report(
         doc.add_paragraph(f"Recall: {recall * 100:.1f}%")
 
         # Precision confusion chart
-        prec_fig = precision_confusion_chart(df, theme)
-        if prec_fig:
+        prec_fig = precision_confusion_chart_safe(df, theme)
+        if prec_fig is not None:
             doc.add_paragraph("When predicted as this theme, the actual theme was:")
-            doc.add_picture(
-                plotly_to_image_bytes(prec_fig),
-                width=Inches(5.5)
-            )
+            doc.add_picture(plotly_to_image_bytes(prec_fig), width=Inches(5.5))
 
         # Recall confusion chart
-        rec_fig = recall_confusion_chart(df, theme)
-        if rec_fig:
+        rec_fig = recall_confusion_chart_safe(df, theme)
+        if rec_fig is not None:
             doc.add_paragraph("When the actual theme was this, the model predicted:")
-            doc.add_picture(
-                plotly_to_image_bytes(rec_fig),
-                width=Inches(5.5)
-            )
+            doc.add_picture(plotly_to_image_bytes(rec_fig), width=Inches(5.5))
 
     # Save to bytes
     file_bytes = BytesIO()
