@@ -2752,8 +2752,37 @@ def render_evaluations_tab(isPFD: bool):
                 cbar.ax.text(0.5, -0.1, 'Not Predicted', ha='center', va='top', color='white', transform=cbar.ax.transAxes)
 
                 st.pyplot(fig)
-                fig_copy = fig
-                ax.set_facecolor('white')
+                fig_word, ax_word = plt.subplots(figsize=(15, 12))
+                fig_word.patch.set_facecolor('white')
+                ax_word.set_facecolor('white')
+
+                sns.heatmap(
+                    cm_corr, annot=True, fmt=".1%", cmap="coolwarm",
+                    vmin=0, vmax=1, ax=ax_word,
+                    annot_kws={"color": "black"}, linewidths=0.5, linecolor='white'
+                )
+
+                ax_word.set_xticklabels(ax_word.get_xticklabels(), rotation=45, ha='right', fontsize=10, color='black')
+                ax_word.set_yticklabels(ax_word.get_yticklabels(), rotation=0, fontsize=10, color='black')
+                ax_word.set_xlabel("Human Annotations", color='black')
+                ax_word.set_ylabel("AI Annotations", color='black')
+                ax_word.tick_params(colors='black')
+
+                # Colorbar
+                cbar_word = ax_word.collections[0].colorbar
+                cbar_word.ax.set_ylabel("Proportion of predictions", rotation=-90, labelpad=25, color='black')
+                cbar_word.ax.tick_params(colors='black')
+                cbar_word.ax.text(0.5, 1.05, 'Always Predicted', ha='center', va='bottom', color='black', transform=cbar_word.ax.transAxes)
+                cbar_word.ax.text(0.5, -0.1, 'Not Predicted', ha='center', va='top', color='black', transform=cbar_word.ax.transAxes)
+
+                for i in range(len(labels)):
+                    ax_word.add_patch(Rectangle((i, i), 1, 1, fill=False, edgecolor='black', lw=2))
+
+                fig_word.tight_layout()
+                fig_word.savefig("confusion_heatmap_word.png", dpi=300, facecolor='white', bbox_inches='tight')
+
+                fig_copy = fig_word
+                #ax.set_facecolor('white')
                 #fig_copy.axes[0].set_facecolor('white')
                 confusion_fig = fig_copy
                 st.download_button(
