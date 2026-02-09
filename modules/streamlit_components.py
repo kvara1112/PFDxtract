@@ -2432,7 +2432,7 @@ def precision_confusion_chart(df, theme):
         y=mistaken_for.values,
         text=[f"{v:.1f}%" for v in mistaken_for.values],
         labels={"x": "Actual Theme", "y": "Percentage (%)"},
-        title=f"When predicted as '{theme}', the actual theme was"
+        #title=f"When predicted as '{theme}', the actual theme was"
     )
 
     fig.update_layout(
@@ -2467,7 +2467,7 @@ def recall_confusion_chart(df, theme):
         y=missed_as.values,
         text=[f"{v:.1f}%" for v in missed_as.values],
         labels={"x": "Predicted Theme", "y": "Percentage (%)"},
-        title=f"When actual theme was '{theme}', the model predicted"
+        #title=f"When actual theme was '{theme}', the model predicted"
     )
 
     fig.update_layout(
@@ -2600,15 +2600,15 @@ def create_evaluation_report(
         except Exception:
             st.error(f"Error processing theme section for: {theme}")
             st.error(traceback.format_exc())
-        try:
-            # Theme-specific evaluation
-            doc.add_heading("Per Report Precision", level=1)
-            doc.add_picture(plotly_to_image_bytes(precision_per_report), width=Inches(6))
+    try:
+        # Theme-specific evaluation
+        doc.add_heading("Per Report Precision", level=1)
+        doc.add_picture(plotly_to_image_bytes(precision_per_report), width=Inches(6))
 
-            #st.write("Themes to process:", themes)
-        except Exception:
-            st.error("Error preparing theme list")
-            st.error(traceback.format_exc())
+        #st.write("Themes to process:", themes)
+    except Exception:
+        st.error("Error preparing theme list")
+        st.error(traceback.format_exc())
     try:
         # Save document to bytes
         file_bytes = BytesIO()
