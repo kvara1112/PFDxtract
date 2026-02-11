@@ -1846,6 +1846,17 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
                 
             uploaded_data.columns = uploaded_data.columns.str.strip()
 
+            
+            # Process the uploaded data
+            if isPFD:
+                uploaded_data = process_scraped_data(uploaded_data)
+            else:
+                uploaded_data = uploaded_data
+            
+            # Update the data reference
+            data = uploaded_data
+
+            st.success("File uploaded and processed successfully!")
             # Debug: show columns
             st.write("Columns in uploaded file:", uploaded_data.columns.tolist())
 
@@ -1863,17 +1874,6 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             else:
                 st.warning(f"Column '{content_column}' not found in the uploaded file.")
 
-            # Process the uploaded data
-            if isPFD:
-                uploaded_data = process_scraped_data(uploaded_data)
-            else:
-                uploaded_data = uploaded_data
-            
-            # Update the data reference
-            data = uploaded_data
-
-            st.success("File uploaded and processed successfully!")
-                
         except Exception as e:
             st.error(f"Error uploading file: {str(e)}")
             return
