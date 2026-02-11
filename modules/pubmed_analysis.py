@@ -90,10 +90,11 @@ def pretrained_annotator(negated_sentences, report_name, confidence):
 
     
 def process_selected_reports(df, text_column, confidenceScore):
-    #print("Yes", text_column)
+    print("Yes", text_column)
+    
     df.columns = df.columns.str.strip()
     #print("First 5 texts in column:", df[text_column].head().tolist())
-    
+    print(df.columns.tolist())
     if text_column not in df.columns:
         print(f"ERROR: Column '{text_column}' not found in this file: {file_name or 'Unknown'}")
         return []
