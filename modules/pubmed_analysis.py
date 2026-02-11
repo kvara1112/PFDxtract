@@ -91,7 +91,7 @@ def pretrained_annotator(negated_sentences, report_name, confidence):
     
 def process_selected_reports(df, text_column, confidenceScore):
    
-    print(df)
+    print(df["Title"])
     df.columns = df.columns.str.strip()
     
     final_rows = []
