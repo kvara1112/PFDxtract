@@ -1941,7 +1941,11 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             st.error("No reports selected.")
         else:
             st.write("Rows before processing:", len(selected_data))
-            print(selected_data)
+            st.write("Uploaded DataFrame columns:", selected_data.columns.tolist())
+            st.write("Preview of the content column:", selected_data[content_column].head(10).tolist())
+            st.write("Preview of first 10 rows in content column:")
+            st.dataframe(selected_data[[content_column]].head(10))
+
             with st.spinner("Running analysis..."):
                 results_df = process_selected_reports(
                     selected_data,
