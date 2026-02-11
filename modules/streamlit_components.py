@@ -1861,7 +1861,20 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     # if uploaded_file is None and data is None:
     #     if pubmed_results_key in st.session_state:
     #         del st.session_state[pubmed_results_key]
-   
+
+        # Read the file forcing everything as string
+        df = pd.read_excel(uploaded_file, dtype=str)
+
+        # Check sheet names if needed
+        # xls = pd.ExcelFile(uploaded_file)
+        # print(xls.sheet_names)
+
+        # Check first 10 rows of your column
+        print("Raw values:", df['Extracted_Concerns'].head(10).tolist())
+
+        # Show repr() to see invisible characters
+        print("Repr values:", [repr(x) for x in df['Extracted_Concerns'].head(10)])
+
     if data is None or len(data) == 0:
         st.warning(
             "No data available. Please upload a file or ensure existing data is loaded."
