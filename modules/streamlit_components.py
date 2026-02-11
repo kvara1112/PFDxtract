@@ -1940,12 +1940,14 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         if selected_data is None or selected_data.empty:
             st.error("No reports selected.")
         else:
+            st.write("Rows before processing:", len(selected_data))
             with st.spinner("Running analysis..."):
                 results_df = process_selected_reports(
                     selected_data,
                     content_column,
                     confidenceScore
                 )
+            st.write("Rows after processing:", len(results_df))
             st.session_state[pubmed_results_df_key] = results_df
             st.success("Analysis complete!")
             #st.dataframe(st.session_state[pubmed_results_df_key])
