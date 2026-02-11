@@ -1840,8 +1840,10 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
         try:
             if uploaded_file.name.endswith(".csv"):
                 uploaded_data = pd.read_csv(uploaded_file, dtype=str)
+                
             else:
                 uploaded_data = pd.read_excel(uploaded_file, engine="openpyxl", dtype=str)
+                
             uploaded_data.columns = uploaded_data.columns.str.strip()
 
             # Debug: show columns
@@ -1876,34 +1878,6 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
             st.error(f"Error uploading file: {str(e)}")
             return
         
-    # if uploaded_file is None and data is None:
-    #     if pubmed_results_key in st.session_state:
-    #         del st.session_state[pubmed_results_key]
-
-        # Read the file forcing everything as string
-        df = pd.read_excel(uploaded_file, dtype=str)
-
-        # Check sheet names if needed
-        # xls = pd.ExcelFile(uploaded_file)
-        # print(xls.sheet_names)
-
-        # Check first 10 rows of your column
-        print("Raw values:", df['Extracted_Concerns'].head(10).tolist())
-
-        # Show repr() to see invisible characters
-        print("Repr values:", [repr(x) for x in df['Extracted_Concerns'].head(10)])
-
-    if data is None or len(data) == 0:
-        st.warning(
-            "No data available. Please upload a file or ensure existing data is loaded."
-        )
-        return
-
-    # Framework selection section
-    #st.subheader("Select Frameworks")
-    
-    # Create columns for the framework selection and custom framework upload
-   
     # Column selection for analysis
     st.subheader("Select Analysis Column")
 
