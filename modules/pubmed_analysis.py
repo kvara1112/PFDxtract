@@ -91,7 +91,7 @@ def pretrained_annotator(negated_sentences, report_name, confidence):
     
 def process_selected_reports(df, text_column, confidenceScore):
     #print("Yes", text_column)
-    print(df)
+    print(df["Extracted_Concerns"])
     
     final_rows = []
     for idx, row in df.iterrows():
