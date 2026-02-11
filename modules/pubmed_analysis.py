@@ -91,7 +91,7 @@ def pretrained_annotator(negated_sentences, report_name, confidence):
     
 def process_selected_reports(df, text_column, confidenceScore):
    
-    
+    print(df)
     df.columns = df.columns.str.strip()
     
     final_rows = []
@@ -101,11 +101,8 @@ def process_selected_reports(df, text_column, confidenceScore):
     for idx, row in df.iterrows():
         text = str(row[text_column]).strip() if pd.notna(row[text_column]) and str(row[text_column]).strip() else None
         print(text)
+
         report_name = row.get("Title", f"Report_{idx}")
-        if not text:
-            skipped_rows.append(report_name)
-            continue
-        
         print(report_name)
         print(text)
         negated_sentences = find_negated_sentences_in_text(text)
@@ -128,8 +125,7 @@ def process_selected_reports(df, text_column, confidenceScore):
                 "date_of_report": row.get("date_of_report", ""),
                 "Matched Sentences": " | ".join(hit["matched_sentences"]),
             })
-    if skipped_rows:
-        st.write("Skipped", len(skipped_rows),"rows due to empty ", text_column," in files:", skipped_rows)
+
     return pd.DataFrame(final_rows)
 THEME_COLORS = {
         "Situational- Team Factors": "#FB7459",
