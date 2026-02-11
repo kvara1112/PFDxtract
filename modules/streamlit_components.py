@@ -1839,9 +1839,27 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith(".csv"):
-                uploaded_data = pd.read_csv(uploaded_file)
+                uploaded_data = pd.read_csv(uploaded_file, dtype=str)
             else:
-                uploaded_data = pd.read_excel(uploaded_file)
+                uploaded_data = pd.read_excel(uploaded_file, engine="openpyxl", dtype=str)
+            uploaded_data.columns = uploaded_data.columns.str.strip()
+
+            # Debug: show columns
+            st.write("Columns in uploaded file:", uploaded_data.columns.tolist())
+
+            # Debug: preview target column
+            content_column = "Extracted_Concerns"
+            if content_column in uploaded_data.columns:
+                st.write("Preview first 10 rows of Extracted_Concerns:")
+                st.dataframe(uploaded_data[[content_column]].head(10))
+                st.write("Raw preview (repr) to see hidden chars or empty cells:")
+                st.write([repr(x) for x in uploaded_data[content_column].head(10)])
+
+                # Count empty rows
+                empty_count = uploaded_data[content_column].isna().sum() + (uploaded_data[content_column] == '').sum()
+                st.write(f"Number of empty rows in {content_column}: {empty_count}")
+            else:
+                st.warning(f"Column '{content_column}' not found in the uploaded file.")
 
             # Process the uploaded data
             if isPFD:
