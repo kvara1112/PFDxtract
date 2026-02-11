@@ -94,7 +94,8 @@ def process_selected_reports(df, text_column, confidenceScore):
     for idx, row in df.iterrows():
         text = str(row[text_column])
         report_name = row.get("Title", f"Report_{idx}")
-        negated_sentences = find_negated_sentences_in_text(text)
+        #negated_sentences = find_negated_sentences_in_text(text)
+        negated_sentences = text
         theme_hits = pretrained_annotator(negated_sentences, report_name, confidenceScore)
 
         for hit in theme_hits:
