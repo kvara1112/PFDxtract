@@ -91,13 +91,24 @@ def pretrained_annotator(negated_sentences, report_name, confidence):
     
 def process_selected_reports(df, text_column, confidenceScore):
     #print("Yes", text_column)
-    print(df.columns.tolist()) 
-    print("First 5 texts in column:", df[text_column].head().tolist())
+    df.columns = df.columns.str.strip()
+    #print("First 5 texts in column:", df[text_column].head().tolist())
     
+    if text_column not in df.columns:
+        print(f"ERROR: Column '{text_column}' not found in this file: {file_name or 'Unknown'}")
+        return []
+
+    final_rows = []
+    skipped_rows = []
+
     final_rows = []
     for idx, row in df.iterrows():
-        text = str(row[text_column])
+        text = str(row[text_column]).strip() if pd.notna(row[text_column]) and str(row[text_column]).strip() else None
         report_name = row.get("Title", f"Report_{idx}")
+        if not text:
+            skipped_rows.append(report_name)
+            continue
+        
         print(report_name)
         print(text)
         negated_sentences = find_negated_sentences_in_text(text)
@@ -120,6 +131,8 @@ def process_selected_reports(df, text_column, confidenceScore):
                 "date_of_report": row.get("date_of_report", ""),
                 "Matched Sentences": " | ".join(hit["matched_sentences"]),
             })
+    if skipped_rows:
+        st.write("Skipped", len(skipped_rows),"rows due to empty ", text_column," in files:", skipped_rows)
     return pd.DataFrame(final_rows)
 THEME_COLORS = {
         "Situational- Team Factors": "#FB7459",
