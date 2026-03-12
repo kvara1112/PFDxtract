@@ -3141,39 +3141,70 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
     #         data = st.session_state[dashboard_data_key]
     
     # File upload section with persistent state
+
     uploaded_file = st.file_uploader(
-        "Upload CSV or Excel file for Dashboard Analysis",
+        "Upload CSV or Excel file for Dashboard Analysis (Optional)",
         type=["csv", "xlsx"],
         key=upload_key
     )
 
-    # Process uploaded file
-    if uploaded_file is None:
-        st.session_state[dashboard_data_key] = None
-        data = None
-    else:
+    # Priority 1️⃣: Uploaded file
+    if uploaded_file is not None:
         try:
-            # Load the file based on its type
-            if uploaded_file.name.endswith('.csv'):
+            if uploaded_file.name.endswith(".csv"):
                 data = pd.read_csv(uploaded_file)
             else:
                 data = pd.read_excel(uploaded_file)
-            
-            # Process the data to ensure it's clean
+
             data = process_scraped_data(data)
-            
-            # Store in session state
             st.session_state[dashboard_data_key] = data
-            
             st.success(f"File uploaded successfully! Found {len(data)} records.")
+
         except Exception as e:
             st.error(f"Error processing file: {e}")
-            st.session_state[dashboard_data_key] = None
-            data = None
-
             return
+
+    # Priority 2️⃣: Session state (from Tab 5)
+    elif data is not None:
+        st.session_state[dashboard_data_key] = data
+
+    # Priority 3️⃣: Previously stored dashboard data
+    else:
+        data = st.session_state.get(dashboard_data_key, None)
+
+    # uploaded_file = st.file_uploader(
+    #     "Upload CSV or Excel file for Dashboard Analysis",
+    #     type=["csv", "xlsx"],
+    #     key=upload_key
+    # )
+
+    # # Process uploaded file
+    # if uploaded_file is None:
+    #     st.session_state[dashboard_data_key] = None
+    #     data = None
+    # else:
+    #     try:
+    #         # Load the file based on its type
+    #         if uploaded_file.name.endswith('.csv'):
+    #             data = pd.read_csv(uploaded_file)
+    #         else:
+    #             data = pd.read_excel(uploaded_file)
+            
+    #         # Process the data to ensure it's clean
+    #         data = process_scraped_data(data)
+            
+    #         # Store in session state
+    #         st.session_state[dashboard_data_key] = data
+            
+    #         st.success(f"File uploaded successfully! Found {len(data)} records.")
+    #     except Exception as e:
+    #         st.error(f"Error processing file: {e}")
+    #         st.session_state[dashboard_data_key] = None
+    #         data = None
+
+    #         return
         
-    data = st.session_state.get(dashboard_data_key, None)
+    # data = st.session_state.get(dashboard_data_key, None)
     # If no data is available after upload
     if data is None or len(data) == 0:
         st.session_state[dashboard_data_key] = None
