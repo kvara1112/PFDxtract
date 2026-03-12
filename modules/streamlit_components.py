@@ -1651,6 +1651,8 @@ def render_bert_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
 
                 # Save results to session state to ensure persistence
                 st.session_state[bert_results_key]["results_df"] = results_df
+                st.session_state["theme_analysis_results"] = results_df
+                st.session_state["theme_analysis_source"] = "session"
                 st.session_state[bert_results_key]["highlighted_texts"] = highlighted_texts
 
                 st.success(f"Analysis complete using {len(filtered_frameworks)} frameworks!")

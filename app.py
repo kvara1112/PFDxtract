@@ -762,8 +762,14 @@ def main():
                 )
                 
                 #render_theme_analysis_dashboard(True, st.session_state.current_data, st.session_state.bert_merged_data)
-                render_theme_analysis_dashboard(True, st.session_state.current_data)
-
+                #render_theme_analysis_dashboard(True, st.session_state.current_data)
+                if "theme_analysis_results" in st.session_state:
+                    render_theme_analysis_dashboard(
+                        True,
+                        st.session_state["theme_analysis_results"]
+                    )
+                else:
+                    st.info("Please run Multi-Framework Concept Annotation (Step 5) or upload a results file.")
             elif current_tab == "(8)🕵️‍♀️ AI Annotations Evaluator":
                 st.markdown(
                     """
