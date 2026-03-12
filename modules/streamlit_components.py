@@ -4135,10 +4135,11 @@ def render_theme_analysis_dashboard(isPFD: bool, data: pd.DataFrame = None):
                     area_theme_df = pd.DataFrame(area_theme_data)
                     
                     # Create heatmap using formatted names
-                    pivot_df = area_theme_df.pivot(
+                    pivot_df = area_theme_df.pivot_table(
                         index="Display_Area", 
                         columns="Display_Theme", 
-                        values="Percentage"
+                        values="Percentage",
+                        aggfunc="mean"
                     ).fillna(0)
                     
                     # Ensure we have data to display
