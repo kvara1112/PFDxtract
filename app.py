@@ -686,7 +686,7 @@ def main():
                     - Export full or reduced datasets with essential columns
                     """
                 )
-                render_bert_file_merger()
+                st.session_state.bert_merged_data = render_bert_file_merger()
             
             elif current_tab == "(3)📊 Scraped File Analysis":
                 # Add tab-specific description here
@@ -746,7 +746,7 @@ def main():
                 with st.expander("View Extended Yorkshire Contributory Factors 📘"):
                     st.dataframe(ycff_df, use_container_width=True)
 
-                render_bert_analysis_tab(True, st.session_state.current_data)
+                render_bert_analysis_tab(True, st.session_state.bert_merged_data)# changed from current data
                 
             elif current_tab == "(7)📈 Theme Analysis Dashboard":
                 # Add tab-specific description here
@@ -760,7 +760,10 @@ def main():
                     - Discover relationships between themes using correlation analysis
                     """
                 )
+                
+                #render_theme_analysis_dashboard(True, st.session_state.current_data, st.session_state.bert_merged_data)
                 render_theme_analysis_dashboard(True, st.session_state.current_data)
+
             elif current_tab == "(8)🕵️‍♀️ AI Annotations Evaluator":
                 st.markdown(
                     """

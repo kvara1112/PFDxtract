@@ -1308,8 +1308,8 @@ def render_bert_file_merger():
     
     with merger_tab:
         # Skip the standard render_analyzer_ui and call the file upload directly
-        analyzer._render_multiple_file_upload()
-    
+        analyzer._render_multiple_file_upload(st.session_state.bert_merged_data)
+        return st.session_state.bert_merged_data = self.data.copy()
     with filter_tab:
         render_filter_data_tab()
 
