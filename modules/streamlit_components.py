@@ -47,7 +47,7 @@ import nltk
 @st.cache_resource
 def load_nltk():
     nltk.download("punkt_tab")
-    nltk.dowload("wordnet")
+    nltk.download("wordnet")
 
 load_nltk()
 
