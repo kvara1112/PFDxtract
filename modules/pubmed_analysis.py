@@ -13,7 +13,7 @@ import datetime
 @st.cache_resource
 def load_nltk():
     nltk.download("punkt_tab")
-    
+    nltk.dowload("wordnet")
 
 load_nltk()
 
