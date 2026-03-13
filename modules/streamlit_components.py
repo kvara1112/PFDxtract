@@ -46,7 +46,7 @@ import nltk
 
 @st.cache_resource
 def load_nltk():
-    nltk.download("punkt")
+    nltk.download("punkt_tab")
 
 load_nltk()
 
@@ -1879,7 +1879,7 @@ def render_pubmed_analysis_tab(isPFD: bool, data: pd.DataFrame = None):
     if data is None or data.empty:
         st.info("Waiting for data... Please upload a CSV or Excel file to continue.")
         st.stop()
-        
+
     # Find text columns (object/string type)
     text_columns = data.select_dtypes(include=["object"]).columns.tolist()
     allowed_text_columns = [col for col in["Content", "Extracted_Concerns"] if col in data.columns]
