@@ -15,6 +15,15 @@ import pandas as pd
 from PIL import Image
 import requests
 
+import nltk
+import streamlit as st
+
+@st.cache_resource
+def load_nltk():
+    nltk.download("punkt")
+
+load_nltk()
+
 # Configure Streamlit page
 st.set_page_config(
     page_title="Learning from Evidence through Natural Language Systems",
