@@ -42,7 +42,7 @@ from io import BytesIO
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from PIL import Image
-
+import nltk
 
 @st.cache_resource
 def load_nltk():
