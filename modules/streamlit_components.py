@@ -44,7 +44,11 @@ from docx.oxml.ns import qn
 from PIL import Image
 
 
+@st.cache_resource
+def load_nltk():
+    nltk.download("punkt")
 
+load_nltk()
 
 # Import our modules
 from .core_utils import (

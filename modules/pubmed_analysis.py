@@ -9,7 +9,13 @@ import joblib
 from huggingface_hub import hf_hub_download
 import html
 import datetime
-nltk.download("punkt")
+
+@st.cache_resource
+def load_nltk():
+    nltk.download("punkt")
+
+load_nltk()
+
 
 st.set_page_config(page_title="PubMedBERT Theme Annotation", layout="wide")
 
