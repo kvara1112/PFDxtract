@@ -45,8 +45,18 @@ le = joblib.load(label_path)
 
 # Negation detection
 
-EXPLICIT_NEGATIONS = ["no", "not", "never", "none", "without", "cannot", "can't", "didn't", "doesn't"]
-IMPLICIT_NEGATIONS = ["lack", "absence", "fail", "missing", "decline"]
+EXPLICIT_NEGATIONS = ["no", "not", "never", "none", "nothing", "neither", "nowhere", "nobody",
+    "cannot", "can't", "won't", "isn't", "aren't", "doesn't", "don't", "didn't",
+    "hasn't", "haven't", "hadn't", "wouldn't", "shouldn't", "couldn't", "mustn't", "without", "unwell"]
+    
+IMPLICIT_NEGATIONS = ["fail", "lack", "deny", "refuse", "avoid", "miss", "omit", "exclude", "decline",
+    "prevent", "absent", "missing", "unable", "unavailable", "insufficient", "impossible",
+    "devoid", "failures", "failing", "poor", "communication", "tiredness", "stressed", "inexperience", 
+    "equipment", "workload", "multitask", "procedure", "intoxicated", "self-harm", "delay", "monitoring",
+    "drugs", "missing", "responsibility", "busy", "access", "conditions", "environment", "surroundings",
+    "services", "contact", "space", "instructions", "training", "experience", "unclear", "unobserved",
+    "privacy", "safety", "risk", "escalation", "referral", "unclear", "emergency", "fear", "notes", 
+    "document", "report", "wrong", "overlook", "never", "presumed", "staff"]
 
 def contains_negation(sentence: str) -> bool:
     words = re.findall(r"\b\w+\b", sentence.lower())
